@@ -37,6 +37,7 @@ import {
   serializeStageSelectionFromProduct,
 } from "../utils/categoryHelpers";
 import { addedProductAppliesToArch } from "../utils/activeProductChartMode";
+import { registerInMemoryCacheClearer } from "@/lib/cache/frontend-list-cache";
 import {
   resolveActiveAddedProductOnArch,
   resolveAddedCardProduct,
@@ -46,6 +47,7 @@ import {
   shouldAutoSelectArchForDefaultExtraction,
 } from "../utils/extractionHelpers";
 import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
+import { isNoToothChartProduct } from "../utils/noToothChartProduct";
 import {
   implantOnlySelectionModeForArch,
   resolveDefaultToothChartSlipAssignmentForArch,
@@ -53,6 +55,7 @@ import {
 import { productSupportsAddons, hasVisibleAddonDisplay, resolveRemovableAddonDisplay, buildDefaultSeedEntriesFromProduct } from "../utils/addonDisplayHelpers";
 import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import {
+  findRemovableCardFieldValue,
   getRepToothForRemovableCard,
   listRemovableCardIdsOnArch,
 } from "../utils/archSharedRemovable";
@@ -116,7 +119,36 @@ interface TeethShadeEntry {
   id: number;
   teeth_shade_id: number;
   name: string;
-  brand?: { id: number } | null;
+  brand?: { id: number; system_name?: string | null } | null;
+}
+
+function normalizeShadeGuideKey(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase().replace(/_/g, " ");
+}
+
+/** Prefer the active shade guide when the same shade code exists on multiple brands (e.g. B4). */
+function matchTeethShadeByNameAndGuide<T extends {
+  name?: string;
+  brand?: { system_name?: string | null } | null;
+}>(
+  shades: T[],
+  shadeName: string,
+  preferredSystemName?: string | null
+): T | null {
+  const normalizedName = shadeName.trim().toLowerCase();
+  if (!normalizedName || shades.length === 0) return null;
+  const preferred = normalizeShadeGuideKey(preferredSystemName);
+  const nameMatches = shades.filter(
+    (s) => (s.name ?? "").trim().toLowerCase() === normalizedName
+  );
+  if (nameMatches.length === 0) return null;
+  if (preferred) {
+    const guideMatch = nameMatches.find(
+      (s) => normalizeShadeGuideKey(s.brand?.system_name) === preferred
+    );
+    if (guideMatch) return guideMatch;
+  }
+  return nameMatches[0] ?? null;
 }
 
 /** Fetch teeth shade catalog once for ID resolution at shade selection time.
@@ -144,12 +176,16 @@ async function fetchTeethShadeCatalog(): Promise<TeethShadeEntry[]> {
       const entries: TeethShadeEntry[] = [];
       for (const brand of brands) {
         const shades: any[] = brand.shades ?? brand.teeth_shades ?? brand.teethShades ?? [];
+        const systemName =
+          brand.system_name ?? brand.brand?.system_name ?? null;
         for (const shade of shades) {
           entries.push({
             id: shade.id,
             teeth_shade_id: shade.id,
             name: shade.name ?? "",
-            brand: brand.id ? { id: brand.id } : null,
+            brand: brand.id
+              ? { id: brand.id, system_name: systemName }
+              : null,
           });
         }
       }
@@ -168,6 +204,13 @@ async function fetchTeethShadeCatalog(): Promise<TeethShadeEntry[]> {
 /** Module-level cache & in-flight dedup for product details to avoid duplicate API calls */
 const _productDetailsCache = new Map<string, ProductApiData>();
 const _productDetailsInflight = new Map<string, Promise<ProductApiData | null>>();
+
+export function clearCaseDesignStateProductDetailsCache() {
+  _productDetailsCache.clear();
+  _productDetailsInflight.clear();
+}
+
+registerInMemoryCacheClearer(clearCaseDesignStateProductDetailsCache);
 
 /** Fetch full product details (stages, impressions, gum_shades, etc.) */
 async function fetchProductDetails(productId: number, customerId: number): Promise<ProductApiData | null> {
@@ -245,9 +288,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
     });
   };
   const isPrepPonticExpanded = (toothNumber: number) => expandedPrepPontic[toothNumber] !== false;
-  // In read-only (virtual slip) mode, always show both arches regardless of initialArch.
-  const [showMaxillary, setShowMaxillary] = useState(props.caseSubmitted ? true : props.initialArch !== "mandibular");
-  const [showMandibular, setShowMandibular] = useState(props.caseSubmitted ? true : props.initialArch !== "maxillary");
+  // In read-only (virtual slip) and edit-slip modes, always show both arches regardless of initialArch.
+  const showBothArchesByDefault = Boolean(props.caseSubmitted || props.preloadInitialSlipState);
+  const [showMaxillary, setShowMaxillary] = useState(showBothArchesByDefault ? true : props.initialArch !== "mandibular");
+  const [showMandibular, setShowMandibular] = useState(showBothArchesByDefault ? true : props.initialArch !== "maxillary");
   const [showDetails, setShowDetails] = useState(false);
 
   // Opposing arch extraction map: toothNumber → extractionCode
@@ -1633,6 +1677,53 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [toothFieldProgress, selectedAddonsByTooth, setSelectedAddonsByTooth]
   );
 
+  // Create-slip "edit product" on card 0: hand card 0's user-configured teeth on that arch
+  // to the replacement card so tooth-keyed field values carry over.
+  const card0HandoverDoneRef = useRef<Set<number>>(new Set());
+  /** The guided both-arch flow waits on card 0 of each arch — end it once card 0 leaves an arch. */
+  const endGuidedBothArchFlow = useCallback(() => {
+    if (!guidedBothArches) return;
+    crossArchFlowRef.current = {
+      upperDoneJumped: true,
+      lowerDoneJumped: true,
+      upperFieldsDoneJumped: true,
+      lowerFieldsDoneJumped: true,
+    };
+    setGuidedBothArchPhase("both-active");
+  }, [guidedBothArches]);
+  useEffect(() => {
+    for (const ap of props.addedProducts ?? []) {
+      if (!ap.replacesInitialProduct || card0HandoverDoneRef.current.has(ap.id)) continue;
+      if (ap.arch !== "maxillary" && ap.arch !== "mandibular") continue;
+      const arch = ap.arch as Arch;
+      card0HandoverDoneRef.current.add(ap.id);
+      // Teeth already carry the user's selections — skip the new product's default auto-select.
+      addedProductSetupDoneRef.current.add(`${arch}_${ap.id}`);
+      const selected = arch === "maxillary" ? teeth.maxillaryTeeth : teeth.mandibularTeeth ?? [];
+      const retention =
+        arch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes ?? {};
+      const extractionMap =
+        arch === "maxillary" ? teeth.maxillaryToothExtractionMap : teeth.mandibularToothExtractionMap ?? {};
+      for (const tn of arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL) {
+        if (toothFieldProgress.getToothProductCard(arch, tn) !== 0) continue;
+        if (!selected.includes(tn) && !retention[tn]?.length && !extractionMap[tn]) continue;
+        toothFieldProgress.setToothProductCard(arch, tn, ap.id);
+      }
+      endGuidedBothArchFlow();
+    }
+  }, [
+    props.addedProducts,
+    teeth.maxillaryTeeth,
+    teeth.mandibularTeeth,
+    teeth.maxillaryRetentionTypes,
+    teeth.mandibularRetentionTypes,
+    teeth.maxillaryToothExtractionMap,
+    teeth.mandibularToothExtractionMap,
+    toothFieldProgress.getToothProductCard,
+    toothFieldProgress.setToothProductCard,
+    endGuidedBothArchFlow,
+  ]);
+
   // Added products — cache detail; apply default-extraction auto-select per card when applicable.
   useEffect(() => {
     if (props.caseSubmitted) return;
@@ -1650,6 +1741,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
       const setupKey = `${arch}_${ap.id}`;
       const applyIfReady = (product: ProductApiData) => {
+        const catalog = getImpressionOptionsForProduct(product);
+        if (catalog.length > 0) {
+          modals.setSelectedImpressions((prev) =>
+            reconcileArchSelectionsWithCatalog(prev, arch, catalog)
+          );
+        }
         if (!addedProductSetupDoneRef.current.has(setupKey)) {
           addedProductSetupDoneRef.current.add(setupKey);
           applyAddedProductDefaultExtractions(product, arch, ap.id);
@@ -1661,9 +1758,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
         const virtualTooth = -ap.id;
         const existingVirtual = toothFieldProgress.getToothProduct(arch, virtualTooth);
         if (
-          !existingVirtual ||
-          existingVirtual.id !== product.id ||
-          !isHydratedProductApiData(existingVirtual)
+          existingVirtual !== product &&
+          (!existingVirtual ||
+            existingVirtual.id !== product.id ||
+            !isHydratedProductApiData(existingVirtual))
         ) {
           toothFieldProgress.setToothProduct(arch, virtualTooth, product);
           autoPopulateDefaultAddons(arch, virtualTooth, product);
@@ -1675,26 +1773,32 @@ export function useCaseDesignState(props: CaseDesignProps) {
           const repTooth = Math.min(...cardTeethOnArch);
           autoPopulateDefaultAddons(arch, repTooth, product, [virtualTooth]);
         }
+        if (!props.preloadInitialSlipState) {
+          for (const tn of cardTeethOnArch) {
+            const existingOnTooth = toothFieldProgress.getToothProduct(arch, tn);
+            if (existingOnTooth && existingOnTooth.id !== product.id) {
+              toothFieldProgress.setToothProduct(arch, tn, product);
+            }
+          }
+        }
         if (props.preloadInitialSlipState) {
           const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
           const cardTeeth = allTeeth.filter(
             (tn) => (toothFieldProgress.getToothProductCard(arch, tn) ?? -1) === ap.id
           );
-          const hydrationKey = `${arch}_${ap.id}`;
-          if (!preloadCardHydrationDoneRef.current.has(hydrationKey)) {
-            if (cardTeeth.length > 0) {
-              for (const tn of cardTeeth) {
-                const existingOnTooth = toothFieldProgress.getToothProduct(arch, tn);
-                if (
-                  existingOnTooth?.id === product.id &&
-                  isHydratedProductApiData(existingOnTooth)
-                ) {
-                  continue;
-                }
-                toothFieldProgress.setToothProduct(arch, tn, product);
+          if (cardTeeth.length > 0) {
+            for (const tn of cardTeeth) {
+              const existingOnTooth = toothFieldProgress.getToothProduct(arch, tn);
+              if (
+                existingOnTooth === product ||
+                (existingOnTooth?.id === product.id &&
+                  isHydratedProductApiData(existingOnTooth))
+              ) {
+                continue;
               }
-              preloadCardHydrationDoneRef.current.add(hydrationKey);
+              toothFieldProgress.setToothProduct(arch, tn, product);
             }
+            preloadCardHydrationDoneRef.current.add(`${arch}_${ap.id}`);
           }
 
           // Merge initialSlipState because this effect can run before the mount hydration
@@ -1724,8 +1828,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
         continue;
       }
 
+      // Cache only holds full detail responses; products with no advance fields / shades
+      // are still complete and must not be refetched every run (refetch → setToothProduct → rerun).
       const cached = cachedProductRef.current.get(ap.productId);
-      if (cached && isHydratedProductApiData(cached)) {
+      if (cached) {
         applyIfReady(cached);
         continue;
       }
@@ -2304,6 +2410,28 @@ export function useCaseDesignState(props: CaseDesignProps) {
     []
   );
 
+  /** Keep shade-picker selectedShades in sync when teeth_shade is mirrored. */
+  const syncMirroredTeethShadeSelection = useCallback(
+    (arch: Arch, toothNumber: number, shadeFieldValue: string) => {
+      let shadeName = shadeFieldValue.trim();
+      if (shadeName.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(shadeName) as { name?: string };
+          if (parsed?.name) shadeName = String(parsed.name);
+        } catch {
+          /* keep raw */
+        }
+      }
+      if (!shadeName) return;
+      const key = buildShadeSelectionKey(`prep_${toothNumber}`, arch, "tooth_shade");
+      shades.setSelectedShades((prev) => {
+        if (prev[key]) return prev;
+        return { ...prev, [key]: shadeName };
+      });
+    },
+    [shades.setSelectedShades]
+  );
+
   /**
    * Backfill removable fields for a newly-added product from an already-configured
    * removable product on the same arch (derive defaults; target can still override).
@@ -2311,6 +2439,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const backfillRemovableFromExistingCard = useCallback(
     (arch: Arch, targetCardId: number, targetTooth: number) => {
       if (targetCardId === 0) return;
+      const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
+      // Impression-only / no tooth-chart products must not inherit grade/shade/stage
+      // from another removable on the arch.
+      if (isNoToothChartProduct(targetProduct)) return;
       const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
       const cardIds = listRemovableCardIdsOnArch(
         arch,
@@ -2322,37 +2454,54 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const targetStageKey = `${arch}_prep_${targetTooth}`;
 
       for (const donorCardId of cardIds) {
-        const donorTooth = getRepToothForRemovableCard(
-          arch,
-          donorCardId,
-          allTeeth,
-          toothFieldProgress.getToothProductCard,
-          toothFieldProgress.getToothProduct
-        );
-
         for (const step of REMOVABLE_MIRROR_STEPS) {
           const fieldStep = step as FieldStep;
           const targetCompleted = toothFieldProgress.isFieldCompleted(arch, targetTooth, fieldStep);
           const targetValue = toothFieldProgress.getFieldValue(arch, targetTooth, fieldStep);
           if (targetCompleted || targetValue) continue;
 
-          const donorCompleted = toothFieldProgress.isFieldCompleted(arch, donorTooth, fieldStep);
-          const donorValue = toothFieldProgress.getFieldValue(arch, donorTooth, fieldStep);
-          if (!donorCompleted && !donorValue) continue;
+          const donor = findRemovableCardFieldValue(
+            arch,
+            donorCardId,
+            allTeeth,
+            fieldStep,
+            toothFieldProgress.getToothProductCard,
+            toothFieldProgress.getToothProduct,
+            toothFieldProgress.getFieldValue,
+            toothFieldProgress.isFieldCompleted
+          );
+          if (!donor) continue;
           const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
-          if (!shouldBackfillRemovableStep(fieldStep, donorValue || "", targetProduct)) {
+          if (!shouldBackfillRemovableStep(fieldStep, donor.value || "", targetProduct)) {
             continue;
           }
 
-          if (donorCompleted) {
-            toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, donorValue || "");
-          } else if (donorValue) {
-            toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, donorValue);
+          if (donor.completed) {
+            toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, donor.value || "");
+          } else if (donor.value) {
+            toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, donor.value);
+          }
+          if (fieldStep === "teeth_shade" && donor.value) {
+            syncMirroredTeethShadeSelection(arch, targetTooth, donor.value);
           }
         }
 
-        const donorStageKey = `${arch}_prep_${donorTooth}`;
-        const donorStage = modals.selectedStages[donorStageKey];
+        const donorStageField = findRemovableCardFieldValue(
+          arch,
+          donorCardId,
+          allTeeth,
+          "stage",
+          toothFieldProgress.getToothProductCard,
+          toothFieldProgress.getToothProduct,
+          toothFieldProgress.getFieldValue,
+          toothFieldProgress.isFieldCompleted
+        );
+        const donorStageKey = donorStageField
+          ? `${arch}_prep_${donorStageField.tooth}`
+          : null;
+        const donorStage = donorStageKey
+          ? modals.selectedStages[donorStageKey]
+          : undefined;
         const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
         if (
           donorStage &&
@@ -2375,15 +2524,23 @@ export function useCaseDesignState(props: CaseDesignProps) {
       props.addedProducts,
       toothFieldProgress,
       shouldBackfillRemovableStep,
+      syncMirroredTeethShadeSelection,
     ]
   );
 
   /**
-   * Backfill removable fields from the opposite arch (upper <-> lower) for both-arch cases.
-   * This keeps teeth/gum shade (and related removable defaults) mirrored when adding products later.
+   * Backfill removable fields from the opposite arch (upper <-> lower).
+   * Teeth shade (and related removable defaults) should mirror when adding the
+   * second-arch product after the first arch was configured.
    */
   const backfillRemovableFromOppositeArch = useCallback(
     (arch: Arch, targetTooth: number) => {
+      const targetProductEarly = toothFieldProgress.getToothProduct(arch, targetTooth);
+      // Impression-only / no tooth-chart products must not inherit upper↔lower
+      // grade, stage, or shades from the opposite arch.
+      if (isNoToothChartProduct(targetProductEarly)) {
+        return;
+      }
       const oppositeArch: Arch = arch === "maxillary" ? "mandibular" : "maxillary";
       const sourceAllTeeth = oppositeArch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
       const sourceCardIds = listRemovableCardIdsOnArch(
@@ -2394,39 +2551,57 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (sourceCardIds.length === 0) return;
 
       for (const sourceCardId of sourceCardIds) {
-        const sourceTooth = getRepToothForRemovableCard(
-          oppositeArch,
-          sourceCardId,
-          sourceAllTeeth,
-          toothFieldProgress.getToothProductCard,
-          toothFieldProgress.getToothProduct
-        );
-        if (sourceTooth == null) continue;
-
         for (const step of REMOVABLE_MIRROR_STEPS) {
           const fieldStep = step as FieldStep;
           const targetCompleted = toothFieldProgress.isFieldCompleted(arch, targetTooth, fieldStep);
           const targetValue = toothFieldProgress.getFieldValue(arch, targetTooth, fieldStep);
           if (targetCompleted || targetValue) continue;
 
-          const sourceCompleted = toothFieldProgress.isFieldCompleted(oppositeArch, sourceTooth, fieldStep);
-          const sourceValue = toothFieldProgress.getFieldValue(oppositeArch, sourceTooth, fieldStep);
-          if (!sourceCompleted && !sourceValue) continue;
+          // Scan all teeth on the source card — shade is stored on chart-selected
+          // teeth, not the card-0 sentinel used only to render the accordion.
+          const source = findRemovableCardFieldValue(
+            oppositeArch,
+            sourceCardId,
+            sourceAllTeeth,
+            fieldStep,
+            toothFieldProgress.getToothProductCard,
+            toothFieldProgress.getToothProduct,
+            toothFieldProgress.getFieldValue,
+            toothFieldProgress.isFieldCompleted
+          );
+          if (!source) continue;
           const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
-          if (!shouldBackfillRemovableStep(fieldStep, sourceValue || "", targetProduct)) {
+          if (!shouldBackfillRemovableStep(fieldStep, source.value || "", targetProduct)) {
             continue;
           }
 
-          if (sourceCompleted) {
-            toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, sourceValue || "");
-          } else if (sourceValue) {
-            toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, sourceValue);
+          if (source.completed) {
+            toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, source.value || "");
+          } else if (source.value) {
+            toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, source.value);
+          }
+          if (fieldStep === "teeth_shade" && source.value) {
+            syncMirroredTeethShadeSelection(arch, targetTooth, source.value);
           }
         }
 
-        const sourceStageKey = `${oppositeArch}_prep_${sourceTooth}`;
+        const sourceStageField = findRemovableCardFieldValue(
+          oppositeArch,
+          sourceCardId,
+          sourceAllTeeth,
+          "stage",
+          toothFieldProgress.getToothProductCard,
+          toothFieldProgress.getToothProduct,
+          toothFieldProgress.getFieldValue,
+          toothFieldProgress.isFieldCompleted
+        );
+        const sourceStageKey = sourceStageField
+          ? `${oppositeArch}_prep_${sourceStageField.tooth}`
+          : null;
         const targetStageKey = `${arch}_prep_${targetTooth}`;
-        const sourceStage = modals.selectedStages[sourceStageKey];
+        const sourceStage = sourceStageKey
+          ? modals.selectedStages[sourceStageKey]
+          : undefined;
         const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
         if (
           sourceStage &&
@@ -2440,15 +2615,16 @@ export function useCaseDesignState(props: CaseDesignProps) {
       }
     },
     [
-      props.initialArch,
       props.addedProducts,
       MAXILLARY_ALL,
       MANDIBULAR_ALL,
       REMOVABLE_MIRROR_STEPS,
       isCard0RemovableOnArch,
-      activeProductCardId,
       toothFieldProgress,
       shouldBackfillRemovableStep,
+      syncMirroredTeethShadeSelection,
+      modals.selectedStages,
+      modals.setSelectedStages,
     ]
   );
 
@@ -2477,6 +2653,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (!hasVirtualProduct) continue;
 
       seededRemovableVirtualRef.current.add(seedKey);
+      const virtualProduct = toothFieldProgress.getToothProduct(arch, virtualTooth);
+      if (isNoToothChartProduct(virtualProduct)) {
+        continue;
+      }
       backfillRemovableFromExistingCard(arch, ap.id, virtualTooth);
       backfillRemovableFromOppositeArch(arch, virtualTooth);
     }
@@ -3055,12 +3235,22 @@ export function useCaseDesignState(props: CaseDesignProps) {
   }, []);
 
   const enrichTeethShadeFieldValue = useCallback(
-    (arch: Arch, toothNumber: number, step: FieldStep, shadeName: string) => {
+    (
+      arch: Arch,
+      toothNumber: number,
+      step: FieldStep,
+      shadeName: string,
+      preferredSystemName?: string | null
+    ) => {
       void (async () => {
         if (teethShadeCatalogRef.current.length === 0) {
           teethShadeCatalogRef.current = await fetchTeethShadeCatalog();
         }
-        const matched = teethShadeCatalogRef.current.find((s) => s.name === shadeName);
+        const matched = matchTeethShadeByNameAndGuide(
+          teethShadeCatalogRef.current,
+          shadeName,
+          preferredSystemName ?? shades.selectedShadeGuide
+        );
         if (!matched) return;
         const enriched = buildTeethShadeJson(shadeName, matched);
         if (toothFieldProgress.getFieldValue(arch, toothNumber, step)) {
@@ -3068,7 +3258,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
         }
       })();
     },
-    [buildTeethShadeJson, mirroredStoreFieldValue, toothFieldProgress]
+    [
+      buildTeethShadeJson,
+      mirroredStoreFieldValue,
+      toothFieldProgress,
+      shades.selectedShadeGuide,
+    ]
   );
 
   const handleShadeSelect = useCallback(
@@ -3081,30 +3276,58 @@ export function useCaseDesignState(props: CaseDesignProps) {
       prefetchTeethShadeCatalog();
 
       const prepMatch = productId.match(/^prep_(-?\d+)$/);
-      let matchedTeethShade: TeethShadeEntry | null = null;
-      if (prepMatch && fieldType === "tooth_shade") {
-        const toothNumber = parseInt(prepMatch[1], 10);
+      const fixedProductMatch = productId.match(/^fixed_p_(\d+)$/);
+      const fixedLegacyMatch = productId.match(/^fixed_(\d+)$/);
+      const preferredGuide = shades.selectedShadeGuide;
+
+      const resolveMatchedTeethShade = (
+        toothNumber: number
+      ): TeethShadeEntry | null => {
         const rawProduct = toothFieldProgress.getToothProduct(arch, toothNumber);
         const product = rawProduct ? enrichProductWithGrades(arch, rawProduct) : null;
         const productShades = (product?.teeth_shades ?? []) as ProductTeethShade[];
-        const fromProduct = productShades.find((s) => s.name === shade);
+        const fromProduct = matchTeethShadeByNameAndGuide(
+          productShades,
+          shade,
+          preferredGuide
+        );
         if (fromProduct) {
-          matchedTeethShade = {
+          return {
             teeth_shade_id: Number(fromProduct.teeth_shade_id ?? fromProduct.id ?? 0),
             id: Number(fromProduct.id ?? 0),
             name: fromProduct.name,
-            brand: fromProduct.brand ? { id: fromProduct.brand.id } : null,
+            brand: fromProduct.brand
+              ? {
+                  id: fromProduct.brand.id,
+                  system_name: fromProduct.brand.system_name,
+                }
+              : null,
           };
-        } else if (teethShadeCatalogRef.current.length > 0) {
-          matchedTeethShade =
-            teethShadeCatalogRef.current.find((s) => s.name === shade) ?? null;
+        }
+        if (teethShadeCatalogRef.current.length > 0) {
+          return matchTeethShadeByNameAndGuide(
+            teethShadeCatalogRef.current,
+            shade,
+            preferredGuide
+          );
+        }
+        return null;
+      };
+
+      let matchedTeethShade: TeethShadeEntry | null = null;
+      if (fieldType === "tooth_shade") {
+        if (prepMatch) {
+          matchedTeethShade = resolveMatchedTeethShade(parseInt(prepMatch[1], 10));
+        } else if (fixedProductMatch || fixedLegacyMatch) {
+          const toothNumber =
+            shades.shadeSelectionState.storageToothNumber ??
+            (fixedLegacyMatch ? parseInt(fixedLegacyMatch[1], 10) : null);
+          if (toothNumber != null) {
+            matchedTeethShade = resolveMatchedTeethShade(toothNumber);
+          }
         }
       }
       const shadeJson = buildTeethShadeJson(shade, matchedTeethShade);
-
-      // Fixed products: fixed_p_{productId} or legacy fixed_NN
-      const fixedProductMatch = productId.match(/^fixed_p_(\d+)$/);
-      const fixedLegacyMatch = productId.match(/^fixed_(\d+)$/);
       if (fixedProductMatch || fixedLegacyMatch) {
         const toothNumber =
           shades.shadeSelectionState.storageToothNumber ??
@@ -3133,8 +3356,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
               [String(selectedAdvanceFieldId)]: {
                 name: shade,
                 advanceFieldId: selectedAdvanceFieldId,
-                teeth_shade_id: 0,
-                brand_id: 0,
+                teeth_shade_id: matchedTeethShade?.teeth_shade_id ?? matchedTeethShade?.id ?? 0,
+                brand_id: matchedTeethShade?.brand?.id ?? 0,
               },
             };
             const allFilled = relevantFields.every((field) => updatedSelections[String(field.id)]);
@@ -3151,7 +3374,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
           const step = FIXED_SHADE_FIELD_TO_STEP[fieldType];
           if (step) {
             mirroredCompleteFieldStep(arch, toothNumber, step, shadeJson);
-            enrichTeethShadeFieldValue(arch, toothNumber, step, shade);
+            if (!matchedTeethShade) {
+              enrichTeethShadeFieldValue(arch, toothNumber, step, shade, preferredGuide);
+            }
           }
         }
 
@@ -3229,7 +3454,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         if (fieldType === "tooth_shade") {
           mirroredCompleteFieldStep(arch, toothNumber, "teeth_shade", shadeJson);
           if (!matchedTeethShade) {
-            enrichTeethShadeFieldValue(arch, toothNumber, "teeth_shade", shade);
+            enrichTeethShadeFieldValue(arch, toothNumber, "teeth_shade", shade, preferredGuide);
           }
         }
       }
@@ -3353,6 +3578,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
     if (Object.keys(s.selectedShades).length > 0) {
       shades.setSelectedShades(s.selectedShades);
     }
+    if (s.selectedShadeGuide) {
+      shades.setSelectedShadeGuide(s.selectedShadeGuide);
+    }
 
     // Stage selections
     if (Object.keys(s.selectedStages).length > 0) {
@@ -3401,6 +3629,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     triggerLowerFieldsPhase,
     guidedBothArches,
     guidedBothArchPhase,
+    endGuidedBothArchFlow,
     // Expansion
     expandedCard,
     setExpandedCard,

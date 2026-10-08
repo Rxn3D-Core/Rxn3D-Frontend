@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { X, HelpCircle, Copy, Trash2, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,9 +10,16 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslation } from "react-i18next"
 import type { Abutment } from "@/lib/api/advance-mode-query"
+import { FRESH_LIST_QUERY_OPTIONS } from "@/lib/cache/frontend-list-cache"
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
+import type { LibraryCategoryApi } from "@/hooks/use-library-categories"
+import {
+  MainCategoryMultiSelect,
+  formatAbutmentOptionCategoryIds,
+  parseAbutmentOptionCategoryIds,
+} from "@/components/advance-mode/main-category-multi-select"
 
 interface AddAbutmentModalProps {
   isOpen: boolean
@@ -31,6 +39,27 @@ interface PlatformOption {
   isDefault: boolean
   status: boolean
   price?: string
+  categoryIds: number[]
+}
+
+interface AbutmentAddonRow {
+  id: string
+  serverId?: number
+  name: string
+  price: string
+  status: boolean
+  categoryIds: number[]
+}
+
+function abutmentToAddonRows(abutment: Abutment): AbutmentAddonRow[] {
+  return (abutment.addons ?? []).map((addon, index) => ({
+    id: addon.id != null ? String(addon.id) : `addon-tmp-${index}`,
+    serverId: typeof addon.id === "number" ? addon.id : undefined,
+    name: addon.name ?? "",
+    price: addon.price != null ? String(addon.price) : "0.00",
+    status: addon.status !== "Inactive",
+    categoryIds: parseAbutmentOptionCategoryIds(addon.category_ids),
+  }))
 }
 
 function abutmentToPlatformOptions(abutment: Abutment): PlatformOption[] {
@@ -43,12 +72,13 @@ function abutmentToPlatformOptions(abutment: Abutment): PlatformOption[] {
     isDefault: opt.is_default === "Yes",
     status: opt.status === "Active",
     price: opt.price != null ? String(opt.price) : "0.00",
+    categoryIds: parseAbutmentOptionCategoryIds(opt.category_ids),
   }))
 }
 
 export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = null, isCopying = false }: AddAbutmentModalProps) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState<"platform-options" | "platform-pricing">("platform-options")
+  const [activeTab, setActiveTab] = useState<"platform-options" | "platform-pricing" | "abutment-addons">("platform-options")
   const [searchQuery, setSearchQuery] = useState("")
   const [formData, setFormData] = useState({
     type: "",
@@ -62,18 +92,69 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
   })
 
   const [platforms, setPlatforms] = useState<PlatformOption[]>([
-    { id: "1", image: null, platformName: "Narrow CrossFit® BL Tapered", isDefault: true, status: true, price: "99" },
-    { id: "2", image: null, platformName: "Narrow CrossFit® BL Tapered, Guided", isDefault: false, status: true, price: "99" },
+    { id: "1", image: null, platformName: "Narrow CrossFit® BL Tapered", isDefault: true, status: true, price: "99", categoryIds: [] },
+    { id: "2", image: null, platformName: "Narrow CrossFit® BL Tapered, Guided", isDefault: false, status: true, price: "99", categoryIds: [] },
   ])
+  const [addonRows, setAddonRows] = useState<AbutmentAddonRow[]>([])
+  const addonNameInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const pendingAddonFocusId = useRef<string | null>(null)
 
   const [currentPage, setCurrentPage] = useState(1)
   const [isSaving, setIsSaving] = useState(false)
   const itemsPerPage = 10
   const totalPages = Math.ceil(platforms.length / itemsPerPage)
+  const customerId = typeof window === "undefined" ? null : resolveLibraryCustomerId()
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+
+  const { data: mainCategories = [] } = useQuery({
+    queryKey: ["abutment-option-main-categories", customerId],
+    queryFn: async (): Promise<LibraryCategoryApi[]> => {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        throw new Error("No authentication token found")
+      }
+      if (!apiBaseUrl) {
+        throw new Error("API_BASE_URL is not configured")
+      }
+      const baseUrl = apiBaseUrl.endsWith("/") ? apiBaseUrl.slice(0, -1) : apiBaseUrl
+      const url = new URL(`${baseUrl}/library/categories`)
+      url.searchParams.set("status", "Active")
+      url.searchParams.set("per_page", "100")
+      url.searchParams.set("lang", "en")
+      if (customerId) {
+        url.searchParams.set("customer_id", String(customerId))
+      }
+      const res = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      if (!res.ok) {
+        throw new Error(`Failed to fetch categories: ${res.status}`)
+      }
+      const json = await res.json()
+      return Array.isArray(json.data?.data) ? json.data.data : []
+    },
+    enabled: isOpen,
+    retry: 1,
+    ...FRESH_LIST_QUERY_OPTIONS,
+  })
+
+  const categoryOptions = useMemo(
+    () =>
+      mainCategories
+        .filter((category) => String(category.status ?? "Active").trim() === "Active")
+        .map((category) => ({ id: Number(category.id), name: category.name }))
+        .filter((category) => Number.isInteger(category.id) && category.id > 0),
+    [mainCategories]
+  )
 
   // Reset or hydrate when modal opens
   useEffect(() => {
     if (!isOpen) return
+    pendingAddonFocusId.current = null
     setActiveTab("platform-options")
     setSearchQuery("")
     setCurrentPage(1)
@@ -95,6 +176,13 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
         serverId: undefined // Reset serverId for clone
       }))
       setPlatforms(mapped.length > 0 ? mapped : [])
+      setAddonRows(
+        abutmentToAddonRows(initialAbutment).map((row) => ({
+          ...row,
+          id: `clone-addon-${row.id}-${Date.now()}`,
+          serverId: undefined,
+        }))
+      )
     } else if (isOpen && initialAbutment) {
       const chargeType =
         initialAbutment.charge_type === "per_option" ? "per_option" : "once_per_abutment"
@@ -109,6 +197,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       })
       const mapped = abutmentToPlatformOptions(initialAbutment)
       setPlatforms(mapped.length > 0 ? mapped : [])
+      setAddonRows(abutmentToAddonRows(initialAbutment))
     } else if (isOpen) {
       setFormData({
         type: "",
@@ -120,8 +209,19 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
         additionalCharge: "0.00",
       })
       setPlatforms([])
+      setAddonRows([])
     }
   }, [isOpen, initialAbutment, isCopying])
+
+  useEffect(() => {
+    const id = pendingAddonFocusId.current
+    if (!id) return
+    const input = addonNameInputRefs.current[id]
+    if (input) {
+      input.focus()
+      pendingAddonFocusId.current = null
+    }
+  }, [addonRows])
 
   if (!isOpen) return null
 
@@ -139,12 +239,14 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
           is_default: "Yes" | "No"
           price: number | null
           sequence: number
+          category_ids: string
         } = {
           name: platform.platformName?.trim() ?? "",
           status: platform.status ? "Active" : "Inactive",
           is_default: platform.isDefault ? "Yes" : "No",
           price: pricingData.chargeType === "per_option" ? (parseFloat(platform.price || "0") || 0) : null,
           sequence: index + 1,
+          category_ids: formatAbutmentOptionCategoryIds(platform.categoryIds ?? []),
         }
         if (platform.serverId != null) {
           row.id = platform.serverId
@@ -153,6 +255,29 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       })
       .filter((option) => option.name)
 
+    const addonsPayload = addonRows
+      .map((addon, index) => {
+        const row: {
+          id?: number
+          name: string
+          price: number
+          status: "Active" | "Inactive"
+          sequence: number
+          category_ids: string
+        } = {
+          name: addon.name?.trim() ?? "",
+          price: parseFloat(addon.price || "0") || 0,
+          status: addon.status ? "Active" : "Inactive",
+          sequence: index + 1,
+          category_ids: formatAbutmentOptionCategoryIds(addon.categoryIds ?? []),
+        }
+        if (addon.serverId != null) {
+          row.id = addon.serverId
+        }
+        return row
+      })
+      .filter((addon) => addon.name)
+
     const payload: Record<string, unknown> = {
       type: formData.type.trim(),
       description: formData.description?.trim() || undefined,
@@ -160,9 +285,10 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       charge_type: pricingData.chargeType,
       price: pricingData.chargeType === "once_per_abutment" ? (parseFloat(pricingData.additionalCharge) || 0) : null,
       options: optionsPayload,
+      addons: addonsPayload,
     }
 
-    if (initialAbutment?.id != null) {
+    if (initialAbutment?.id != null && !isCopying) {
       payload.id = initialAbutment.id
       if (initialAbutment.code) {
         payload.code = initialAbutment.code
@@ -191,6 +317,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       isDefault: false,
       status: true,
       price: "0.00",
+      categoryIds: [],
     }
     setPlatforms([...platforms, newPlatform])
   }
@@ -209,6 +336,37 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
         plat.id === id ? { ...plat, price } : plat
       )
     )
+  }
+
+  const handleUpdatePlatformCategories = (id: string, categoryIds: number[]) => {
+    setPlatforms(
+      platforms.map((plat) =>
+        plat.id === id ? { ...plat, categoryIds } : plat
+      )
+    )
+  }
+
+  const handleAddAddon = () => {
+    const id = `new-addon-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    pendingAddonFocusId.current = id
+    setAddonRows([
+      ...addonRows,
+      {
+        id,
+        name: "",
+        price: "0.00",
+        status: true,
+        categoryIds: [],
+      },
+    ])
+  }
+
+  const handleUpdateAddon = (id: string, patch: Partial<AbutmentAddonRow>) => {
+    setAddonRows(addonRows.map((row) => (row.id === id ? { ...row, ...patch } : row)))
+  }
+
+  const handleDeleteAddon = (id: string) => {
+    setAddonRows(addonRows.filter((row) => row.id !== id))
   }
 
   const handleDeletePlatform = (id: string) => {
@@ -257,7 +415,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-2 sm:p-3">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-5xl h-full max-h-[94vh] sm:h-auto sm:max-h-[88vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-6xl h-full max-h-[94vh] sm:h-auto sm:max-h-[88vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-5 py-2.5 sm:py-3 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
@@ -365,6 +523,16 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
               >
                 Platform Pricing
               </button>
+              <button
+                onClick={() => setActiveTab("abutment-addons")}
+                className={`pb-2 px-1 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === "abutment-addons"
+                    ? "border-[#1162a8] text-[#1162a8]"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Abutment Addons
+              </button>
             </div>
           </div>
 
@@ -395,8 +563,8 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
               </div>
 
               {/* Platforms Table */}
-              <div className="border border-gray-200 rounded-lg overflow-x-auto">
-                <table className="w-full min-w-[600px]">
+              <div className="border border-gray-200 rounded-lg overflow-x-auto overflow-y-clip">
+                <table className="w-full min-w-[760px]">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-2 sm:px-3 py-2 text-left">
@@ -404,6 +572,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                       </th>
                       <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Image</th>
                       <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Platform Name</th>
+                      <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Main Category</th>
                   {pricingData.chargeType === "per_option" && (
                         <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Price</th>
                       )}
@@ -427,6 +596,13 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                             onChange={(e) => handleUpdatePlatformName(platform.id, e.target.value)}
                             placeholder="Option name"
                             className="h-8 text-xs"
+                          />
+                        </td>
+                        <td className="px-2 sm:px-3 py-2">
+                          <MainCategoryMultiSelect
+                            value={platform.categoryIds ?? []}
+                            onChange={(ids) => handleUpdatePlatformCategories(platform.id, ids)}
+                            options={categoryOptions}
                           />
                         </td>
                         {pricingData.chargeType === "per_option" && (
@@ -613,6 +789,100 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                       .
                     </div>
                   )}
+            </div>
+          )}
+
+          {activeTab === "abutment-addons" && (
+            <div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
+                <p className="text-xs text-gray-600">
+                  Add or remove abutment addons and set a price. Link main categories so default
+                  addons only apply for matching products. Empty category = all categories.
+                </p>
+                <Button
+                  onClick={handleAddAddon}
+                  variant="outline"
+                  className="text-xs sm:text-sm h-8 w-full sm:w-auto"
+                >
+                  Add addon
+                </Button>
+              </div>
+              <div className="border border-gray-200 rounded-lg overflow-x-auto overflow-y-clip">
+                <table className="w-full min-w-[680px]">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Addon name</th>
+                      <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Main Category</th>
+                      <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Price</th>
+                      <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Status</th>
+                      <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {addonRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-3 py-6 text-center text-xs text-gray-500">
+                          No abutment addons yet. Click Add addon to create one.
+                        </td>
+                      </tr>
+                    ) : (
+                      addonRows.map((addon) => (
+                        <tr key={addon.id} className="hover:bg-gray-50">
+                          <td className="px-2 sm:px-3 py-2">
+                            <Input
+                              ref={(el) => {
+                                addonNameInputRefs.current[addon.id] = el
+                              }}
+                              value={addon.name}
+                              onChange={(e) => handleUpdateAddon(addon.id, { name: e.target.value })}
+                              placeholder="Addon name"
+                              className="h-8 text-xs"
+                            />
+                          </td>
+                          <td className="px-2 sm:px-3 py-2">
+                            <MainCategoryMultiSelect
+                              value={addon.categoryIds ?? []}
+                              onChange={(ids) => handleUpdateAddon(addon.id, { categoryIds: ids })}
+                              options={categoryOptions}
+                            />
+                          </td>
+                          <td className="px-2 sm:px-3 py-2">
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs">$</span>
+                              <Input
+                                type="text"
+                                value={addon.price}
+                                onChange={(e) =>
+                                  handleUpdateAddon(addon.id, {
+                                    price: e.target.value.replace(/[^0-9.]/g, ""),
+                                  })
+                                }
+                                className="pl-6 h-8 text-xs w-24"
+                                placeholder="0.00"
+                              />
+                            </div>
+                          </td>
+                          <td className="px-2 sm:px-3 py-2">
+                            <Switch
+                              checked={addon.status}
+                              onCheckedChange={(checked) => handleUpdateAddon(addon.id, { status: checked })}
+                              className="data-[state=checked]:bg-[#1162a8]"
+                            />
+                          </td>
+                          <td className="px-2 sm:px-3 py-2">
+                            <button
+                              onClick={() => handleDeleteAddon(addon.id)}
+                              className="text-gray-600 hover:text-red-600"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

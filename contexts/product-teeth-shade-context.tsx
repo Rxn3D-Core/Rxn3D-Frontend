@@ -107,7 +107,7 @@ type TeethShadesContextType = {
   fetchTeethShadeGroups: () => Promise<void>
   createTeethShadeBrand: (payload: TeethShadeBrandPayload) => Promise<boolean>
   updateTeethShadeBrand: (id: number, payload: Partial<TeethShadeBrandPayload>) => Promise<boolean>
-  deleteTeethShadeBrand: (id: number) => Promise<boolean>
+  deleteTeethShadeBrand: (id: number, options?: { silent?: boolean }) => Promise<boolean>
   bulkDeleteTeethShadeBrands: (ids: number[]) => Promise<boolean>
   createTeethShadeGroup: (payload: { name: string; status: string; sequence: number }) => Promise<boolean>
 
@@ -530,21 +530,26 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   )
 
   const deleteTeethShadeBrand = useCallback(
-    async (id: number): Promise<boolean> => {
+    async (id: number, options?: { silent?: boolean }): Promise<boolean> => {
+      const silent = options?.silent === true
       setIsLoading(true)
-      setShowAnimation(true)
-      setAnimationType("deleting")
+      if (!silent) {
+        setShowAnimation(true)
+        setAnimationType("deleting")
+      }
       setError(null)
 
       if (!authToken) {
         setError("Authentication required to delete teeth shade brand.")
-        setAnimationType("error")
+        if (!silent) setAnimationType("error")
         setIsLoading(false)
-        toast({
-          title: "Authentication Error",
-          description: "No authentication token found. Please log in.",
-          variant: "destructive",
-        })
+        if (!silent) {
+          toast({
+            title: "Authentication Error",
+            description: "No authentication token found. Please log in.",
+            variant: "destructive",
+          })
+        }
         return false
       }
 
@@ -566,38 +571,45 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
             return false
           }
           const result = await response.json()
-          setAnimationType("error")
-          setError(result?.message || "Failed to delete teeth shade brand.")
-
-          toast({
-            title: "Error",
-            description: result?.message || "Failed to delete teeth shade brand.",
-            variant: "destructive",
-          })
+          if (!silent) {
+            setAnimationType("error")
+            setError(result?.message || "Failed to delete teeth shade brand.")
+            toast({
+              title: "Error",
+              description: result?.message || "Failed to delete teeth shade brand.",
+              variant: "destructive",
+            })
+          }
           return false
         }
 
-        setAnimationType("success")
-        toast({
-          title: "Teeth Shade Brand Deleted",
-          description: "Teeth shade brand has been successfully deleted.",
-        })
+        // One success feedback only (toast). Do not also show a success overlay.
+        if (!silent) {
+          setShowAnimation(false)
+          setAnimationType(null)
+          toast({
+            title: "Teeth Shade Brand Deleted",
+            description: "Teeth shade brand has been successfully deleted.",
+          })
+          setSuccessMessage("Teeth shade brand deleted successfully")
+        }
 
-        setSuccessMessage("Teeth shade brand deleted successfully")
-
-        setSelectedItems((prev) => prev.filter((itemId) => itemId !== id)) // Remove from selected
-        await fetchTeethShadeBrands() // Refresh the list
+        setSelectedItems((prev) => prev.filter((itemId) => itemId !== id))
+        if (!silent) {
+          await fetchTeethShadeBrands()
+        }
         return true
       } catch (err: any) {
         console.error("Error deleting teeth shade brand:", err)
-        setAnimationType("error")
-        setError(err.message || "Failed to delete teeth shade brand. Please try again.")
-
-        toast({
-          title: "Error",
-          description: err.message || "Failed to delete teeth shade brand. Please try again.",
-          variant: "destructive",
-        })
+        if (!silent) {
+          setAnimationType("error")
+          setError(err.message || "Failed to delete teeth shade brand. Please try again.")
+          toast({
+            title: "Error",
+            description: err.message || "Failed to delete teeth shade brand. Please try again.",
+            variant: "destructive",
+          })
+        }
         return false
       } finally {
         setIsLoading(false)
@@ -657,7 +669,9 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           return false
         }
 
-        setAnimationType("success")
+        // One success feedback only (toast). Do not also show a success overlay.
+        setShowAnimation(false)
+        setAnimationType(null)
         toast({
           title: "Teeth Shade Brands Deleted",
           description: `Successfully deleted ${ids.length} teeth shade brand(s).`,

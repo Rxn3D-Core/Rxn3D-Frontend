@@ -14,9 +14,20 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ChevronLeft, Upload, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
-import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
-import { getActiveCustomerId } from "@/lib/customer-scope"
+import {
+  getCreateUserTitle,
+  getRoleDisplayLabel,
+  isDoctorRole,
+} from "@/lib/user-role-labels"
+
+/** Matches backend Password::min(8)->mixedCase()->numbers()->symbols() */
+const passwordStrengthSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+  .regex(/[0-9]/, "Password must contain at least one number")
+  .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character")
 
 const baseUserFormSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
@@ -37,13 +48,15 @@ const baseUserFormSchema = z.object({
 
 const createUserFormSchema = baseUserFormSchema
   .extend({
-    password: z.string().min(8, "Password must be at least 8 characters"),
+    password: passwordStrengthSchema,
     password_confirmation: z.string().min(1, "Confirm password is required"),
   })
   .refine((data) => data.password === data.password_confirmation, {
     message: "Passwords do not match",
     path: ["password_confirmation"],
   })
+
+const editUserFormSchema = baseUserFormSchema
 
 type UserFormValues = z.infer<typeof baseUserFormSchema>
 
@@ -52,6 +65,8 @@ interface AddUserFormProps {
   onSuccess: () => void
   /** When provided, the form runs in edit mode and updates this user. */
   user?: { id: number } | null
+  /** When set (create mode), role is fixed to this page context — no role picker. */
+  lockedRole?: string
 }
 
 interface Department {
@@ -96,25 +111,24 @@ const getRoleOptions = (customerType: string | null) => {
       { value: "doctor", label: "Doctor" },
     ]
   }
-  // Default to lab roles. Driver pickup/delivery uses lab_user — no separate lab_driver role.
   return [
     { value: "lab_admin", label: "Lab Admin" },
     { value: "lab_user", label: "Lab User" },
-    // { value: "lab_driver", label: "Lab Driver" },
+    { value: "lab_driver", label: "Lab Driver" },
   ]
 }
 
 const statusOptions = ["Pending", "Active", "Inactive", "Suspended", "Archived"]
 
-export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
+export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFormProps) {
   const { toast } = useToast()
   const {
     createUser,
     updateUserDetails,
     fetchUserById,
-    hasAnyPermission,
   } = useAuth()
   const isEditMode = !!user?.id
+  const roleIsLocked = !isEditMode && Boolean(lockedRole)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoadingUser, setIsLoadingUser] = useState(false)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -122,29 +136,21 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
   const [departments, setDepartments] = useState<Department[]>([])
   const [selectedDepartments, setSelectedDepartments] = useState<number[]>([])
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
-  const canManagePermissions = hasAnyPermission(["manage_users", "edit_user"])
-  const activeCustomerId = getActiveCustomerId()
-
-  useEffect(() => {
-    setSelectedPermissions([])
-  }, [user?.id, isEditMode])
 
   const customerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() || null : null
   const isLabCustomer = customerType === "lab"
   const roleOptions = getRoleOptions(customerType)
 
-  // Initialize form with default values
   const form = useForm<UserFormValues>({
-    resolver: zodResolver(isEditMode ? baseUserFormSchema : createUserFormSchema),
+    resolver: zodResolver(isEditMode ? editUserFormSchema : createUserFormSchema),
     defaultValues: {
       first_name: "",
       last_name: "",
       email: "",
       phone: "",
       work_number: "",
-      role: "",
-      is_doctor: false,
+      role: lockedRole || "",
+      is_doctor: isDoctorRole(lockedRole),
       status: "Pending",
       department_ids: [],
       license_number: "",
@@ -154,12 +160,19 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
       password_confirmation: "",
     },
     mode: "onChange",
+    reValidateMode: "onChange",
   })
 
   const selectedRole = form.watch("role")
   const isDoctor = form.watch("is_doctor")
 
-  // Load departments for lab customers (optional)
+  // Keep locked role applied in create mode without triggering empty-field errors
+  useEffect(() => {
+    if (!roleIsLocked || !lockedRole) return
+    form.setValue("role", lockedRole, { shouldValidate: false, shouldDirty: false })
+    form.setValue("is_doctor", isDoctorRole(lockedRole), { shouldValidate: false, shouldDirty: false })
+  }, [roleIsLocked, lockedRole, form])
+
   useEffect(() => {
     if (isLabCustomer) {
       fetchDepartments()
@@ -167,19 +180,19 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLabCustomer])
 
-  // Keep form value in sync with selected departments
   useEffect(() => {
-    form.setValue("department_ids", selectedDepartments, { shouldValidate: true })
+    form.setValue("department_ids", selectedDepartments, { shouldValidate: false, shouldDirty: false })
   }, [selectedDepartments, form])
 
-  // Auto-set is_doctor when the doctor role is chosen
   useEffect(() => {
-    if (selectedRole === "doctor") {
-      form.setValue("is_doctor", true)
+    if (isEditMode) return
+    if (isDoctorRole(selectedRole)) {
+      form.setValue("is_doctor", true, { shouldValidate: false })
+    } else if (roleIsLocked) {
+      form.setValue("is_doctor", false, { shouldValidate: false })
     }
-  }, [selectedRole, form])
+  }, [selectedRole, form, isEditMode, roleIsLocked])
 
-  // In edit mode, load the full user and pre-fill the form
   useEffect(() => {
     if (!user?.id) return
     let active = true
@@ -205,9 +218,11 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
           license_number: detail.license_number || "",
           signature: null,
           avatar: null,
+          password: "",
+          password_confirmation: "",
         })
         setSelectedDepartments(departmentIds)
-      } catch (error) {
+      } catch {
         toast({
           title: "Error",
           description: "Failed to load user details. Please try again.",
@@ -246,7 +261,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
 
       const result = await response.json()
       setDepartments(result.data || [])
-    } catch (error) {
+    } catch {
       setDepartments([])
       toast({
         title: "Department Load Failed",
@@ -265,7 +280,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
   }
 
   const validateImageFile = (file: File): boolean => {
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png"]
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/svg+xml"]
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Invalid file type",
@@ -289,7 +304,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
     const file = event.target.files?.[0]
     if (file && validateImageFile(file)) {
       setAvatarFile(file)
-      form.setValue("avatar", file)
+      form.setValue("avatar", file, { shouldDirty: true })
     }
   }
 
@@ -297,20 +312,22 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
     const file = event.target.files?.[0]
     if (file && validateImageFile(file)) {
       setSignatureFile(file)
-      form.setValue("signature", file, { shouldValidate: true })
+      form.setValue("signature", file, { shouldValidate: true, shouldDirty: true })
     }
   }
 
-  const getValidationState = (fieldName: keyof UserFormValues, isRequired = false): "default" | "valid" | "error" => {
-    const value = form.watch(fieldName)
+  /** Visual state only after the field has been changed (or has a resolver error). */
+  const getValidationState = (fieldName: keyof UserFormValues): "default" | "valid" | "error" => {
+    const isDirty = Boolean(form.formState.dirtyFields[fieldName])
+    const hasError = Boolean(form.formState.errors[fieldName])
+    if (!isDirty && !hasError) return "default"
+    if (hasError) return "error"
+    const value = form.getValues(fieldName)
     const hasValue = value !== undefined && value !== null && String(value).trim() !== ""
-    if (form.formState.errors[fieldName]) return "error"
-    if (isRequired && !hasValue) return "default"
     return hasValue ? "valid" : "default"
   }
 
   const onSubmit = async (data: UserFormValues) => {
-    // Edit mode: update only the fields the Update User API accepts
     if (isEditMode && user) {
       setIsSubmitting(true)
       try {
@@ -334,10 +351,6 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
 
         await updateUserDetails(user.id, payload)
 
-        if (canManagePermissions) {
-          await persistUserDirectPermissions(user.id, selectedPermissions, activeCustomerId)
-        }
-
         toast({
           title: "User Updated",
           description: `${data.first_name} ${data.last_name} has been updated successfully.`,
@@ -357,8 +370,8 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
       return
     }
 
-    // Doctor fields are required when is_doctor is set
-    if (data.is_doctor) {
+    const treatingAsDoctor = isDoctorRole(lockedRole || data.role) || data.is_doctor
+    if (treatingAsDoctor) {
       const hasLicense = data.license_number && data.license_number.trim() !== ""
       if (!hasLicense || !signatureFile) {
         form.setError("license_number", {
@@ -385,8 +398,8 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
       formData.append("phone", data.phone)
       formData.append("work_number", data.work_number || data.phone)
       if (customerId) formData.append("customer_id", customerId)
-      formData.append("role", data.role)
-      formData.append("is_doctor", data.is_doctor ? "1" : "0")
+      formData.append("role", lockedRole || data.role)
+      formData.append("is_doctor", (isDoctorRole(lockedRole || data.role) || data.is_doctor) ? "1" : "0")
       formData.append("status", data.status)
       formData.append("password", data.password || "")
       formData.append("password_confirmation", data.password_confirmation || "")
@@ -397,26 +410,17 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
         })
       }
 
-      if (data.is_doctor && data.license_number) {
+      if (treatingAsDoctor && data.license_number) {
         formData.append("license_number", data.license_number)
       }
-      if (data.is_doctor && signatureFile) {
+      if (treatingAsDoctor && signatureFile) {
         formData.append("signature", signatureFile)
       }
       if (avatarFile) {
         formData.append("avatar", avatarFile)
       }
 
-      const createResult = await createUser(formData)
-      const newUserId =
-        createResult?.data?.id ??
-        createResult?.data?.user?.id ??
-        createResult?.user?.id ??
-        createResult?.id
-
-      if (canManagePermissions && newUserId) {
-        await persistUserDirectPermissions(Number(newUserId), selectedPermissions, activeCustomerId)
-      }
+      await createUser(formData)
 
       toast({
         title: "User Added",
@@ -438,7 +442,6 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
 
   return (
     <div className="h-full bg-gray-50">
-      {/* Back to list link */}
       <div className="px-6 py-4">
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 flex items-center text-sm">
           <ChevronLeft className="h-4 w-4 mr-1" />
@@ -447,12 +450,16 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={form.handleSubmit(onSubmit)} autoComplete="off">
           <div className="px-6 pb-6">
             <Card>
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-                  {isEditMode ? "Edit User" : "User Details"}
+                  {isEditMode
+                    ? "Edit User"
+                    : lockedRole
+                      ? getCreateUserTitle(lockedRole).replace("Create ", "") + " Details"
+                      : "User Details"}
                   <span className="text-gray-400">📋</span>
                 </h3>
 
@@ -461,7 +468,6 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                 )}
 
                 <div className="space-y-6">
-                  {/* Profile photo */}
                   <div className="flex items-center gap-4">
                     {avatarFile ? (
                       <div className="relative w-32 h-32">
@@ -492,7 +498,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                         <input
                           id="avatar-upload"
                           type="file"
-                          accept="image/jpeg,image/jpg,image/png"
+                          accept="image/jpeg,image/jpg,image/png,image/svg+xml"
                           className="hidden"
                           onChange={handleAvatarUpload}
                         />
@@ -500,7 +506,6 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     )}
                   </div>
 
-                  {/* Name fields */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -511,7 +516,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                             <Input
                               label="First Name *"
                               placeholder="Enter first name"
-                              validationState={getValidationState("first_name", true)}
+                              validationState={getValidationState("first_name")}
                               errorMessage={form.formState.errors.first_name?.message as string}
                               {...field}
                             />
@@ -529,7 +534,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                             <Input
                               label="Last Name *"
                               placeholder="Enter last name"
-                              validationState={getValidationState("last_name", true)}
+                              validationState={getValidationState("last_name")}
                               errorMessage={form.formState.errors.last_name?.message as string}
                               {...field}
                             />
@@ -540,7 +545,6 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     />
                   </div>
 
-                  {/* Email */}
                   <FormField
                     control={form.control}
                     name="email"
@@ -551,7 +555,10 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                             type="email"
                             label="Email Address *"
                             placeholder="Enter email address"
-                            validationState={getValidationState("email", true)}
+                            autoComplete="off"
+                            data-1p-ignore
+                            data-lpignore="true"
+                            validationState={getValidationState("email")}
                             errorMessage={form.formState.errors.email?.message as string}
                             disabled={isEditMode}
                             {...field}
@@ -562,7 +569,6 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     )}
                   />
 
-                  {/* Password (create only) */}
                   {!isEditMode && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
@@ -576,7 +582,10 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                                 label="Password *"
                                 placeholder="Enter password"
                                 revealToggle
-                                validationState={getValidationState("password", true)}
+                                autoComplete="new-password"
+                                data-1p-ignore
+                                data-lpignore="true"
+                                validationState={getValidationState("password")}
                                 errorMessage={form.formState.errors.password?.message as string}
                                 {...field}
                               />
@@ -596,7 +605,10 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                                 label="Confirm Password *"
                                 placeholder="Re-enter password"
                                 revealToggle
-                                validationState={getValidationState("password_confirmation", true)}
+                                autoComplete="new-password"
+                                data-1p-ignore
+                                data-lpignore="true"
+                                validationState={getValidationState("password_confirmation")}
                                 errorMessage={form.formState.errors.password_confirmation?.message as string}
                                 {...field}
                               />
@@ -608,7 +620,6 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     </div>
                   )}
 
-                  {/* Phone & work number */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -619,7 +630,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                             <Input
                               label="Phone Number *"
                               placeholder="Enter phone number"
-                              validationState={getValidationState("phone", true)}
+                              validationState={getValidationState("phone")}
                               errorMessage={form.formState.errors.phone?.message as string}
                               {...field}
                               onChange={(e) => field.onChange(e.target.value.replace(/[^0-9+]/g, ""))}
@@ -638,7 +649,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                             <Input
                               label="Work Number"
                               placeholder="Enter work number"
-                              validationState={getValidationState("work_number", false)}
+                              validationState={getValidationState("work_number")}
                               {...field}
                               onChange={(e) => field.onChange(e.target.value.replace(/[^0-9+]/g, ""))}
                             />
@@ -649,31 +660,36 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     />
                   </div>
 
-                  {/* User type (role) & status */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="role"
-                      render={({ field }) => (
-                        <FormItem>
-                          <Select onValueChange={field.onChange} value={field.value} disabled={isEditMode}>
-                            <FormControl>
-                              <SelectTrigger className="h-14">
-                                <SelectValue placeholder="User Type *" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {roleOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {roleIsLocked ? (
+                      <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 h-14 flex items-center">
+                        Creating as <span className="font-medium ml-1">{getRoleDisplayLabel(lockedRole)}</span>
+                      </div>
+                    ) : (
+                      <FormField
+                        control={form.control}
+                        name="role"
+                        render={({ field }) => (
+                          <FormItem>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={isEditMode}>
+                              <FormControl>
+                                <SelectTrigger className="h-14">
+                                  <SelectValue placeholder="User Type *" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {roleOptions.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                     <FormField
                       control={form.control}
                       name="status"
@@ -699,8 +715,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     />
                   </div>
 
-                  {/* Is doctor (offices only; auto-set when role is doctor) */}
-                  {selectedRole !== "doctor" && customerType === "office" && (
+                  {!roleIsLocked && selectedRole !== "doctor" && customerType === "office" && (
                     <FormField
                       control={form.control}
                       name="is_doctor"
@@ -715,7 +730,6 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     />
                   )}
 
-                  {/* Departments (lab only, optional) */}
                   {isLabCustomer && (
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold text-gray-900">Departments</h4>
@@ -736,30 +750,10 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                           ))}
                         </div>
                       )}
-                      {form.formState.errors.department_ids && (
-                        <p className="text-xs text-red-500">
-                          {form.formState.errors.department_ids.message as string}
-                        </p>
-                      )}
                     </div>
                   )}
 
-                  {canManagePermissions && (
-                    <div className="space-y-3 border-t pt-6">
-                      <h4 className="text-sm font-semibold text-gray-900">Permissions</h4>
-                      <PermissionAssignmentPanel
-                        key={`${isEditMode ? user?.id : "new"}-${selectedRole}-${activeCustomerId ?? "none"}`}
-                        userId={isEditMode && user?.id ? user.id : undefined}
-                        customerId={activeCustomerId ?? undefined}
-                        role={selectedRole}
-                        selected={selectedPermissions}
-                        onChange={setSelectedPermissions}
-                      />
-                    </div>
-                  )}
-
-                  {/* Doctor-specific fields */}
-                  {isDoctor && (
+                  {(isDoctor || isDoctorRole(selectedRole) || isDoctorRole(lockedRole)) && !isEditMode && (
                     <div className="space-y-4">
                       <h4 className="text-sm font-semibold text-gray-900">Doctor Information</h4>
                       <FormField
@@ -771,7 +765,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                               <Input
                                 label="License Number *"
                                 placeholder="Enter license number"
-                                validationState={getValidationState("license_number", true)}
+                                validationState={getValidationState("license_number")}
                                 errorMessage={form.formState.errors.license_number?.message as string}
                                 {...field}
                                 onChange={(e) => {
@@ -811,7 +805,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                           <div className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center bg-gray-50">
                             <input
                               type="file"
-                              accept="image/jpeg,image/jpg,image/png"
+                              accept="image/jpeg,image/jpg,image/png,image/svg+xml"
                               onChange={handleSignatureUpload}
                               className="hidden"
                               id="signature-upload"
@@ -842,7 +836,9 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                         : "Saving..."
                       : isEditMode
                         ? "Update User"
-                        : "Save User"}
+                        : lockedRole
+                          ? getCreateUserTitle(lockedRole).replace("Create ", "Save ")
+                          : "Save User"}
                   </Button>
                 </div>
               </CardContent>

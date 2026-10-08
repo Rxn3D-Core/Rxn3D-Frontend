@@ -75,6 +75,28 @@ export function findOppositeArchGradesDonor(
   return null;
 }
 
+/**
+ * Selected grade JSON from the opposite arch when it is the same product.
+ * Used to auto-fill grade on a newly added second-arch product.
+ */
+export function findOppositeArchSelectedGrade(
+  arch: Arch,
+  productApiId: number | undefined,
+  getToothProduct: (arch: Arch, toothNumber: number) => ProductApiData | null | undefined,
+  getFieldValue: (arch: Arch, toothNumber: number, step: string) => string
+): string {
+  if (productApiId == null) return "";
+  const opposite: Arch = arch === "maxillary" ? "mandibular" : "maxillary";
+  const oppositeTeeth = arch === "maxillary" ? MANDIBULAR_TEETH : MAXILLARY_TEETH;
+  for (const tn of oppositeTeeth) {
+    const product = getToothProduct(opposite, tn);
+    if (product?.id !== productApiId) continue;
+    const raw = getFieldValue(opposite, tn, "grade") || "";
+    if (parseGradeDisplayName(raw)) return raw;
+  }
+  return "";
+}
+
 /** Stored value marks grade as intentionally skipped (no grades on product). */
 export function isGradeFieldValueSkipped(gradeRaw: string): boolean {
   if (!gradeRaw?.trim()) return false;
@@ -191,6 +213,15 @@ export function mergeEnrichedProductFromDonor(
   }
   if (next.has_gum_shade == null && donor.has_gum_shade != null) {
     next = { ...next, has_gum_shade: donor.has_gum_shade };
+  }
+  if (
+    (!next.variations || next.variations.length === 0) &&
+    (donor.variations?.length ?? 0) > 0
+  ) {
+    next = { ...next, variations: donor.variations };
+  }
+  if (next.has_variation == null && donor.has_variation != null) {
+    next = { ...next, has_variation: donor.has_variation };
   }
   return next;
 }

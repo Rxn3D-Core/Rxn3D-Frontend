@@ -1,23 +1,34 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
+import Link from "next/link"
+import { Copy } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
+import { parseSlipListingDueDate } from "@/lib/slip-listing-due-date"
 import { slipIsInOffice, slipShowsPickupDropoff } from "@/lib/slip-location"
 import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
+import { SlipListingVsIcon } from "@/components/slip-listing/SlipListingVsIcon"
+import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import { useToast } from "@/hooks/use-toast"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 import { LabLocationIcon } from "@/app/lab-case-management/v2/components/V2CaseIcons"
 import { V3RowActionsPopover } from "./V3RowActionsPopover"
 import type { ColumnKey } from "./V3FilterBar"
+import { formatPanAssigneeName } from "@/lib/slip-pan-color"
 
 const AMBER = "#FFE2A1"
 const OVERDUE_RED = "#DC2626"
 const PAN_BG = "#FF5733"
 const VS = "/icons/virtual-slip-center"
+/** Colored slip-listing icons (location / due date / row actions). */
+const LI = "/icons/slip-listing/actions"
 const monoFilter = ""
+/** Fixed width of the always-visible row actions column. */
+const ROW_ACTIONS_COLUMN_PX = 300
 
 const KEBAB_SVG = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -26,6 +37,27 @@ const KEBAB_SVG = (
     <circle cx="12" cy="19" r="2" />
   </svg>
 )
+
+// Gradient id is per instance: the mobile list and desktop table are both in the
+// DOM with one hidden, and a url(#id) resolving into a display:none subtree
+// renders nothing.
+function ViewEyeIcon({ size }: { size: number }) {
+  const gradientId = `v3EyeStroke${useId().replace(/:/g, "")}`
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <defs>
+        <linearGradient id={gradientId} x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#16ADE1" />
+          <stop offset="1" stopColor="#6563AC" />
+        </linearGradient>
+      </defs>
+      <g stroke={`url(#${gradientId})`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+        <circle cx="12" cy="12" r="3" />
+      </g>
+    </svg>
+  )
+}
 
 export type SortDirection = "asc" | "desc"
 
@@ -40,6 +72,16 @@ interface Props {
   rowActions: V2RowActions
   canPrintStatement: (row: V2CaseRowData) => boolean
   canSendBack: (row: V2CaseRowData) => boolean
+  canCancelCase?: boolean
+  canDeleteCase?: boolean
+  /** Lab admin only — undo one location step from the ⋯ menu. */
+  allowUndoLocation?: boolean
+  /** Lab listing — click pan chip to toggle shared pan color. */
+  allowPanToggle?: boolean
+  /** Current user may replace another user's pan color. */
+  canOverridePanColor?: boolean
+  /** Authenticated user id (for own vs other assignment UX). */
+  currentUserId?: number | null
   /**
    * Office profile listing: the counterparty column reads "Lab", driver
    * actions are withheld, and rush rows lose the amber highlight (a
@@ -73,13 +115,14 @@ type DesktopColumn = {
 }
 
 const DESKTOP_COLUMN_DEFS: readonly DesktopColumn[] = [
-  { key: "office", label: "Office", width: 200 },
-  { key: "patient", label: "Patient / Slip", width: 260 },
-  { key: "panProduct", label: "Pan / Product", width: 180 },
-  { key: "location", label: "Location", width: 150 },
-  { key: "status", label: "Status", width: 150 },
-  { key: "caseNo", label: "Case #", width: 130 },
-  { key: "dueDate", label: "Due Date", width: 150 },
+  { key: "office", label: "Office", width: 100 },
+  { key: "patient", label: "Patient / Slip", width: 180 },
+  { key: "panProduct", label: "Pan / Product", width: 125 },
+  { key: "location", label: "Location", width: 230 },
+  { key: "status", label: "Status", width: 100 },
+  { key: "caseNo", label: "Case #", width: 70 },
+  { key: "dueDate", label: "Due Date", width: 160 },
+  { key: "attachments", label: "Attachments", width: 55 },
 ]
 
 function buildDesktopColumns(visibleColumns: Set<ColumnKey>, officeProfile: boolean): DesktopColumn[] {
@@ -92,22 +135,66 @@ function buildDesktopColumns(visibleColumns: Set<ColumnKey>, officeProfile: bool
   )
 }
 
+function panChipTitle(
+  row: V2CaseRowData,
+  currentUserId: number | null | undefined,
+  canOverride: boolean,
+): string {
+  const assignment = row.panColorAssignment
+  if (!assignment) return "Assign your pan color to this row"
+  const name = formatPanAssigneeName(assignment.assignedBy)
+  if (currentUserId && assignment.assignedBy.id === currentUserId) {
+    return "Remove your pan color"
+  }
+  if (canOverride) {
+    return `Assigned to ${name} — click to override.`
+  }
+  return `Assigned to ${name}.`
+}
+
+function isPanColorLocked(
+  row: V2CaseRowData,
+  highlightRushRows: boolean,
+): boolean {
+  return Boolean(row.panColorAssignment) || (Boolean(row.rush) && highlightRushRows)
+}
+
+/** Safari can mis-hit absolute overlays / pointer-events-none table cells — ignore real controls. */
+function isRowInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  return Boolean(
+    target.closest(
+      'a,button,input,textarea,select,label,[role="checkbox"],[role="menuitem"],[data-row-interactive="true"]'
+    )
+  )
+}
+
+function openVirtualSlipFromRow(
+  row: V2CaseRowData,
+  onOpen: V2RowActions["onOpen"],
+  event?: { metaKey?: boolean; ctrlKey?: boolean; button?: number }
+) {
+  const href = buildVirtualSlipV2Path(row.caseId, row.id)
+  if (event && (event.metaKey || event.ctrlKey || event.button === 1)) {
+    window.open(href, "_blank", "noopener,noreferrer")
+    return
+  }
+  onOpen(row)
+}
+
 export function V3CaseTable(props: Props) {
+  // Mobile-only: the card kebab taps open a bottom sheet for this row. Desktop
+  // shows all action icons inline, always, so it needs no popover state.
   const [popoverRow, setPopoverRow] = useState<number | null>(null)
-  // Separate refs: the mobile card list and desktop table both render for
-  // every row (one hidden via CSS per breakpoint), so both a mobile and a
-  // desktop V3RowActionsPopover mount at once for the same popoverRow. A
-  // single shared ref gets overwritten by whichever mounts last, making the
-  // outside-click check test the wrong (hidden) node and close the visible
-  // one on every tap inside it.
   const mobilePopoverRef = useRef<HTMLDivElement>(null)
-  const desktopPopoverRef = useRef<HTMLTableRowElement>(null)
+  const { toast } = useToast()
   const officeProfile =
     props.officeProfile === true || isOfficeCustomerContext()
   // Lab listings tint rush rows amber; office profiles (admin / doctor / user)
   // keep the rush bolt only — no yellow row adaptation.
   const highlightRushRows = !officeProfile
   const desktopColumns = buildDesktopColumns(props.visibleColumns, officeProfile)
+  // checkbox + data columns + actions
   const columnCount = desktopColumns.length + 2
 
   useEffect(() => {
@@ -115,14 +202,35 @@ export function V3CaseTable(props: Props) {
     function onPointerDown(e: PointerEvent) {
       const target = e.target as Node
       const insideMobile = mobilePopoverRef.current?.contains(target) ?? false
-      const insideDesktop = desktopPopoverRef.current?.contains(target) ?? false
-      if (!insideMobile && !insideDesktop) {
+      if (!insideMobile) {
         setPopoverRow(null)
       }
     }
     document.addEventListener("pointerdown", onPointerDown)
     return () => document.removeEventListener("pointerdown", onPointerDown)
   }, [popoverRow])
+
+  /** Copies every office code in the current table listing — ignores row checkboxes. */
+  const handleCopyListedOfficeCodes = async (event: React.MouseEvent) => {
+    event.stopPropagation()
+    const codes = props.rows
+      .map((row) => (row.officeCode || "").trim())
+      .filter(Boolean)
+    if (codes.length === 0) {
+      toast({ title: "Nothing to copy", description: "No office codes in the current listing.", duration: 2500 })
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(codes.join("\n"))
+      toast({
+        title: "Copied",
+        description: `${codes.length} office code${codes.length === 1 ? "" : "s"} copied to clipboard.`,
+        duration: 2500,
+      })
+    } catch {
+      toast({ title: "Copy failed", description: "Could not copy office codes.", variant: "destructive" })
+    }
+  }
 
   return (
     <>
@@ -150,20 +258,32 @@ export function V3CaseTable(props: Props) {
             )
           : props.rows.map((row) => {
               const dueDateColor = dueDateTextColor(row)
-              // The amber rush highlight is a lab-visibility cue — office
-              // profiles keep the rush bolt icon but not the tinted row.
-              const cardBg = row.rush && highlightRushRows ? AMBER : "#FFFFFF"
+              // Shared pan color paints the whole card; rush amber is lab-only
+              // and loses to an active pan assignment. Office profiles keep the
+              // rush bolt icon but not the tinted row.
+              const cardBg = row.panColorAssignment?.color
+                ? row.panColorAssignment.color
+                : row.rush && highlightRushRows
+                  ? AMBER
+                  : "#FFFFFF"
+              const virtualSlipHref = buildVirtualSlipV2Path(row.caseId, row.id)
+              const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
 
               return (
                 <div
                   key={row.id}
                   style={{ backgroundColor: cardBg, border: "1px solid #C8C8C8", borderBottom: "3px solid #C8C8C8" }}
-                  className="px-4 pt-3 pb-4 relative mb-2 rounded-lg"
+                  className="relative px-4 pt-3 pb-4 mb-2 rounded-lg cursor-pointer"
+                  onClick={(e) => {
+                    if (isRowInteractiveTarget(e.target)) return
+                    openVirtualSlipFromRow(row, props.rowActions.onOpen, e)
+                  }}
                 >
                   {/* Header: checkbox + patient name + rush + kebab */}
-                  <div className="flex items-start gap-2">
+                  <div className="relative z-[2] flex items-start gap-2">
                     <div
                       className="shrink-0 mt-0.5"
+                      data-row-interactive="true"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Checkbox
@@ -174,15 +294,16 @@ export function V3CaseTable(props: Props) {
                       />
                     </div>
 
-                    <button
-                      type="button"
-                      className="flex-1 text-left min-w-0"
-                      onClick={() => props.rowActions.onOpen(row)}
-                    >
+                    <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-[15px] text-black leading-snug">
+                        <Link
+                          href={virtualSlipHref}
+                          aria-label={openSlipLabel}
+                          className="font-semibold text-[15px] text-black leading-snug truncate hover:text-[#1162A8] hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {row.patient || "Unnamed patient"}
-                        </span>
+                        </Link>
                         {row.rush && (
                           <img src="/icons/rush-bolt.svg" alt="Rush" aria-label="Rush" style={{ width: 11, height: 19, flexShrink: 0 }} />
                         )}
@@ -195,10 +316,20 @@ export function V3CaseTable(props: Props) {
                           {formatCreatedAt(row.createdAt)}
                         </div>
                       )}
-                    </button>
+                    </div>
+
+                    <Link
+                      href={virtualSlipHref}
+                      aria-label={openSlipLabel}
+                      title="View"
+                      className="shrink-0 rounded p-1 hover:bg-[#f3f4f6]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ViewEyeIcon size={32} />
+                    </Link>
 
                     {/* Kebab */}
-                    <div className="relative shrink-0">
+                    <div className="relative shrink-0" data-row-interactive="true">
                       <button
                         type="button"
                         aria-label="Row actions"
@@ -215,8 +346,11 @@ export function V3CaseTable(props: Props) {
                           actions={props.rowActions}
                           canPrintStatement={props.canPrintStatement(row)}
                           canSendBack={!officeProfile && props.canSendBack(row)}
+                          canCancelCase={props.canCancelCase}
+                          canDeleteCase={props.canDeleteCase}
                           allowDriverActions={!officeProfile}
                           allowRush={!officeProfile}
+                          allowUndoLocation={!officeProfile && Boolean(props.allowUndoLocation)}
                           onClose={() => setPopoverRow(null)}
                         />
                       )}
@@ -224,10 +358,10 @@ export function V3CaseTable(props: Props) {
                   </div>
 
                   {/* Divider */}
-                  <div className="mt-3 mb-3 border-t border-[#E2E4E8]" />
+                  <div className="relative z-[2] mt-3 mb-3 border-t border-[#E2E4E8]" />
 
                   {/* Body */}
-                  <div className="space-y-3">
+                  <div className="relative z-[2] space-y-3">
                     {/* OFFICE + DUE DATE */}
                     <div className="flex items-end justify-between gap-2">
                       <div>
@@ -245,9 +379,10 @@ export function V3CaseTable(props: Props) {
                           <button
                             type="button"
                             className="flex items-center gap-1 justify-end"
+                            data-row-interactive="true"
                             onClick={(e) => { e.stopPropagation(); props.rowActions.onChangeDueDate(row) }}
                           >
-                            <img src="/icons/slip-listing/calendar.png" alt="" className="h-4 w-4 shrink-0" />
+                            <img src={`${LI}/calendar.png`} alt="" className="h-[25px] w-[25px] shrink-0" />
                             <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
                               {formatDueDate(row)}
                             </span>
@@ -256,24 +391,83 @@ export function V3CaseTable(props: Props) {
                       </div>
                     </div>
 
+                    {/* DIGITAL IMPRESSIONS (Attachments) */}
+                    {props.visibleColumns.has("attachments") && !!row.digitalImpressions?.length && (
+                      <div>
+                        <div className="mb-1 flex items-center">
+                          <SlipListingVsIcon src={`${VS}/attachments.svg`} hover={false} className="h-[25px] w-[25px]" />
+                        </div>
+                        <DigitalImpressionLabels impressions={row.digitalImpressions} />
+                      </div>
+                    )}
+
                     {/* LOCATION */}
                     {row.location && (() => {
                       const mobileLocationAction = row.newStageEligible
                         ? "addStage"
                         : !officeProfile
-                        ? isReadyToSendLocation(row)
+                        ? canMarkReadyToSend(row)
                           ? "readyToSend"
                           : isPickupDropoffLocation(row)
                             ? "driverHistory"
                             : null
                         : null
+                      const panChipStyle = {
+                        background: PAN_BG,
+                        height: 24 as const,
+                        ...row.panColorStyle,
+                        ...(row.rush && highlightRushRows && props.rushCasePanColor
+                          ? { backgroundColor: props.rushCasePanColor }
+                          : null),
+                      }
+
+                      const panChip = row.pan ? (
+                        props.allowPanToggle && props.rowActions.onTogglePan ? (
+                          <button
+                            type="button"
+                            data-row-interactive="true"
+                            aria-label={panChipTitle(row, props.currentUserId, Boolean(props.canOverridePanColor))}
+                            aria-pressed={Boolean(row.panColorAssignment)}
+                            className="flex items-center justify-center shrink-0 rounded-[6px] px-3 border-0"
+                            title={panChipTitle(row, props.currentUserId, Boolean(props.canOverridePanColor))}
+                            style={{
+                              ...panChipStyle,
+                              cursor:
+                                row.panColorAssignment &&
+                                props.currentUserId &&
+                                row.panColorAssignment.assignedBy.id !== props.currentUserId &&
+                                !props.canOverridePanColor
+                                  ? "not-allowed"
+                                  : "pointer",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              props.rowActions.onTogglePan?.(row)
+                            }}
+                          >
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Inter, sans-serif" }}>
+                              {row.pan}
+                            </span>
+                          </button>
+                        ) : (
+                          <div
+                            className="flex items-center justify-center shrink-0 rounded-[6px] px-3"
+                            style={panChipStyle}
+                          >
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Inter, sans-serif" }}>
+                              {row.pan}
+                            </span>
+                          </div>
+                        )
+                      ) : null
+
                       const locationInner = (
                         <>
                           <img
                             src={mobileLocationIcon(row)}
                             alt=""
                             className="shrink-0"
-                            style={{ width: 29, height: 22, objectFit: "contain" }}
+                            style={{ width: 25, height: 25, objectFit: "contain" }}
                           />
                           <div className="flex flex-col items-start min-w-0 flex-1">
                             <span
@@ -284,53 +478,41 @@ export function V3CaseTable(props: Props) {
                             </span>
                             <span
                               className="truncate w-full text-left"
-                              style={{ fontSize: 14, lineHeight: "21px", color: "#000000", fontFamily: "Helvetica, Arial, sans-serif" }}
+                              style={{ fontSize: 14, lineHeight: "21px", color: "#000000", fontFamily: "Inter, sans-serif" }}
                             >
                               {row.location}
                             </span>
                           </div>
-                          {row.pan && (
-                            <div
-                              className="flex items-center justify-center shrink-0 rounded-[6px] px-3"
-                              style={{
-                                background: PAN_BG,
-                                height: 24,
-                                ...row.panColorStyle,
-                                ...(row.rush && highlightRushRows && props.rushCasePanColor
-                                  ? { backgroundColor: props.rushCasePanColor }
-                                  : null),
-                              }}
-                            >
-                              <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Helvetica, Arial, sans-serif" }}>
-                                {row.pan}
-                              </span>
-                            </div>
-                          )}
                         </>
                       )
-                      return mobileLocationAction ? (
-                        <button
-                          type="button"
-                          className="flex w-full flex-row items-center gap-2 rounded-[10px] px-2 py-2 text-left"
-                          style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)", cursor: "pointer" }}
-                          title={mobileLocationAction === "addStage" ? "Add stage" : mobileLocationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            mobileLocationAction === "addStage"
-                              ? props.rowActions.onAddStage(row)
-                              : mobileLocationAction === "readyToSend"
-                              ? props.rowActions.onReadyToSend(row)
-                              : props.rowActions.onDriverHistory(row)
-                          }}
-                        >
-                          {locationInner}
-                        </button>
-                      ) : (
-                        <div
-                          className="flex flex-row items-center gap-2 rounded-[10px] px-2 py-2"
-                          style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)" }}
-                        >
-                          {locationInner}
+                      return (
+                        <div className="flex w-full flex-row items-center gap-2">
+                          {mobileLocationAction ? (
+                            <button
+                              type="button"
+                              className="flex min-w-0 flex-1 flex-row items-center gap-2 rounded-[10px] px-2 py-2 text-left"
+                              style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)", cursor: "pointer" }}
+                              title={mobileLocationAction === "addStage" ? "Add stage" : mobileLocationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                mobileLocationAction === "addStage"
+                                  ? props.rowActions.onAddStage(row)
+                                  : mobileLocationAction === "readyToSend"
+                                  ? props.rowActions.onReadyToSend(row)
+                                  : props.rowActions.onDriverHistory(row)
+                              }}
+                            >
+                              {locationInner}
+                            </button>
+                          ) : (
+                            <div
+                              className="flex min-w-0 flex-1 flex-row items-center gap-2 rounded-[10px] px-2 py-2"
+                              style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)" }}
+                            >
+                              {locationInner}
+                            </div>
+                          )}
+                          {panChip}
                         </div>
                       )
                     })()}
@@ -341,27 +523,39 @@ export function V3CaseTable(props: Props) {
       </div>
 
       {/* ── Desktop table (≥ md) ── */}
-      <div className="hidden md:block px-[15px] py-[5px]" style={{ overflowX: "auto", overflowY: "visible" }}>
-      <table className="w-full text-left" style={{ fontFamily: "Helvetica, Arial, sans-serif", borderCollapse: "separate", borderSpacing: 0 }}>
+      <div className="hidden md:block overflow-x-auto" >
+      <table
+        className="w-full text-left"
+        style={{
+          fontFamily: "Inter, sans-serif",
+          borderCollapse: "separate",
+          borderSpacing: 0,
+          // Fixed layout keeps every column at its declared width; the actions
+          // column is wide enough to always show the full icon bar.
+          tableLayout: "fixed",
+        }}
+      >
         <thead>
           {/* Figma: bg #F2F2F2, border #C8C8C8, border-radius 7px 7px 0 0, height 41px */}
           <tr style={{ background: "#F2F2F2", border: "1px solid #C8C8C8", borderRadius: "7px 7px 0 0" }}>
-            <th className="w-[34px] px-0 py-0" style={{ height: 41 }}>
-              <div className="flex items-center justify-center" style={{ width: 34, height: 41 }}>
+            <th className="w-[25px] px-2 py-0" style={{ height: 25, width: 25 }}>
+              <div className="flex items-center justify-center" style={{ width: 20, height: 20 }}>
                 <Checkbox
                   aria-label="Select all cases on this page"
                   checked={props.selectAllChecked}
                   onCheckedChange={props.onSelectAll}
-                  style={{ width: 24, height: 24 }}
+                  style={{ width: 20, height: 20 }}
                 />
               </div>
             </th>
-            {desktopColumns.map((column) => (
+            {desktopColumns.map((column) => {
+              return (
               <th
                 key={column.key}
-                className="px-[10px] py-0 text-left select-none cursor-pointer"
+                className={`px-[10px] py-0 select-none cursor-pointer overflow-hidden ${column.key === "attachments" ? "text-center" : "text-left"}`}
                 style={{
                   width: column.width,
+                  maxWidth: column.width,
                   height: 41,
                   fontWeight: 700,
                   fontSize: 18,
@@ -370,22 +564,39 @@ export function V3CaseTable(props: Props) {
                 }}
                 onClick={() => props.onSortChange(column.key)}
                 aria-sort={props.sortKey === column.key ? (props.sortDirection === "asc" ? "ascending" : "descending") : "none"}
+                aria-label={column.key === "attachments" ? "Attachments" : undefined}
               >
-                <span className="inline-flex items-center gap-1">
-                  {column.label}
-                  <span style={{ fontSize: 12, color: props.sortKey === column.key ? "#000" : "#9ca3af" }}>
+                <span className={`inline-flex max-w-full items-center gap-1 min-w-0 ${column.key === "attachments" ? "justify-center w-full" : ""}`}>
+                  {column.key === "attachments" ? (
+                    <SlipListingVsIcon src={`${VS}/attachments.svg`} hover={false} className="h-[25px] w-[25px]" />
+                  ) : (
+                    <span className="truncate">{column.label}</span>
+                  )}
+                  <span className="shrink-0" style={{ fontSize: 12, color: props.sortKey === column.key ? "#000" : "#9ca3af" }}>
                     {props.sortKey === column.key ? (props.sortDirection === "asc" ? "▲" : "▼") : "↕"}
                   </span>
+                  {column.key === "office" && !officeProfile && (
+                    <button
+                      type="button"
+                      data-row-interactive="true"
+                      className="shrink-0 rounded p-0.5 text-[#9ca3af] hover:bg-[#e5e7eb] hover:text-[#44413c]"
+                      aria-label="Copy all office codes in this listing"
+                      title="Copy office codes"
+                      onClick={handleCopyListedOfficeCodes}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </span>
               </th>
-            ))}
-            <th className="w-[40px] px-[10px] py-0" style={{ height: 41 }} aria-hidden="true" />
+            )})}
+            <th className="px-0 py-0" style={{ height: 41, width: ROW_ACTIONS_COLUMN_PX }} aria-hidden="true" />
           </tr>
         </thead>
         <tbody>
           {props.loading ? (
             Array.from({ length: 5 }, (_, i) => (
-              <tr key={i} style={{ borderLeft: "1px solid #C8C8C8", borderRight: "1px solid #C8C8C8", height: 65 }}>
+              <tr key={i} style={{ borderLeft: "1px solid #C8C8C8", borderRight: "1px solid #C8C8C8", height: 52 }}>
                 <td colSpan={columnCount} className="px-5">
                   <Skeleton className="h-8 w-full bg-[#efefef]" />
                 </td>
@@ -398,44 +609,60 @@ export function V3CaseTable(props: Props) {
               </td>
             </tr>
           ) : (
-            props.rows.map((row, idx) => {
-              const isEvenRow = idx % 2 === 1
-              const rowBg = row.rush && highlightRushRows ? AMBER : isEvenRow ? "#F2F3F4" : "#FFFFFF"
+            props.rows.map((row) => {
+              const rowBg = row.panColorAssignment?.color
+                ? row.panColorAssignment.color
+                : row.rush && highlightRushRows
+                  ? AMBER
+                  : "#FFFFFF"
               const dueDateColor = dueDateTextColor(row)
-              // Only lab rush rows lock hover (amber stays put). Office rush rows
-              // use normal zebra + hover like every other row.
-              const isLocked = !!row.rush && highlightRushRows
+              // Lock hover so shared pan color / lab rush amber stay visible.
+              const isLocked = isPanColorLocked(row, highlightRushRows)
+              const virtualSlipHref = buildVirtualSlipV2Path(row.caseId, row.id)
+              const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
 
               return (
                 <tr
                   key={row.id}
-                  ref={popoverRow === row.id ? desktopPopoverRef : undefined}
+                  className="cursor-pointer [&>td]:border-b [&>td]:border-[#EDEEF0]"
                   style={{
                     backgroundColor: rowBg,
                     borderLeft: "1px solid #C8C8C8",
                     borderRight: "1px solid #C8C8C8",
-                    height: 65,
-                    position: "relative",
+                    height: 52,
                   }}
                   onMouseEnter={(e) => {
                     if (!isLocked) {
-                      e.currentTarget.querySelectorAll("td").forEach((td) => { (td as HTMLElement).style.backgroundColor = "#e8e8e8" })
+                      e.currentTarget.querySelectorAll("td").forEach((td) => { (td as HTMLElement).style.backgroundColor = "#EAF3FB" })
                     }
-                    setPopoverRow(row.id)
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.querySelectorAll("td").forEach((td) => { (td as HTMLElement).style.backgroundColor = rowBg })
-                    setPopoverRow((cur) => (cur === row.id ? null : cur))
+                  }}
+                  onClick={(e) => {
+                    // Safari: do not use absolute Link overlays on <tr> — hit targets misalign.
+                    if (isRowInteractiveTarget(e.target)) return
+                    openVirtualSlipFromRow(row, props.rowActions.onOpen, e)
+                  }}
+                  onAuxClick={(e) => {
+                    if (e.button !== 1) return
+                    if (isRowInteractiveTarget(e.target)) return
+                    e.preventDefault()
+                    openVirtualSlipFromRow(row, props.rowActions.onOpen, { button: 1 })
                   }}
                 >
-                  {/* Checkbox */}
-                  <td className="px-0 py-0 align-middle" style={{ backgroundColor: rowBg }} onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center" style={{ width: 34, height: 65 }}>
+                  <td
+                    className="px-2 py-0 align-middle"
+                    style={{ backgroundColor: rowBg, width: 25 }}
+                    data-row-interactive="true"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-center" style={{ width: 20, height: 52 }}>
                       <Checkbox
                         aria-label={`Select ${row.patient || row.slipNumber || row.id}`}
                         checked={props.selected.includes(row.id)}
                         onCheckedChange={() => props.onSelectRow(row.id)}
-                        style={{ width: 24, height: 24 }}
+                        style={{ width: 20, height: 20 }}
                       />
                     </div>
                   </td>
@@ -451,37 +678,34 @@ export function V3CaseTable(props: Props) {
                       rushCasePanColor={props.rushCasePanColor}
                       showTimestamp={props.visibleColumns.has("timestamp")}
                       allowDriverActions={!officeProfile}
+                      allowPanToggle={!officeProfile && Boolean(props.allowPanToggle)}
+                      canOverridePanColor={Boolean(props.canOverridePanColor)}
+                      currentUserId={props.currentUserId}
                       highlightRushRows={highlightRushRows}
+                      virtualSlipHref={virtualSlipHref}
+                      openSlipLabel={openSlipLabel}
                     />
                   ))}
 
-                  {/* Kebab — opens V3 horizontal popover */}
-                  <td className="px-0 py-0 align-middle" style={{ width: 40, backgroundColor: rowBg, position: "relative", overflow: "visible" }}>
-                    <div className="flex items-center justify-center" style={{ width: 40, height: 65 }}>
-                      <button
-                        aria-label="Row actions"
-                        type="button"
-                        style={{ color: "#6b7280", background: "none", border: "none", cursor: "pointer", padding: 4, borderRadius: 4 }}
-                        onClick={(e) => { e.stopPropagation(); setPopoverRow(popoverRow === row.id ? null : row.id) }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#F2F3F4" }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none" }}
-                      >
-                        {KEBAB_SVG}
-                      </button>
-                    </div>
-                    {popoverRow === row.id && (
-                      <V3RowActionsPopover
-                        ref={desktopPopoverRef}
-                        variant="desktop"
-                        row={row}
-                        actions={props.rowActions}
-                        canPrintStatement={props.canPrintStatement(row)}
-                        canSendBack={!officeProfile && props.canSendBack(row)}
-                        allowDriverActions={!officeProfile}
-                        allowRush={!officeProfile}
-                        onClose={() => setPopoverRow(null)}
-                      />
-                    )}
+                  {/* Always-visible row action icons */}
+                  <td
+                    className="relative px-0 py-0 align-middle"
+                    style={{ width: ROW_ACTIONS_COLUMN_PX, backgroundColor: rowBg, overflow: "visible" }}
+                    data-row-interactive="true"
+                  >
+                    <V3RowActionsPopover
+                      variant="desktop"
+                      row={row}
+                      actions={props.rowActions}
+                      canPrintStatement={props.canPrintStatement(row)}
+                      canSendBack={!officeProfile && props.canSendBack(row)}
+                      canCancelCase={props.canCancelCase}
+                      canDeleteCase={props.canDeleteCase}
+                      allowDriverActions={!officeProfile}
+                      allowRush={!officeProfile}
+                      allowUndoLocation={!officeProfile && Boolean(props.allowUndoLocation)}
+                      onClose={() => {}}
+                    />
                   </td>
                 </tr>
               )
@@ -503,70 +727,120 @@ function DesktopCell({
   rushCasePanColor,
   showTimestamp,
   allowDriverActions,
+  allowPanToggle,
+  canOverridePanColor,
+  currentUserId,
   highlightRushRows,
+  virtualSlipHref,
+  openSlipLabel,
 }: {
   column: DesktopColumn
   dueDateColor: string
   showTimestamp: boolean
   allowDriverActions: boolean
+  allowPanToggle: boolean
+  canOverridePanColor: boolean
+  currentUserId?: number | null
   highlightRushRows: boolean
   row: V2CaseRowData
   rowActions: V2RowActions
   rowBg: string
   rushCasePanColor: string | null
+  virtualSlipHref: string
+  openSlipLabel: string
 }) {
+  const cellWidth = column.width
+  // Avoid pointer-events-none on <td> — Safari can send those clicks to the wrong row.
   if (column.key === "patient") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <button
-          className="flex h-full w-full flex-col items-start justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
-          style={{ padding: "10px 15px", gap: 2, height: 65 }}
-          type="button"
-          onClick={() => rowActions.onOpen(row)}
-        >
-          <div className="flex items-center min-w-0" style={{ gap: 5 }}>
-            <span
-              className="truncate"
-              style={{ fontSize: 18, lineHeight: "21px", color: "#000000", fontWeight: 400, maxWidth: column.width - 40 }}
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+        <div className="flex w-full min-w-0 items-center overflow-hidden" style={{ padding: "5px 10px 5px 15px", gap: 6, height: 52 }}>
+        <div className="flex h-full min-w-0 flex-1 flex-col items-start justify-center overflow-hidden" style={{ gap: 2 }}>
+          <div className="flex items-center min-w-0 w-full" style={{ gap: 5 }}>
+            <Link
+              href={virtualSlipHref}
+              aria-label={openSlipLabel}
+              className="truncate min-w-0 hover:text-[#1162A8] hover:underline"
+              style={{ fontSize: 18, lineHeight: "21px", color: "#575757", fontWeight: 400 }}
+              onClick={(e) => e.stopPropagation()}
             >
               {row.patient || "Unnamed patient"}
-            </span>
+            </Link>
             {row.rush && (
               <img src="/icons/rush-bolt.svg" alt="Rush" aria-label="Rush" style={{ width: 14, height: 24, flexShrink: 0 }} />
             )}
           </div>
-          <span className="truncate" style={{ fontSize: 12, lineHeight: "14px", color: "#9ca3af", maxWidth: column.width - 30 }}>
+          <span className="truncate w-full" style={{ fontSize: 12, lineHeight: "14px", color: "#9ca3af" }}>
             {row.slipNumber || `#${row.id}`}
             {showTimestamp && row.createdAt ? ` · ${formatCreatedAt(row.createdAt)}` : ""}
           </span>
-        </button>
+        </div>
+        <Link
+          href={virtualSlipHref}
+          aria-label={openSlipLabel}
+          title="View"
+          className="shrink-0 rounded p-1 hover:bg-[#f3f4f6]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ViewEyeIcon size={25} />
+        </Link>
+        </div>
       </td>
     )
   }
 
   if (column.key === "panProduct") {
+    const chipTitle = panChipTitle(row, currentUserId, canOverridePanColor)
+    const blockedOther =
+      Boolean(row.panColorAssignment) &&
+      Boolean(currentUserId) &&
+      row.panColorAssignment!.assignedBy.id !== currentUserId &&
+      !canOverridePanColor
+    const panChip = (
+      <div
+        className="flex items-center justify-center"
+        style={{
+          background: PAN_BG,
+          borderRadius: 6,
+          width: 94,
+          maxWidth: "100%",
+          height: 24,
+          gap: 10,
+          ...row.panColorStyle,
+          ...(row.rush && highlightRushRows && rushCasePanColor
+            ? { backgroundColor: rushCasePanColor }
+            : null),
+          ...(allowPanToggle ? { cursor: blockedOther ? "not-allowed" : "pointer" } : null),
+        }}
+      >
+        <span style={{ fontSize: 16, lineHeight: "18px", fontWeight: 700, color: "#F7F7F7" }}>
+          {row.pan || "—"}
+        </span>
+      </div>
+    )
+
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex flex-col items-start justify-center" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
-          <div
-            className="flex items-center justify-center"
-            style={{
-              background: PAN_BG,
-              borderRadius: 6,
-              width: 94,
-              height: 24,
-              gap: 10,
-              ...row.panColorStyle,
-              ...(row.rush && highlightRushRows && rushCasePanColor
-                ? { backgroundColor: rushCasePanColor }
-                : null),
-            }}
-          >
-            <span style={{ fontSize: 16, lineHeight: "18px", fontWeight: 700, color: "#F7F7F7" }}>
-              {row.pan || "—"}
-            </span>
-          </div>
-          <div style={{ fontSize: 14, lineHeight: "16px", color: "#575757", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+        <div className="flex min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 15px", gap: 3, height: 52 }}>
+          {allowPanToggle && rowActions.onTogglePan ? (
+            <button
+              type="button"
+              data-row-interactive="true"
+              aria-label={chipTitle}
+              aria-pressed={Boolean(row.panColorAssignment)}
+              className="p-0 border-0 bg-transparent"
+              title={chipTitle}
+              onClick={(e) => {
+                e.stopPropagation()
+                rowActions.onTogglePan?.(row)
+              }}
+            >
+              {panChip}
+            </button>
+          ) : (
+            panChip
+          )}
+          <div className="w-full truncate" style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>
             {row.product || "—"}
           </div>
         </div>
@@ -575,25 +849,28 @@ function DesktopCell({
   }
 
   if (column.key === "location") {
-    // Office profiles run neither ready to send nor pick up / drop off, so the
-    // location label stays plain text for them rather than opening a modal.
     const locationAction = row.newStageEligible
       ? "addStage"
       : allowDriverActions
-        ? isReadyToSendLocation(row)
+        ? canMarkReadyToSend(row)
           ? "readyToSend"
           : isPickupDropoffLocation(row)
             ? "driverHistory"
             : null
         : null
 
+    const locationLabel = row.location || "Unknown"
+
     if (!locationAction) {
       return (
-        <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-          <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
-            {locationIcon(row)}
-            <span className="whitespace-nowrap" style={{ fontSize: 18, lineHeight: "21px", color: "#000000" }}>
-              {row.location || "Unknown"}
+        <td
+          className="px-0 py-0 align-middle overflow-hidden"
+          style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}
+        >
+          <div className="flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 52 }}>
+            <span className="shrink-0">{locationIcon(row)}</span>
+            <span className="min-w-0 truncate" style={{ fontSize: 18, lineHeight: "21px", color: "#575757" }} title={locationLabel}>
+              {locationLabel}
             </span>
           </div>
         </td>
@@ -601,14 +878,19 @@ function DesktopCell({
     }
 
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
+      <td
+        className="px-0 py-0 align-middle overflow-hidden"
+        style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}
+      >
+        <div className="flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 52 }}>
           <button
-            className="inline-flex items-center gap-2.5 whitespace-nowrap text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.03] active:scale-95"
-            style={{ fontSize: 18, lineHeight: "21px", color: "#000000", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            className="flex w-full min-w-0 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
+            style={{ fontSize: 18, lineHeight: "21px", color: "#575757", background: "none", border: "none", cursor: "pointer", padding: 0 }}
             title={locationAction === "addStage" ? "Add stage" : locationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
             type="button"
+            data-row-interactive="true"
             onClick={(e) => {
+              e.preventDefault()
               e.stopPropagation()
               locationAction === "addStage"
                 ? rowActions.onAddStage(row)
@@ -617,8 +899,8 @@ function DesktopCell({
                 : rowActions.onDriverHistory(row)
             }}
           >
-            {locationIcon(row)}
-            <span>{row.location || "Unknown"}</span>
+            <span className="shrink-0">{locationIcon(row)}</span>
+            <span className="min-w-0 truncate">{locationLabel}</span>
           </button>
         </div>
       </td>
@@ -627,21 +909,29 @@ function DesktopCell({
 
   if (column.key === "dueDate") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
+      <td
+        className="px-0 py-0 align-middle overflow-hidden"
+        style={{
+          width: cellWidth,
+          maxWidth: cellWidth,
+          backgroundColor: rowBg,
+        }}
+      >
+        <div className="flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 52 }}>
           {allowDriverActions ? (
             <button
-              className="inline-flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.03] active:scale-95"
+              className="flex w-full min-w-0 items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
               style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor, background: "none", border: "none", cursor: "pointer", padding: 0 }}
               type="button"
               title="Change due date"
-              onClick={(e) => { e.stopPropagation(); rowActions.onChangeDueDate(row) }}
+              data-row-interactive="true"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); rowActions.onChangeDueDate(row) }}
             >
-              <img src="/icons/slip-listing/calendar.png" alt="" className="h-5 w-5 shrink-0" />
-              <span>{formatDueDate(row)}</span>
+              <img src={`${LI}/calendar.png`} alt="" className="h-[25px] w-[25px] shrink-0" />
+              <span className="min-w-0 truncate">{formatDueDate(row)}</span>
             </button>
           ) : (
-            <span style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
+            <span className="min-w-0 truncate" style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
               {formatDueDate(row)}
             </span>
           )}
@@ -652,8 +942,8 @@ function DesktopCell({
 
   if (column.key === "status") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex flex-col items-start justify-center" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+        <div className="flex flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 10px", gap: 3, height: 52 }}>
           <StatusPill status={row.status} />
         </div>
       </td>
@@ -662,10 +952,10 @@ function DesktopCell({
 
   if (column.key === "office") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex flex-col items-start justify-center" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
-          <div style={{ fontSize: 18, lineHeight: "21px", color: "#000000" }}>{row.officeCode || "—"}</div>
-          {row.doctor && <div style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.doctor}</div>}
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+        <div className="flex min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 15px", gap: 3, height: 52 }}>
+          <div className="truncate w-full" style={{ fontSize: 18, lineHeight: "21px", color: "#575757" }}>{row.officeCode || "—"}</div>
+          {row.doctor && <div className="truncate w-full" style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.doctor}</div>}
         </div>
       </td>
     )
@@ -673,20 +963,72 @@ function DesktopCell({
 
   if (column.key === "caseNo") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex h-[65px] items-center" style={{ padding: "5px 15px" }}>
-          <span style={{ fontSize: 16, lineHeight: "18px", color: "#575757" }}>{row.caseNumber || "—"}</span>
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+        <div className="flex h-[52px] min-w-0 items-center overflow-hidden" style={{ padding: "5px 15px" }}>
+          <span className="truncate" style={{ fontSize: 16, lineHeight: "18px", color: "#575757" }}>{row.caseNumber || "—"}</span>
+        </div>
+      </td>
+    )
+  }
+
+  if (column.key === "attachments") {
+    return (
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+        <div className="flex h-[52px] items-center justify-center overflow-hidden" style={{ padding: "5px 4px" }} data-row-interactive="true">
+          <DigitalImpressionLabels impressions={row.digitalImpressions} />
         </div>
       </td>
     )
   }
 
   return (
-    <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-      <div className="flex h-[65px] items-center" style={{ padding: "5px 15px" }}>
-        <span style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.createdAt || "—"}</span>
+    <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+      <div className="flex h-[52px] min-w-0 items-center overflow-hidden" style={{ padding: "5px 15px" }}>
+        <span className="truncate" style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.createdAt || "—"}</span>
       </div>
     </td>
+  )
+}
+
+
+function DigitalImpressionLabels({
+  impressions,
+}: {
+  impressions?: Array<{ id: number; name: string; code?: string; url?: string | null }>
+}) {
+  if (!impressions?.length) return null
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-0.5">
+      {impressions.map((impression) => {
+        const label = impression.code || impression.name
+        const title = impression.name && impression.code && impression.name !== impression.code
+          ? impression.name
+          : label
+        return impression.url ? (
+          <a
+            key={impression.id}
+            href={impression.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="pointer-events-auto relative z-[2] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
+            style={{ fontSize: 16, lineHeight: "18px", fontWeight: 400, color: "#1162A8" }}
+            title={`Open ${title}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {label}
+          </a>
+        ) : (
+          <span
+            key={impression.id}
+            title={title}
+            style={{ fontSize: 16, lineHeight: "18px", fontWeight: 400, color: "#1162A8" }}
+          >
+            {label}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
@@ -695,26 +1037,27 @@ function StatusPill({ status }: { status: string }) {
   if (status === "On hold" || status === "On Hold") return <SlipListingStatusBadge tone="on-hold">On Hold</SlipListingStatusBadge>
   if (isSlipCaseCancelled(status)) return <SlipListingStatusBadge tone="cancelled">Cancelled</SlipListingStatusBadge>
   if (isSlipCaseFinished(status)) return <SlipListingStatusBadge tone="finished">Done</SlipListingStatusBadge>
+  if (status.trim().toLowerCase() === "deleted") return <SlipListingStatusBadge tone="deleted">Deleted</SlipListingStatusBadge>
   return <SlipListingStatusBadge tone="draft">{status || "Unknown"}</SlipListingStatusBadge>
 }
 
 function mobileLocationIcon(row: V2CaseRowData): string {
-  if (row.newStageEligible) return `${VS}/add-stage.svg`
+  if (row.newStageEligible) return `${LI}/add-stage.png`
   const locationId = row.locationId
-  if (locationId === 1 || locationId === 4) return `${VS}/pick-up.svg`
-  if (locationId === 2 || locationId === 5) return `${VS}/drop-off.svg`
-  if (locationId === 3) return `/images/paper-airplane.svg`
+  if (locationId === 1 || locationId === 4) return `${LI}/pick-up.png`
+  if (locationId === 2 || locationId === 5) return `${LI}/drop-off.png`
+  if (locationId === 3) return `${LI}/paper-airplane.png`
   if (locationId === 6) return `${VS}/in-office.png`
-  return `${VS}/pick-up.svg`
+  return `${LI}/pick-up.png`
 }
 
 function locationIcon(row: V2CaseRowData) {
-  if (row.newStageEligible) return <img src={`${VS}/add-stage.svg`} style={{ width: 28, height: 28, objectFit: "contain" as const }} aria-hidden alt="" />
+  if (row.newStageEligible) return <img src={`${LI}/add-stage.png`} style={{ width: 25, height: 25, objectFit: "contain" as const }} aria-hidden alt="" />
   const locationId = row.locationId
-  const imgProps = { style: { width: 28, height: 28, filter: monoFilter, objectFit: "contain" as const }, "aria-hidden": true, alt: "" }
-  if (locationId === 1 || locationId === 4) return <img src={`${VS}/pick-up.svg`} {...imgProps} />
-  if (locationId === 2 || locationId === 5) return <img src={`${VS}/drop-off.svg`} {...imgProps} />
-  if (locationId === 3) return <img src={`/images/paper-airplane.svg`} {...imgProps} />
+  const imgProps = { style: { width: 25, height: 25, filter: monoFilter, objectFit: "contain" as const }, "aria-hidden": true, alt: "" }
+  if (locationId === 1 || locationId === 4) return <img src={`${LI}/pick-up.png`} style={{ width: 29, height: 29, filter: monoFilter, objectFit: "contain" as const }} aria-hidden alt="" />
+  if (locationId === 2 || locationId === 5) return <img src={`${LI}/drop-off.png`} {...imgProps} />
+  if (locationId === 3) return <img src={`${LI}/paper-airplane.png`} {...imgProps} />
   if (locationId === 6) return <img src={`${VS}/in-office.png`} {...imgProps} />
   return <LabLocationIcon className="h-4 w-4 shrink-0 opacity-60" />
 }
@@ -731,6 +1074,10 @@ function isReadyToSendLocation(row: V2CaseRowData) {
   return row.location === SLIP_LOCATION_FILTER_OPTIONS.find((o) => o.id === 3)?.label
 }
 
+function canMarkReadyToSend(row: V2CaseRowData) {
+  return isReadyToSendLocation(row) && !isSlipCaseCancelled(row.status)
+}
+
 function isPickupDropoffLocation(row: V2CaseRowData) {
   return slipShowsPickupDropoff({ locationId: row.locationId, location: row.location || "" })
 }
@@ -740,17 +1087,21 @@ function isDeliveredRow(row: V2CaseRowData): boolean {
   return slipIsInOffice({ locationId: row.locationId, location: row.location }) || isSlipCaseFinished(row.status)
 }
 
+function formatDueMmDd(due: Date): string {
+  return `${String(due.getMonth() + 1).padStart(2, "0")}/${String(due.getDate()).padStart(2, "0")}`
+}
+
 function dueDateTextColor(row: V2CaseRowData): string {
   // A delivered case can't be late, so it keeps the settled green even when its
   // due date has passed.
   if (isDeliveredRow(row)) return "#347B4E"
   const { dueDate, rush } = row
   if (!dueDate) return "#575757"
-  const due = new Date(dueDate)
-  if (isNaN(due.getTime())) return "#575757"
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
+  // Parse as calendar day (YYYY-MM-DD) so device timezone cannot shift the date.
+  const due = parseSlipListingDueDate(dueDate)
+  if (!due) return "#575757"
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   // Overdue outranks rush — a late rush case is the one that most needs flagging.
   if (due.getTime() < today.getTime()) return OVERDUE_RED
   if (rush) return "#347B4E"
@@ -759,21 +1110,20 @@ function dueDateTextColor(row: V2CaseRowData): string {
 
 function formatDueDate(row: V2CaseRowData): string {
   const { dueDate } = row
-  const due = dueDate ? new Date(dueDate) : null
-  const dueValid = due && !isNaN(due.getTime())
+  // Parse as calendar day (YYYY-MM-DD) so MM/DD matches the API date on every device.
+  const due = dueDate ? parseSlipListingDueDate(dueDate) : null
   // A delivered case (in office / finished) shows the delivery date instead of a
   // countdown: "Delivered 04/30".
   if (isDeliveredRow(row)) {
-    if (!dueValid) return "Delivered"
-    return `Delivered ${due!.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })}`
+    if (!due) return "Delivered"
+    return `Delivered ${formatDueMmDd(due)}`
   }
   if (!dueDate) return "—"
-  if (!dueValid) return dueDate
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  due!.setHours(0, 0, 0, 0)
-  const days = Math.round((due!.getTime() - today.getTime()) / 86_400_000)
-  const mmdd = due!.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
+  if (!due) return dueDate
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const days = Math.round((due.getTime() - today.getTime()) / 86_400_000)
+  const mmdd = formatDueMmDd(due)
   const label = days === 0 ? "Today" : days < 0 ? `${Math.abs(days)}d ago` : `${days}d`
   return `${label} · ${mmdd}`
 }

@@ -8,6 +8,10 @@ import { applySlipAttachmentState } from "./attachment-state.mjs";
 import { formatSlipListingProducts } from "./slip-listing-product-label.mjs";
 import { formatSlipListingTimestamp } from "@/lib/slip-listing-timestamp";
 import { resolveListingCustomerId } from "@/lib/customer-scope";
+import {
+  mapApiPanColorAssignment,
+  type SlipPanColorAssignment,
+} from "@/lib/slip-pan-color";
 
 type Slip = {
   id: number;
@@ -20,6 +24,10 @@ type Slip = {
   pan: string;
   panColor: string;
   panColorStyle?: React.CSSProperties;
+  /** Shared pan-row color assignment (lab listing). */
+  panColorAssignment?: SlipPanColorAssignment;
+  /** @deprecated Prefer panColorAssignment */
+  panToggled?: boolean;
   officeCode: string;
   patient: string;
   product: string;
@@ -27,12 +35,18 @@ type Slip = {
   rush: boolean;
   location: string;
   attachment: boolean;
+  /** Digital impressions (is_digital_impression = Yes) for Attachments column. */
+  digitalImpressions?: Array<{ id: number; name: string; code?: string; url?: string | null }>;
   newStageEligible?: boolean;
   dueDate: string;
   overdue: boolean;
   doctor?: string;
   user?: string;
   productType?: string;
+  /** Distinct catalog product names on the slip (for advanced product filter). */
+  productNames?: string[];
+  /** Distinct stage names on the slip (for advanced stage filter). */
+  stageNames?: string[];
   /** `location.current.id` from API — use for reliable location UI vs string name */
   locationId?: number;
   // ...add more fields as needed
@@ -83,6 +97,10 @@ type DriverPrintSlip = {
   case_pan_number: string;
   case_number: string;
   slip_number: string;
+  /** Current location name used as STATUS on the sticker. */
+  status?: string | null;
+  qr_code?: string;
+  qr_code_url?: string;
 };
 
 type DriverPrintResponse = {
@@ -126,12 +144,26 @@ type SlipContextType = {
   fetchDriverPrintData: (slipIds: number[]) => Promise<DriverPrintResponse | null>;
   scanQrCode: (caseId: number, slipIds: number[], sessionKey?: string) => Promise<ScanQrCodeResponse | null>;
   clearDriverSession: (sessionKey: string) => Promise<{ success: boolean; message?: string } | null>;
+  removeScannedCase: (
+    sessionKey: string,
+    caseId: number,
+  ) => Promise<{ success: boolean; message?: string; scanned_cases_count?: number } | null>;
   submitScannedSlips: (slipIds: number[], signature: string, options?: { notes?: string; images?: Record<number, File> }) => Promise<SubmitScannedSlipsResponse | null>;
   fetchPickupDeliverySlips: (slipId: number) => Promise<any | null>;
   createCustomDeliveryDate: (slipId: number, delivery_date: string, delivery_time: string, notes?: string) => Promise<any | null>;
   fetchCustomDeliveryDates: (slipId: number) => Promise<any | null>;
-  readyToSend: (slipId: number, signature?: string) => Promise<ReadyToSendResponse | null>;
+  readyToSend: (
+    slipId: number,
+    payload?: { signature?: string; image?: File | null; notes?: string } | string
+  ) => Promise<ReadyToSendResponse | null>;
   updateSlipAttachmentState: (slipId: number, hasAttachment: boolean) => void;
+  toggleSlipPan: (slipId: number) => Promise<{
+    success: boolean;
+    action?: string;
+    pan_color?: SlipPanColorAssignment | null;
+    previous_assigned_by?: { id: number; first_name: string; last_name: string } | null;
+    message?: string;
+  } | null>;
 };
 
 const SlipContext = createContext<SlipContextType | undefined>(undefined);
@@ -189,6 +221,8 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     panColorStyle: apiSlip.casepan?.color_code
       ? { backgroundColor: apiSlip.casepan.color_code }
       : undefined,
+    panColorAssignment: mapApiPanColorAssignment(apiSlip.pan_color),
+    panToggled: Boolean(apiSlip.pan_color?.color || apiSlip.pan_toggled),
     officeCode: apiSlip.office?.code || "",
     patient: apiSlip.case?.patient_name || "",
     product: formatSlipListingProducts(apiSlip.products),
@@ -196,6 +230,17 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     rush: !!apiSlip.is_rush,
     location: apiSlip.location?.current?.name || "",
     attachment: !!apiSlip.attachments?.has_attachments,
+    digitalImpressions: Array.isArray(apiSlip.attachments?.digital_impressions)
+      ? apiSlip.attachments.digital_impressions
+          .filter((item: any) => item && (item.code || item.name))
+          .map((item: any) => ({
+            id: Number(item.id),
+            name: String(item.name || "").trim(),
+            code: String(item.code || "").trim() || undefined,
+            url: item.url ? String(item.url) : null,
+          }))
+          .filter((item: { name: string; code?: string }) => !!(item.code || item.name))
+      : [],
     newStageEligible:
       typeof apiSlip.new_stage_eligible === "string"
         ? apiSlip.new_stage_eligible.trim().toLowerCase() === "yes"
@@ -205,6 +250,24 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     doctor: apiSlip.case?.doctor?.name || apiSlip.doctor || undefined,
     user: apiSlip.user?.name || apiSlip.user || undefined,
     productType: apiSlip.products?.[0]?.type || apiSlip.productType || undefined,
+    productNames: Array.from(
+      new Set(
+        (Array.isArray(apiSlip.products) ? apiSlip.products : [])
+          .map((p: { product_name?: string; name?: string; product?: { name?: string } }) =>
+            String(p?.product_name || p?.name || p?.product?.name || "").trim()
+          )
+          .filter(Boolean)
+      )
+    ),
+    stageNames: Array.from(
+      new Set(
+        (Array.isArray(apiSlip.products) ? apiSlip.products : [])
+          .map((p: { stage_name?: string; stage?: { name?: string } }) =>
+            String(p?.stage_name || p?.stage?.name || "").trim()
+          )
+          .filter(Boolean)
+      )
+    ),
     locationId: typeof apiSlip.location?.current?.id === "number" ? apiSlip.location.current.id : undefined,
     // ...add more fields as needed
   });
@@ -324,6 +387,80 @@ export function SlipProvider({ children }: { children: ReactNode }) {
 
   const updateSlipAttachmentState = useCallback((slipId: number, hasAttachment: boolean) => {
     setSlips((currentSlips) => applySlipAttachmentState(currentSlips, slipId, hasAttachment));
+  }, []);
+
+  const toggleSlipPan = useCallback(async (slipId: number) => {
+    const token = getToken();
+    let previousAssignment: SlipPanColorAssignment | undefined;
+
+    try {
+      const res = await fetch(buildApiUrl(`/slip/action/${slipId}/toggle-pan`), {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: "application/json",
+        },
+      });
+
+      if (res.status === 401) {
+        handleUnauthorized();
+        return null;
+      }
+
+      const body = await res.json().catch(() => null);
+      const action = body?.data?.action as string | undefined;
+      const mapped = mapApiPanColorAssignment(body?.data?.pan_color);
+      const previousAssignedBy = body?.data?.previous_assigned_by
+        ? {
+            id: Number(body.data.previous_assigned_by.id) || 0,
+            first_name: String(body.data.previous_assigned_by.first_name ?? ""),
+            last_name: String(body.data.previous_assigned_by.last_name ?? ""),
+          }
+        : null;
+
+      if (action === "blocked") {
+        return {
+          success: false,
+          action: "blocked",
+          pan_color: mapped ?? null,
+          message: body?.message || "Pan color is assigned to another user",
+        };
+      }
+
+      if (!res.ok || !body?.success) {
+        return {
+          success: false,
+          message: body?.message || `Request failed (${res.status})`,
+        };
+      }
+
+      setSlips((current) => {
+        previousAssignment = current.find((s) => s.id === slipId)?.panColorAssignment;
+        void previousAssignment;
+        const nextAssignment =
+          action === "cleared" ? undefined : mapped ?? undefined;
+        return current.map((s) =>
+          s.id === slipId
+            ? {
+                ...s,
+                panColorAssignment: nextAssignment,
+                panToggled: Boolean(nextAssignment),
+              }
+            : s,
+        );
+      });
+
+      return {
+        success: true,
+        action,
+        pan_color: mapped ?? null,
+        previous_assigned_by: previousAssignedBy,
+        message: body?.message,
+      };
+    } catch (error) {
+      console.error("Error toggling slip pan color:", error);
+      return null;
+    }
   }, []);
 
   const fetchOfficeSlips = useCallback(async (customerId: number) => {
@@ -509,6 +646,32 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     }
   }, [API_BASE_URL]);
 
+  /** Remove one case from the active driver QR session (allows re-scan). */
+  const removeScannedCase = useCallback(async (
+    sessionKey: string,
+    caseId: number,
+  ): Promise<{ success: boolean; message?: string; scanned_cases_count?: number } | null> => {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/slip/remove-scanned-case`, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ session_key: sessionKey, case_id: caseId }),
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return null;
+      }
+      return await res.json();
+    } catch (error) {
+      console.error("Error removing scanned case:", error);
+      return null;
+    }
+  }, [API_BASE_URL]);
+
   // Create Custom Delivery Date API
   const createCustomDeliveryDate = useCallback(async (
     slipId: number,
@@ -684,24 +847,62 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   }, [API_BASE_URL])
 
   /**
-   * POST /slip/action/{slipId}/ready-to-send. When a signature is captured
-   * (lab's require_signature_ready_to_send setting), it is sent as
-   * { signature }; without it, no body is sent.
+   * POST /slip/action/{slipId}/ready-to-send.
+   * Signature / photo follow lab slip settings. Image uses multipart.
    */
-  const readyToSend = useCallback(async (slipId: number, signature?: string): Promise<ReadyToSendResponse | null> => {
+  const readyToSend = useCallback(async (
+    slipId: number,
+    payload?: { signature?: string; image?: File | null; notes?: string } | string
+  ): Promise<ReadyToSendResponse | null> => {
     setLoading(true);
     try {
       const token = getToken();
-      const trimmedSignature = signature?.trim();
-      const hasBody = Boolean(trimmedSignature);
-      const res = await fetch(buildApiUrl(`/slip/action/${slipId}/ready-to-send`), {
-        method: "POST",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(hasBody ? { "Content-Type": "application/json" } : {}),
-        },
-        ...(hasBody ? { body: JSON.stringify({ signature: trimmedSignature }) } : {}),
-      });
+      const normalized =
+        typeof payload === "string" ? { signature: payload } : payload ?? {};
+      const trimmedSignature = normalized.signature?.trim();
+      const image = normalized.image ?? null;
+      const notes = normalized.notes?.trim();
+      const hasImage = Boolean(image);
+      const hasBody = Boolean(trimmedSignature) || hasImage || Boolean(notes);
+
+      let requestInit: RequestInit;
+      if (hasImage) {
+        const form = new FormData();
+        if (trimmedSignature) form.append("signature", trimmedSignature);
+        if (notes) form.append("notes", notes);
+        form.append("image", image as File);
+        requestInit = {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: form,
+        };
+      } else if (hasBody) {
+        requestInit = {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...(trimmedSignature ? { signature: trimmedSignature } : {}),
+            ...(notes ? { notes } : {}),
+          }),
+        };
+      } else {
+        requestInit = {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        };
+      }
+
+      const res = await fetch(
+        buildApiUrl(`/slip/action/${slipId}/ready-to-send`),
+        requestInit
+      );
 
       if (res.status === 401) {
         handleUnauthorized();
@@ -765,12 +966,14 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       fetchDriverPrintData,
       scanQrCode,
       clearDriverSession,
+      removeScannedCase,
       submitScannedSlips,
       createCustomDeliveryDate,
       fetchCustomDeliveryDates,
       fetchPickupDeliverySlips,
       readyToSend,
       updateSlipAttachmentState,
+      toggleSlipPan,
     }}>
       {children}
     </SlipContext.Provider>

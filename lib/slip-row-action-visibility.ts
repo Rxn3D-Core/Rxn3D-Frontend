@@ -2,6 +2,7 @@ import {
   slipCanHold,
   slipCanReadyToSend,
   slipCanSendBackToOffice,
+  slipCanUndoLocation,
   slipIsInLab,
   slipIsInOffice,
   slipShowsPickupDropoff,
@@ -27,13 +28,17 @@ export type SlipRowActionKey =
   | "callLog"
   | "attach"
   | "editSlip"
+  | "deleteSlip"
+  | "restoreSlip"
   | "printDriverLabel"
-  | "printStatement";
+  | "printStatement"
+  | "undoLocation";
 
 export type SlipRowActionVisibilityInput = SlipLocationRef & {
   status: string;
   canPrintStatement?: boolean;
   canEditSlip?: boolean;
+  canCancelCase?: boolean;
   canDeleteCase?: boolean;
   /**
    * Submit/change rush from listing or virtual slip. Office profiles can still
@@ -46,6 +51,8 @@ export type SlipRowActionVisibilityInput = SlipLocationRef & {
    * office, change delivery date). Office profiles cannot run them. Defaults true.
    */
   allowDriverActions?: boolean;
+  /** Lab admin (or superadmin as lab) may undo one location step. Defaults false. */
+  allowUndoLocation?: boolean;
 };
 
 export type SlipRowActionVisibility = Record<SlipRowActionKey, boolean>;
@@ -65,36 +72,47 @@ export function resolveSlipRowActionVisibility(
   const caseOnHold = isSlipCaseOnHold(input.status);
   const caseCancelled = isSlipCaseCancelled(input.status);
   const caseFinished = isSlipCaseFinished(input.status);
-  const caseBlocked = caseOnHold || caseCancelled;
+  const caseDeleted = input.status.trim().toLowerCase() === "deleted";
+  const caseBlocked = caseOnHold || caseCancelled || caseDeleted;
   const slipInOffice = slipIsInOffice(ref);
   const slipInLab = slipIsInLab(ref);
   const canPutOnHold = slipCanHold(ref);
   const canSendBack = slipCanSendBackToOffice(ref);
   const allowRush = input.allowRush !== false;
   const canEditSlip = input.canEditSlip !== false;
+  const canCancelCase = input.canCancelCase !== false;
   const canDeleteCase = input.canDeleteCase !== false;
   const canPrintStatement = Boolean(input.canPrintStatement);
+  const allowUndoLocation = Boolean(input.allowUndoLocation);
 
   const allowDriverActions = input.allowDriverActions !== false;
-  const canReadyToSend = allowDriverActions && slipCanReadyToSend(ref);
+  const canReadyToSend =
+    allowDriverActions && slipCanReadyToSend(ref) && !caseCancelled;
   const showLocation =
     allowDriverActions && (canReadyToSend || slipShowsPickupDropoff(ref));
 
   return {
-    location: showLocation,
-    readyToSend: canReadyToSend,
-    rush: allowRush && !caseOnHold && !caseFinished && !caseCancelled,
+    location: showLocation && !caseDeleted,
+    readyToSend: canReadyToSend && !caseDeleted,
+    rush: allowRush && !caseOnHold && !caseFinished && !caseCancelled && !caseDeleted,
     hold: !caseBlocked && !slipInOffice && canPutOnHold,
-    cancel: !caseBlocked && !slipInOffice && canDeleteCase,
-    sendBack: allowDriverActions && canSendBack && !caseCancelled && !caseFinished,
-    print: !caseCancelled,
-    invoice: canPrintStatement && !caseCancelled,
-    schedule: allowDriverActions && !caseCancelled && !caseFinished,
-    addOns: !caseOnHold && !caseFinished && !caseCancelled,
-    callLog: true,
-    attach: true,
-    editSlip: slipInLab && !caseCancelled && canEditSlip,
-    printDriverLabel: !caseCancelled,
-    printStatement: canPrintStatement && !caseCancelled,
+    cancel: !caseBlocked && !slipInOffice && canCancelCase,
+    sendBack: allowDriverActions && canSendBack && !caseCancelled && !caseFinished && !caseDeleted,
+    print: !caseCancelled && !caseDeleted,
+    invoice: canPrintStatement && !caseCancelled && !caseDeleted,
+    schedule: allowDriverActions && !caseCancelled && !caseFinished && !caseDeleted,
+    addOns: !caseOnHold && !caseFinished && !caseCancelled && !caseDeleted,
+    callLog: !caseDeleted,
+    attach: !caseDeleted,
+    editSlip: slipInLab && !caseCancelled && !caseDeleted && canEditSlip,
+    deleteSlip: !caseDeleted && canDeleteCase,
+    restoreSlip: caseDeleted && canDeleteCase,
+    printDriverLabel: allowDriverActions,
+    printStatement: canPrintStatement && !caseCancelled && !caseDeleted,
+    undoLocation:
+      allowUndoLocation &&
+      !caseDeleted &&
+      !caseCancelled &&
+      slipCanUndoLocation(ref),
   };
 }

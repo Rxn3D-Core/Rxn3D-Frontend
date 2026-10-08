@@ -20,7 +20,7 @@ const ModelPreloadProvider = React.lazy(() =>
   import("@/contexts/3d-model-preload-context").then(mod => ({ default: mod.ModelPreloadProvider }))
 )
 // Routes that don't need authenticated providers
-const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/setup-account", "/user-invitations"]
+const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/setup-account", "/user-invitations", "/register", "/get-started"]
 
 /**
  * Internal component that uses usePathname

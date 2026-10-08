@@ -37,6 +37,7 @@ export type NewStageEligibilityData = {
   slip_id?: number;
   slip_status?: string;
   has_stage_successor?: boolean;
+  finished_via_send_back_to_office?: boolean;
   products: NewStageEligibilityProduct[];
 };
 

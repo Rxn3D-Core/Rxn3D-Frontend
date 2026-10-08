@@ -1,10 +1,42 @@
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
+import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
 import { resolveArchProductImage } from "@/components/case-design-center/utils/variationHelpers";
 import {
   isFixedRestorationProduct,
   resolveProductForRetentionCheck,
 } from "@/components/case-design-center/utils/categoryHelpers";
+import { formatShadeGuideWithBrand, formatShadeSystemName } from "@/components/case-design-center/utils/shadeFieldDisplay";
+
+/** Stump shade: "Brand - System - A1" (drops brand when it matches system). */
+function formatSlipShadeLabel(
+  shadeName: string | null | undefined,
+  brand?: { name?: string | null; system_name?: string | null } | null,
+): string {
+  const code = (shadeName ?? "").trim();
+  if (!code) return "";
+  const guide = formatShadeGuideWithBrand(brand?.system_name, brand?.name);
+  if (!guide) return code;
+  // Avoid "Brand - Standard Pink - Standard Pink" when shade name equals system.
+  const system = formatShadeSystemName((brand?.system_name ?? "").trim());
+  if (system && system.toLowerCase() === code.toLowerCase()) return guide;
+  return `${guide} - ${code}`;
+}
+
+/** Teeth and gum shade: "System - A1" (no brand). Falls back to brand name when system is missing. */
+function formatSystemShadeLabel(
+  shadeName: string | null | undefined,
+  brand?: { name?: string | null; system_name?: string | null } | null,
+): string {
+  const code = (shadeName ?? "").trim();
+  if (!code) return "";
+  const system =
+    formatShadeSystemName((brand?.system_name ?? "").trim()) ||
+    (brand?.name ?? "").trim();
+  if (!system) return code;
+  if (system.toLowerCase() === code.toLowerCase()) return system;
+  return `${system} - ${code}`;
+}
 
 /**
  * Display-oriented view model for the redesigned (view-only) virtual slip page.
@@ -27,11 +59,31 @@ export interface ToothVM {
 export interface ImplantVM {
   toothNumber: number;
   brand: string;
+  /** Implant system name when available from slip details. */
+  systemName?: string;
   platform: string;
   size: string;
   abutmentType: string;
   abutmentOption: string;
   retentionMechanism: string;
+  labRecommendationRequested?: boolean;
+  implantDetailId?: number | null;
+  referencePhotoUrl?: string | null;
+  productId?: number | null;
+  categoryId?: number | null;
+  implantId?: number | null;
+  platformId?: number | null;
+  sizeId?: number | null;
+  abutmentId?: number | null;
+  abutmentOptionId?: number | null;
+}
+
+export function isPendingLabRecommendationImplant(row: ImplantVM): boolean {
+  return Boolean(row.labRecommendationRequested && !row.brand);
+}
+
+export function isEditableVirtualSlipImplant(row: ImplantVM): boolean {
+  return Boolean(row.brand || row.implantId || row.platform || row.abutmentType);
 }
 
 export interface ProductVM {
@@ -51,6 +103,8 @@ export interface ProductVM {
   productName: string;
   grade: string;
   stage: string;
+  /** Slip product workflow status (In Progress, On hold, cancelled, …). */
+  status: string;
   teethShade: string;
   gumShade: string;
   stumpShade: string;
@@ -70,7 +124,18 @@ export interface ProductVM {
   advanceFields: Array<{ label: string; value: string }>;
 }
 
-import { formatFieldValueForNote } from "@/components/case-design-center/utils/caseNoteBuilder";
+export function collectPendingLabRecommendationImplants(vm: {
+  arches: {
+    maxillary?: { products?: ProductVM[] };
+    mandibular?: { products?: ProductVM[] };
+  };
+}): ImplantVM[] {
+  return [
+    ...(vm.arches.maxillary?.products ?? []),
+    ...(vm.arches.mandibular?.products ?? []),
+  ].flatMap((product) => product.implants.filter(isPendingLabRecommendationImplant));
+}
+
 import type { ExtractionDisplayVM } from "./virtual-slip-extraction-display";
 import {
   buildArchChartExtractionDisplayFromSlipProducts,
@@ -254,6 +319,97 @@ function firstStr(...vals: Array<unknown>): string {
   return "";
 }
 
+/** True when a display string is only one or more numeric option ids. */
+function looksLikeOptionIdList(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (/^\d+$/.test(trimmed)) return true;
+  if (/^\[\s*\d+(?:\s*,\s*\d+)*\s*\]$/.test(trimmed)) return true;
+  return /^\d+(?:\s*,\s*\d+)+$/.test(trimmed);
+}
+
+function parseAdvanceOptionIds(raw: unknown): number[] {
+  if (raw === null || raw === undefined) return [];
+  const trimmed = String(raw).trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0);
+      }
+    } catch {
+      return [];
+    }
+  }
+  if (/^\d+(?:\s*,\s*\d+)*$/.test(trimmed)) {
+    return trimmed
+      .split(",")
+      .map((part) => Number(part.trim()))
+      .filter((id) => Number.isInteger(id) && id > 0);
+  }
+  return [];
+}
+
+function resolveOptionNamesFromIds(
+  ids: number[],
+  options: Array<{ id?: number; name?: string }> | undefined
+): string {
+  if (!ids.length || !Array.isArray(options) || options.length === 0) return "";
+  const names = ids
+    .map((id) => options.find((opt) => Number(opt?.id) === id)?.name)
+    .map((name) => String(name ?? "").trim())
+    .filter(Boolean);
+  return names.length > 0 ? names.join(", ") : "";
+}
+
+/**
+ * Prefer API display_value / selected option name; when multi-select still
+ * arrives as option ids, map them through advance_field.options.
+ */
+function resolveAdvanceFieldValue(saved: any): string {
+  const options =
+    (Array.isArray(saved?.advance_field?.options)
+      ? saved.advance_field.options
+      : Array.isArray(saved?.options)
+        ? saved.options
+        : []) as Array<{ id?: number; name?: string }>;
+
+  const candidates = [
+    saved?.display_value,
+    saved?.advance_field?.selected_option?.name,
+    saved?.selected_option?.name,
+    saved?.teeth_shade?.name,
+    saved?.file?.name,
+  ];
+
+  for (const candidate of candidates) {
+    const text = firstStr(candidate);
+    if (!text) continue;
+    if (!looksLikeOptionIdList(text)) return text;
+    const fromIds = resolveOptionNamesFromIds(parseAdvanceOptionIds(text), options);
+    if (fromIds) return fromIds;
+  }
+
+  const rawValue = saved?.advance_field_value;
+  const fromRawIds = resolveOptionNamesFromIds(parseAdvanceOptionIds(rawValue), options);
+  if (fromRawIds) return fromRawIds;
+
+  // Plain non-numeric / non-JSON scalar only — never dump blobs or bare option ids.
+  if (
+    typeof rawValue === "string" &&
+    !rawValue.trim().startsWith("{") &&
+    !rawValue.trim().startsWith("[") &&
+    !looksLikeOptionIdList(rawValue)
+  ) {
+    return rawValue.trim();
+  }
+
+  return "";
+}
+
 /**
  * Format an ISO date string to MM/DD/YY. Parses the date components directly
  * from the string (rather than via `new Date()`) so the calendar day is not
@@ -275,38 +431,34 @@ export function isoDateFromApiTimestamp(iso: string | null | undefined): string 
   return m ? m[1] : "";
 }
 
-/**
- * Format a time to "h:mm AM/PM". Reads the hour/minute directly from the ISO
- * string's time portion (the stored UTC value, not the viewer's local time).
- * Accepts full ISO datetimes ("...T13:30:00.000000Z") or bare "HH:mm[:ss]".
- */
-function formatTime(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const m = /T(\d{2}):(\d{2})/.exec(iso) ?? /^(\d{1,2}):(\d{2})/.exec(iso);
-  if (!m) return "";
-  const h = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
-  if (isNaN(h) || isNaN(min)) return "";
-  const ampm = h >= 12 ? "PM" : "AM";
-  const hour = h % 12 || 12;
-  return `${hour}:${String(min).padStart(2, "0")} ${ampm}`;
-}
+export type VirtualSlipVMOptions = {
+  /** Lab `case_schedule.default_delivery_time` from GET /business-settings. */
+  defaultDeliveryTime?: string | null;
+};
 
 /** Format an impressions array into "1x Clean impression, 1x STL". */
 function formatImpressions(impressions: unknown): string {
   return formatOpposingImpressions(impressions);
 }
 
-/** Format an addons array into ["3x Gold tooth", ...]. */
+/** Format an addons array into ["3x Gold tooth", ...], collapsing same-name rows. */
 function formatAddOns(addons: unknown): string[] {
   if (!Array.isArray(addons)) return [];
-  return addons
-    .map((a: any) => {
-      const qty = a?.quantity ?? a?.qty ?? 1;
-      const name = firstStr(a?.addon?.name, a?.add_on?.name, a?.name);
-      return name ? `${qty}x ${name}` : "";
-    })
-    .filter(Boolean);
+  const byName = new Map<string, { name: string; qty: number }>();
+  for (const a of addons) {
+    const name = firstStr(a?.addon?.name, a?.add_on?.name, a?.name);
+    if (!name) continue;
+    const qtyRaw = a?.quantity ?? a?.qty ?? 1;
+    const qty = Number(qtyRaw);
+    const amount = Number.isFinite(qty) && qty > 0 ? qty : 1;
+    const key = name.trim().replace(/\s+/g, " ").toLowerCase();
+    const current = byName.get(key);
+    byName.set(key, {
+      name: current?.name ?? name,
+      qty: (current?.qty ?? 0) + amount,
+    });
+  }
+  return Array.from(byName.values()).map((row) => `${row.qty}x ${row.name}`);
 }
 
 /**
@@ -348,11 +500,15 @@ function buildImplantRow(
       impRow?.brand,
       impRow?.brand_name,
     ),
+    systemName: firstStr(
+      impRow?.implant?.system_name,
+      impRow?.system_name,
+      impRow?.systemName,
+    ),
     platform: firstStr(
       impRow?.platform?.name,
       impRow?.implant_platform?.name,
       impRow?.platform_name,
-      impRow?.system_name,
     ),
     size,
     abutmentType: firstStr(
@@ -365,6 +521,29 @@ function buildImplantRow(
       abRow?.abutmentOption,
     ),
     retentionMechanism,
+    labRecommendationRequested: Boolean(impRow?.lab_recommendation_requested),
+    implantDetailId: Number(impRow?.id ?? 0) || null,
+    referencePhotoUrl: firstStr(impRow?.reference_photo_url) || null,
+    implantId:
+      Number(impRow?.implant_id ?? impRow?.implant?.id ?? 0) || null,
+    platformId:
+      Number(
+        impRow?.implant_platform_id ??
+          impRow?.platform?.id ??
+          impRow?.implant_platform?.id ??
+          0
+      ) || null,
+    sizeId:
+      Number(
+        impRow?.implant_platform_size_id ??
+          sizeObj?.id ??
+          impRow?.size?.id ??
+          0
+      ) || null,
+    abutmentId:
+      Number(abRow?.abutment_type_id ?? abRow?.abutment_type?.id ?? 0) || null,
+    abutmentOptionId:
+      Number(abRow?.abutment_option_id ?? abRow?.abutment_option?.id ?? 0) || null,
   };
 }
 
@@ -397,7 +576,24 @@ function buildImplants(apiProduct: any): ImplantVM[] {
       .map((imp) => {
         const tn = Number(imp?.tooth_number);
         if (!Number.isFinite(tn)) return null;
-        return buildImplantRow(imp, abutmentByTooth[tn] ?? {}, tn, retentionByTooth[tn] ?? "");
+        return {
+          ...buildImplantRow(imp, abutmentByTooth[tn] ?? {}, tn, retentionByTooth[tn] ?? ""),
+          productId:
+            Number(
+              apiProduct?.product?.id ??
+                apiProduct?.product_id ??
+                apiProduct?.library_product_id ??
+                0
+            ) || null,
+          categoryId:
+            Number(
+              apiProduct?.product?.subcategory?.category_id ??
+                apiProduct?.category?.id ??
+                apiProduct?.subcategory?.category_id ??
+                apiProduct?.category_id ??
+                0
+            ) || null,
+        };
       })
       .filter((v): v is ImplantVM => v !== null);
   }
@@ -462,44 +658,64 @@ function buildProduct(apiProduct: any): ProductVM {
   const productTitle = firstStr(product?.name, apiProduct?.name, "Product");
 
   // Advance field saved values for the "Advance Mode configuration" expander.
-  // Each entry in apiProduct.advance_fields carries its own label via the nested
-  // `advance_field.name` — no separate definitions array from product is needed.
+  // Prefer API `field_name` / `display_value` / `selections` (resolved server-side).
   const advanceFields: Array<{ label: string; value: string }> = [];
   if (Array.isArray(apiProduct?.advance_fields)) {
-    // Optional product-level defs map (older API shape where product carries its own advance_fields array).
-    const defs: Record<number, string> = {};
-    if (Array.isArray(product?.advance_fields)) {
-      for (const def of product.advance_fields) {
-        if (def?.id) defs[def.id] = def?.name ?? "";
-      }
-    }
-    const productAdvanceDefs = Array.isArray(product?.advance_fields)
-      ? product.advance_fields
-      : undefined;
+    const pushRow = (label: string, value: string) => {
+      const cleanLabel = String(label ?? "").trim();
+      const cleanValue = String(value ?? "").trim();
+      if (!cleanLabel || !hasDisplayValue(cleanValue)) return;
+      if (cleanValue === "Auto" || cleanValue === "auto") return;
+      // Skip raw JSON leftovers from older API payloads.
+      if (cleanValue.startsWith("{") || cleanValue.startsWith("[")) return;
+      if (advanceFields.some((row) => row.label === cleanLabel && row.value === cleanValue)) return;
+      // One row per field name (first wins).
+      if (advanceFields.some((row) => row.label === cleanLabel)) return;
+      advanceFields.push({ label: cleanLabel, value: cleanValue });
+    };
+
     for (const saved of apiProduct.advance_fields) {
-      const id = saved?.advance_field_id ?? saved?.id;
-      const rawValue = firstStr(
-        saved?.advance_field_value,
-        saved?.value,
-        saved?.teeth_shade?.name,
-        saved?.file?.name,
+      const selections = Array.isArray(saved?.selections) ? saved.selections : null;
+      if (selections && selections.length > 0) {
+        const fieldOptions =
+          (Array.isArray(saved?.advance_field?.options)
+            ? saved.advance_field.options
+            : Array.isArray(saved?.options)
+              ? saved.options
+              : []) as Array<{ id?: number; name?: string }>;
+        const fieldDisplay = resolveAdvanceFieldValue(saved);
+
+        for (const selection of selections) {
+          const selectionRaw = firstStr(selection?.value, selection?.display_value);
+          let selectionValue = selectionRaw;
+          if (!selectionValue || looksLikeOptionIdList(selectionValue)) {
+            selectionValue =
+              resolveOptionNamesFromIds(parseAdvanceOptionIds(selectionRaw), fieldOptions) ||
+              (looksLikeOptionIdList(selectionRaw) ? fieldDisplay : selectionRaw) ||
+              fieldDisplay;
+          }
+          pushRow(
+            firstStr(selection?.field_name, saved?.field_name, saved?.advance_field?.name),
+            selectionValue,
+          );
+        }
+        continue;
+      }
+
+      pushRow(
+        firstStr(saved?.field_name, saved?.advance_field?.name, saved?.name),
+        resolveAdvanceFieldValue(saved),
       );
-      const value =
-        formatFieldValueForNote(rawValue, productAdvanceDefs) ||
-        (rawValue.startsWith("{") || rawValue.startsWith("[") ? "" : rawValue);
-      // Prefer the nested advance_field.name (present in v2 response); fall back to defs map.
-      const label = firstStr(saved?.advance_field?.name, defs[id], saved?.name);
-      if (label && hasDisplayValue(value)) advanceFields.push({ label, value });
     }
   }
-
   // Teeth shade: direct field first; fall back to the first shade_guide advance_field
   // (e.g. "Base Shade") when the product stores all shades as advance fields.
   const teethShadeFromAdvance = (() => {
     if (!Array.isArray(apiProduct?.advance_fields)) return "";
     for (const saved of apiProduct.advance_fields) {
       if (saved?.advance_field?.field_type === "shade_guide") {
-        return firstStr(saved?.teeth_shade?.name, saved?.advance_field_value);
+        const code = firstStr(saved?.teeth_shade?.name, saved?.advance_field_value);
+        return formatSystemShadeLabel(code, saved?.teeth_shade_brand);
       }
     }
     return "";
@@ -510,13 +726,17 @@ function buildProduct(apiProduct: any): ProductVM {
     for (const saved of apiProduct.advance_fields) {
       const name: string = (saved?.advance_field?.name ?? "").toLowerCase();
       if (name.includes("stump") && saved?.advance_field?.field_type === "shade_guide") {
-        return firstStr(saved?.teeth_shade?.name, saved?.advance_field_value);
+        const code = firstStr(saved?.teeth_shade?.name, saved?.advance_field_value);
+        return formatSlipShadeLabel(code, saved?.teeth_shade_brand);
       }
     }
     return "";
   })();
 
   const fromNotes = parseSlipProductNotes(firstStr(apiProduct?.notes));
+
+  const teethShadeCode = firstStr(apiProduct?.teeth_shade?.name, apiProduct?.teeth_shade_name);
+  const gumShadeCode = firstStr(apiProduct?.gum_shade?.name, apiProduct?.gum_shade_name);
 
   return {
     apiProduct,
@@ -533,13 +753,16 @@ function buildProduct(apiProduct: any): ProductVM {
     productName: firstStr(product?.name, apiProduct?.name),
     grade: firstStr(apiProduct?.grade?.name, apiProduct?.grade_name),
     stage: firstStr(apiProduct?.stage?.name, apiProduct?.stage_name, fromNotes.stage),
+    status: firstStr(apiProduct?.status, "In Progress"),
     teethShade: firstStr(
-      apiProduct?.teeth_shade?.name,
-      apiProduct?.teeth_shade_name,
+      formatSystemShadeLabel(teethShadeCode, apiProduct?.teeth_shade_brand),
       teethShadeFromAdvance,
       fromNotes.teethShade,
     ),
-    gumShade: firstStr(apiProduct?.gum_shade?.name, apiProduct?.gum_shade_name, fromNotes.gumShade),
+    gumShade: firstStr(
+      formatSystemShadeLabel(gumShadeCode, apiProduct?.gum_shade_brand),
+      fromNotes.gumShade,
+    ),
     stumpShade: firstStr(
       apiProduct?.stump_shade?.name,
       apiProduct?.stump_shade_name,
@@ -797,7 +1020,7 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-export function buildVirtualSlipVM(d: any): VirtualSlipVM {
+export function buildVirtualSlipVM(d: any, options?: VirtualSlipVMOptions): VirtualSlipVM {
   const safe = d ?? {};
   const caseObj = safe.case ?? {};
   const products: any[] = Array.isArray(safe.products)
@@ -829,7 +1052,12 @@ export function buildVirtualSlipVM(d: any): VirtualSlipVM {
       resolveDoctorImageUrl(safe.doctor) ||
       null,
     createdByName: firstStr(safe.created_by?.name, caseObj.created_by?.name),
-    createdByImage: firstStr(safe.created_by?.image, caseObj.created_by?.image) || null,
+    // Real creator photo only (including when creator is a doctor) — never the
+    // dual-dentist Doctor placeholder illustration.
+    createdByImage:
+      resolveDoctorImageUrl(safe.created_by) ||
+      resolveDoctorImageUrl(caseObj.created_by) ||
+      null,
     patientName: firstStr(caseObj.patient_name),
     gender: firstStr(caseObj.gender),
     age: firstStr(caseObj.age),
@@ -848,7 +1076,10 @@ export function buildVirtualSlipVM(d: any): VirtualSlipVM {
           : typeof safe.location_id === "number"
             ? safe.location_id
             : undefined,
-    deliveryTime: formatTime(safe.delivery?.delivery_time),
+    deliveryTime: resolveSlipDeliveryTimeDisplay(
+      safe.delivery?.delivery_time,
+      options?.defaultDeliveryTime
+    ),
     dueDate: deliveryDates.dueDate,
     pickupDate: formatDate(safe.delivery?.pickup_date),
     isRush: deliveryDates.isRush,

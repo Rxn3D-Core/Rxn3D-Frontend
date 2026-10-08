@@ -28,3 +28,8 @@ export function isSlipCaseCancelled(status: string | undefined | null): boolean 
     normalized === "trash"
   );
 }
+
+/** True when users may create or edit slip notes (not Finished / cancelled). */
+export function canAddSlipNotes(status: string | undefined | null): boolean {
+  return !isSlipCaseFinished(status) && !isSlipCaseCancelled(status);
+}

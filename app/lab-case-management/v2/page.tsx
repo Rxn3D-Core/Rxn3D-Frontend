@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { useSearchParams } from "next/navigation"
+import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { X } from "lucide-react"
@@ -27,7 +28,6 @@ import RushRequestModal from "@/components/rush-request-modal"
 import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast";
-import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import {
@@ -41,13 +41,19 @@ import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPause
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { slipListingStatusLabel } from "@/components/slip-listing/SlipListingStatusTabs"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
-import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
-import { LoadingOverlay } from "@/components/ui/loading-overlay"
+import { printPaperSlipV6ForSlip } from "@/lib/print-paper-slip-v6-from-slip"
+// Multiple paper slip print disabled from listing
+// import { printPaperSlipV6ForSlips } from "@/lib/print-paper-slip-v6-from-slip"
+import {
+  resolveListingPaperSlipId,
+  // resolveListingPaperSlipJobs,
+} from "@/lib/paper-slip-listing-print-ids"
 import { useDebounce } from "@/lib/performance-utils"
 import { V2CaseWidget } from "./components/V2CaseWidget"
 
 function formatYmd(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  // Use local calendar date — toISOString() shifts the day back in timezones ahead of UTC.
+  return format(d, "yyyy-MM-dd")
 }
 
 function getLabCustomerId(): number | null {
@@ -65,7 +71,6 @@ function canPrintStatement(row: { billingId?: number | null }): boolean {
 export default function LabSlipPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2();
   // Get customerType from localStorage and use as userRole
   let userRole = 'lab';
   if (typeof window !== 'undefined') {
@@ -143,12 +148,22 @@ export default function LabSlipPage() {
   const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<any>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
+  const [deleteSlipModalOpen, setDeleteSlipModalOpen] = useState(false)
+  const [selectedSlipForDelete, setSelectedSlipForDelete] = useState<any>(null)
+  const [deleteSlipSubmitting, setDeleteSlipSubmitting] = useState(false)
+  const [restoreSlipModalOpen, setRestoreSlipModalOpen] = useState(false)
+  const [selectedSlipForRestore, setSelectedSlipForRestore] = useState<any>(null)
+  const [restoreSlipSubmitting, setRestoreSlipSubmitting] = useState(false)
   const [holdSlipModalOpen, setHoldSlipModalOpen] = useState(false)
   const [selectedSlipForHold, setSelectedSlipForHold] = useState<any>(null)
   const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
 
-  // Lab signature requirement for the "Ready to Send" action (loaded while the modal is open).
-  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
+  // Lab signature / photo requirements for "Ready to Send" (loaded while the modal is open).
+  const {
+    readyToSendRequired,
+    readyToSendPhotoEnabled,
+    readyToSendPhotoRequired,
+  } = useSignatureRequirementSettings(showReadyToSendModal)
 
   const {
     slips,
@@ -162,7 +177,7 @@ export default function LabSlipPage() {
     labListingPagination,
     updateSlipAttachmentState,
   } = useSlipContext();
-  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation();
+  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, restoreSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   const dateRangeKey = useMemo(
@@ -314,11 +329,11 @@ export default function LabSlipPage() {
     setShowReadyToSendModal(true)
   }
 
-  const handleConfirmReadyToSend = async (signature?: string) => {
+  const handleConfirmReadyToSend = async (payload: { signature: string; image?: File | null }) => {
     if (!readyToSendSlip) return
     setReadyToSendSubmitting(true)
     try {
-      const res = await readyToSend(readyToSendSlip.id, signature)
+      const res = await readyToSend(readyToSendSlip.id, payload)
       if (res?.success) {
         toast({
           title: "Success",
@@ -423,7 +438,7 @@ export default function LabSlipPage() {
   }, [fetchLabSlips])
 
   const handleEditCase = (slip: any) => {
-    router.push(buildVirtualSlipV2Path(slip.id))
+    router.push(buildVirtualSlipV2Path(slip.caseId, slip.id))
   }
 
   const handleOpenRushCase = (slip: any) => {
@@ -490,6 +505,16 @@ export default function LabSlipPage() {
     setCancelSlipModalOpen(true)
   }
 
+  const handleOpenDeleteCase = (slip: any) => {
+    setSelectedSlipForDelete(slip)
+    setDeleteSlipModalOpen(true)
+  }
+
+  const handleOpenRestoreCase = (slip: any) => {
+    setSelectedSlipForRestore(slip)
+    setRestoreSlipModalOpen(true)
+  }
+
   const handleOpenHoldCase = (slip: any) => {
     if (!slipCanHold({ locationId: slip.locationId, location: slip.location })) {
       toast({
@@ -504,15 +529,20 @@ export default function LabSlipPage() {
     setHoldSlipModalOpen(true)
   }
 
-  const handleConfirmHoldCase = async (reason: string) => {
+  const handleConfirmHoldCase = async (
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => {
     if (!selectedSlipForHold?.id || !reason.trim()) return
 
     setHoldSlipSubmitting(true)
     try {
-      await holdSlip(selectedSlipForHold.id, reason.trim())
+      const res = await holdSlip(selectedSlipForHold.id, reason.trim(), options)
+      const scopeLabel =
+        options?.scope === "arch" ? options.arch ?? "Arch" : "Case"
       toast({
-        title: "Case put on hold",
-        description: "The case has been put on hold successfully.",
+        title: `${scopeLabel} put on hold`,
+        description: res?.message ?? `The ${scopeLabel.toLowerCase()} has been put on hold successfully.`,
         duration: 3000,
       })
       setHoldSlipModalOpen(false)
@@ -520,9 +550,10 @@ export default function LabSlipPage() {
       refreshCurrentListing()
     } catch (error) {
       toast({
-        title: "Unable to put case on hold",
+        title: "Unable to put on hold",
         description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
+        duration: 5000,
       })
     } finally {
       setHoldSlipSubmitting(false)
@@ -559,15 +590,20 @@ export default function LabSlipPage() {
     }
   }
 
-  const handleConfirmCancelCase = async (reason: string) => {
+  const handleConfirmCancelCase = async (
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => {
     if (!selectedSlipForCancel?.id || !reason.trim()) return
 
     setCancelSlipSubmitting(true)
     try {
-      await cancelSlip(selectedSlipForCancel.id, reason.trim())
+      const res = await cancelSlip(selectedSlipForCancel.id, reason.trim(), options)
+      const scopeLabel =
+        options?.scope === "arch" ? options.arch ?? "Arch" : "Case"
       toast({
-        title: "Case cancelled",
-        description: "The case was cancelled successfully.",
+        title: `${scopeLabel} cancelled`,
+        description: res?.message ?? `The ${scopeLabel.toLowerCase()} was cancelled successfully.`,
         duration: 3000,
       })
       setCancelSlipModalOpen(false)
@@ -575,42 +611,108 @@ export default function LabSlipPage() {
       refreshCurrentListing()
     } catch (error) {
       toast({
-        title: "Unable to cancel case",
+        title: "Unable to cancel",
         description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
+        duration: 5000,
       })
     } finally {
       setCancelSlipSubmitting(false)
     }
   }
 
+  const handleConfirmDeleteSlip = async (
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => {
+    if (!selectedSlipForDelete?.id || !reason.trim()) return
 
-  // Individual print handler
+    setDeleteSlipSubmitting(true)
+    try {
+      const res = await softDeleteSlip(selectedSlipForDelete.id, reason.trim(), options)
+      const scopeLabel =
+        options?.scope === "arch" ? options.arch ?? "Arch" : "Slip"
+      toast({
+        title: `${scopeLabel} deleted`,
+        description: res?.message ?? `The ${scopeLabel.toLowerCase()} was deleted successfully.`,
+        duration: 3000,
+      })
+      setDeleteSlipModalOpen(false)
+      setSelectedSlipForDelete(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to delete",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      })
+    } finally {
+      setDeleteSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmRestoreSlip = async (reason: string) => {
+    if (!selectedSlipForRestore?.id) return
+
+    setRestoreSlipSubmitting(true)
+    try {
+      const res = await restoreSlip(selectedSlipForRestore.id, reason.trim() || undefined)
+      toast({
+        title: "Slip restored",
+        description: res?.message ?? "The slip was restored to In Progress.",
+        duration: 3000,
+      })
+      setRestoreSlipModalOpen(false)
+      setSelectedSlipForRestore(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to restore slip",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      })
+    } finally {
+      setRestoreSlipSubmitting(false)
+    }
+  }
+
+
+  // Individual print handler — always slip.id (never caseId as slip_ids).
   const handlePrintPaperSlip = (slip: any) => {
-    const customerType = (typeof window !== 'undefined' && localStorage.getItem('customerType')) || 'lab';
-    const idToSend: number | null = customerType === 'office'
-      ? ((typeof slip.caseId === 'number' && !isNaN(slip.caseId)) ? slip.caseId : null)
-      : ((typeof slip.id === 'number' && !isNaN(slip.id)) ? slip.id : null);
+    const idToSend = resolveListingPaperSlipId(slip);
     if (idToSend === null) {
       toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" });
       return;
     }
-    printPaperSlip([idToSend], []);
+    return printPaperSlipV6ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
+      toast({
+        title: "Unable to print paper slip",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    });
   }
 
-  // Bulk print handler
-  const handleBulkPrintPaperSlip = () => {
-    if (!selected.length) return;
-    const selectedRows = slips.filter(slip => selected.includes(slip.id));
-    const slipIds = selectedRows
-      .map(r => (typeof r.caseId === 'number' && !isNaN(r.caseId)) ? r.caseId : (typeof r.id === 'number' && !isNaN(r.id) ? r.id : null))
-      .filter((id): id is number => typeof id === 'number' && !isNaN(id));
-    if (!slipIds.length) {
-      toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" });
-      return;
-    }
-    printPaperSlip(slipIds, []);
-  };
+  // Multiple paper slip print disabled from listing
+  // Bulk print handler — selected row slip ids only.
+  // const handleBulkPrintPaperSlip = () => {
+  //   if (!selected.length) return;
+  //   const selectedRows = slips.filter(slip => selected.includes(slip.id));
+  //   const jobs = resolveListingPaperSlipJobs(selectedRows);
+  //   if (!jobs.length) {
+  //     toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" });
+  //     return;
+  //   }
+  //   void printPaperSlipV6ForSlips(jobs).catch((error: unknown) => {
+  //     toast({
+  //       title: "Unable to print paper slip",
+  //       description: error instanceof Error ? error.message : "Please try again.",
+  //       variant: "destructive",
+  //     });
+  //   });
+  // };
 
 
   const handlePrintDriverLabel = (slip: any) => {
@@ -988,10 +1090,6 @@ export default function LabSlipPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-2">
-        <HIPAAComplianceBanner variant="default" showDetails={false} />
-      </div>
-
       <main className="w-full px-4 pb-8">
         <V2CaseWidget
           attachmentsOnly={showWithAttachments}
@@ -1012,7 +1110,8 @@ export default function LabSlipPage() {
           onAttachmentsOnlyChange={setShowWithAttachments}
           onBulkArchive={() => setArchiveConfirm(-1)}
           onBulkPrintDriverLabels={() => void handleBulkDriverPrint()}
-          onBulkPrintPaperSlips={() => void handleBulkPrintPaperSlip()}
+          // Multiple paper slip print disabled from listing
+          // onBulkPrintPaperSlips={() => void handleBulkPrintPaperSlip()}
           onBulkPrintStatement={() => {
             if (selectedStatementRow) handlePrintStatement(selectedStatementRow)
           }}
@@ -1046,7 +1145,9 @@ export default function LabSlipPage() {
           onProductTypeChange={setProductType}
           onSearchChange={setSearch}
           onSearchEnter={() => {
-            if (slipsPage.length === 1) router.push(buildVirtualSlipV2Path(slipsPage[0].id))
+            if (slipsPage.length === 1) {
+              router.push(buildVirtualSlipV2Path(slipsPage[0].caseId, slipsPage[0].id))
+            }
           }}
           onSelectAll={handleSelectAllPage}
           onSelectRow={(id) => {
@@ -1060,7 +1161,7 @@ export default function LabSlipPage() {
           productType={productType}
           products={allProductTypes}
           rowActions={{
-            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.id)),
+            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.caseId, row.id)),
             onPrintPaperSlip: handlePrintPaperSlip,
             onPrintDriverLabel: handlePrintDriverLabel,
             onPrintStatement: handlePrintStatement,
@@ -1077,6 +1178,8 @@ export default function LabSlipPage() {
             onSendBack: handleOpenSendBackToOffice,
             onRush: handleOpenRushCase,
             onCancel: handleOpenCancelCase,
+            onDelete: handleOpenDeleteCase,
+            onRestore: handleOpenRestoreCase,
           }}
           rows={slipsPage}
           search={search}
@@ -1108,9 +1211,6 @@ export default function LabSlipPage() {
             </div>
           </DialogContent>
         </Dialog>
-
-        {paperSlipPortal}
-        <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
         {/* File Attachment Modal */}
         {showAttachModal && selectedCaseForAttachment && createPortal(
@@ -1167,6 +1267,8 @@ export default function LabSlipPage() {
           location={readyToSendSlip?.location}
           title="Ready to send"
           signatureRequired={readyToSendRequired}
+          photoEnabled={readyToSendPhotoEnabled}
+          photoRequired={readyToSendPhotoRequired}
         />
 
         {(() => {
@@ -1230,17 +1332,72 @@ export default function LabSlipPage() {
             setCancelSlipModalOpen(false)
             setSelectedSlipForCancel(null)
           }}
-          onSubmit={handleConfirmCancelCase}
+          onSubmitAction={(payload) =>
+            void handleConfirmCancelCase(payload.reason, {
+              scope: payload.scope,
+              arch: payload.arch,
+            })
+          }
           actionType="cancel"
-          title="Cancel Case"
-          description="You are cancelling this case. This action cannot be undone and will mark the case as inactive."
+          title="Cancel"
+          description="Choose case or arch. Cancelling one arch does not cancel the case."
           icon={<X />}
           iconBgColor="#fdecec"
           iconColor="#D32F2F"
-          buttonText={cancelSlipSubmitting ? "Cancelling..." : "Cancel Case"}
+          buttonText={cancelSlipSubmitting ? "Cancelling..." : "Cancel"}
           buttonColor="error"
-          reasonPlaceholder="Please provide a reason for case cancellation."
-          warning="This action cannot be undone and will archive the case."
+          reasonPlaceholder="Please provide a reason for cancellation."
+          warning="Case cancel stops all arches. Arch cancel leaves the other arch active."
+          enableScopePicker
+          officeName={selectedSlipForCancel?.officeCode}
+          patientName={selectedSlipForCancel?.patient}
+        />
+
+        <CaseActionModal
+          open={deleteSlipModalOpen}
+          onClose={() => {
+            if (deleteSlipSubmitting) return
+            setDeleteSlipModalOpen(false)
+            setSelectedSlipForDelete(null)
+          }}
+          onSubmitAction={(payload) =>
+            void handleConfirmDeleteSlip(payload.reason, {
+              scope: payload.scope,
+              arch: payload.arch,
+            })
+          }
+          actionType="delete"
+          title="Delete"
+          description="Delete the whole case/slip, or only Upper or Lower when added by mistake. Cancel preserves history; delete removes the arch from the case."
+          icon={<X />}
+          iconBgColor="#f3f4f6"
+          iconColor="#374151"
+          buttonText={deleteSlipSubmitting ? "Deleting..." : "Soft Delete"}
+          buttonColor="error"
+          reasonPlaceholder="Please provide a reason for deleting."
+          warning="Soft-deleted records stay recoverable via the Deleted filter."
+          enableScopePicker
+          officeName={selectedSlipForDelete?.officeCode}
+          patientName={selectedSlipForDelete?.patient}
+        />
+
+        <CaseActionModal
+          open={restoreSlipModalOpen}
+          onClose={() => {
+            if (restoreSlipSubmitting) return
+            setRestoreSlipModalOpen(false)
+            setSelectedSlipForRestore(null)
+          }}
+          onSubmit={handleConfirmRestoreSlip}
+          actionType="restore"
+          title="Restore Slip"
+          description="You are restoring this deleted slip back to In Progress."
+          icon={<X />}
+          iconBgColor="#E8F5E9"
+          iconColor="#43A047"
+          buttonText={restoreSlipSubmitting ? "Restoring..." : "Restore to In Progress"}
+          buttonColor="success"
+          reasonPlaceholder="Optional reason for restoring this slip."
         />
 
         <CaseActionModal
@@ -1250,16 +1407,24 @@ export default function LabSlipPage() {
             setHoldSlipModalOpen(false)
             setSelectedSlipForHold(null)
           }}
-          onSubmit={handleConfirmHoldCase}
+          onSubmitAction={(payload) =>
+            void handleConfirmHoldCase(payload.reason, {
+              scope: payload.scope,
+              arch: payload.arch,
+            })
+          }
           actionType="hold"
-          title="Put Case On Hold"
-          description="You are putting this case on hold. The delivery date will be recalculated when the case is resumed."
+          title="Hold"
+          description="Choose whether to hold the whole case or one arch (Upper/Lower)."
           icon={<VirtualSlipPauseIcon className="h-7 w-7" />}
           iconBgColor="#FFF3DF"
           iconColor="#FFB400"
-          buttonText={holdSlipSubmitting ? "Saving…" : "Put case on hold"}
+          buttonText={holdSlipSubmitting ? "Saving…" : "Put on hold"}
           buttonColor="warning"
-          reasonPlaceholder="Please provide a reason for putting case on hold."
+          reasonPlaceholder="Please provide a reason for hold."
+          enableScopePicker
+          officeName={selectedSlipForHold?.officeCode}
+          patientName={selectedSlipForHold?.patient}
         />
 
         {/* Driver History Modal */}

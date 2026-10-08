@@ -9,6 +9,14 @@ import { PickupDeliveryTab } from "@/components/lab-administrator/lab-profile-pi
 import ActivityLogTab from "@/components/lab-administrator/lab-profile-activity-log"
 import { LabProfileSidebar } from "@/components/lab-administrator/lab-profile-sidebar"
 import LabProfileTabs from "@/components/lab-administrator/lab-profile-tabs"
+import {
+  DEFAULT_CLOSE_TIME_12,
+  DEFAULT_DELIVERY_TIME_12,
+  DEFAULT_OPEN_TIME_12,
+  DEFAULT_PICKUP_TIME_12,
+  parseBusinessHourTime,
+  resolveDisplayTimezone,
+} from "@/utils/time-utils"
 
 
 const tabs = [
@@ -75,6 +83,7 @@ export default function LabProfile() {
       name: customerProfile.name,
       type: customerProfile.type === "lab" ? "Dental Lab" : "Office",
       email: customerProfile.email,
+      notification_emails: customerProfile.notification_emails || [],
       address: (() => {
         // Clean postal_code to remove country name if present
         let postalCode = customerProfile.postal_code || ''
@@ -109,60 +118,35 @@ export default function LabProfile() {
       position: customerProfile.users?.[0]?.role?.name?.replace('_', ' ') || "Lab Admin",
       logo_url: customerProfile.logo_url || "",
       release_casepan: customerProfile.release_casepan || "",
+      code: customerProfile.code || "",
     },
     hoursData: {
       workingDays: customerProfile.business_settings?.business_hours?.map(hour => ({
         day: hour.day.charAt(0).toUpperCase() + hour.day.slice(1),
         enabled: hour.is_open,
-        startTime: hour.open_time 
-          ? new Date(hour.open_time).toString() !== "Invalid Date"
-            ? new Date(hour.open_time).toLocaleTimeString("en-US", { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true 
-              })
-            : ""
-          : "",
-        endTime: hour.close_time 
-          ? new Date(hour.close_time).toString() !== "Invalid Date"
-            ? new Date(hour.close_time).toLocaleTimeString("en-US", { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true 
-              })
-            : ""
-          : "",
+        startTime: parseBusinessHourTime(hour.open_time, hour.is_open ? DEFAULT_OPEN_TIME_12 : ""),
+        endTime: parseBusinessHourTime(hour.close_time, hour.is_open ? DEFAULT_CLOSE_TIME_12 : ""),
       })) || [],
-      timezone: customerProfile.state?.name || "Unknown Timezone",
+      timezone: resolveDisplayTimezone(customerProfile.state?.name),
       holidays: "All Federal Holidays",
     },
     pickupData: {
       serviceArea: customerProfile.business_settings?.pickup_area || `${customerProfile.city}, ${customerProfile.state?.name || ''} ${customerProfile.country?.name || ''}`,
       pickupDays: customerProfile.business_settings?.pickup_days || "Lab hours",
-      cutOffTime: customerProfile.business_settings?.case_schedule && customerProfile.business_settings.case_schedule.default_pickup_time
-        ? new Date(customerProfile.business_settings.case_schedule.default_pickup_time).toString() !== "Invalid Date"
-          ? new Date(customerProfile.business_settings.case_schedule.default_pickup_time).toLocaleTimeString("en-US", { 
-              hour: '2-digit', 
-              minute: '2-digit',
-              hour12: true 
-            })
-          : ""
-        : "10:30 am",
+      cutOffTime: parseBusinessHourTime(
+        customerProfile.business_settings?.case_schedule?.default_pickup_time,
+        DEFAULT_PICKUP_TIME_12
+      ),
       frequency: customerProfile.business_settings?.pickup_frequency || "Daily",
       window: customerProfile.business_settings?.pickup_window || "10:00 am - 2:00 pm",
     },
     deliveryData: {
       serviceArea: customerProfile.business_settings?.delivery_area || `${customerProfile.city}, ${customerProfile.state?.name || ''} ${customerProfile.country?.name || ''}`,
       deliveryDays: customerProfile.business_settings?.delivery_days || "Lab hours",
-      defaultTime: customerProfile.business_settings?.case_schedule && customerProfile.business_settings.case_schedule.default_delivery_time
-        ? new Date(customerProfile.business_settings.case_schedule.default_delivery_time).toString() !== "Invalid Date"
-          ? new Date(customerProfile.business_settings.case_schedule.default_delivery_time).toLocaleTimeString("en-US", { 
-              hour: '2-digit', 
-              minute: '2-digit',
-              hour12: true 
-            })
-          : ""
-        : "4:00 pm",
+      defaultTime: parseBusinessHourTime(
+        customerProfile.business_settings?.case_schedule?.default_delivery_time,
+        DEFAULT_DELIVERY_TIME_12
+      ),
       window: customerProfile.business_settings?.delivery_window || "3:00 pm - 6:00 pm",
     },
     rushSettings: {
@@ -175,7 +159,7 @@ export default function LabProfile() {
   } : null
 
   const renderTabContent = () => {
-    if (isProfileLoading) {
+    if (isProfileLoading && !transformedData) {
       return (
         <div className="flex items-center justify-center h-64">
           <div className="flex space-x-1.5">
@@ -196,7 +180,7 @@ export default function LabProfile() {
       )
     }
 
-    if (profileError) {
+    if (profileError && !transformedData) {
       return <div className="flex items-center justify-center h-64 text-red-500">Error: {profileError}</div>
     }
 

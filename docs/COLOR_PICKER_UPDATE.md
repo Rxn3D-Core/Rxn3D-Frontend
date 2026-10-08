@@ -3,6 +3,14 @@
 ## Overview
 Updated the color picker component to provide a better user experience with a two-stage selection process: preset colors and custom color picker.
 
+## Trigger preview (Brand Color)
+
+The closed trigger shows:
+- A **color swatch** filled with the selected hex
+- The hex code as readable dark text
+
+This avoids the previous outline `Button` style, which painted a white gradient over `backgroundColor` and hid the selected brand color in product management (teeth shade brand color).
+
 ## Changes Made
 
 ### 1. Updated Color Picker Component

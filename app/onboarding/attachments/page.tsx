@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { AuthHeader } from "@/components/auth-header"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { useAuth } from "@/contexts/auth-context"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 
 export default function AttachmentsPage() {
   const router = useRouter()
@@ -151,7 +152,7 @@ export default function AttachmentsPage() {
     if (!onboardingLoading && user && isOnboardingComplete) {
       const isSuperAdmin = user.roles?.includes("superadmin")
       if (!isSuperAdmin) {
-        router.replace("/dashboard")
+        router.replace(getActiveLandingPath(user))
       }
     }
   }, [onboardingLoading, user, isOnboardingComplete, router])
@@ -385,7 +386,7 @@ export default function AttachmentsPage() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 px-6 py-4">
         <div className="max-w-3xl mx-auto">
           <div className="bg-white rounded-lg shadow p-8 mb-6">
             <div className="text-center mb-6">

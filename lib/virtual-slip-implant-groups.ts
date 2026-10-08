@@ -19,6 +19,7 @@ function implantDetailsKey(imp: ImplantVM): string {
     abutmentType: imp.abutmentType,
     abutmentOption: imp.abutmentOption,
     retentionMechanism: imp.retentionMechanism,
+    labRecommendationRequested: Boolean(imp.labRecommendationRequested && !imp.brand),
   });
 }
 

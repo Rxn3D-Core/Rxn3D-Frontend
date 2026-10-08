@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { Home } from "lucide-react"
 import { AuthHeader } from "@/components/auth-header"
+import { SiteCopyrightFooter } from "@/components/site-copyright-footer"
 import { useRouter } from "next/navigation"
 import { Suspense, useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -51,9 +52,7 @@ function NotFoundContent() {
         </div>
       </div>
 
-      <footer className="bg-white border-t border-[#e4e6ef] py-4 px-6 text-center text-sm text-[#a19d9d]">
-        <p>© {new Date().getFullYear()} Rxn3D. {t("All rights reserved.", "All rights reserved.")}</p>
-      </footer>
+      <SiteCopyrightFooter />
     </div>
   )
 }

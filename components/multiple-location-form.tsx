@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
+import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
 
 type Location = {
   id: number
@@ -70,7 +71,9 @@ export default function MultipleLocation() {
       !onboardingApiError &&
       isOnboardingComplete
     ) {
-      router.replace("/dashboard")
+      // Land on the role's default page (office/lab users go to their case list).
+      const userRoles = user.roles || (user.role ? [user.role] : [])
+      router.replace(getPostLoginLandingPath(userRoles))
     } else {
       // Redirect to onboarding if not complete
       router.replace("/onboarding/business-hours")

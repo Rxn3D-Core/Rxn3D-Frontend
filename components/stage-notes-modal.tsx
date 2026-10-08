@@ -99,7 +99,7 @@ export default function StageNotesModal({
                 <Building className="h-5 w-5 text-white" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-bold">Stage notes</DialogTitle>
+                <DialogTitle className="text-xl font-bold">Slip Notes</DialogTitle>
                 <div className="text-sm text-gray-500 mt-1">
                   Patient: <span className="font-medium text-gray-800">{patientName}</span>
                   <span className="mx-2">•</span>
@@ -130,7 +130,7 @@ export default function StageNotesModal({
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <Input
-                placeholder="Search all stage notes"
+                placeholder="Search all slip notes"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 py-2 rounded-lg"
@@ -199,9 +199,9 @@ export default function StageNotesModal({
             </Popover>
           </div>
 
-          {/* Add Stage Notes */}
+          {/* Add Slip Notes */}
           <div className="mb-6 flex-shrink-0">
-            <Button className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white mb-4">Add stage notes</Button>
+            <Button className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white mb-4">Add slip notes</Button>
             <Card className="border-gray-300">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -239,9 +239,9 @@ export default function StageNotesModal({
             </Card>
           </div>
 
-          {/* Notes History */}
+          {/* Slip Notes History */}
           <div className="flex-1 overflow-y-auto pr-2 -mr-2">
-            <h3 className="font-semibold text-base mb-4">Notes History ({filteredNotes.length})</h3>
+            <h3 className="font-semibold text-base mb-4">Slip Notes History ({filteredNotes.length})</h3>
             <div className="space-y-4">
               {filteredNotes.map((note) => (
                 <div key={note.id} className="border rounded-lg p-4 bg-gray-50">

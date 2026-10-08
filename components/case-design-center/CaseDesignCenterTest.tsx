@@ -5,6 +5,7 @@ import NewCaseWizard from "@/components/new-case-wizard";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import type { SlipProductSnapshot } from "./types";
 import { PatientHeader } from "./components/PatientHeader";
+import { PatientDemographicModal } from "./components/PatientDemographicModal";
 import { CaseDesignCenter } from "./components/CaseDesignCenter";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +22,7 @@ import { useCaseSubmissionFlow } from "./hooks/useCaseSubmissionFlow";
 import { CaseSubmissionOverlays } from "./components/CaseSubmissionOverlays";
 import { DoctorEditModal } from "./components/DoctorEditModal";
 import { caseDesignInter } from "./case-design-inter-font";
+import { useCaseEstimatedDueDate } from "./hooks/useCaseEstimatedDueDate";
 
 export default function Page() {
   const { createSlip, uploadSlipAttachment } = useSlipCreation();
@@ -54,6 +56,7 @@ export default function Page() {
     doctorsError,
     wizardStartStep,
     setCompletedLab,
+    setCompletedDoctor,
     setCompletedPatientName,
     setCompletedGender,
     setCompletedAge,
@@ -64,6 +67,7 @@ export default function Page() {
     completeInlineAddProduct,
     cancelInlineAddProduct,
     handleBackToProducts,
+    handleEditProductCard,
     handleBackToCategories,
     handleTopBarEditLab,
     handleEditDoctor,
@@ -71,6 +75,10 @@ export default function Page() {
     handleDoctorEditSelect,
     handleEditDone,
     canEditDoctor,
+    demographicModalOpen,
+    pendingDemographicDetails,
+    handleDemographicConfirm,
+    handleDemographicCancel,
   } = useCaseWizardSession({
     fetchProductDetails: fetchCaseDesignProductDetails,
   });
@@ -87,6 +95,16 @@ export default function Page() {
   const [rushCasesEnabled, setRushCasesEnabled] = useState(true);
   const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null);
   const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null);
+
+  const productIdsForDueDate = [
+    selectedProductId,
+    ...addedProducts.map((p) => p.productId ?? (typeof p.product?.id === "number" ? p.product.id : null)),
+  ];
+  const {
+    displayDate: headerDueDate,
+    isLoading: headerDueDateLoading,
+    effectivePickupCutoffTime,
+  } = useCaseEstimatedDueDate(productIdsForDueDate);
 
   const {
     submissionState,
@@ -128,13 +146,14 @@ export default function Page() {
   }, [completedLab?.id]);
 
   return (
-    <div className={`${caseDesignInter.className} flex h-screen bg-white overflow-hidden`}>
-      <main className="flex-1 flex flex-col overflow-auto min-w-0">
+    <div className={`${caseDesignInter.className} flex h-full min-h-0 bg-white overflow-hidden`}>
+      <main className="flex-1 flex flex-col overflow-auto min-w-0 min-h-0">
         {!wizardComplete && (
           <NewCaseWizard
             key={wizardKey}
             onComplete={handleWizardComplete}
             onLabSelect={(lab) => setCompletedLab(lab)}
+            onDoctorSelect={(doctor) => setCompletedDoctor(doctor)}
             startStep={wizardStartStep}
             mode={wizardMode === "backToProducts" || wizardMode === "addProduct" ? "addProduct" : wizardMode}
             initialLabId={(labEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") && completedLab ? completedLab.id : null}
@@ -169,6 +188,13 @@ export default function Page() {
               labLogoUrl={completedLab?.logo}
               labName={completedLab?.name}
               onEditLab={handleTopBarEditLab}
+              estimatedDueDate={caseSubmitted ? null : headerDueDate}
+              estimatedDueDateLoading={!caseSubmitted && headerDueDateLoading}
+              cutoffTime={
+                caseSubmitted
+                  ? null
+                  : effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time
+              }
             />
             <CaseDesignCenter
               // Remount with fresh product configuration when the user goes back and
@@ -191,6 +217,7 @@ export default function Page() {
               onInlineAddProductCancel={cancelInlineAddProduct}
               labCustomerId={resolveLibraryCustomerId(completedLab?.id) ?? null}
               onBackToProducts={handleBackToProducts}
+              onEditProductCard={handleEditProductCard}
               onBackToCategories={handleBackToCategories}
               selectedProductId={selectedProductId}
               selectedProductName={selectedProductName}
@@ -213,6 +240,11 @@ export default function Page() {
               attachmentPatientName={completedPatientName || undefined}
               attachmentCaseId={slipResponseData?.id ?? undefined}
               attachmentSlipId={slipResponseData?.slips?.[0]?.id ?? undefined}
+              attachmentLabId={
+                slipResponseData?.slips?.[0]?.id
+                  ? undefined
+                  : resolveLibraryCustomerId(completedLab?.id) ?? undefined
+              }
             />
             <div style={{ height: "80px" }} />
           </div>
@@ -232,6 +264,16 @@ export default function Page() {
       )}
 
       <CaseSubmissionOverlays submissionState={submissionState} />
+
+      <PatientDemographicModal
+        open={demographicModalOpen}
+        product={pendingDemographicDetails}
+        productName={pendingDemographicDetails?.name}
+        initialGender={completedGender}
+        initialAge={completedAge}
+        onConfirm={handleDemographicConfirm}
+        onCancel={handleDemographicCancel}
+      />
 
       <DoctorEditModal
         open={doctorEditModalOpen}

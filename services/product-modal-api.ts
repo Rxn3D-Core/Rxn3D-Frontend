@@ -1,6 +1,7 @@
 import { useProductModalStore } from '@/stores/product-modal-store'
 
 import { isLabLibraryRole, resolveLibraryCustomerId } from "@/lib/customer-scope"
+import { registerInMemoryCacheClearer } from "@/lib/cache/frontend-list-cache"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api"
 
@@ -228,6 +229,8 @@ export const clearProductModalCache = () => {
   const store = useProductModalStore.getState()
   store.clearCache()
 }
+
+registerInMemoryCacheClearer(clearProductModalCache)
 
 export const clearCategoriesCache = () => {
   const store = useProductModalStore.getState()

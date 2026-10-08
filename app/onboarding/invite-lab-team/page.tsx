@@ -9,13 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AuthHeader } from "@/components/auth-header"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { useAuth } from "@/contexts/auth-context"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import { useCreateUserInvitation } from "@/hooks/use-user-invitations"
 
 const LAB_ROLE_OPTIONS = [
   { value: "lab_user", label: "Lab User" },
   { value: "lab_admin", label: "Lab Admin" },
-  // Driver pickup/delivery is handled by lab_user — no separate lab_driver role.
-  // { value: "lab_driver", label: "Lab Driver" },
+  { value: "lab_driver", label: "Lab Driver" },
 ]
 
 export default function InviteLabTeamPage() {
@@ -43,7 +43,7 @@ export default function InviteLabTeamPage() {
     if (!onboardingLoading && user && isOnboardingComplete) {
       const isSuperAdmin = user.roles?.includes("superadmin")
       if (!isSuperAdmin) {
-        router.replace("/dashboard")
+        router.replace(getActiveLandingPath(user))
       }
     }
   }, [onboardingLoading, user, isOnboardingComplete, router])
@@ -87,7 +87,7 @@ export default function InviteLabTeamPage() {
         <div className="text-right max-w-3xl mx-auto mt-1 text-sm">45% complete</div>
       </div>
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 px-6 py-4">
         <div className="max-w-3xl mx-auto">
           <div className="bg-white rounded-lg shadow p-8 mb-6">
             <div className="text-center mb-6">

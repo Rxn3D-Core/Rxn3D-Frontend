@@ -61,31 +61,41 @@ function AdvanceFieldDetail({ label, value }: { label: string; value: string }) 
   return <Detail label={label} value={value} />;
 }
 
-export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
+export function VirtualSlipProductSummary({
+  product,
+  onSelectLabImplants,
+  onEditLabImplants,
+}: {
+  product: ProductVM;
+  onSelectLabImplants?: () => void;
+  onEditLabImplants?: () => void;
+}) {
   const [advanceOpen, setAdvanceOpen] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const showImplantColumn = product.isImplant && product.implants.length > 0;
   const statusBoxProps = buildVirtualSlipStatusBoxProps(
     product.extractionDisplay,
     product.arch,
     { apiProduct: product.apiProduct },
   );
+  const productImage = product.image;
 
   return (
     <div className="mt-1">
       {/* Thumbnail | title + status boxes (virtual slip wireframe layout) */}
       <div className="flex items-stretch gap-[10px]">
-        <div className="relative w-[150px] shrink-0 self-stretch overflow-hidden rounded-[6px] bg-black min-h-[72px]">
-          {product.image ? (
+        <div className="relative flex w-[150px] shrink-0 self-stretch items-center justify-center overflow-hidden rounded-[6px] border border-[rgb(217,217,217)] bg-white p-0 min-h-[72px]">
+          {productImage && !imageFailed ? (
             <Image
-              src={product.image}
+              src={productImage}
               alt={product.title}
               fill
               className="object-contain"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
+              onError={() => setImageFailed(true)}
             />
-          ) : null}
+          ) : (
+            <span className="text-[10px] text-gray-400">No img</span>
+          )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-[8px]">
           <div className={`relative flex min-h-[72px] flex-1 flex-col items-center justify-center gap-3 rounded-[7px] border pb-3 py-0 text-center ${product.isRush ? "border-red-400 bg-red-50" : "border-[#D3D3D3]"}`}>
@@ -127,15 +137,31 @@ export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
           <Detail label="Stump Shade" value={product.stumpShade} />
           <Detail label="Gum Shade" value={product.gumShade} />
           <Detail label="Impression" value={product.impression} />
-          {product.addOns.length > 0 && (
-            <Detail label="Add on" value={product.addOns.join(", ")} />
-          )}
         </div>
 
         {showImplantColumn && (
-          <VirtualSlipImplantDetailsAccordion implants={product.implants} />
+          <div className="min-w-0">
+            <VirtualSlipImplantDetailsAccordion
+              implants={product.implants}
+              onSelectLabImplants={onSelectLabImplants}
+              onEditLabImplants={onEditLabImplants}
+            />
+          </div>
         )}
       </div>
+
+      {product.addOns.length > 0 && (
+        <div className="mt-2 flex items-start gap-[14px] py-[1px] font-sans text-[15.4px] tracking-[-0.02em]">
+          <span className="min-w-[129px] shrink-0 font-bold text-[#4C4D55]">Add on:</span>
+          <div className="flex min-w-0 flex-1 flex-wrap gap-x-4 gap-y-1 text-[#4C4D55]">
+            {product.addOns.map((addon) => (
+              <span key={addon} className="whitespace-nowrap">
+                {addon}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Advance Mode configuration expander */}
       {product.advanceFields.length > 0 && (

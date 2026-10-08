@@ -17,6 +17,7 @@ export interface Grade {
   created_at: string
   updated_at: string
   image_url?: string
+  color?: string | null
   is_custom?: "Yes" | "No"
 }
 
@@ -26,6 +27,7 @@ export interface GradePayload {
   status: "Active" | "Inactive"
   sequence: number
   image?: string
+  color?: string | null
 }
 
 export interface PaginationInfo {

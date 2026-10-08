@@ -1,0 +1,688 @@
+/**
+ * Portrait v6 paper slip: cloned from v5 with the detachable QR stub moved
+ * to the top. Same letter layout otherwise — SVG tooth charts from the
+ * virtual slip already on screen. Does not call the paper-slip API.
+ */
+
+import QRCode from "qrcode";
+import { getClaspOverlayImageUrl } from "@/components/case-design-center/utils/claspOverlayImage";
+import type { ArchVM, ProductVM, VirtualSlipVM } from "@/lib/virtual-slip-view-model";
+import { printHtmlViaHiddenIframe } from "@/lib/print-paper-slip-v4-html";
+import { PAPER_SLIP_V6_CSS } from "@/lib/paper-slip-v6-css";
+
+export type PaperSlipV6Input = {
+  vm: VirtualSlipVM;
+  caseId: number;
+  slipId: number;
+  /** Raw GET slip details, already loaded for the virtual slip page. */
+  details?: unknown;
+};
+
+type Rect = { x: number; y: number; w: number; h: number; num: number; tx: number };
+
+const MAXILLARY_RECTS: Rect[] = [
+  { x: 0, y: 0, w: 44, h: 141, num: 1, tx: 22 },
+  { x: 44, y: 0, w: 50, h: 141, num: 2, tx: 69 },
+  { x: 94, y: 0, w: 54, h: 141, num: 3, tx: 121 },
+  { x: 148, y: 0, w: 38, h: 141, num: 4, tx: 166 },
+  { x: 186, y: 0, w: 37, h: 141, num: 5, tx: 203 },
+  { x: 223, y: 0, w: 40, h: 141, num: 6, tx: 242 },
+  { x: 263, y: 0, w: 36, h: 141, num: 7, tx: 280 },
+  { x: 299, y: 0, w: 49, h: 141, num: 8, tx: 322 },
+  { x: 348, y: 0, w: 49, h: 141, num: 9, tx: 371 },
+  { x: 397, y: 0, w: 36, h: 141, num: 10, tx: 414 },
+  { x: 433, y: 0, w: 40, h: 141, num: 11, tx: 452 },
+  { x: 473, y: 0, w: 37, h: 141, num: 12, tx: 490 },
+  { x: 510, y: 0, w: 37, h: 141, num: 13, tx: 528 },
+  { x: 547, y: 0, w: 54, h: 141, num: 14, tx: 574 },
+  { x: 601, y: 0, w: 50, h: 141, num: 15, tx: 626 },
+  { x: 651, y: 0, w: 44, h: 141, num: 16, tx: 673 },
+];
+
+const MANDIBULAR_RECTS: Rect[] = (() => {
+  const slots: Rect[] = [
+    { x: 0, y: 0, w: 43, h: 135, num: 17, tx: 22 },
+    { x: 43, y: 0, w: 51, h: 135, num: 18, tx: 70 },
+    { x: 94, y: 0, w: 54, h: 135, num: 19, tx: 122 },
+    { x: 148, y: 0, w: 38, h: 135, num: 20, tx: 168 },
+    { x: 186, y: 0, w: 36, h: 135, num: 21, tx: 206 },
+    { x: 222, y: 0, w: 34, h: 135, num: 22, tx: 244 },
+    { x: 256, y: 0, w: 31, h: 135, num: 23, tx: 270 },
+    { x: 287, y: 0, w: 26, h: 135, num: 24, tx: 300 },
+    { x: 313, y: 0, w: 26, h: 135, num: 25, tx: 330 },
+    { x: 339, y: 0, w: 30, h: 135, num: 26, tx: 350 },
+    { x: 369, y: 0, w: 34, h: 135, num: 27, tx: 385 },
+    { x: 403, y: 0, w: 36, h: 135, num: 28, tx: 418 },
+    { x: 439, y: 0, w: 38, h: 135, num: 29, tx: 452 },
+    { x: 477, y: 0, w: 53, h: 135, num: 30, tx: 495 },
+    { x: 530, y: 0, w: 51, h: 135, num: 31, tx: 550 },
+    { x: 581, y: 0, w: 43, h: 135, num: 32, tx: 595 },
+  ];
+  const reversed = [...slots.map((slot) => slot.num)].reverse();
+  return slots.map((slot, index) => ({
+    ...slot,
+    num: reversed[index],
+    tx: slot.x + slot.w / 2,
+  }));
+})();
+
+function esc(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Pan numbers mix digits and letters, so zero gets a stroke to tell it apart from the letter O. */
+function panHtml(value: string): string {
+  return esc(value).replace(/0/g, `<span class="ps-zero">0<span class="ps-zero-slash"></span></span>`);
+}
+
+function text(value: unknown): string {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function limit(value: string, max: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+function uniqJoin(values: string[]): string {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const trimmed = value.trim();
+    const key = trimmed.toLowerCase();
+    if (!trimmed || seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out.join(" / ");
+}
+
+function addonLabel(products: ProductVM[]): string {
+  return uniqJoin(
+    products.map((product) => {
+      if (product.addOns.length === 0) return "";
+      if (product.addOns.length === 1) return product.addOns[0];
+      return `${product.addOns[0]} +${product.addOns.length - 1} more`;
+    })
+  );
+}
+
+function implantLabel(
+  products: ProductVM[],
+  pick: (row: ProductVM["implants"][number]) => string
+): string {
+  return uniqJoin(products.flatMap((product) => product.implants.map(pick)));
+}
+
+function detailRows(maxillary: ProductVM[], mandibular: ProductVM[]): Array<{ label: string; left: string; right: string; shade?: boolean }> {
+  const rows = [
+    { label: "Grade", left: uniqJoin(maxillary.map((p) => p.grade)), right: uniqJoin(mandibular.map((p) => p.grade)) },
+    { label: "Stage", left: uniqJoin(maxillary.map((p) => p.stage)), right: uniqJoin(mandibular.map((p) => p.stage)) },
+    { label: "Teeth Shade", left: uniqJoin(maxillary.map((p) => p.teethShade)), right: uniqJoin(mandibular.map((p) => p.teethShade)), shade: true },
+    { label: "Gum Shade", left: uniqJoin(maxillary.map((p) => p.gumShade)), right: uniqJoin(mandibular.map((p) => p.gumShade)), shade: true },
+    { label: "Impression", left: uniqJoin(maxillary.map((p) => p.impression)), right: uniqJoin(mandibular.map((p) => p.impression)) },
+    { label: "Add ons", left: addonLabel(maxillary), right: addonLabel(mandibular) },
+    {
+      label: "Implant Brand",
+      left: implantLabel(maxillary, (row) => row.brand),
+      right: implantLabel(mandibular, (row) => row.brand),
+    },
+    {
+      label: "Implant System",
+      left: implantLabel(maxillary, (row) => row.systemName || row.platform),
+      right: implantLabel(mandibular, (row) => row.systemName || row.platform),
+    },
+    {
+      label: "Abutment type",
+      left: implantLabel(maxillary, (row) => row.abutmentType || row.abutmentOption),
+      right: implantLabel(mandibular, (row) => row.abutmentType || row.abutmentOption),
+    },
+  ];
+  return rows.filter((row) => row.left !== "" || row.right !== "");
+}
+
+/** "System - A2" → shade stays beside the center label; the system sits on the outside. */
+function shadePieces(value: string): Array<{ system: string; shade: string }> {
+  return value
+    .split(" / ")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const at = part.lastIndexOf(" - ");
+      if (at === -1) return { system: "", shade: part };
+      return { system: part.slice(0, at), shade: part.slice(at + 3) };
+    });
+}
+
+function plainSide(value: string, side: "l" | "r"): string {
+  if (!value) return "";
+  return `<span class="ps-clip ps-clip-${side}"><span class="ps-clip-text">${esc(value)}</span></span>`;
+}
+
+function shadeSide(value: string, side: "l" | "r"): string {
+  const pairs = shadePieces(value)
+    .map(({ system, shade }) => {
+      const sys = system ? `<span class="ps-sys">${esc(system)}</span>` : "";
+      const code = `<span class="ps-shade">${esc(shade)}</span>`;
+      return `<span class="ps-shade-pair">${side === "l" ? `${sys}${code}` : `${code}${sys}`}</span>`;
+    })
+    .join(`<span class="ps-shade-sep">/</span>`);
+  if (!pairs) return "";
+  return `<span class="ps-shade-line ps-shade-line-${side}">${pairs}</span>`;
+}
+
+function detailRowHtml(row: { label: string; left: string; right: string; shade?: boolean }): string {
+  const left = row.shade ? shadeSide(row.left, "l") : plainSide(row.left, "l");
+  const right = row.shade ? shadeSide(row.right, "r") : plainSide(row.right, "r");
+  return `<div class="val-l">${left}</div><div class="lbl">${esc(row.label)}</div><div class="val-r">${right}</div>`;
+}
+
+function defaultToothUrl(tooth: number): string {
+  const arch = tooth <= 16 ? "maxillary" : "mandibular";
+  return `/images/teeth/${arch}/tooth-${tooth}.png?v=4`;
+}
+
+function toothImageUrl(arch: ArchVM | null, tooth: number): string {
+  const display = arch?.extractionDisplay;
+  const code = display?.toothExtractionMap?.[tooth];
+  const extractionUrl = code ? display?.extractionImagesByCode?.[code]?.[tooth] : null;
+  if (extractionUrl) return extractionUrl;
+  const selected = arch?.toothChartSelectionsByTooth?.[tooth]?.imageUrl;
+  if (selected) return selected;
+  return defaultToothUrl(tooth);
+}
+
+/** Color-mode extraction tint for a tooth with no photo, matching the CDC teeth SVG filter. */
+function toothColorFilter(arch: ArchVM | null, tooth: number): string | null {
+  const display = arch?.extractionDisplay;
+  const code = display?.toothExtractionMap?.[tooth];
+  if (!code || display?.extractionImagesByCode?.[code]?.[tooth]) return null;
+  if (arch?.toothChartSelectionsByTooth?.[tooth]?.imageUrl) return null;
+  const meta = display?.extractionsByCode?.[code];
+  if (meta?.visibility_type !== "Color" || !meta.color) return null;
+  const hex = meta.color.replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+  const rgb = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(",");
+  return `opacity(0.35) drop-shadow(rgb(${rgb}) 0px 0px 0px)`;
+}
+
+function willExtractTeeth(arch: ArchVM | null): Set<number> {
+  const teeth = new Set<number>();
+  for (const tooth of arch?.teeth ?? []) {
+    if (tooth.status === "will_extract") teeth.add(tooth.number);
+  }
+  for (const product of arch?.products ?? []) {
+    for (const tooth of product.willExtractTeeth) teeth.add(tooth);
+  }
+  return teeth;
+}
+
+function chartSvg(type: "maxillary" | "mandibular", arch: ArchVM | null): string {
+  const isMaxillary = type === "maxillary";
+  const rects = isMaxillary ? MAXILLARY_RECTS : MANDIBULAR_RECTS;
+  const toothHeight = isMaxillary ? 141 : 135;
+  const viewBoxWidth = isMaxillary ? 695 : 624;
+  const viewBoxHeight = toothHeight + 4;
+  // Upper crown body is the lower bulb; lower crown body is the upper bulb.
+  // The chart prints at 54px, so 5px is 5 * viewBoxHeight / 54 user units.
+  const lowerBodyShift = 28 + Math.round((5 * viewBoxHeight) / 54);
+  const numberY = Math.round(toothHeight * 0.68) + (isMaxillary ? 16 : -lowerBodyShift);
+  const label = isMaxillary ? "MAXILLARY" : "MANDIBULAR";
+  const willExtract = willExtractTeeth(arch);
+  const display = arch?.extractionDisplay;
+
+  // Pattern fills are rasterized at screen size when printing, so teeth print blurry.
+  const fills = rects
+    .map((rect) => {
+      const href = esc(toothImageUrl(arch, rect.num));
+      const filter = toothColorFilter(arch, rect.num);
+      const style = filter ? ` style="filter:${filter}"` : "";
+      return `<image href="${href}" xlink:href="${href}" x="${rect.x}" y="${rect.y}" width="${rect.w}" height="${rect.h}" preserveAspectRatio="none"${style} />`;
+    })
+    .join("");
+
+  const marks = rects
+    .filter((rect) => willExtract.has(rect.num))
+    .map((rect) => {
+      const cx = rect.x + rect.w / 2;
+      const cy = toothHeight * 0.42;
+      const arm = Math.min(rect.w * 0.28, 14);
+      return `<g stroke="#E11D48" stroke-width="3" stroke-linecap="round"><line x1="${cx - arm}" y1="${cy - arm}" x2="${cx + arm}" y2="${cy + arm}" /><line x1="${cx + arm}" y1="${cy - arm}" x2="${cx - arm}" y2="${cy + arm}" /></g>`;
+    })
+    .join("");
+
+  const clasps = rects
+    .map((rect) => {
+      const href = getClaspOverlayImageUrl({
+        toothNumber: rect.num,
+        claspTeeth: display?.claspTeeth ?? [],
+        toothExtractionMap: display?.toothExtractionMap,
+        extractionImagesByCode: display?.extractionImagesByCode,
+        extractionsByCode: display?.extractionsByCode,
+      });
+      if (!href) return "";
+      const claspW = Math.max(rect.w, 20);
+      const claspH = Math.round(claspW * (17 / 41));
+      const safe = esc(href);
+      return `<image href="${safe}" xlink:href="${safe}" x="${rect.x}" y="80" width="${claspW}" height="${claspH}" preserveAspectRatio="xMidYMid meet" />`;
+    })
+    .join("");
+
+  const numbers = rects
+    .map((rect) => {
+      // letter-spacing pulls the ink right of text-anchor middle; 2.2 puts it back on the tooth.
+      const x = Math.round((rect.x + rect.w / 2 - 2.2) * 10) / 10;
+      return `<text x="${x}" y="${numberY}" font-family="Verdana, sans-serif" font-size="25" font-weight="500" letter-spacing="-6" fill="#4C4D55" text-anchor="middle">${rect.num}</text>`;
+    })
+    .join("");
+
+  return `<div class="chart-label">${label}</div><div class="teeth-row"><svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${fills}${marks}${clasps}${numbers}</svg></div>`;
+}
+
+function productBoxes(products: ProductVM[]): string {
+  return products
+    .filter((product) => product.title.trim() !== "")
+    .map(
+      (product) =>
+        `<div class="ps-product-box"><div class="ps-product-title">${esc(product.title)}</div><div class="ps-product-teeth">${esc(product.teethLabel)}</div></div>`
+    )
+    .join("");
+}
+
+function productSummary(products: ProductVM[]): string {
+  return limit(uniqJoin(products.map((product) => product.title).filter(Boolean)).replace(/ \/ /g, ", "), 48);
+}
+
+function oldestNote(details: any, vm: VirtualSlipVM): string {
+  const notes = details?.notes;
+  if (Array.isArray(notes) && notes.length > 0) {
+    const sorted = [...notes]
+      .filter((note) => text(note?.note) !== "")
+      .sort((a, b) => text(a?.created_at ?? a?.id).localeCompare(text(b?.created_at ?? b?.id)));
+    if (sorted[0]) return text(sorted[0].note);
+  }
+  return text(vm.notes).split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+}
+
+function existingQr(details: any): string {
+  return text(details?.print_qr_code_url || details?.qr_code_url || details?.qr_code);
+}
+
+export function buildPaperSlipV6Html(input: PaperSlipV6Input, qrCodeUrl = ""): string {
+  const { vm } = input;
+  const details = (input.details ?? {}) as any;
+  const header = vm.header;
+  const maxillary = vm.arches.maxillary?.products ?? [];
+  const mandibular = vm.arches.mandibular?.products ?? [];
+  const office = details?.case?.office ?? details?.office ?? {};
+  const doctor = details?.case?.doctor ?? details?.doctor ?? {};
+  const officeCode = text(office.code || office.unique_code);
+  const license = text(doctor.license_number);
+  const note = oldestNote(details, vm);
+  const maxSummary = productSummary(maxillary);
+  const mandSummary = productSummary(mandibular);
+  const qr = qrCodeUrl || existingQr(details);
+  const rows = detailRows(maxillary, mandibular).map(detailRowHtml).join("");
+
+  const logo = header.labLogo
+    ? `<img class="ps-logo" src="${esc(header.labLogo)}" alt="Lab logo">`
+    : "";
+  const qrHtml = qr
+    ? `<img class="ps-qr" src="${esc(qr)}" alt="QR">`
+    : `<div class="ps-qr-missing"></div>`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Paper Slip — ${esc(header.labName || "Rxn3D")}</title>
+  <style>${PAPER_SLIP_V6_CSS}</style>
+</head>
+<body>
+<div class="ps-page">
+  <div class="ps-detach">
+    <div class="ps-stub">
+      <div class="ps-stub-top">
+        ${qrHtml}
+        <div class="ps-pan">${panHtml(header.panNumber || "—")}</div>
+      </div>
+      <div class="ps-stub-bottom">
+        <div class="ps-stub-office">
+          <div><span class="ps-k">OFC:</span> <span class="ps-v">${esc(officeCode)}</span></div>
+          <div><span class="ps-k">CASE:</span> <span class="ps-v">${esc(header.caseNumber)}</span></div>
+          <div><span class="ps-k">SLIP:</span> <span class="ps-v">${esc(header.slipNumber)}</span></div>
+          <div><span class="ps-k">PT:</span> <span class="ps-v">${esc(limit(header.patientName, 32))}</span></div>
+        </div>
+        <div class="ps-stub-arches">
+          ${maxSummary ? `<div><span class="ps-k">Maxillary:</span> <span class="ps-v">${esc(maxSummary)}</span></div>` : ""}
+          ${mandSummary ? `<div><span class="ps-k">Mandibular:</span> <span class="ps-v">${esc(mandSummary)}</span></div>` : ""}
+        </div>
+      </div>
+    </div>
+    <div class="ps-cut"></div>
+  </div>
+  <div class="ps-main">
+    <div class="ps-header">
+      <div class="ps-brand-wrap">
+        ${logo}
+        <div class="ps-brand">
+          <div class="ps-lab-name">${esc(header.labName || "Lab")}</div>
+        </div>
+      </div>
+    </div>
+    <div class="ps-head">
+      <div class="ps-head-ofc">
+        <span class="ps-head-k">Ofc:</span>
+        <span class="ps-head-office">${esc(header.officeName)}</span>
+      </div>
+      <div class="ps-head-cols">
+        <div class="ps-head-col ps-head-col-people">
+          <span class="ps-head-k">Dr:</span><span class="ps-head-v">${esc(header.doctorName)}</span>
+          <span class="ps-head-k">Pt:</span><span class="ps-head-v">${esc(header.patientName)}</span>
+        </div>
+        <div class="ps-head-col">
+          <span class="ps-head-k">Pan #</span><span class="ps-head-v">${panHtml(header.panNumber || "----")}</span>
+          <span class="ps-head-k">Case #</span><span class="ps-head-v">${esc(header.caseNumber)}</span>
+          <span class="ps-head-k">Slip #</span><span class="ps-head-v">${esc(header.slipNumber)}</span>
+        </div>
+        <div class="ps-head-col">
+          <span class="ps-head-k">Pick up date</span><span class="ps-head-v">${esc(header.pickupDate)}</span>
+          <span class="ps-head-k">Delivery date</span><span class="ps-head-v ps-head-v-lg">${esc(header.dueDate)}</span>
+          <span class="ps-head-k">Delivery time</span><span class="ps-head-v ps-head-v-lg">${esc(header.deliveryTime)}</span>
+        </div>
+      </div>
+    </div>
+    <div class="ps-legend">
+      <div class="ps-legend-item"><span class="ps-swatch ps-swatch-tim"></span>Teeth in mouth</div>
+      <div class="ps-legend-item"><span class="ps-swatch ps-swatch-missing"></span>Missing teeth</div>
+      <div class="ps-legend-item"><span class="ps-swatch ps-swatch-wed"></span>Will extract</div>
+    </div>
+    <div class="ps-charts">
+      <div class="ps-arch">${chartSvg("maxillary", vm.arches.maxillary)}${productBoxes(maxillary)}</div>
+      <div class="ps-arch">${chartSvg("mandibular", vm.arches.mandibular)}${productBoxes(mandibular)}</div>
+    </div>
+    <div class="ps-details">${rows}</div>
+    <div class="ps-qr-note">Scan QR / open virtual slip for full details.</div>
+    ${note ? `<div class="ps-notes">${esc(note)}</div>` : ""}
+    <div class="ps-sig-wrap">
+      <div class="ps-sig">
+        <div class="ps-sig-line"></div>
+        <div class="ps-sig-label">Doctor's Signature | License # ${esc(license)}</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+const IOS_PRINT_ROOT_ID = "paper-slip-v6-print-root";
+
+function qrTarget(caseId: number, slipId: number): string {
+  if (!caseId || !slipId || typeof window === "undefined") return "";
+  return `${window.location.origin}/case/${caseId}?slips=${slipId}`;
+}
+
+const QR_OPTIONS = { margin: 0, width: 264, errorCorrectionLevel: "L" as const };
+
+async function qrDataUrl(caseId: number, slipId: number): Promise<string> {
+  const target = qrTarget(caseId, slipId);
+  if (!target) return "";
+  try {
+    return await QRCode.toDataURL(target, QR_OPTIONS);
+  } catch {
+    return "";
+  }
+}
+
+/** Callback form runs in the same turn, so iPhone print stays inside the tap. */
+function qrDataUrlSync(caseId: number, slipId: number): string {
+  const target = qrTarget(caseId, slipId);
+  if (!target) return "";
+  let url = "";
+  try {
+    QRCode.toDataURL(target, QR_OPTIONS, (error, dataUrl) => {
+      if (!error && dataUrl) url = dataUrl;
+    });
+  } catch {
+    return "";
+  }
+  return url;
+}
+
+function cleanupIosPrintRoot(): void {
+  document.getElementById(IOS_PRINT_ROOT_ID)?.remove();
+  document.getElementById(`${IOS_PRINT_ROOT_ID}-style`)?.remove();
+}
+
+const PRINT_LOADER_ID = "paper-slip-v6-print-loader";
+
+function showPrintLoader(): () => void {
+  const el = document.createElement("div");
+  el.id = PRINT_LOADER_ID;
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", "polite");
+  el.style.cssText =
+    "position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(255,255,255,0.85);font:500 15px/1.4 system-ui,sans-serif;color:#1F2937;touch-action:none";
+  el.innerHTML = `<style>@keyframes ${PRINT_LOADER_ID}-spin{to{transform:rotate(360deg)}}@media print{#${PRINT_LOADER_ID}{display:none!important}}</style><div style="width:40px;height:40px;border:4px solid #D6E4F2;border-top-color:#1162A8;border-radius:50%;animation:${PRINT_LOADER_ID}-spin .8s linear infinite"></div><span>Preparing paper slip…</span>`;
+  document.body.appendChild(el);
+  return () => el.remove();
+}
+
+let printInFlight = false;
+
+/**
+ * One paper slip print at a time, behind a full-screen loader. A second tap
+ * would replace the hidden iPhone slip while the first print sheet is open,
+ * which prints the page underneath instead.
+ */
+async function runExclusivePrint(job: () => Promise<void>): Promise<void> {
+  if (printInFlight) return;
+  printInFlight = true;
+  const hideLoader = showPrintLoader();
+  try {
+    await job();
+  } finally {
+    hideLoader();
+    printInFlight = false;
+  }
+}
+
+function pendingImages(root: HTMLElement): HTMLImageElement[] {
+  const svgHrefs = Array.from(root.querySelectorAll("svg image"))
+    .map((el) => el.getAttribute("href") || el.getAttribute("xlink:href") || "")
+    .filter(Boolean);
+  const svgImages = Array.from(new Set(svgHrefs)).map((href) => {
+    const img = new Image();
+    img.src = href;
+    return img;
+  });
+  return [...Array.from(root.querySelectorAll("img")), ...svgImages].filter((img) => !img.complete);
+}
+
+function waitForImages(images: HTMLImageElement[]): Promise<void> {
+  return Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          img.addEventListener("load", () => resolve(), { once: true });
+          img.addEventListener("error", () => resolve(), { once: true });
+          window.setTimeout(resolve, 4000);
+        })
+    )
+  ).then(() => undefined);
+}
+
+/**
+ * Print on this page. The slip is invisible on screen, so cancel or print
+ * leaves the virtual slip in place. Slip CSS is print-only so it does not
+ * restyle the page underneath. The slip stays mounted until the next print:
+ * iOS can re-render the preview while its print sheet is open.
+ */
+async function printHtmlInCurrentWindow(html: string): Promise<void> {
+  cleanupIosPrintRoot();
+
+  const parsed = new DOMParser().parseFromString(html, "text/html");
+  const slipCss = parsed.querySelector("style")?.textContent ?? "";
+  const multi = html.includes('class="ps-sheet"');
+  const pageBox = multi
+    ? "width: 8.5in !important; height: auto !important; max-height: none !important; overflow: visible !important;"
+    : "width: 8.5in !important; height: 11in !important; max-height: 11in !important; overflow: hidden !important;";
+
+  const style = document.createElement("style");
+  style.id = `${IOS_PRINT_ROOT_ID}-style`;
+  style.textContent = `
+    #${IOS_PRINT_ROOT_ID} {
+      position: absolute !important;
+      width: 0 !important;
+      height: 0 !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+    @media print {
+      ${slipCss}
+      html, body {
+        ${pageBox}
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+      }
+      body > :not(#${IOS_PRINT_ROOT_ID}) { display: none !important; }
+      #${IOS_PRINT_ROOT_ID} {
+        display: ${multi ? "block" : "flex"} !important;
+        justify-content: center !important;
+        align-items: flex-start !important;
+        position: relative !important;
+        ${pageBox}
+        margin: 0 !important;
+        padding: 0 !important;
+        clip: auto !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+
+  const root = document.createElement("div");
+  root.id = IOS_PRINT_ROOT_ID;
+  root.setAttribute("aria-hidden", "true");
+  root.innerHTML = parsed.body.innerHTML;
+  document.body.appendChild(root);
+  root.getBoundingClientRect();
+
+  // Print synchronously when images are already loaded so iPhone keeps the tap gesture.
+  const pending = pendingImages(root);
+  if (pending.length > 0) await waitForImages(pending);
+  window.print();
+}
+
+const MULTI_SHEET_PRINT_CSS = `
+@media print {
+  html, body {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+  .ps-sheet {
+    position: relative !important;
+    width: 8.5in !important;
+    height: 11in !important;
+    max-height: 11in !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: clip !important;
+    display: block !important;
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+  .ps-sheet:last-child {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+}
+`;
+
+/** One letter page per slip. A single slip stays the original one-page document. */
+function combinePaperSlipHtml(documents: string[]): string {
+  const pages = documents.filter(Boolean);
+  if (pages.length <= 1) return pages[0] ?? "";
+  const sheets = pages
+    .map((html) => {
+      const parsed = new DOMParser().parseFromString(html, "text/html");
+      const page = parsed.querySelector(".ps-page");
+      return `<div class="ps-sheet">${page?.outerHTML ?? ""}</div>`;
+    })
+    .join("");
+  const doc = new DOMParser().parseFromString(pages[0], "text/html");
+  const style = doc.querySelector("style");
+  if (style) style.textContent = `${style.textContent ?? ""}${MULTI_SHEET_PRINT_CSS}`;
+  doc.body.innerHTML = sheets;
+  return `<!DOCTYPE html>${doc.documentElement.outerHTML}`;
+}
+
+async function printPaperSlipV6Html(html: string): Promise<void> {
+  const isIos =
+    typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (isIos) {
+    await printHtmlInCurrentWindow(html);
+    return;
+  }
+  await printHtmlViaHiddenIframe(html);
+}
+
+async function renderPaperSlipV6Html(input: PaperSlipV6Input): Promise<string> {
+  const details = input.details as { print_qr_code_url?: string; qr_code_url?: string; qr_code?: string } | undefined;
+  const qr = existingQr(details) || (await qrDataUrl(input.caseId, input.slipId));
+  return buildPaperSlipV6Html(input, qr);
+}
+
+function assertSlipDataLoaded(input: PaperSlipV6Input): void {
+  const { slipNumber, caseNumber } = input.vm.header;
+  if (!slipNumber && !caseNumber) {
+    throw new Error("Slip details are not loaded yet. Please try again in a moment.");
+  }
+}
+
+/**
+ * Build the slip and open the browser print dialog once it is ready.
+ * Pass a loader to fetch slip data behind the same loader and single-print lock.
+ */
+export function printPaperSlipV6(
+  source: PaperSlipV6Input | (() => Promise<PaperSlipV6Input>)
+): Promise<void> {
+  return runExclusivePrint(async () => {
+    const input = typeof source === "function" ? await source() : source;
+    assertSlipDataLoaded(input);
+    const isIos =
+      typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIos) {
+      const details = input.details as { print_qr_code_url?: string; qr_code_url?: string; qr_code?: string } | undefined;
+      const qr = existingQr(details) || qrDataUrlSync(input.caseId, input.slipId);
+      await printHtmlInCurrentWindow(buildPaperSlipV6Html(input, qr));
+      return;
+    }
+    await printPaperSlipV6Html(await renderPaperSlipV6Html(input));
+  });
+}
+
+/** One print dialog, one letter page per slip. */
+export function printPaperSlipV6Many(
+  source: PaperSlipV6Input[] | (() => Promise<PaperSlipV6Input[]>)
+): Promise<void> {
+  return runExclusivePrint(async () => {
+    const inputs = typeof source === "function" ? await source() : source;
+    inputs.forEach(assertSlipDataLoaded);
+    const htmls = await Promise.all(inputs.map((input) => renderPaperSlipV6Html(input)));
+    await printPaperSlipV6Html(combinePaperSlipHtml(htmls));
+  });
+}

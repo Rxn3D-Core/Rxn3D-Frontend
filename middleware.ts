@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { CSP_CONNECT_SRC_EXTRA, CSP_FRAME_SRC, CSP_OBJECT_SRC, CSP_SCRIPT_SRC } from '@/lib/content-security-policy';
 
 function cspHttpApiConnectExtra(): string {
   const raw = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -73,15 +74,15 @@ export function middleware(request: NextRequest) {
   const upgrade = cspUpgradeInsecureRequests();
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://static.cloudflareinsights.com;
+    script-src ${CSP_SCRIPT_SRC};
     style-src 'self' 'unsafe-inline' https:;
     img-src 'self' blob: data: https:;
     font-src 'self' data: https:;
-    connect-src 'self' blob: https:${httpConnect};
+    connect-src 'self' blob: https: ${CSP_CONNECT_SRC_EXTRA}${httpConnect};
     media-src 'self' blob: https:;
     worker-src 'self' blob:;
-    object-src 'none';
-    frame-src 'self' blob:;
+    object-src ${CSP_OBJECT_SRC};
+    frame-src ${CSP_FRAME_SRC};
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none'${upgrade};

@@ -74,7 +74,7 @@ function SelectionCardImage({
   }, [src]);
 
   return (
-    <div className="w-full h-[92px] sm:h-[100px] bg-[#080808] flex items-center justify-center overflow-hidden">
+    <div className="w-full flex-1 min-h-0 relative bg-[#080808] flex items-center justify-center overflow-hidden">
       {failed || !src ? (
         <span
           className="text-[11px] font-semibold text-[#b4b0b0] text-center px-2 leading-tight"
@@ -110,17 +110,19 @@ function SelectionGrid({
           key={item.id}
           type="button"
           onClick={() => onSelect(item.id)}
-          className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[156px] sm:w-[172px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+          className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[156px] sm:w-[172px] aspect-[4/5] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
             selectedId === item.id
               ? "border-[#1162A8] bg-[#1162A8]/5"
               : "border-[#d9d9d9] bg-white"
           }`}
         >
           <span
-            className="text-[12px] sm:text-[13px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2 border-b border-[#d9d9d9] bg-white"
+            className="h-[40px] min-h-[40px] shrink-0 px-2 py-1 flex items-center justify-center self-stretch overflow-hidden border-b border-[#d9d9d9] bg-white"
             style={{ fontFamily: "Verdana, sans-serif" }}
           >
-            {item.name}
+            <span className="text-[12px] sm:text-[13px] font-normal text-black text-center tracking-[-0.02em] leading-[15px] line-clamp-2">
+              {item.name}
+            </span>
           </span>
           <SelectionCardImage src={item.img} alt={item.name} name={item.name} />
         </button>
@@ -207,10 +209,14 @@ export function InlineAddProductPicker({
   const categoryName =
     categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
   const subProducts = subcategoriesByCategoryId[selectedCategory ?? -1] ?? [];
-  const filteredSubProducts = useMemo(
-    () => subProducts.filter((p) => !excludedSubcategoryIds.includes(p.id)),
-    [subProducts, excludedSubcategoryIds]
-  );
+  const filteredSubProducts = useMemo(() => {
+    return subProducts.filter((p) => {
+      if (excludedSubcategoryIds.includes(p.id)) return false
+      // Hide subcategories with zero Active products (counts from status=Active product list)
+      const count = subcategoryProductCounts?.[p.id]
+      return count !== 0
+    })
+  }, [subProducts, excludedSubcategoryIds, subcategoryProductCounts]);
   const subProductName =
     filteredSubProducts.find((p) => p.id === selectedSubProduct)?.name ?? "";
 
@@ -326,7 +332,7 @@ export function InlineAddProductPicker({
             {!canFetchLibrary || categoriesLoading ? (
               <div className="flex flex-wrap justify-center gap-3">
                 {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="w-[156px] sm:w-[172px] h-[128px] sm:h-[136px] rounded-[7px]" />
+                  <Skeleton key={i} className="w-[156px] sm:w-[172px] aspect-[4/5] rounded-[7px]" />
                 ))}
               </div>
             ) : categoriesError ? (
@@ -368,7 +374,7 @@ export function InlineAddProductPicker({
             {productsLoading ? (
               <div className="flex flex-wrap justify-center gap-3">
                 {[1, 2].map((i) => (
-                  <Skeleton key={i} className="w-[156px] sm:w-[172px] h-[128px] sm:h-[136px] rounded-[7px]" />
+                  <Skeleton key={i} className="w-[156px] sm:w-[172px] aspect-[4/5] rounded-[7px]" />
                 ))}
               </div>
             ) : productsError ? (

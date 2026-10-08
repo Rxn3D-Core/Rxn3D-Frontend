@@ -8,7 +8,7 @@ export const maxDuration = 60;
  */
 const ALLOWED_HOSTS = [
   "rxn3d-media-files.s3.us-west-2.amazonaws.com",
-  // Add more whitelisted S3 buckets here if needed
+  "rxn3d-prod-files.s3.us-west-2.amazonaws.com",
 ];
 
 /**

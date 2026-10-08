@@ -137,7 +137,7 @@ export interface GumShadesContextType {
   fetchAvailableShades: () => Promise<void>
   createGumShadeBrand: (data: CreateGumShadeBrandPayload) => Promise<boolean>
   updateGumShadeBrand: (id: number, data: Partial<CreateGumShadeBrandPayload>) => Promise<boolean>
-  deleteGumShadeBrand: (id: number) => Promise<boolean>
+  deleteGumShadeBrand: (id: number, options?: { silent?: boolean }) => Promise<boolean>
   createGumShadeGroup: (name: string) => Promise<boolean>
   createCustomGumShade: (data: CreateCustomGumShadePayload) => Promise<GumShade | null>
   fetchShadesForBrand: (brandId: number) => Promise<GumShade[]>
@@ -373,7 +373,7 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
     setIsAvailableShadesLoading(true)
 
     try {
-      let url = `${API_BASE_URL}/library/gum-shade-brands?per_page=10&lang=${currentLanguage}`
+      let url = `${API_BASE_URL}/library/gum-shade-brands?lang=${currentLanguage}`
       const gumCustomerId = resolveLibraryCustomerId(user)
       if (gumCustomerId) {
         url += `&customer_id=${gumCustomerId}`
@@ -395,12 +395,13 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
       const result: GumShadeBrandResponse = await response.json()
 
       if (result.status) {
-        // Extract all unique shades from all brands
+        // Unpaginated list is `data: []`; paginated list is `data: { data: [], pagination }`
+        const brands = Array.isArray(result.data) ? result.data : (result.data?.data || [])
         const allShades: GumShade[] = []
         const seenShades = new Set<string>()
 
-        result.data.data.forEach((brand) => {
-          brand.shades.forEach((shade) => {
+        brands.forEach((brand) => {
+          brand.shades?.forEach((shade) => {
             if (!seenShades.has(shade.name.toLowerCase())) {
               seenShades.add(shade.name.toLowerCase())
               allShades.push(shade)
@@ -593,8 +594,15 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
   }
 
   // Delete gum shade brand
-  const deleteGumShadeBrand = async (id: number): Promise<boolean> => {
-    showAnimationWithType("deleting")
+  const deleteGumShadeBrand = async (
+    id: number,
+    options?: { silent?: boolean },
+  ): Promise<boolean> => {
+    const silent = options?.silent === true
+    setIsLoading(true)
+    if (!silent) {
+      showAnimationWithType("deleting")
+    }
     setError(null)
 
     try {
@@ -614,25 +622,37 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
       const result = await response.json()
 
       if (result.status) {
-        setSuccessMessage("Gum shade brand deleted successfully!")
-
-        toast({
-          title: "Success",
-          description: "Gum shade brand deleted successfully!",
-        })
-
-        await fetchGumShadeBrands(pagination.current_page, pagination.per_page, searchQuery, sortColumn, sortDirection)
-
-        setTimeout(() => setSuccessMessage(null), 5000)
+        if (!silent) {
+          // One success feedback only (toast). Do not also show a success overlay.
+          setShowAnimation(false)
+          setAnimationType(null)
+          setSuccessMessage("Gum shade brand deleted successfully!")
+          toast({
+            title: "Success",
+            description: "Gum shade brand deleted successfully!",
+          })
+          await fetchGumShadeBrands(
+            pagination.current_page,
+            pagination.per_page,
+            searchQuery,
+            sortColumn,
+            sortDirection,
+          )
+          setTimeout(() => setSuccessMessage(null), 5000)
+        }
 
         return true
       } else {
         throw new Error(result.message || "Failed to delete gum shade brand")
       }
     } catch (error: any) {
-      showAnimationWithType("error")
-      handleApiError(error, "Failed to delete gum shade brand")
+      if (!silent) {
+        showAnimationWithType("error")
+        handleApiError(error, "Failed to delete gum shade brand")
+      }
       return false
+    } finally {
+      setIsLoading(false)
     }
   }
 

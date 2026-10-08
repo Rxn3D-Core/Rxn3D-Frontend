@@ -1,28 +1,45 @@
 "use client"
 
+import { Building2, Mail, UserRound } from "lucide-react"
+import { RegistrationStepper, type RegistrationStep } from "@/components/registration/registration-stepper"
+
 export function RegistrationTabs({
   activeTab,
   setActiveTab,
   registrationType,
+  includeVerifyStep = false,
+  dense = false,
 }: {
   activeTab: string
   setActiveTab: (tab: string) => void
   registrationType: "Lab" | "Office"
+  includeVerifyStep?: boolean
+  dense?: boolean
 }) {
-  const profileTabName = registrationType === "Lab" ? "Lab Profile" : "Practice Profile"
+  const profileTabName = registrationType === "Lab" ? "Lab profile" : "Practice profile"
+
+  const steps: RegistrationStep[] = [
+    {
+      id: "profile",
+      label: profileTabName,
+      icon: Building2,
+    },
+    {
+      id: "user",
+      label: "Admin account",
+      icon: UserRound,
+    },
+  ]
+
+  if (includeVerifyStep) {
+    steps.push({
+      id: "verify",
+      label: "Verify email",
+      icon: Mail,
+    })
+  }
 
   return (
-    <div className="flex justify-center mb-8">
-      <div
-        className={`cursor-pointer px-8 py-2 text-center ${activeTab === "profile" ? "bg-[#e6f0f9] text-[#1162a8] font-medium" : ""}`}
-      >
-        {profileTabName}
-      </div>
-      <div
-        className={`cursor-pointer px-8 py-2 text-center ${activeTab === "user" ? "bg-[#e6f0f9] text-[#1162a8] font-medium" : ""}`}
-      >
-        User Profile
-      </div>
-    </div>
+    <RegistrationStepper steps={steps} activeStep={activeTab} onStepChange={setActiveTab} dense={dense} />
   )
 }

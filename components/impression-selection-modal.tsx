@@ -12,8 +12,12 @@ import { STLFileSelectionModal, type STLFile } from "./stl-file-selection-modal"
 import type { ImpressionOptionForModal as ImpressionOption } from "@/components/case-design-center/types"
 import { DoneTransitionButton } from "@/components/case-design-center/components/DoneTransitionButton"
 import {
+  applyOppositeStlQtyForMultiFileUpload,
+  findStlImpressionOption,
   getArchImpressionQtyForOption,
   impressionTouchKey,
+  isStlImpressionOption,
+  oppositeArch,
   type SlipImpressionSelections,
 } from "@/components/case-design-center/utils/impressionStorage"
 
@@ -46,6 +50,13 @@ interface ImpressionSelectionModalProps {
    * Dual-grid only: slip's main product arch — that section is shown first (top), opposing second (bottom).
    */
   dualImpressionPrimaryArch?: "maxillary" | "mandibular"
+  /**
+   * Add-new-stage: show New Impression / No Impression choice in this same modal.
+   * Nothing is pre-selected; user must choose to pick cards or skip impressions.
+   */
+  requireImpressionChoice?: boolean
+  /** Called when user chooses No Impression — completes without selecting cards. */
+  onNoImpression?: () => void
 }
 
 function ImpressionGrid({
@@ -64,6 +75,8 @@ function ImpressionGrid({
   isValidationComplete,
   onConfirmAllAndClose,
   suppressDoneButton = false,
+  peerArch,
+  peerImpressions = [],
 }: {
   impressions: ImpressionOption[]
   selectedImpressions: SlipImpressionSelections
@@ -88,6 +101,9 @@ function ImpressionGrid({
   onConfirmAllAndClose: () => void
   /** When true, hides the section-level Done button row. */
   suppressDoneButton?: boolean
+  /** Opposite jaw — used to auto-select STL qty when 2+ files are uploaded. */
+  peerArch?: "maxillary" | "mandibular"
+  peerImpressions?: ImpressionOption[]
 }) {
   const [showSTLModal, setShowSTLModal] = useState(false)
   const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
@@ -105,11 +121,7 @@ function ImpressionGrid({
   const getQty = (impression: ImpressionOption) =>
     getArchImpressionQtyForOption(selectedImpressions, arch, impression)
 
-  const isSTL = (impression: ImpressionOption) => {
-    const name = (impression.name ?? "").toLowerCase()
-    const code = impression.code?.toLowerCase() || ""
-    return name.includes("stl") || code === "stl" || name === "stl file"
-  }
+  const isSTL = (impression: ImpressionOption) => isStlImpressionOption(impression)
 
   const handleCardClick = (impression: ImpressionOption) => {
     if (getQty(impression) > 0) return
@@ -158,211 +170,286 @@ function ImpressionGrid({
     const key = getKey(selectedSTLImpression)
     onSetArchQty(arch, selectedSTLImpression, files.length)
     onSTLFilesAttached(files, key)
+    const otherArch = peerArch ?? oppositeArch(arch)
+    const otherStl =
+      findStlImpressionOption(peerImpressions) ??
+      findStlImpressionOption(impressions)
+    const withOpposite = applyOppositeStlQtyForMultiFileUpload(
+      selectedImpressions,
+      arch,
+      files.length,
+      otherStl
+    )
+    const oppositeQty = otherStl
+      ? getArchImpressionQtyForOption(withOpposite, otherArch, otherStl)
+      : 0
+    const previousOppositeQty = otherStl
+      ? getArchImpressionQtyForOption(selectedImpressions, otherArch, otherStl)
+      : 0
+    if (otherStl && oppositeQty > 0 && previousOppositeQty === 0) {
+      onSetArchQty(otherArch, otherStl, oppositeQty)
+    }
     touchKey(key)
     setShowSTLModal(false)
     setSelectedSTLImpression(null)
   }
 
-  const renderCard = (impression: ImpressionOption, compact: boolean) => {
+  /** Select STL impression without attaching files; slip will prompt for upload later. */
+  const handleSTLUploadLater = () => {
+    if (!selectedSTLImpression) return
+    const key = getKey(selectedSTLImpression)
+    onSetArchQty(arch, selectedSTLImpression, Math.max(1, getQty(selectedSTLImpression)))
+    touchKey(key)
+    setShowSTLModal(false)
+    setSelectedSTLImpression(null)
+  }
+
+  const renderImpressionImage = (
+    impression: ImpressionOption,
+    className: string,
+    fallbackTextSize: string
+  ) => (
+    <div
+      className={cn(
+        "rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0",
+        className
+      )}
+    >
+      {impression.image_url ? (
+        <img
+          src={impression.image_url}
+          alt={getImpressionLabel(impression)}
+          className="w-full h-full object-contain"
+          onError={(e) => {
+            const el = e.target as HTMLImageElement
+            el.style.display = "none"
+            const parent = el.parentElement
+            if (parent && !parent.querySelector(".fallback-letter")) {
+              const div = document.createElement("div")
+              div.className = `fallback-letter text-[#B4B0B0] ${fallbackTextSize} font-bold flex items-center justify-center w-full h-full`
+              div.textContent = (impression.name ?? "").charAt(0).toUpperCase()
+              parent.appendChild(div)
+            }
+          }}
+        />
+      ) : (
+        <div
+          className={cn(
+            "text-[#B4B0B0] font-bold flex items-center justify-center w-full h-full",
+            fallbackTextSize
+          )}
+        >
+          {(impression.name ?? "").charAt(0).toUpperCase()}
+        </div>
+      )}
+    </div>
+  )
+
+  const renderQtyControls = (
+    impression: ImpressionOption,
+    compact: boolean,
+    align: "center" | "end" = "center"
+  ) => {
+    const qty = getQty(impression)
+    const showCheck = qty >= 1 && getKey(impression) === lastTouchedKey
+    const controlSize = compact ? "w-7 h-7" : "w-7 h-7 md:w-8 md:h-8 lg:w-9 lg:h-9"
+    const iconSize = compact ? "w-5 h-5" : "w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7"
+    const qtyTextSize = compact ? "text-sm min-w-[18px]" : "text-base md:text-lg min-w-[18px]"
+    const qtyLabelSize = compact ? "text-xs" : "text-xs md:text-sm"
+
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-0.5 max-w-full min-w-0 flex-wrap",
+          align === "center" ? "justify-center" : "justify-end"
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {qty === 0 ? (
+          <span
+            className={cn("font-['Verdana'] text-[#7F7F7F] cursor-pointer", qtyLabelSize)}
+            onClick={() => handleCardClick(impression)}
+          >
+            QTY +
+          </span>
+        ) : (
+          <>
+            <button
+              className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+              onClick={(e) => handleRemove(impression, e)}
+            >
+              <Trash2 className={cn("text-[#CF0202]", iconSize)} strokeWidth={1.83} />
+            </button>
+
+            {qty > 1 && (
+              <button
+                className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+                onClick={(e) => handleDecrement(impression, e)}
+              >
+                <span
+                  className={cn(
+                    "font-['Verdana'] font-normal text-black text-center leading-none",
+                    qtyTextSize
+                  )}
+                >
+                  −
+                </span>
+              </button>
+            )}
+
+            <span className={cn("font-['Verdana'] font-normal text-black text-center", qtyTextSize)}>
+              {qty}
+            </span>
+
+            <button
+              className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+              onClick={(e) => handleIncrement(impression, e)}
+            >
+              <Plus className={cn("text-[#1D1B20]", iconSize)} strokeWidth={1.83} />
+            </button>
+
+            {showCheck && (
+              <button
+                type="button"
+                className={cn(
+                  "flex items-center justify-center flex-shrink-0 rounded hover:bg-green-50",
+                  controlSize
+                )}
+                title={
+                  isValidationComplete
+                    ? "Save all impressions and close"
+                    : "Save impression for this arch"
+                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (isValidationComplete) {
+                    onConfirmAllAndClose()
+                  } else {
+                    onSaveArchSelection?.(arch)
+                  }
+                }}
+              >
+                <Check className={cn("text-[#22c55e]", iconSize)} strokeWidth={2.5} />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
+
+  /** Mobile list row: thumbnail | name | qty controls */
+  const renderListRow = (impression: ImpressionOption) => {
     const qty = getQty(impression)
     const isSelected = qty > 0
-    // Green check only on the single last-touched card across both arch sections
-    const showCheck = qty >= 1 && getKey(impression) === lastTouchedKey
-
-    const imgSize = compact ? "text-2xl" : "text-3xl lg:text-4xl"
-    const nameSize = compact ? "text-xs" : "text-sm lg:text-base"
-    const controlSize = compact ? "w-7 h-7" : "w-9 h-9"
-    const iconSize = compact ? "w-5 h-5" : "w-7 h-7"
-    const qtyTextSize = compact ? "text-sm min-w-[18px]" : "text-lg min-w-[24px]"
-    const qtyLabelSize = compact ? "text-xs" : "text-sm"
 
     return (
       <div
         key={impression.id}
         className={cn(
-          "relative flex flex-col items-center rounded-[11px] transition-all duration-200 cursor-pointer select-none h-full w-full",
-          compact ? "p-1.5" : "p-2 lg:p-3",
+          "flex items-center gap-3 rounded-[10px] px-2.5 py-2 cursor-pointer select-none min-w-0",
+          isSelected ? "border-[3px] border-[#1162A8]" : "border-2 border-[#B4B0B0]"
+        )}
+        onClick={() => handleCardClick(impression)}
+      >
+        {renderImpressionImage(impression, "w-14 h-14", "text-xl")}
+        <span className="font-['Verdana'] text-sm text-black flex-1 min-w-0 leading-snug">
+          {getImpressionLabel(impression)}
+        </span>
+        {renderQtyControls(impression, true, "end")}
+      </div>
+    )
+  }
+
+  const renderCard = (impression: ImpressionOption, compact: boolean) => {
+    const qty = getQty(impression)
+    const isSelected = qty > 0
+
+    // Keep labels readable even with many cards in one row
+    const imgSize = compact ? "text-3xl" : "text-2xl md:text-3xl lg:text-4xl"
+    const nameSize = compact ? "text-xs md:text-sm" : "text-xs md:text-sm lg:text-base"
+
+    return (
+      <div
+        key={impression.id}
+        className={cn(
+          "relative flex flex-col items-center rounded-[11px] transition-all duration-200 cursor-pointer select-none h-full w-full min-w-0 overflow-hidden",
+          compact ? "p-1.5 md:p-2" : "p-1.5 md:p-2 lg:p-3",
           isSelected
             ? "border-[3px] border-[#1162A8]"
             : "border-2 border-[#B4B0B0]"
         )}
         onClick={() => handleCardClick(impression)}
       >
-        {/* Image */}
-        <div
+        {renderImpressionImage(
+          impression,
+          // Scale image with card width so empty side space becomes bigger thumbnails
+          "w-full aspect-square max-h-[160px]",
+          imgSize
+        )}
+
+        <span
           className={cn(
-            "w-full rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0",
-            compact ? "h-[68px]" : "aspect-square"
+            "font-['Verdana'] font-normal text-black text-center mt-1 w-full flex-1 flex items-end justify-center pb-0.5 leading-tight",
+            nameSize
           )}
         >
-          {impression.image_url ? (
-              <img
-              src={impression.image_url}
-              alt={getImpressionLabel(impression)}
-              className="w-full h-full object-contain"
-              onError={(e) => {
-                const el = e.target as HTMLImageElement
-                el.style.display = "none"
-                const parent = el.parentElement
-                if (parent && !parent.querySelector(".fallback-letter")) {
-                  const div = document.createElement("div")
-                  div.className = `fallback-letter text-[#B4B0B0] ${imgSize} font-bold flex items-center justify-center w-full h-full`
-                  div.textContent = (impression.name ?? '').charAt(0).toUpperCase()
-                  parent.appendChild(div)
-                }
-              }}
-            />
-          ) : (
-            <div className={cn("text-[#B4B0B0] font-bold flex items-center justify-center w-full h-full", imgSize)}>
-              {(impression.name ?? '').charAt(0).toUpperCase()}
-            </div>
-          )}
-        </div>
-
-        {/* Name */}
-        <span className={cn("font-['Verdana'] font-normal text-black text-center mt-1 w-full flex-1 flex items-end justify-center pb-0.5 leading-tight", nameSize)}>
           {getImpressionLabel(impression)}
         </span>
 
-        {/* Controls — always pinned to bottom */}
-        <div
-          className="flex items-center gap-1 mt-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {qty === 0 ? (
-            <span
-              className={cn("font-['Verdana'] text-[#7F7F7F] cursor-pointer", qtyLabelSize)}
-              onClick={() => handleCardClick(impression)}
-            >
-              QTY +
-            </span>
-          ) : (
-            <>
-              {/* Trash */}
-              <button
-                className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
-                onClick={(e) => handleRemove(impression, e)}
-              >
-                <Trash2 className={cn("text-[#CF0202]", iconSize)} strokeWidth={1.83} />
-              </button>
-
-              {/* Minus — only when qty > 1 */}
-              {qty > 1 && (
-                <button
-                  className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
-                  onClick={(e) => handleDecrement(impression, e)}
-                >
-                  <span className={cn("font-['Verdana'] font-normal text-black text-center leading-none", qtyTextSize)}>−</span>
-                </button>
-              )}
-
-              {/* Quantity */}
-              <span className={cn("font-['Verdana'] font-normal text-black text-center", qtyTextSize)}>
-                {qty}
-              </span>
-
-              {/* Plus */}
-              <button
-                className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
-                onClick={(e) => handleIncrement(impression, e)}
-              >
-                <Plus className={cn("text-[#1D1B20]", iconSize)} strokeWidth={1.83} />
-              </button>
-
-              {showCheck && (
-                <button
-                  type="button"
-                  className={cn(
-                    "flex items-center justify-center flex-shrink-0 rounded hover:bg-green-50",
-                    controlSize
-                  )}
-                  title={
-                    isValidationComplete
-                      ? "Save all impressions and close"
-                      : "Save impression for this arch"
-                  }
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (isValidationComplete) {
-                      onConfirmAllAndClose()
-                    } else {
-                      onSaveArchSelection?.(arch)
-                    }
-                  }}
-                >
-                  <Check className={cn("text-[#22c55e]", iconSize)} strokeWidth={2.5} />
-                </button>
-              )}
-            </>
-          )}
+        <div className="mt-auto w-full">
+          {renderQtyControls(impression, compact, "center")}
         </div>
       </div>
     )
   }
 
-  // Index of the last-touched card in THIS section (so Done sits under that column)
-  const lastTouchedIndex = impressions.findIndex(
-    (imp) => getKey(imp) === lastTouchedKey
-  )
+  // Green check only on last-touched card; Done is shown for this section when that card lives here
   const showDoneInThisSection =
-    !suppressDoneButton && isValidationComplete && lastTouchedIndex >= 0
+    !suppressDoneButton &&
+    isValidationComplete &&
+    impressions.some((imp) => getKey(imp) === lastTouchedKey)
 
-  // Cap the grid to the cards' natural width and center it, so a single (or few)
-  // impression card doesn't stretch to the full modal width and balloon in size.
-  // When there are many options the columns still shrink to fit the modal.
+  // Single row filling available width. Cap only for few cards so 1–3 items
+  // don't stretch full-bleed; 4+ use the full section width.
   const colCount = impressions.length
-  const cappedGridStyle = {
-    gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))`,
-    maxWidth: `calc(${colCount} * 190px + ${Math.max(colCount - 1, 0)} * 1rem)`,
+  const CARD_MAX_PX = 220
+  const GAP_PX = 10
+  const singleRowGridStyle = {
+    gridTemplateColumns: `repeat(${Math.max(colCount, 1)}, minmax(0, 1fr))`,
+    maxWidth:
+      colCount > 0 && colCount <= 3
+        ? `min(100%, calc(${colCount} * ${CARD_MAX_PX}px + ${Math.max(colCount - 1, 0)} * ${GAP_PX}px))`
+        : "100%",
   }
 
   return (
     <>
-      {/* Small screens: side-by-side when only a couple options; otherwise 2-column grid */}
+      {/* Mobile: vertical list with thumbnail + name + qty controls */}
+      <div className="w-full min-w-0 sm:hidden flex flex-col gap-2">
+        {impressions?.map((impression) => renderListRow(impression))}
+      </div>
+
+      {/* sm+: single full-width row — cards grow into available space */}
       <div
-        className={cn(
-          "w-full min-w-0 sm:hidden",
-          colCount <= 2 ? "flex justify-center gap-2" : "grid grid-cols-2 gap-2"
-        )}
+        className="hidden sm:grid gap-2 md:gap-2.5 lg:gap-3 w-full mx-auto min-w-0"
+        style={singleRowGridStyle}
       >
         {impressions?.map((impression) => (
-          <div
-            key={impression.id}
-            className={cn(colCount <= 2 ? "w-[46%] max-w-[148px] flex-shrink-0" : "min-w-0")}
-          >
-            {renderCard(impression, true)}
+          <div key={impression.id} className="min-w-0">
+            {renderCard(impression, colCount >= 7)}
           </div>
         ))}
       </div>
 
-      {/* sm+: capped grid centered in the section */}
-      <div className="hidden sm:grid gap-3 md:gap-4 w-full mx-auto min-w-0" style={cappedGridStyle}>
-        {impressions?.map((impression) => renderCard(impression, false))}
-      </div>
-
-      {/* Done sits under the column of the last-touched card — kept inside the box */}
+      {/* Done under the grid */}
       {showDoneInThisSection && (
-        <>
-          {/* Desktop: align under the last-touched card's column */}
-          <div
-            className="hidden sm:grid gap-3 md:gap-4 w-full mt-3 mx-auto"
-            style={cappedGridStyle}
-          >
-            <div className="flex justify-center py-2 overflow-visible" style={{ gridColumnStart: lastTouchedIndex + 1 }}>
-              <DoneTransitionButton
-                className="whitespace-nowrap px-10 py-2"
-                onComplete={onConfirmAllAndClose}
-              />
-            </div>
-          </div>
-          {/* Mobile: centered */}
-          <div className="flex sm:hidden justify-center mt-3 py-2 overflow-visible">
-            <DoneTransitionButton
-              className="whitespace-nowrap px-10 py-2"
-              onComplete={onConfirmAllAndClose}
-            />
-          </div>
-        </>
+        <div className="flex justify-center mt-2 py-1 overflow-visible">
+          <DoneTransitionButton
+            className="whitespace-nowrap px-10 py-2"
+            onComplete={onConfirmAllAndClose}
+          />
+        </div>
       )}
 
       {selectedSTLImpression && (
@@ -373,6 +460,7 @@ function ImpressionGrid({
             setSelectedSTLImpression(null)
           }}
           onConfirm={handleSTLConfirmed}
+          onUploadLater={handleSTLUploadLater}
           productId={productId}
           arch={arch}
           impressionName={getImpressionLabel(selectedSTLImpression)}
@@ -402,6 +490,8 @@ export function ImpressionSelectionModal({
   hideSkipOpposing = false,
   modalHeading,
   dualImpressionPrimaryArch = "maxillary",
+  requireImpressionChoice = false,
+  onNoImpression,
 }: ImpressionSelectionModalProps) {
   const isDualArch = oppositeImpression === "Yes"
 
@@ -431,15 +521,42 @@ export function ImpressionSelectionModal({
   const topArchLabel = topArch === "maxillary" ? "Maxillary" : "Mandibular"
   const bottomArchLabel = bottomArch === "maxillary" ? "Maxillary" : "Mandibular"
 
+  type ImpressionChoice = "new" | "none" | null
+  const [impressionChoice, setImpressionChoice] = useState<ImpressionChoice>(null)
+
+  useEffect(() => {
+    if (!isOpen) {
+      setImpressionChoice(null)
+      return
+    }
+    // Re-open with existing selections ⇒ treat as New Impression already chosen.
+    if (
+      selectedImpressions.maxillary.length > 0 ||
+      selectedImpressions.mandibular.length > 0
+    ) {
+      setImpressionChoice("new")
+    } else {
+      setImpressionChoice(null)
+    }
+  }, [isOpen])
+
   // Progressive disclosure: in dual-arch mode, only show the bottom section once
   // the top arch has at least one impression selected. When re-opening with
   // existing top-arch selections, both sections are immediately visible.
-  const showBottomSection = !!bottomArch && (isDualArch ? hasTopSelection : true)
+  // For add-stage "No Impression", grids stay visible but skip is already chosen.
+  const showBottomSection =
+    !!bottomArch &&
+    (isDualArch ? hasTopSelection || impressionChoice === "none" : true)
   const shouldShowSkipOpposing =
-    showBottomSection && !hideSkipOpposing && !hasBottomSelection
+    showBottomSection &&
+    !hideSkipOpposing &&
+    !hasBottomSelection &&
+    impressionChoice !== "none"
 
-  // Primary arch selections are required; opposing arch is always optional.
-  const isValidationComplete = hasTopSelection
+  // Primary arch selections are required unless add-stage chose No Impression.
+  const isValidationComplete =
+    impressionChoice === "none" ||
+    (requireImpressionChoice ? impressionChoice === "new" && hasTopSelection : hasTopSelection)
 
   const [lastTouchedKey, setLastTouchedKey] = useState<string | null>(null)
   const touchHistoryRef = useRef<string[]>([])
@@ -450,7 +567,8 @@ export function ImpressionSelectionModal({
       key,
     ]
     setLastTouchedKey(key)
-  }, [])
+    if (requireImpressionChoice) setImpressionChoice("new")
+  }, [requireImpressionChoice])
 
   const handleKeyRemoved = useCallback(
     (removedKey: string) => {
@@ -490,14 +608,40 @@ export function ImpressionSelectionModal({
     })
   }, [isOpen])
 
+  const handleSetArchQty: typeof onSetArchQty = (targetArch, option, qty) => {
+    if (requireImpressionChoice && qty > 0) setImpressionChoice("new")
+    onSetArchQty(targetArch, option, qty)
+  }
+
   const handleDone = () => {
     if (!isValidationComplete) return;
+    if (impressionChoice === "none") {
+      onNoImpression?.()
+      return
+    }
     onClose();
   };
 
+  const handleChooseNewImpression = () => {
+    setImpressionChoice("new")
+  }
+
+  const handleChooseNoImpression = () => {
+    setImpressionChoice("none")
+    // Clear any card picks so submit carries no reused/partial selections.
+    for (const archKey of ["maxillary", "mandibular"] as const) {
+      for (const entry of selectedImpressions[archKey]) {
+        onRemoveArchImpression(archKey, entry.code)
+      }
+    }
+    touchHistoryRef.current = []
+    setLastTouchedKey(null)
+    onNoImpression?.()
+  }
+
   const sharedGridProps = {
     selectedImpressions,
-    onSetArchQty,
+    onSetArchQty: handleSetArchQty,
     onRemoveArchImpression,
     onSTLFilesAttached,
     stlFilesByImpression,
@@ -506,20 +650,25 @@ export function ImpressionSelectionModal({
     onKeyRemoved: handleKeyRemoved,
     onSaveArchSelection,
     isValidationComplete,
-    onConfirmAllAndClose: onClose,
-    suppressDoneButton: shouldShowSkipOpposing,
+    onConfirmAllAndClose: handleDone,
+    suppressDoneButton: shouldShowSkipOpposing || impressionChoice === "none",
   };
 
   const handleOpenChange = (open: boolean) => {
     if (!open) onClose();
   };
 
+  const showImpressionGrids =
+    !requireImpressionChoice ||
+    impressionChoice === "new" ||
+    impressionChoice === null
+
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="w-[92vw] max-w-[1080px] h-auto max-h-[min(92dvh,calc(100dvh-1rem))] overflow-y-auto overflow-x-hidden p-0 border-0 rounded-[10px] max-sm:top-3 max-sm:translate-y-0 flex flex-col"
+        className="w-[96vw] max-w-[1360px] h-auto max-h-[min(94dvh,calc(100dvh-0.75rem))] overflow-y-auto overflow-x-hidden p-0 border-0 rounded-[10px] max-sm:top-3 max-sm:translate-y-0 flex flex-col"
       >
-        <div className="flex flex-col gap-2 sm:gap-3 px-3 sm:px-5 md:px-8 lg:px-10 py-3 sm:py-4 bg-white w-full">
+        <div className="flex flex-col gap-2 sm:gap-2.5 px-2.5 sm:px-4 md:px-5 lg:px-6 py-2.5 sm:py-3 bg-white w-full">
 
           {modalHeading ? (
             <h2 className="font-['Verdana'] font-bold text-base sm:text-xl text-center text-[#1d1d1b] tracking-wide">
@@ -527,11 +676,50 @@ export function ImpressionSelectionModal({
             </h2>
           ) : null}
 
+          {requireImpressionChoice ? (
+            <div className="flex flex-col items-center gap-2 sm:gap-3 pt-1 pb-1">
+              <p className="font-['Verdana'] font-bold text-sm sm:text-base text-[#1d1d1b] text-center">
+                For this stage, do you need a new impression?
+              </p>
+              <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={handleChooseNewImpression}
+                  className={cn(
+                    "px-4 sm:px-6 py-2 sm:py-2.5 rounded-[6px] font-['Verdana'] font-bold text-xs sm:text-sm transition-colors border-2",
+                    impressionChoice === "new"
+                      ? "bg-[#1162A8] border-[#1162A8] text-white"
+                      : "bg-white border-[#1162A8] text-[#1162A8] hover:bg-[#e8f1f9]"
+                  )}
+                >
+                  New Impression
+                </button>
+                <button
+                  type="button"
+                  onClick={handleChooseNoImpression}
+                  className={cn(
+                    "px-4 sm:px-6 py-2 sm:py-2.5 rounded-[6px] font-['Verdana'] font-bold text-xs sm:text-sm transition-colors border-2",
+                    impressionChoice === "none"
+                      ? "bg-[#CF0202] border-[#CF0202] text-white"
+                      : "bg-white border-[#CF0202] text-[#CF0202] hover:bg-[#fde8e8]"
+                  )}
+                >
+                  No Impression
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {showImpressionGrids ? (
+            <>
           {/* Top arch section */}
           <div
             className={cn(
-              "relative rounded-[12px] px-2 sm:px-6 pt-5 pb-2 sm:pb-3 border-2 transition-colors min-w-0",
-              hasTopSelection ? "border-[#22c55e]" : "border-[#CF0202]"
+              "relative rounded-[12px] px-1.5 sm:px-2 md:px-3 pt-4 sm:pt-5 pb-1.5 sm:pb-2 border-2 transition-colors min-w-0",
+              hasTopSelection ? "border-[#22c55e]" : "border-[#CF0202]",
+              requireImpressionChoice && impressionChoice === null
+                ? "opacity-60"
+                : undefined
             )}
           >
             <span
@@ -549,6 +737,8 @@ export function ImpressionSelectionModal({
               impressions={topList}
               productId={productId}
               arch={topArch}
+              peerArch={oppositeArch(topArch)}
+              peerImpressions={optionListForArch(oppositeArch(topArch))}
             />
           </div>
 
@@ -556,7 +746,7 @@ export function ImpressionSelectionModal({
           {showBottomSection && bottomArch && (
             <div
               className={cn(
-                "relative rounded-[12px] px-2 sm:px-6 pt-5 pb-2 sm:pb-3 border-2 transition-colors min-w-0",
+                "relative rounded-[12px] px-1.5 sm:px-2 md:px-3 pt-4 sm:pt-5 pb-1.5 sm:pb-2 border-2 transition-colors min-w-0",
                 hasBottomSelection ? "border-[#22c55e]" : "border-[#CF0202]"
               )}
             >
@@ -575,6 +765,8 @@ export function ImpressionSelectionModal({
                 impressions={bottomList}
                 productId={productId}
                 arch={bottomArch}
+                peerArch={oppositeArch(bottomArch)}
+                peerImpressions={optionListForArch(oppositeArch(bottomArch))}
               />
               {shouldShowSkipOpposing && (
               <div className="flex justify-center mt-2 sm:mt-4">
@@ -594,6 +786,8 @@ export function ImpressionSelectionModal({
               No impressions available
             </div>
           )}
+            </>
+          ) : null}
 
           <div className="flex justify-between items-center gap-4 border-t border-[#e5e7eb] pt-2 sm:pt-3">
             <button

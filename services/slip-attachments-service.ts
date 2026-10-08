@@ -34,6 +34,7 @@ export type SlipAttachmentRecord = {
   is_image: boolean;
   is_pdf: boolean;
   is_stl: boolean;
+  is_3d?: boolean;
   uploaded_by: SlipAttachmentUser | null;
   archived_by: SlipAttachmentUser | null;
 };
@@ -108,7 +109,22 @@ export type SlipAttachmentUploadOptions = {
   notes?: string;
 };
 
-export const SLIP_ATTACHMENT_MAX_BYTES = 100 * 1024 * 1024;
+export const SLIP_ATTACHMENT_MAX_BYTES = 500 * 1024 * 1024;
+
+/** Mesh / scan formats labs attach for digital impressions. */
+export const SLIP_ATTACHMENT_3D_EXTENSIONS = [
+  "stl",
+  "ply",
+  "obj",
+  "3mf",
+  "glb",
+  "gltf",
+  "fbx",
+  "dae",
+  "off",
+  "3ds",
+  "3dobject",
+] as const;
 
 export const SLIP_ATTACHMENT_ALLOWED_EXTENSIONS = [
   "jpg",
@@ -116,7 +132,7 @@ export const SLIP_ATTACHMENT_ALLOWED_EXTENSIONS = [
   "png",
   "gif",
   "pdf",
-  "stl",
+  ...SLIP_ATTACHMENT_3D_EXTENSIONS,
   "zip",
   "rar",
   "doc",
@@ -124,6 +140,16 @@ export const SLIP_ATTACHMENT_ALLOWED_EXTENSIONS = [
   "xls",
   "xlsx",
 ] as const;
+
+export const SLIP_ATTACHMENT_ACCEPT =
+  SLIP_ATTACHMENT_ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(",");
+
+export function isSlipAttachment3dExtension(extOrName: string): boolean {
+  const ext = extOrName.includes(".")
+    ? (extOrName.split(".").pop() ?? "").toLowerCase()
+    : extOrName.toLowerCase();
+  return (SLIP_ATTACHMENT_3D_EXTENSIONS as readonly string[]).includes(ext);
+}
 
 function toQueryString(params: Record<string, string | number | boolean | undefined>) {
   const search = new URLSearchParams();
@@ -136,39 +162,84 @@ function toQueryString(params: Record<string, string | number | boolean | undefi
   return query ? `?${query}` : "";
 }
 
-async function uploadFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+function authHeaders(): HeadersInit {
   const headers: HeadersInit = {};
   const token = typeof window === "undefined" ? null : localStorage.getItem("token");
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
+  return headers;
+}
 
-  const response = await fetch(`${baseUrl}${endpoint}`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
+function apiUrl(endpoint: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  return `${baseUrl}${endpoint}`;
+}
 
-  if (response.status === 401) {
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
+async function uploadFormData<T>(
+  endpoint: string,
+  formData: FormData,
+  onProgress?: (percent: number) => void
+): Promise<T> {
+  if (!onProgress) {
+    const response = await fetch(apiUrl(endpoint), {
+      method: "POST",
+      headers: authHeaders(),
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      throw new Error("Unauthorized - Redirecting to login");
     }
-    throw new Error("Unauthorized - Redirecting to login");
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
   }
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
-
-  return response.json();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", apiUrl(endpoint));
+    const token = typeof window === "undefined" ? null : localStorage.getItem("token");
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.onloadstart = () => onProgress(0);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        if (typeof window !== "undefined") window.location.href = "/login";
+        reject(new Error("Unauthorized - Redirecting to login"));
+        return;
+      }
+      let body: { message?: string } = {};
+      try {
+        body = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+      } catch {
+        body = {};
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(body.message || `HTTP error! status: ${xhr.status}`));
+        return;
+      }
+      resolve(body as T);
+    };
+    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.send(formData);
+  });
 }
 
 export function validateSlipAttachmentFile(file: File): string | null {
   if (file.size > SLIP_ATTACHMENT_MAX_BYTES) {
-    return "The file size must not exceed 100MB.";
+    return "The file size must not exceed 500MB.";
   }
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   if (
@@ -185,7 +256,7 @@ export function validateSlipAttachmentFile(file: File): string | null {
 export function mapSlipAttachmentToLocalItem(a: SlipAttachmentRecord) {
   const fileName = (a.file_name || a.download_url?.split("/").pop() || "remote-file").toLowerCase();
   let type: "stl" | "image" | "3dobject" | "other" = "other";
-  if (a.is_stl || fileName.endsWith(".stl")) type = "stl";
+  if (a.is_stl || a.is_3d || isSlipAttachment3dExtension(fileName)) type = "stl";
   else if (fileName.endsWith(".3dobject")) type = "3dobject";
   else if (a.is_image) type = "image";
 
@@ -217,7 +288,8 @@ export const SlipAttachmentsService = {
   uploadSlipAttachment(
     slipId: number,
     file: File,
-    options: SlipAttachmentUploadOptions = {}
+    options: SlipAttachmentUploadOptions = {},
+    onProgress?: (percent: number) => void
   ) {
     const validationError = validateSlipAttachmentFile(file);
     if (validationError) {
@@ -235,7 +307,42 @@ export const SlipAttachmentsService = {
 
     return uploadFormData<SlipAttachmentsApiResponse<SlipAttachmentRecord>>(
       `/slip/attachments/${slipId}/upload`,
-      formData
+      formData,
+      onProgress
+    );
+  },
+
+  uploadPendingAttachment(
+    labId: number,
+    file: File,
+    options: SlipAttachmentUploadOptions = {},
+    onProgress?: (percent: number) => void
+  ) {
+    const validationError = validateSlipAttachmentFile(file);
+    if (validationError) {
+      return Promise.reject(new Error(validationError));
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("lab_id", String(labId));
+    if (options.attachment_type) {
+      formData.append("attachment_type", options.attachment_type);
+    }
+    if (options.notes) {
+      formData.append("notes", options.notes);
+    }
+
+    return uploadFormData<SlipAttachmentsApiResponse<SlipAttachmentRecord>>(
+      `/slip/attachments/pending`,
+      formData,
+      onProgress
+    );
+  },
+
+  deletePendingAttachment(attachmentId: number) {
+    return ApiService.delete<SlipAttachmentsApiResponse<null>>(
+      `/slip/attachments/pending/${attachmentId}`
     );
   },
 

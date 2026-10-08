@@ -109,16 +109,29 @@ export type SlipNoteVisibility =
   | "lab_to_lab_only"
   | "both"
 
+/** Status-action notes created by hold / resume / cancel / rush / send-back / etc. */
+export type SlipNoteActionType =
+  | "hold"
+  | "resume"
+  | "cancel"
+  | "send_back_to_office"
+  | "soft_delete"
+  | "restore"
+  | "rush"
+
 /** Full note shape from GET /slip/case/{caseId}/notes (`all_notes`, `slips[].notes`). */
 export interface SlipNoteDetail {
   id: number
   type: SlipNoteType | string
+  /** Set when the note was created by a slip status/action (hold, resume, …). */
+  action_type?: SlipNoteActionType | string | null
   visibility?: SlipNoteVisibility | string
   note: string
   needs_follow_up?: boolean
   is_general?: boolean
   slip_id?: number
   slip_number?: string
+  /** Current slip status (not historical). Prefer `action_type` for timeline labels. */
   slip_status?: string
   product_id?: number | null
   stage_id?: number | null
@@ -311,22 +324,39 @@ export function formatSlipNoteTimestamp(iso: string): string {
   })
 }
 
-/** Highlight slip status on timeline entries when it is not a routine in-progress state. */
+const SLIP_NOTE_ACTION_LABELS: Record<string, string> = {
+  hold: "HOLD",
+  resume: "RESUME",
+  cancel: "CANCEL",
+  rush: "RUSH",
+  send_back_to_office: "SENT BACK TO OFFICE",
+  soft_delete: "SOFT DELETE",
+  restore: "RESTORE",
+}
+
+/**
+ * Label for the action that created this note (hold / resume / cancel / …).
+ * Do not use `slip_status` — that is the slip's *current* status and would stamp
+ * every historical row with the same value (e.g. FINISHED on all notes).
+ */
 export function slipNoteStatusLabel(note: SlipNoteDetail): string | null {
-  const status = note.slip_status?.trim()
-  if (!status) return null
-  const lower = status.toLowerCase().replace(/\s+/g, " ").trim()
-  if (lower === "in progress" || lower === "active" || lower === "new") return null
-  if (lower === "on hold" || lower === "hold") return "CASE ON HOLD"
-  return status.toUpperCase()
+  const action = note.action_type?.trim().toLowerCase()
+  if (!action) return null
+  return SLIP_NOTE_ACTION_LABELS[action] ?? action.replace(/_/g, " ").toUpperCase()
 }
 
 /** Status badge color in case note timeline (hold uses orange-gold per design). */
 export function slipNoteStatusColor(statusLabel: string | null): string {
   if (!statusLabel) return "#CF0202"
   const lower = statusLabel.toLowerCase().replace(/\s+/g, " ").trim()
-  if (lower === "case on hold" || lower === "on hold" || lower === "hold") {
+  if (lower === "hold" || lower === "case on hold" || lower === "on hold") {
     return "#EDBA29"
+  }
+  if (lower === "rush") {
+    return "#F97316"
+  }
+  if (lower === "resume") {
+    return "#16A34A"
   }
   return "#CF0202"
 }

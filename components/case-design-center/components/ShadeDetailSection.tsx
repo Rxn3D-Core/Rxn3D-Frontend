@@ -1,13 +1,9 @@
 "use client";
 
-import type { Arch, ProductAdvanceField, ShadeFieldType } from "../types";
+import type { Arch, ProductAdvanceField, ProductApiData, ShadeFieldType } from "../types";
 import { getShadeFieldType } from "../utils/shadeGuideAdvanceFields";
+import { formatShadeFieldLabel, type ShadeCatalogRow } from "../utils/shadeFieldDisplay";
 import { ShadeField } from "./fields/ShadeField";
-
-function formatShadeGuideName(raw: string): string {
-  if (!raw) return raw;
-  return raw.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 interface ShadeDetailSectionProps {
   arch: Arch;
@@ -36,6 +32,8 @@ interface ShadeDetailSectionProps {
   activeAdvanceFieldId?: number | null;
   /** Selected shade guide name (e.g. "VITA_CLASSICAL") — shown as main text in each field */
   selectedShadeGuide?: string;
+  /** Product teeth shades for resolving brand.system_name */
+  product?: ProductApiData | null;
 }
 
 export function ShadeDetailSection({
@@ -49,6 +47,7 @@ export function ShadeDetailSection({
   isComplete = false,
   activeAdvanceFieldId = null,
   selectedShadeGuide = "",
+  product = null,
 }: ShadeDetailSectionProps) {
   if (fields.length === 0) return null;
 
@@ -85,13 +84,19 @@ export function ShadeDetailSection({
           {fields.map((field) => {
             const fieldType = getShadeFieldType(field);
             const shadeCode = getSelectedShade(productShadeId, arch, fieldType, field.id);
+            const displayLabel = shadeCode
+              ? formatShadeFieldLabel(
+                  shadeCode,
+                  product?.teeth_shades as ShadeCatalogRow[] | undefined,
+                  selectedShadeGuide
+                )
+              : "";
             return (
               <ShadeField
                 key={field.id}
                 className="min-w-0"
                 label={field.name}
-                // Guide name as main text, shade code only on the tooth SVG
-                value={shadeCode ? formatShadeGuideName(selectedShadeGuide || shadeCode) : ""}
+                value={displayLabel}
                 shade={shadeCode}
                 isActive={activeAdvanceFieldId != null && field.id === activeAdvanceFieldId}
                 onClick={() =>

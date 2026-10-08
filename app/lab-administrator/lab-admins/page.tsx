@@ -1,9 +1,13 @@
-import { LabAdmins } from "@/components/lab-administrator/lab-admins"
+"use client"
+
+import { UserListTable } from "@/components/office-administrator/user-list-table"
 
 export default function LabAdminsPage() {
   return (
-    <div className="container mx-auto py-6">
-      <LabAdmins />
-    </div>
+    <UserListTable
+      roleFilter="lab_admin"
+      title="Lab Administrators"
+      description="Manage lab administrators and their permissions"
+    />
   )
 }

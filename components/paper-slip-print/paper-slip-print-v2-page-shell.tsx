@@ -9,6 +9,11 @@ import {
   extractPaperSlipPrintV2Extras,
   type PaperSlipPrintV2SlipVM,
 } from "@/lib/paper-slip-print-v2-view-model";
+import type { PaperSlipPrintLayout } from "@/lib/paper-slip-print-layout";
+import {
+  defaultDeliveryTimeForSlipDetails,
+  fetchDefaultDeliveryTimeByLabId,
+} from "@/lib/slip-default-delivery-time";
 
 function PaperSlipStateCard({
   title,
@@ -80,15 +85,21 @@ export function PaperSlipPrintV2PageShell({
   caseIds,
   slipIds,
   onReady,
+  onError,
   viewOnly = false,
+  layout = "full",
 }: {
   error: string | null;
   caseIds: number[];
   slipIds: number[];
   /** When provided, called with the rendered HTML instead of postMessage/window.print. */
   onReady?: (html: string) => void;
+  /** Called when slip data cannot be loaded (so a waiting print tab can close). */
+  onError?: () => void;
   /** Render the slip on-screen for review and skip the auto-print/close handoff. */
   viewOnly?: boolean;
+  /** Full = portrait 1/sheet; half = landscape 2/sheet (cut in half). */
+  layout?: PaperSlipPrintLayout;
 }) {
   const [slips, setSlips] = useState<PaperSlipPrintV2SlipVM[]>([]);
   const [loading, setLoading] = useState(!error);
@@ -179,10 +190,21 @@ export function PaperSlipPrintV2PageShell({
         }),
       );
 
+      const defaultTimeByLab = await fetchDefaultDeliveryTimeByLabId(
+        detailsList.filter((details) => details != null),
+      );
+
       // 3. Merge: skip any slip whose details failed to load (fail-soft).
       const combined = extrasList
         .map((extras, index) =>
-          detailsList[index] ? buildPaperSlipPrintV2SlipVM(detailsList[index], extras) : null,
+          detailsList[index]
+            ? buildPaperSlipPrintV2SlipVM(detailsList[index], extras, {
+                defaultDeliveryTime: defaultDeliveryTimeForSlipDetails(
+                  detailsList[index],
+                  defaultTimeByLab,
+                ),
+              })
+            : null,
         )
         .filter((slip): slip is PaperSlipPrintV2SlipVM => slip !== null);
 
@@ -196,6 +218,11 @@ export function PaperSlipPrintV2PageShell({
         setLoading(false);
       });
   }, [caseIds, fetchError, slipIds, slips.length]);
+
+  useEffect(() => {
+    if (!fetchError || !onError) return;
+    onError();
+  }, [fetchError, onError]);
 
   useEffect(() => {
     if (printed || loading || slips.length === 0) return;
@@ -258,13 +285,16 @@ export function PaperSlipPrintV2PageShell({
     );
   }
 
-  // Show the document immediately for view mode + directly-opened tabs; only the
-  // hidden-handoff paths stay invisible until print fires (print ignores visibility).
-  const showDocument = viewOnly || printed || !isHiddenHandoff;
+  // Show the document immediately for view mode, onReady (client PDF capture), and
+  // directly-opened tabs. Only opener/popup handoff stays invisible until printed.
+  const showDocument = viewOnly || printed || !isHiddenHandoff || Boolean(onReady);
 
   return (
     <div ref={printRootRef} className={showDocument ? undefined : "invisible"}>
-      <PaperSlipPrintV2Document sections={buildPaperSlipPrintV2Sections(slips)} />
+      <PaperSlipPrintV2Document
+        layout={layout}
+        sections={buildPaperSlipPrintV2Sections(slips)}
+      />
     </div>
   );
 }

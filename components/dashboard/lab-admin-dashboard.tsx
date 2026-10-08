@@ -22,7 +22,19 @@ import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { getPrimaryRole } from "@/lib/get-primary-role"
 import { DashboardOfficeInviteModal } from "./dashboard-office-invite-modal"
+import { INVITE_ONBOARDING_MODALS_ENABLED } from "@/lib/invite-onboarding-modals"
+import {
+  getConnectionPartnerEmail,
+  getConnectionPartnerId,
+  getConnectionPartnerName,
+  isActiveConnection,
+} from "@/lib/connection-utils"
+import { DASHBOARD_CONNECTIONS_PER_PAGE } from "@/lib/connection-api"
+import { ConnectionListPagination } from "./connection-list-pagination"
+import { LabProductLibrarySetupBanner } from "./lab-product-library-setup-banner"
 import { useDashboardStats } from "@/hooks/use-dashboard-stats"
+import { FeatureGate } from "@/components/feature-gate"
+import { FEATURE_KEYS } from "@/lib/entitlements"
 
 const getStatusBadgeClass = (status: string) => {
   const statusLower = status?.toLowerCase() || ""
@@ -78,10 +90,20 @@ export function LabAdminDashboard() {
   const customerId = getCustomerId(user)
   const { isEnabled, enabledWidgets } = useDashboardSettings(userRole, userId, customerId)
 
+  const [practiceSearchQuery, setPracticeSearchQuery] = useState("")
+  const [practicesTab, setPracticesTab] = useState("connected")
+  const [practicesPage, setPracticesPage] = useState(1)
+  const practicesListRef = useRef<HTMLDivElement>(null)
+
   // Use cached hooks - automatic fetching with cache!
-  const { data: connectionsData, isLoading: isLoadingConnections, error: connectionsError } = useConnections(user?.id)
+  const { data: connectionsData, isLoading: isLoadingConnections, error: connectionsError } = useConnections(user?.id, {
+    page: practicesPage,
+    perPage: DASHBOARD_CONNECTIONS_PER_PAGE,
+  })
   const practices = connectionsData?.practices || []
   const labs = connectionsData?.labs || []
+  const connectionsPagination = connectionsData?.pagination
+  const connectedPracticesTotal = connectionsPagination?.total ?? connectionsData?.total_connections ?? 0
 
   const selectedLocation = JSON.parse(localStorage.getItem("selectedLocation") || "null")
   const invitedBy = user?.roles?.includes("superadmin") ? 0 : selectedLocation?.id
@@ -101,8 +123,6 @@ export function LabAdminDashboard() {
   const { isLoading: isSearching, customers, isCustomersLoading, customersError } = useCustomer()
   const [activeTabLabs, setActiveTabLabs] = useState("connected")
 
-  const [practiceSearchQuery, setPracticeSearchQuery] = useState("")
-  const [practicesTab, setPracticesTab] = useState("connected")
   const [labsTab, setLabsTab] = useState("connected")
   const [showPracticeForm, setShowPracticeForm] = useState(false)
   const [showLabForm, setShowLabForm] = useState(false)
@@ -142,20 +162,29 @@ export function LabAdminDashboard() {
   // Check for office invite popup
   useEffect(() => {
     if (!isLoading && !hasCheckedInvitePopup) {
-      const practicesCount = practices.length
+      const practicesCount = connectedPracticesTotal
       const invitationsCount = sentInvitations.filter((inv: any) => inv.type === "Office").length
       
-      if (practicesCount === 0 && invitationsCount === 0) {
+      if (INVITE_ONBOARDING_MODALS_ENABLED && practicesCount === 0 && invitationsCount === 0) {
         setIsInviteModalOpen(true)
       }
       setHasCheckedInvitePopup(true)
     }
-  }, [isLoading, hasCheckedInvitePopup, practices.length, sentInvitations])
+  }, [isLoading, hasCheckedInvitePopup, connectedPracticesTotal, sentInvitations])
+
+  useEffect(() => {
+    setPracticesPage(1)
+  }, [practicesTab])
+
+  const handlePracticesPageChange = (page: number) => {
+    setPracticesPage(page)
+    practicesListRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }
 
   // Filter practices based on tab
   const filteredPractices =
     practicesTab === "connected"
-      ? practices.filter((p) => p.status?.toLowerCase() === "active")
+      ? practices
       : practicesTab === "sent"
         ? (sent?.data || []).filter((p) => p.type === "Office")
         : (received?.data)
@@ -163,7 +192,7 @@ export function LabAdminDashboard() {
   // Filter labs based on tab
   const filteredLabs =
     labsTab === "connected"
-      ? labs.filter((l) => l.status?.toLowerCase() === "active")
+      ? labs.filter(isActiveConnection)
       : labsTab === "sent"
         ? (sent?.data || []).filter((l) => l.type === "Lab")
         : (received?.data)
@@ -290,7 +319,7 @@ export function LabAdminDashboard() {
   )
 
   return (
-    <div className="sm:p-4 bg-white min-h-screen">
+    <div className="sm:px-4 sm:pt-3 sm:pb-4 bg-white min-h-screen">
       <div className="space-y-4 sm:space-y-6 lg:space-y-8">
         {/* Header Section */}
         <div className="mb-4 sm:mb-6">
@@ -298,23 +327,27 @@ export function LabAdminDashboard() {
           <p className="text-sm sm:text-base text-gray-600">Monitor your lab operations and manage connections</p>
         </div>
 
+        {customerId ? <LabProductLibrarySetupBanner customerId={customerId} /> : null}
+
         {/* KPI Cards */}
         {isEnabled(WIDGET_IDS.KPI_CARDS) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
+          <FeatureGate feature={FEATURE_KEYS.reportsDashboard} required="full">
           <KpiCard
             title="Total Revenue"
-            value={kpi ? `$${kpi.total_revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
-            change={kpi ? `${kpi.revenue_change_pct >= 0 ? '+' : ''}${kpi.revenue_change_pct.toFixed(1)}%` : "—"}
+            value={kpi && kpi.total_revenue != null ? `$${kpi.total_revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            change={kpi && kpi.revenue_change_pct != null ? `${kpi.revenue_change_pct >= 0 ? '+' : ''}${kpi.revenue_change_pct.toFixed(1)}%` : "—"}
             isPositive={(kpi?.revenue_change_pct ?? 0) >= 0}
             icon="dollar"
           />
           <KpiCard
             title="Outstanding Balance"
-            value={kpi ? `$${kpi.outstanding_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
-            change={kpi ? `${kpi.balance_change_pct >= 0 ? '+' : ''}${kpi.balance_change_pct.toFixed(1)}%` : "—"}
+            value={kpi && kpi.outstanding_balance != null ? `$${kpi.outstanding_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            change={kpi && kpi.balance_change_pct != null ? `${kpi.balance_change_pct >= 0 ? '+' : ''}${kpi.balance_change_pct.toFixed(1)}%` : "—"}
             isPositive={(kpi?.balance_change_pct ?? 0) >= 0}
             icon="document"
           />
+          </FeatureGate>
           <KpiCard
             title="Total Cases"
             value={kpi ? kpi.total_cases.toString() : "—"}
@@ -334,11 +367,10 @@ export function LabAdminDashboard() {
 
         {/* Plan Statistics */}
         {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <PlanCard title="Rush Cases" count={status?.rush_cases ?? 0} color="text-red-500" />
           <PlanCard title="On Hold Cases" count={status?.on_hold_cases ?? 0} color="text-red-500" />
           <PlanCard title="Due Today" count={status?.due_today ?? 0} color="text-green-500" />
-          <PlanCard title="New Stage notes" count={status?.new_stage_notes ?? 0} color="text-black" />
           <PlanCard title="Late Cases" count={status?.late_cases ?? 0} color="text-black" />
         </div>
         )}
@@ -402,7 +434,7 @@ export function LabAdminDashboard() {
                 >
                   <span className="hidden sm:inline">Connected Practices</span>
                   <span className="sm:hidden">Connected</span>
-                  <span className="block sm:inline">({practices.filter(p => p.status?.toLowerCase() === "active").length})</span>
+                  <span className="block sm:inline">({connectedPracticesTotal})</span>
                   {practicesTab === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
@@ -430,7 +462,10 @@ export function LabAdminDashboard() {
               </div>
             </div>
 
-            <div className="max-h-80 sm:max-h-96 overflow-y-auto">
+            <div
+              ref={practicesListRef}
+              className={practicesTab === "connected" ? "" : "max-h-80 sm:max-h-96 overflow-y-auto"}
+            >
               {isLoading ? (
                 <div className="space-y-3 sm:space-y-4 p-3 sm:p-6">
                   {Array.from({ length: 3 }).map((_, index) => (
@@ -452,7 +487,7 @@ export function LabAdminDashboard() {
               ) : error ? (
                 <div className="p-6 sm:p-8 text-center">
                   <div className="text-red-500 font-medium mb-2">Failed to load practices</div>
-                  <p className="text-sm text-gray-600">{error}</p>
+                  <p className="text-sm text-gray-600">{error instanceof Error ? error.message : String(error)}</p>
                 </div>
               ) : filteredPractices.length > 0 ? (
                 <div className="divide-y divide-[#e4e6ef]">
@@ -465,9 +500,9 @@ export function LabAdminDashboard() {
                         >
                           <div className="flex-1">
                             <div className="text-[#1162a8] font-semibold text-base sm:text-lg group-hover:text-blue-700 transition-colors">
-                              {practice.name}
+                              {getConnectionPartnerName(practice)}
                             </div>
-                            <div className="text-xs sm:text-sm text-[#a19d9d] mt-1">{practice.email}</div>
+                            <div className="text-xs sm:text-sm text-[#a19d9d] mt-1">{getConnectionPartnerEmail(practice)}</div>
                           </div>
                           <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
                             <span className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium ${getStatusBadgeClass(practice.status || '')}`}>
@@ -625,6 +660,14 @@ export function LabAdminDashboard() {
                 </div>
               )}
             </div>
+
+            {practicesTab === "connected" && connectionsPagination && connectedPracticesTotal > 0 && (
+              <ConnectionListPagination
+                pagination={connectionsPagination}
+                onPageChange={handlePracticesPageChange}
+                itemLabel="practices"
+              />
+            )}
           </div>
           )}
 
@@ -682,7 +725,7 @@ export function LabAdminDashboard() {
                 >
                   <span className="hidden sm:inline">Connected User</span>
                   <span className="sm:hidden">Connected</span>
-                  <span className="block sm:inline">({filteredUsers.filter(u => u.status.toLowerCase() === "connected").length})</span>
+                  <span className="block sm:inline">({users.filter((u: any) => u.status === "connected").length})</span>
                   {activeTabUsers === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button

@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
 import { getAuthToken, redirectToLogin } from '@/lib/auth-utils'
 import { resolveLibraryCustomerId } from '@/lib/customer-scope'
+import { FRESH_LIST_QUERY_OPTIONS } from '@/lib/cache/frontend-list-cache'
 
 interface ProductsQueryParams {
   page?: number
@@ -81,7 +82,7 @@ export function useProductsQuery({
         pagination: result.data.pagination,
       }
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 1,
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 }

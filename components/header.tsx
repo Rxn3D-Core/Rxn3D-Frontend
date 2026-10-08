@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, X, Settings, QrCode, AlertCircle, Loader2, RotateCcw, Building2 } from "lucide-react"
+import { Search, X, Settings, QrCode, Building2, Plus } from "lucide-react"
 import { searchSuperadminLabCustomers } from "@/lib/api/superadmin-customers"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
@@ -35,10 +35,10 @@ import { useLocation } from "@/contexts/location-context"
 import { useDriverSlip } from "@/contexts/DriverSlipContext"
 import { useToast } from "@/hooks/use-toast"
 import { Breadcrumb } from "@/components/breadcrumb"
-import { BrowserMultiFormatReader, BarcodeFormat } from "@zxing/browser"
 import { preloadComponentsByRoute } from "@/lib/code-splitting"
 import { useSlipContext } from "../app/lab-case-management/SlipContext"
 import DriverHistoryModal from "./driver-history-modal"
+import { DriverQrScanner, type DriverQrScannerHandle } from "@/components/driver-qr-scanner"
 import { CustomerLogo } from "@/components/customer-logo"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
@@ -56,10 +56,40 @@ import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-c
 import { HeaderWaffleLauncher } from "@/components/header-waffle-launcher"
 import { cn } from "@/lib/utils"
 import { isOfficeCustomerContext } from "@/lib/role-utils"
+import { TrialBanner } from "@/components/billing/trial-banner"
+import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
+import { filterValidQrScanSlips } from "@/lib/slip-location"
+import {
+  parseDriverQrText,
+  processDriverScanApiResult,
+  saveDriverSessionKey,
+  loadDriverSessionKey,
+  persistDriverScanBatch,
+  loadDriverScanBatch,
+  clearDriverScanBatch,
+  hasActiveDriverPickupSession,
+  clearDriverQrLocalSession,
+  DRIVER_QR_SCANNER_OPEN_EVENT,
+  DRIVER_QR_SCANNER_CLOSED_EVENT,
+  DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT,
+  peekPickupAddSlipScan,
+  clearPickupAddSlipScan,
+} from "@/lib/driver-qr-scan"
+import { fetchSlipQrIdentify, type SlipQrIdentifyResult } from "@/lib/api/slip-qr-identify"
+import {
+  buildQrScanChooserActions,
+  resolveActiveQrScanAudience,
+  type QrScanChooserAction,
+  type QrScanChooserActionId,
+} from "@/lib/qr-scan-actions"
+import { QrScanActionChooser } from "@/components/qr-scan-action-chooser"
+import ReadyToSendModal from "@/components/ready-to-send-modal"
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes"
+import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 
 /** New Slip: solid gradient fill, white text */
 const NEW_SLIP_BUTTON_CLASS =
-  "border-none bg-[linear-gradient(231.46deg,#2AA6DE_-14.5%,#82298D_51.11%,#C9539F_116.71%)] hover:brightness-110 text-[#F7F7F7] h-10 w-[120px] rounded-[8px] text-[18px] font-bold leading-[21px] font-[Helvetica] shadow-sm transition-all duration-200 hover:shadow-md px-0"
+  "border-none bg-[linear-gradient(231.46deg,#2AA6DE_-14.5%,#82298D_51.11%,#C9539F_116.71%)] hover:brightness-110 text-[#F7F7F7] h-10 w-[120px] rounded-[8px] text-[18px] font-bold leading-[21px] font-[Inter, sans-serif] shadow-sm transition-all duration-200 hover:shadow-md px-0"
 
 /** Scan Code: white bg, gradient border — text/icon gradient handled inline */
 const SCAN_CODE_BUTTON_CLASS =
@@ -85,10 +115,6 @@ interface ScanResult {
 
 interface ScannerState {
   isOpen: boolean
-  isLoading: boolean
-  isScanning: boolean
-  error: string | null
-  hasPermission: boolean
 }
 
 // Add a Location type for clarity
@@ -99,37 +125,31 @@ interface Location {
 }
 
 export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
-  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId, selectedCustomerId, isActingAsLabAdmin, exitLabContext } = useAuth()
+  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId, selectedCustomerId, isActingAsLabAdmin, exitLabContext, profileRole } = useAuth()
+  const { canDriverScanning } = usePlanCapabilities()
   const [scannerState, setScannerState] = useState<ScannerState>({
     isOpen: false,
-    isLoading: false,
-    isScanning: false,
-    error: null,
-    hasPermission: false,
   })
-  const [stream, setStream] = useState<MediaStream | null>(null)
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([])
-  const [batchMode, setBatchMode] = useState(false)
-  const [selectedFormats, setSelectedFormats] = useState<BarcodeFormat[]>([
-    BarcodeFormat.QR_CODE,
-    BarcodeFormat.CODE_128,
-    BarcodeFormat.EAN_13,
-    BarcodeFormat.EAN_8,
-  ])
-  const [autoValidate, setAutoValidate] = useState(true)
+  const [batchMode] = useState(false)
+  const [autoValidate] = useState(true)
   // use a ref for last scan time to avoid async state updates causing duplicate handling
   const lastScanTimeRef = useRef<number>(0)
   // processingRef prevents concurrent handling of the same detection
   const processingRef = useRef(false)
-  const [isDecoding, setIsDecoding] = useState(false)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
   const [qrScanData, setQrScanData] = useState<any>(null)
+  const qrScanDataRef = useRef<any>(null)
   // Driver pickup session key — reused across scans so the backend keeps the
   // same single-office session; cleared when the batch is submitted/cancelled.
   const qrSessionRef = useRef<string | null>(null)
   // QR texts already scanned in the current session — prevents re-hitting the
   // backend with the same (last) slip when the QR stays in front of the camera.
   const scannedQrTextsRef = useRef<Set<string>>(new Set())
+  // When true, ignore decode callbacks (decoder may still emit briefly after reset).
+  const decoderActiveRef = useRef(false)
+  // Cooldown lock: blocks the same QR text from re-firing scan-qr after a failed attempt.
+  const qrScanLockRef = useRef<{ text: string | null; until: number }>({ text: null, until: 0 })
   const [showUserProfileModal, setShowUserProfileModal] = useState(false)
   const [showNewOfficeModal, setShowNewOfficeModal] = useState(false)
   const [showNewLabModal, setShowNewLabModal] = useState(false)
@@ -140,15 +160,32 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const { t } = useTranslation()
   // Use Location type for selectedLocation and setSelectedLocation
   const { locations, selectedLocation, setSelectedLocation } = useLocation(); // selectedLocation is a number (id)
-  const { scanQrCode, submitScannedSlips, clearDriverSession } = useSlipContext()
+  const { scanQrCode, submitScannedSlips, clearDriverSession, readyToSend } = useSlipContext()
   const { toast } = useToast();
   const pathname = usePathname() || "";
   const router = useRouter();
   const clearCaseDesignCenterStateMutation = useClearCaseDesignCenterStateMutation();
-const videoRef = useRef<HTMLVideoElement | null>(null);
-  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
-  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const driverQrScannerRef = useRef<DriverQrScannerHandle | null>(null);
   const lastScannedCodeRef = useRef<string>("");
+  const closeScannerRef = useRef<() => void>(() => {});
+
+  const [showQrActionChooser, setShowQrActionChooser] = useState(false)
+  const [qrChooserIdentifying, setQrChooserIdentifying] = useState(false)
+  const [qrChooserLoading, setQrChooserLoading] = useState(false)
+  const [qrIdentify, setQrIdentify] = useState<SlipQrIdentifyResult | null>(null)
+  const [qrChooserActions, setQrChooserActions] = useState<QrScanChooserAction[]>([])
+  const [pendingQrParse, setPendingQrParse] = useState<{
+    caseId: number
+    slipIds: number[]
+    rawText: string
+  } | null>(null)
+  const [showReadyToSendFromQr, setShowReadyToSendFromQr] = useState(false)
+  const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
+  const {
+    readyToSendRequired,
+    readyToSendPhotoEnabled,
+    readyToSendPhotoRequired,
+  } = useSignatureRequirementSettings(showReadyToSendFromQr)
 
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
   // When acting as lab admin, treat the session as non-superadmin across the whole UI
@@ -163,6 +200,10 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     !isOfficeSideUser &&
     (isSuperAdmin ||
       hasAnyPermission(["manage_office", "edit_office", "view_office"]))
+  // Lab/driver: plan feature. Office: Scan opens V-Slip chooser only.
+  const canScanCode =
+    !isSuperAdmin &&
+    (isOfficeSideUser || isOfficeCustomerContext() || canDriverScanning)
 
   // Sync profile photo from GET /me (session may only have avatar, or stale localStorage)
   useEffect(() => {
@@ -204,7 +245,39 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     return () => { cancelled = true }
   }, [isSuperAdmin])
 
-  // Load scan history from localStorage on mount
+  // Load persisted driver session + active batch on mount (expired sessions are cleared).
+  useEffect(() => {
+    const savedSession = loadDriverSessionKey()
+    if (savedSession) {
+      qrSessionRef.current = savedSession
+    } else {
+      qrSessionRef.current = null
+    }
+    const batch = loadDriverScanBatch()
+    if (batch?.data?.length) {
+      setQrScanData(batch)
+      qrScanDataRef.current = batch
+    }
+  }, [])
+
+  useEffect(() => {
+    qrScanDataRef.current = qrScanData
+    persistDriverScanBatch(qrScanData)
+  }, [qrScanData])
+
+  /** Cases in the current pickup/drop-off trip (not forever scan history). */
+  const activeTripCount = useMemo(() => {
+    const slips = Array.isArray(qrScanData?.data)
+      ? filterValidQrScanSlips(qrScanData.data)
+      : []
+    const caseIds = new Set(
+      slips
+        .map((s: { case_id?: number }) => s.case_id)
+        .filter((id): id is number => typeof id === "number" && id > 0),
+    )
+    return caseIds.size > 0 ? caseIds.size : slips.length
+  }, [qrScanData])
+
   useEffect(() => {
     const savedHistory = localStorage.getItem("qr-scan-history")
     if (savedHistory) {
@@ -296,9 +369,220 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     }
   }, [])
 
+  const stopActiveDecoder = useCallback(() => {
+    decoderActiveRef.current = false
+    driverQrScannerRef.current?.pause()
+  }, [])
+
+  const isQrScanLocked = useCallback((text: string) => {
+    const lock = qrScanLockRef.current
+    return lock.text === text && Date.now() < lock.until
+  }, [])
+
+  const lockQrScan = useCallback((text: string, cooldownMs: number) => {
+    qrScanLockRef.current = { text, until: Date.now() + cooldownMs }
+  }, [])
+
+  /** Run POST /slip/scan-qr and open the pickup/drop-off modal (does not show chooser). */
+  const commitDriverPickupScan = useCallback(
+    async (caseId: number, slipIds: number[], qrText: string) => {
+      lockQrScan(qrText, 15_000)
+      const res: any = await scanQrCode(caseId, slipIds, qrSessionRef.current || undefined)
+
+      const prevData = filterValidQrScanSlips(
+        qrScanDataRef.current && Array.isArray(qrScanDataRef.current.data)
+          ? qrScanDataRef.current.data
+          : []
+      )
+      const outcome = processDriverScanApiResult(res, prevData, slipIds)
+
+      if (outcome.sessionKey) {
+        qrSessionRef.current = outcome.sessionKey
+        saveDriverSessionKey(outcome.sessionKey)
+      }
+
+      if (outcome.alreadyInSession) {
+        if (outcome.response?.data?.length) {
+          setQrScanData(outcome.response)
+          setShowDriverHistoryModal(true)
+        }
+        toast({
+          title: "Already added",
+          description: outcome.message,
+          duration: 4000,
+        })
+        return outcome
+      }
+
+      if (!outcome.ok || !outcome.response?.data?.length) {
+        if (outcome.response) {
+          setQrScanData(outcome.response)
+        } else {
+          setQrScanData((prev: any) => {
+            if (!prev || !Array.isArray(prev.data)) return prev
+            const filtered = filterValidQrScanSlips(
+              prev.data.filter((d: any) => !slipIds.includes(d.slip_id))
+            )
+            if (filtered.length === 0) return null
+            return { ...prev, data: filtered }
+          })
+        }
+        toast({
+          title: "QR Scan Failed",
+          description: outcome.message,
+          variant: "destructive",
+          duration: 5000,
+        })
+        return outcome
+      }
+
+      qrScanLockRef.current = { text: qrText, until: Number.MAX_SAFE_INTEGER }
+      scannedQrTextsRef.current.add(qrText)
+
+      setQrScanData(outcome.response)
+      setShowDriverHistoryModal(true)
+
+      toast({
+        title: "QR Scan Successful",
+        description: `Added ${outcome.validSlips.length} slip(s) for delivery`,
+        duration: 3000,
+      })
+      return outcome
+    },
+    [lockQrScan, scanQrCode, toast],
+  )
+
+  const openQrActionChooser = useCallback(
+    async (caseId: number, slipIds: number[], rawText: string) => {
+      setPendingQrParse({ caseId, slipIds, rawText })
+      setQrIdentify(null)
+      setQrChooserActions([])
+      setShowQrActionChooser(true)
+      setQrChooserIdentifying(true)
+      try {
+        const identify = await fetchSlipQrIdentify(slipIds[0], caseId)
+        setQrIdentify(identify)
+
+        const audience = resolveActiveQrScanAudience({
+          profileRole,
+          userRoles,
+          customerType:
+            typeof window !== "undefined"
+              ? localStorage.getItem("customerType")
+              : null,
+        })
+
+        const actions = buildQrScanChooserActions({
+          audience,
+          locationRef: {
+            locationId: identify.locationId,
+            location: identify.location,
+          },
+          // Lab + driver always get location-based pickup/drop-off in the chooser.
+          // Office never does. API still enforces pickup_drop_off on submit.
+          canPickupDropoff: audience === "lab" || audience === "driver",
+        })
+        setQrChooserActions(actions)
+      } catch (error) {
+        console.error("QR identify error:", error)
+        setShowQrActionChooser(false)
+        toast({
+          title: "Could not identify slip",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Failed to look up this slip QR code.",
+          variant: "destructive",
+          duration: 5000,
+        })
+      } finally {
+        setQrChooserIdentifying(false)
+      }
+    },
+    [userRoles, profileRole, toast],
+  )
+
+  const handleQrChooserSelect = useCallback(
+    async (actionId: QrScanChooserActionId) => {
+      if (!pendingQrParse || !qrIdentify) return
+
+      if (actionId === "view_vslip") {
+        setShowQrActionChooser(false)
+        router.push(buildVirtualSlipPath(qrIdentify.caseId, qrIdentify.slipId))
+        return
+      }
+
+      if (actionId === "ready_to_send") {
+        setShowQrActionChooser(false)
+        setShowReadyToSendFromQr(true)
+        return
+      }
+
+      if (actionId === "pickup" || actionId === "dropoff") {
+        setQrChooserLoading(true)
+        try {
+          await commitDriverPickupScan(
+            pendingQrParse.caseId,
+            pendingQrParse.slipIds,
+            pendingQrParse.rawText,
+          )
+          setShowQrActionChooser(false)
+        } catch (error) {
+          console.error("QR pickup scan error:", error)
+          toast({
+            title: "QR Scan Error",
+            description: "Failed to start pick up / drop off.",
+            variant: "destructive",
+            duration: 5000,
+          })
+        } finally {
+          setQrChooserLoading(false)
+        }
+      }
+    },
+    [pendingQrParse, qrIdentify, router, commitDriverPickupScan, toast],
+  )
+
+  const handleReadyToSendFromQr = useCallback(
+    async (payload: { signature: string; image?: File | null }) => {
+      if (!qrIdentify) return
+      setReadyToSendSubmitting(true)
+      try {
+        const res = await readyToSend(qrIdentify.slipId, payload)
+        if (res?.success !== false) {
+          toast({
+            title: "Success",
+            description: res?.message || "Slip marked as ready to pick up.",
+            duration: 3000,
+          })
+          setShowReadyToSendFromQr(false)
+          setQrIdentify(null)
+          setPendingQrParse(null)
+        } else {
+          toast({
+            title: "Error",
+            description: res?.message ?? "Could not mark slip ready to pick up.",
+            variant: "destructive",
+            duration: 5000,
+          })
+        }
+      } catch {
+        toast({
+          title: "Error",
+          description: "Could not mark slip ready to pick up.",
+          variant: "destructive",
+          duration: 5000,
+        })
+      } finally {
+        setReadyToSendSubmitting(false)
+      }
+    },
+    [qrIdentify, readyToSend, toast],
+  )
+
   // Handle successful scan
   const handleScanSuccess = useCallback(
-    async (text: string, format: string) => {
+    async (text: string, format: string = "QR_CODE") => {
       const now = Date.now()
 
       // Prevent concurrent handling from multiple decode callbacks
@@ -315,10 +599,16 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           return
         }
 
+        if (isQrScanLocked(text)) {
+          return
+        }
+
         lastScanTimeRef.current = now
         lastScannedCodeRef.current = text
 
         const validation = autoValidate ? validateScanResult(text, format) : { isValid: true, type: "unknown" as const }
+
+        const parsedDriverQr = parseDriverQrText(text)
 
         const scanResult: ScanResult = {
           id: `scan-${now}`,
@@ -329,23 +619,48 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           type: validation.type,
         }
 
-        const newHistory = [scanResult, ...scanHistory].slice(0, 100) // Keep last 100 scans
-        setScanHistory(newHistory)
-        saveScanHistory(newHistory)
+        if (parsedDriverQr) {
+          const { case_id: caseId, slip_ids: slipIds } = parsedDriverQr
 
+          if (slipIds.length === 0) {
+            stopActiveDecoder()
+            lockQrScan(text, 10_000)
+            toast({
+              title: "Invalid QR code",
+              description: "This QR code is missing slip information. Please scan the code printed on the slip.",
+              variant: "destructive",
+              duration: 5000,
+            })
+            closeScannerRef.current()
+            return
+          }
 
-        // Check if the scanned content is a URL that contains case and slip information
-        const urlMatch = text.match(/\/case\/(\d+)\?slips=([0-9,]+)/)
+          // Stop the decoder immediately so the same QR in view cannot re-trigger
+          // scan-qr while the API request is in flight or after a failure.
+          stopActiveDecoder()
 
-
-        if (urlMatch) {
-          const caseId = parseInt(urlMatch[1])
-          const slipIds = urlMatch[2].split(',').map(id => parseInt(id))
+          // Pickup modal Add Slip: hand the QR back to that modal (same location only).
+          if (peekPickupAddSlipScan()) {
+            clearPickupAddSlipScan()
+            window.dispatchEvent(
+              new CustomEvent(DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT, {
+                detail: { caseId, slipIds, rawText: parsedDriverQr.rawText },
+              }),
+            )
+            closeScannerRef.current()
+            return
+          }
 
           // Already scanned in this session — don't hit the backend again with
           // the same slip; just stop the scanner and surface a gentle notice.
-          if (scannedQrTextsRef.current.has(text)) {
-            closeScanner()
+          if (scannedQrTextsRef.current.has(parsedDriverQr.rawText)) {
+            closeScannerRef.current()
+            setQrScanData((prev: any) => {
+              if (!prev || !Array.isArray(prev.data)) return prev
+              const filtered = filterValidQrScanSlips(prev.data)
+              if (filtered.length === 0) return null
+              return { ...prev, data: filtered }
+            })
             setShowDriverHistoryModal(true)
             toast({
               title: "Already added",
@@ -355,87 +670,54 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             return
           }
 
-          try {
-            const res: any = await scanQrCode(caseId, slipIds, qrSessionRef.current || undefined)
-
-            if (res && res.success) {
-
-              // Mark this QR as handled so it isn't re-scanned while still in view.
-              scannedQrTextsRef.current.add(text)
-
-              // Remember the session so subsequent scans stay in the same batch.
-              qrSessionRef.current = res.session_key || qrSessionRef.current
-
-              // Merge this case's slips into any already-scanned slips (dedupe by slip_id).
-              setQrScanData((prev: any) => {
-                const incoming = Array.isArray(res.data) ? res.data : []
-                if (!prev || !Array.isArray(prev.data)) return res
-                const seen = new Set(prev.data.map((d: any) => d.slip_id))
-                const merged = [...prev.data, ...incoming.filter((d: any) => !seen.has(d.slip_id))]
-                return { ...res, data: merged }
-              })
-
-              // Show the driver history modal with the scan data
-              setShowDriverHistoryModal(true)
-
-
+          // Active pickup/drop-off session → existing scan-qr flow (no V-Slip chooser).
+          if (hasActiveDriverPickupSession() || Boolean(qrSessionRef.current)) {
+            lockQrScan(text, 15_000)
+            try {
+              const outcome = await commitDriverPickupScan(
+                caseId,
+                slipIds,
+                parsedDriverQr.rawText,
+              )
+              if (outcome?.ok) {
+                const successHistory = [scanResult, ...scanHistory].slice(0, 100)
+                setScanHistory(successHistory)
+                saveScanHistory(successHistory)
+              }
+            } catch (error) {
+              console.error("QR scan error:", error)
               toast({
-                title: "QR Scan Successful",
-                description: `Found ${res.scanned_cases_count} case(s) for delivery`,
-                duration: 3000,
-              })
-            } else {
-              toast({
-                title: "QR Scan Failed",
-                description: res?.message || "Failed to process QR code",
+                title: "QR Scan Error",
+                description: "Failed to scan QR code",
                 variant: "destructive",
                 duration: 5000,
               })
+            } finally {
+              closeScannerRef.current()
             }
-          } catch (error) {
-            console.error("QR scan error:", error)
-            toast({
-              title: "QR Scan Error",
-              description: "Failed to scan QR code",
-              variant: "destructive",
-              duration: 5000,
-            })
-          } finally {
-            // Always stop the camera after handling a case/slip QR so it does not
-            // keep re-firing /scan-qr with the same slip.
-            closeScanner()
+            return
           }
 
-          return // Exit early, don't process as regular URL
+          // First scan outside a session → identify + action chooser (no location change yet).
+          closeScannerRef.current()
+          lockQrScan(text, 8_000)
+          await openQrActionChooser(caseId, slipIds, parsedDriverQr.rawText)
+          return
         }
 
-        // For other non-URL codes, show regular scan success message
+        // Not an Rxn3D slip QR — reject clearly instead of treating as a generic success.
+        stopActiveDecoder()
+        lockQrScan(text, 8_000)
         toast({
-          title: "Code Scanned Successfully",
-          description: validation.message || `${format}: ${text.substring(0, 30)}${text.length > 30 ? "..." : ""}`,
-          duration: 2000,
+          title: "Invalid QR code",
+          description: "This is not a valid Rxn3D slip QR code. Please scan the code printed on the case slip.",
+          variant: "destructive",
+          duration: 5000,
         })
-
-        // Announce to screen readers
-        const announcement = urlMatch
-          ? `QR code scanned successfully: ${text.substring(0, 50)}${text.length > 50 ? "..." : ""}`
-          : `Scanned ${validation.type} code: ${text.substring(0, 50)}${text.length > 50 ? "..." : ""}`
-
-        const ariaLive = document.createElement("div")
-        ariaLive.setAttribute("aria-live", "polite")
-        ariaLive.setAttribute("aria-atomic", "true")
-        ariaLive.className = "sr-only"
-        ariaLive.textContent = announcement
-        document.body.appendChild(ariaLive)
-        setTimeout(() => document.body.removeChild(ariaLive), 1000)
-
-        // Auto-close if not in batch mode
         if (!batchMode) {
-          setTimeout(() => closeScanner(), 1500)
+          closeScannerRef.current()
         }
-
-        // Trigger automatic actions based on code type
-        await handleAutomaticActions(scanResult)
+        return
       } catch (err) {
         console.error("Error in handleScanSuccess:", err)
       } finally {
@@ -443,319 +725,65 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
         processingRef.current = false
       }
     },
-    [scanHistory, saveScanHistory, autoValidate, validateScanResult, batchMode, toast, handleAutomaticActions],
+    [
+      scanHistory,
+      saveScanHistory,
+      autoValidate,
+      validateScanResult,
+      batchMode,
+      toast,
+      stopActiveDecoder,
+      isQrScanLocked,
+      lockQrScan,
+      commitDriverPickupScan,
+      openQrActionChooser,
+    ],
   )
-
-  // Request camera permission
-  const requestCameraPermission = useCallback(async () => {
-    // Check if we're in a secure context (HTTPS or localhost)
-    if (!window.isSecureContext && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      const errorMsg = "Camera access requires a secure connection (HTTPS). Please use HTTPS or localhost."
-      setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMsg }))
-      throw new Error(errorMsg)
-    }
-
-    // Check if mediaDevices is available
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      const errorMsg = "Camera API is not available in this browser. Please use a modern browser."
-      setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMsg }))
-      throw new Error(errorMsg)
-    }
-
-    try {
-      // First, check if we can enumerate devices to see if camera exists
-      const devices = await navigator.mediaDevices.enumerateDevices()
-      const hasVideoInput = devices.some(device => device.kind === 'videoinput')
-      
-      if (!hasVideoInput) {
-        const errorMsg = "No camera found. Please connect a camera device."
-        setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMsg }))
-        throw new Error(errorMsg)
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment", // Use back camera for better QR scanning
-          width: { ideal: 1920, min: 1280 }, // Higher resolution for better scanning
-          height: { ideal: 1080, min: 720 },
-          aspectRatio: { ideal: 16/9 },
-          frameRate: { ideal: 30, min: 15 }, // Higher frame rate for smoother scanning
-        },
-        audio: false // Explicitly disable audio
-      })
-      setScannerState((prev) => ({ ...prev, hasPermission: true, error: null }))
-      return stream
-    } catch (error: any) {
-      let errorMessage = "Camera access denied"
-      
-      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        errorMessage = "Camera permission denied. Please allow camera access in your browser settings and try again."
-      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        errorMessage = "No camera found. Please connect a camera device."
-      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        errorMessage = "Camera is already in use by another application. Please close other apps using the camera."
-      } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
-        errorMessage = "Camera doesn't support the required settings. Trying with default settings..."
-        // Try again with simpler constraints
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false
-          })
-          setScannerState((prev) => ({ ...prev, hasPermission: true, error: null }))
-          return stream
-        } catch (retryError) {
-          errorMessage = "Camera access failed. Please check your camera permissions."
-        }
-      } else if (error.message) {
-        errorMessage = error.message
-      }
-      
-      setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMessage }))
-      throw new Error(errorMessage)
-    }
-  }, [])
-
-  // Start scanner
-  const startScanner = useCallback(async () => {
-    if (isDecoding) {
-      return
-    }
-
-    setIsDecoding(true)
-    setScannerState((prev) => ({ ...prev, isLoading: true, error: null }))
-
-    try {
-      const mediaStream = await requestCameraPermission()
-      setStream(mediaStream)
-
-      if (!videoRef.current) {
-        throw new Error("Video element not available")
-      }
-
-      // Set the video source
-      videoRef.current.srcObject = mediaStream
-      
-      // Initialize code reader early
-      const codeReader = new BrowserMultiFormatReader()
-
-      // Set hints for better QR code detection
-      const hints = new Map()
-      hints.set(2, [BarcodeFormat.QR_CODE]) // Focus only on QR codes for better performance
-      hints.set(3, true) // TRY_HARDER for better detection
-      hints.set(10, true) // PURE_BARCODE for cleaner detection
-      codeReader.hints = hints
-
-      codeReaderRef.current = codeReader
-
-      // Clear loading state immediately - we'll start scanning even if video isn't fully ready
-      setScannerState((prev) => ({ ...prev, isLoading: false, isScanning: true }))
-      
-      // Try to play the video (non-blocking)
-      if (videoRef.current) {
-        videoRef.current.play().catch((playError) => {
-          console.warn("Video play error (will continue anyway):", playError)
-          // Continue - the stream might still work for scanning
-        })
-      }
-
-      // Use continuous scanning with better error handling
-      const startContinuousScanning = async () => {
-        if (!videoRef.current || !codeReaderRef.current) {
-          console.error("Video element or code reader not available")
-          return
-        }
-
-        try {
-          // Use decodeFromVideoDevice for continuous scanning
-          await codeReader.decodeFromVideoDevice(undefined, videoRef.current, (result, error) => {
-            if (result) {
-              // If already processing, ignore duplicate detections
-              if (processingRef.current) return
-
-              const text = result.getText()
-              const formatStr = result.getBarcodeFormat().toString()
-
-
-              // Stop scanning immediately after detection to prevent further callbacks
-              if (codeReaderRef.current) {
-                try {
-                  ;(codeReaderRef.current as any)?.reset?.()
-                } catch (e) {
-                }
-              }
-
-              // Call our success handler (async). The handler sets processingRef and clears it in finally.
-              void handleScanSuccess(text, formatStr)
-            }
-            // Don't log NotFoundException errors as they're normal during scanning
-            if (error && error.name !== "NotFoundException") {
-              console.error("Scan error:", error)
-            }
-          })
-        } catch (error) {
-          console.error("Error starting continuous scanning:", error)
-          setScannerState((prev) => ({
-            ...prev,
-            isLoading: false,
-            isScanning: false,
-            error: error instanceof Error ? error.message : "Failed to start scanning",
-          }))
-        }
-      }
-
-      // Start continuous scanning
-      startContinuousScanning()
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to start scanner"
-      console.error("Error starting scanner:", error)
-      setIsDecoding(false)
-      setScannerState((prev) => ({
-        ...prev,
-        isLoading: false,
-        isScanning: false,
-        error: errorMessage,
-      }))
-
-      toast({
-        title: "Scanner Error",
-        description: errorMessage,
-        variant: "destructive",
-        duration: 5000,
-      })
-    }
-  }, [
-    selectedFormats,
-    requestCameraPermission,
-    handleScanSuccess,
-    toast,
-    isDecoding,
-    scannerState.isOpen,
-    batchMode,
-    scanHistory.length,
-  ])
 
   // Close scanner
   const closeScanner = useCallback(() => {
-    setIsDecoding(false)
-    lastScannedCodeRef.current = ""
-    // Reset processing and last scan time so scanner can be reopened cleanly
+    stopActiveDecoder()
+    void driverQrScannerRef.current?.stop()
+    // Keep lastScannedCodeRef / lastScanTimeRef so a still-active decoder frame
+    // cannot immediately re-hit scan-qr with the same QR after a failed attempt.
+    const addSlipCancelled = peekPickupAddSlipScan() != null
+    if (addSlipCancelled) clearPickupAddSlipScan()
+    setScannerState({ isOpen: false })
     processingRef.current = false
-    lastScanTimeRef.current = 0
-
-    // Stop the code reader first
-    if (codeReaderRef.current) {
-      try {
-        // Try to stop any ongoing scanning
-        ;(codeReaderRef.current as any)?.reset?.()
-        codeReaderRef.current = null
-      } catch (error) {
-        // Ignore errors during cleanup
-      }
+    if (addSlipCancelled) {
+      window.dispatchEvent(new CustomEvent(DRIVER_QR_SCANNER_CLOSED_EVENT))
     }
+  }, [stopActiveDecoder])
 
-    // Clear any timeouts
-    if (scanTimeoutRef.current) {
-      clearTimeout(scanTimeoutRef.current)
-      scanTimeoutRef.current = null
-    }
-
-    // Stop all video tracks to turn off camera
-    // Get stream from state first, then from video element as fallback
-    let mediaStream: MediaStream | null = stream
-    
-    // If stream is not in state, try to get it from video element
-    if (!mediaStream && videoRef.current && videoRef.current.srcObject) {
-      mediaStream = videoRef.current.srcObject as MediaStream
-    }
-
-    // Stop all tracks from the stream
-    if (mediaStream) {
-      mediaStream.getTracks().forEach((track) => {
-        track.stop()
-        track.enabled = false
-      })
-    }
-
-    // Clear video element source and pause video
-    if (videoRef.current) {
-      // Pause the video element
-      videoRef.current.pause()
-      // Clear the source
-      if (videoRef.current.srcObject) {
-        const videoStream = videoRef.current.srcObject as MediaStream
-        videoStream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-      }
-      videoRef.current.srcObject = null
-      // Clear any remaining references
-      videoRef.current.load()
-    }
-
-    // Clear stream state
-    setStream(null)
-
-    setScannerState({
-      isOpen: false,
-      isLoading: false,
-      isScanning: false,
-      error: null,
-      hasPermission: false,
-    })
-  }, [stream])
+  closeScannerRef.current = closeScanner
 
   // Open scanner
   const openScanner = useCallback(() => {
-    setScannerState((prev) => {
-      const newState = { ...prev, isOpen: true }
-      return newState
-    })
+    // Allow retrying a QR that previously failed once the user reopens the scanner.
+    qrScanLockRef.current = { text: null, until: 0 }
+    decoderActiveRef.current = true
+    const restoredBatch = loadDriverScanBatch()
+    if (restoredBatch && !qrScanDataRef.current) {
+      setQrScanData(restoredBatch)
+      qrScanDataRef.current = restoredBatch
+    }
+    setScannerState({ isOpen: true })
   }, [])
 
-  // Effect to start scanner when dialog opens
+  // Open scanner from driver pickup modal (Add Slip) or native-camera landing page.
   useEffect(() => {
-    if (scannerState.isOpen && !scannerState.isScanning && !scannerState.isLoading && !isDecoding) {
-      startScanner()
+    const handleOpenScannerRequest = () => {
+      const restoredBatch = loadDriverScanBatch()
+      if (restoredBatch) {
+        setQrScanData(restoredBatch)
+        qrScanDataRef.current = restoredBatch
+      }
+      setShowDriverHistoryModal(false)
+      openScanner()
     }
-  }, [scannerState.isOpen, scannerState.isScanning, scannerState.isLoading, isDecoding])
-
-  // Effect to ensure camera is stopped when dialog closes
-  useEffect(() => {
-    if (!scannerState.isOpen) {
-      // Dialog is closed, ensure camera is turned off
-      if (videoRef.current && videoRef.current.srcObject) {
-        const mediaStream = videoRef.current.srcObject as MediaStream
-        mediaStream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-        videoRef.current.pause()
-        videoRef.current.srcObject = null
-        videoRef.current.load()
-      }
-      
-      // Also stop any stream in state
-      if (stream) {
-        stream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-        setStream(null)
-      }
-
-      // Stop code reader
-      if (codeReaderRef.current) {
-        try {
-          ;(codeReaderRef.current as any)?.reset?.()
-          codeReaderRef.current = null
-        } catch (error) {
-          // Ignore errors
-        }
-      }
-    }
-  }, [scannerState.isOpen, stream])
+    window.addEventListener(DRIVER_QR_SCANNER_OPEN_EVENT, handleOpenScannerRequest)
+    return () => window.removeEventListener(DRIVER_QR_SCANNER_OPEN_EVENT, handleOpenScannerRequest)
+  }, [openScanner])
 
   // Debug effect to track modal state changes
   useEffect(() => {
@@ -764,42 +792,9 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Clear timeouts
-      if (scanTimeoutRef.current) {
-        clearTimeout(scanTimeoutRef.current)
-        scanTimeoutRef.current = null
-      }
-      
-      // Stop code reader
-      if (codeReaderRef.current) {
-        try {
-          ;(codeReaderRef.current as any)?.reset?.()
-          codeReaderRef.current = null
-        } catch (error) {
-          // Ignore errors
-        }
-      }
-      
-      // Stop camera from video element
-      if (videoRef.current && videoRef.current.srcObject) {
-        const mediaStream = videoRef.current.srcObject as MediaStream
-        mediaStream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-        videoRef.current.pause()
-        videoRef.current.srcObject = null
-      }
-      
-      // Stop stream from state
-      if (stream) {
-        stream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-      }
+      void driverQrScannerRef.current?.stop()
     }
-  }, [stream])
+  }, [])
 
   // Copy to clipboard
   const copyToClipboard = useCallback(
@@ -817,15 +812,59 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     [toast],
   )
 
-  // Clear scan history
+  // Clear scan history + active trip (scanner "Clear History")
   const clearScanHistory = useCallback(() => {
     setScanHistory([])
-    localStorage.removeItem("qr-scan-history")
+    setQrScanData(null)
+    qrScanDataRef.current = null
+    scannedQrTextsRef.current.clear()
+    setShowDriverHistoryModal(false)
+    qrScanLockRef.current = { text: null, until: 0 }
+    lastScannedCodeRef.current = ""
+
+    if (qrSessionRef.current) {
+      void clearDriverSession(qrSessionRef.current)
+      qrSessionRef.current = null
+    }
+    saveDriverSessionKey(null)
+    clearDriverScanBatch()
+    clearDriverQrLocalSession()
+
     toast({
       title: "History cleared",
-      description: "All scan history has been removed.",
+      description: "Scan history and pickup session cleared.",
+      duration: 3000,
     })
-  }, [toast])
+  }, [clearDriverSession, toast])
+
+  /** Restart camera + wipe active pickup trip (session, batch, badge count). */
+  const handleScannerRestart = useCallback(() => {
+    setScanHistory([])
+    setQrScanData(null)
+    qrScanDataRef.current = null
+    scannedQrTextsRef.current.clear()
+    setShowDriverHistoryModal(false)
+    qrScanLockRef.current = { text: null, until: 0 }
+    lastScannedCodeRef.current = ""
+
+    if (qrSessionRef.current) {
+      void clearDriverSession(qrSessionRef.current)
+      qrSessionRef.current = null
+    }
+    saveDriverSessionKey(null)
+    clearDriverScanBatch()
+    clearDriverQrLocalSession()
+
+    decoderActiveRef.current = true
+    processingRef.current = false
+    void driverQrScannerRef.current?.restart()
+
+    toast({
+      title: "Scanner restarted",
+      description: "Scan session cleared. You can start a new trip.",
+      duration: 3000,
+    })
+  }, [clearDriverSession, toast])
 
   const getPrimaryRole = () => {
     if (!isActingAsLabAdmin && userRoles.includes("superadmin")) return "Super Admin"
@@ -833,6 +872,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     if (userRoles.includes("office_admin")) return "Office Admin"
     if (userRoles.includes("doctor_admin")) return "Doctor Admin"
     if (userRoles.includes("lab_user")) return "Lab User"
+    if (userRoles.includes("lab_driver")) return "Lab Driver"
     if (userRoles.includes("office_user")) return "Office User"
     if (userRoles.includes("doctor")) return "Doctor"
     return "User"
@@ -876,8 +916,14 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     }
   }
 
+  const selectedLocationObj = typeof window !== 'undefined'
+    ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
+    : null
+  const logoCustomerId = selectedLocation || selectedLocationObj?.id || null
+
   return (
     <>
+      <TrialBanner />
       <LoadingOverlay
         isLoading={isSwitchingProfile}
         title="Switching location..."
@@ -891,14 +937,35 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             {/* Left Section - Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-shrink-0">
               <HeaderWaffleLauncher />
-              <Image
-                src="/images/rxn3d-latest.png"
-                alt="RXN3D"
-                width={195}
-                height={76}
-                priority
-                className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
-              />
+              {!isSuperAdmin && canCreateSlip && (
+                <Button
+                  className={`${NEW_SLIP_BUTTON_CLASS} sm:hidden w-10`}
+                  onClick={() => {
+                    clearSlipCreationStorage();
+                    clearCaseDesignCenterStateMutation.mutate();
+                    router.replace("/case-design-center");
+                  }}
+                  aria-label={t("header.newSlip", "+ New Slip")}
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+              )}
+              {isSuperAdmin ? (
+                <Image
+                  src="/images/rxn3d-latest.png"
+                  alt="RXN3D"
+                  width={195}
+                  height={76}
+                  priority
+                  className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
+                />
+              ) : logoCustomerId ? (
+                <CustomerLogo
+                  customerId={logoCustomerId}
+                  alt="Company Logo"
+                  className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0 max-w-[160px] md:max-w-[200px] lg:max-w-[240px]"
+                />
+              ) : null}
               {!isSuperAdmin && canCreateSlip && (
                 <Button
                   className={`${NEW_SLIP_BUTTON_CLASS} hidden sm:inline-flex`}
@@ -929,7 +996,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                   <span>{t("header.newLab", "New Lab")}</span>
                 </Button>
               )}
-              {!isSuperAdmin && (
+              {canScanCode && (
                 <Button
                   variant="ghost"
                   className={`${SCAN_CODE_BUTTON_CLASS} hidden sm:inline-flex`}
@@ -954,14 +1021,14 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                     fontWeight: 700,
                     fontSize: "18px",
                     lineHeight: "21px",
-                    fontFamily: "Helvetica, sans-serif",
+                    fontFamily: "Inter, sans-serif",
                   }}>{t("header.scanCode", "Scan Code")}</span>
-                  {scanHistory.length > 0 && (
+                  {activeTripCount > 0 && (
                     <Badge
                       variant="secondary"
                       className="ml-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
                     >
-                      {scanHistory.length}
+                      {activeTripCount}
                     </Badge>
                   )}
                 </Button>
@@ -970,8 +1037,26 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
             {/* Center Section - Logo or Search */}
             <div className="flex-1 flex items-center justify-center min-w-0 mx-2 sm:mx-4 md:mx-6">
-              {isSuperAdmin ? (
-                <div className="w-full max-w-md lg:max-w-lg xl:max-w-xl">
+              <div className="flex sm:hidden items-center justify-center min-w-0">
+                {isSuperAdmin ? (
+                  <Image
+                    src="/images/rxn3d-latest.png"
+                    alt="RXN3D"
+                    width={195}
+                    height={76}
+                    priority
+                    className="h-10 w-auto object-contain"
+                  />
+                ) : logoCustomerId ? (
+                  <CustomerLogo
+                    customerId={logoCustomerId}
+                    alt="Company Logo"
+                    className="h-10 w-auto object-contain max-w-[180px]"
+                  />
+                ) : null}
+              </div>
+              {isSuperAdmin && (
+                <div className="hidden sm:block w-full max-w-md lg:max-w-lg xl:max-w-xl">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
@@ -981,27 +1066,38 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                     />
                   </div>
                 </div>
-              ) : (
-                <div className="hidden 2xl:flex [body[data-sidebar-expanded='false']_&]:flex items-center justify-center max-w-full">
-                  {(() => {
-                    const selectedLocationObj = typeof window !== 'undefined'
-                      ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
-                      : null
-                    const customerId = selectedLocation || selectedLocationObj?.id || null
-                    return customerId ? (
-                      <CustomerLogo
-                        customerId={customerId}
-                        alt="Company Logo"
-                        className="h-10 sm:h-14 md:h-16 lg:h-[72px] w-auto object-contain max-w-[240px] sm:max-w-[280px] md:max-w-[320px] lg:max-w-[360px]"
-                      />
-                    ) : null
-                  })()}
-                </div>
               )}
             </div>
 
             {/* Right Section - Controls & User */}
             <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+              {!isSuperAdmin && canScanCode && (
+                <Button
+                  variant="ghost"
+                  className={`${SCAN_CODE_BUTTON_CLASS} sm:hidden w-10 relative`}
+                  onClick={openScanner}
+                  aria-label={t("header.openScanner", "Open QR code scanner")}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
+                    <defs>
+                      <linearGradient id="qr-grad-mobile" x1="0%" y1="100%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#C9539F" />
+                        <stop offset="51.11%" stopColor="#82298D" />
+                        <stop offset="100%" stopColor="#2AA6DE" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm9-1h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-2h2v2h-2v-2z" fill="url(#qr-grad-mobile)" />
+                  </svg>
+                  {activeTripCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="absolute -top-1.5 -right-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
+                    >
+                      {activeTripCount}
+                    </Badge>
+                  )}
+                </Button>
+              )}
               {/* Location Selector - Desktop */}
               {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
                 <div className="hidden md:block min-w-0">
@@ -1091,7 +1187,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="h-10 w-10 sm:h-11 sm:w-11 md:h-12 md:w-12 lg:h-14 lg:w-14 p-0 rounded-full hover:ring-2 hover:ring-[#1162a8] transition-all"
+                    className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 lg:h-[4.5rem] lg:w-[4.5rem] p-0 rounded-full hover:ring-2 hover:ring-[#1162a8] transition-all"
                   >
                     <Avatar className="h-full w-full ring-2 ring-gray-200 dark:ring-gray-700">
                       <AvatarImage
@@ -1116,6 +1212,59 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                       <p className="text-xs text-muted-foreground">{getPrimaryRole()}</p>
                     </div>
                   </DropdownMenuLabel>
+                  {/* Location Selector - Mobile */}
+                  {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
+                    <div className="px-2 pb-2 sm:hidden" onKeyDown={(e) => e.stopPropagation()}>
+                      <Select
+                        value={selectedCustomerId !== null ? selectedCustomerId!.toString() : ""}
+                        onValueChange={handleLocationChange}
+                      >
+                        <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
+                          <SelectValue placeholder={t("header.selectLab", "Select Lab")} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-lg shadow-lg">
+                          <SelectGroup>
+                            <SelectLabel className="font-medium text-gray-700">Labs</SelectLabel>
+                            {superAdminLabs.map((lab) => (
+                              <SelectItem
+                                key={lab.id}
+                                value={lab.id.toString()}
+                                className="hover:bg-blue-50"
+                              >
+                                {lab.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {!isSuperAdmin && safeLocations.length > 0 && (
+                    <div className="px-2 pb-2 sm:hidden" onKeyDown={(e) => e.stopPropagation()}>
+                      <Select
+                        value={selectedLocation !== null ? selectedLocation.toString() : ""}
+                        onValueChange={handleLocationChange}
+                      >
+                        <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
+                          <SelectValue placeholder={t("header.selectLocation", "Select location")} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-lg shadow-lg">
+                          <SelectGroup>
+                            <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
+                            {safeLocations.map((location) => (
+                              <SelectItem
+                                key={location.id}
+                                value={location.id.toString()}
+                                className="hover:bg-blue-50"
+                              >
+                                {location.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={async () => {
@@ -1149,111 +1298,6 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               </DropdownMenu>
             </div>
           </div>
-
-          {/* Secondary Row - Mobile Only */}
-          <div className="flex flex-col gap-2 pb-2 sm:hidden border-t border-gray-200 dark:border-gray-800 pt-2">
-            {/* Mobile action buttons: New Slip + Scan Code */}
-            {!isSuperAdmin && (
-              <div className="flex gap-2">
-                {canCreateSlip && (
-                  <Button
-                    className={`${NEW_SLIP_BUTTON_CLASS} flex-1 w-auto`}
-                    onClick={() => {
-                      clearSlipCreationStorage();
-                      clearCaseDesignCenterStateMutation.mutate();
-                      router.replace("/case-design-center");
-                    }}
-                  >
-                    <span>{t("header.newSlip", "+ New Slip")}</span>
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  className={`${SCAN_CODE_BUTTON_CLASS} flex-1 w-auto`}
-                  onClick={openScanner}
-                  aria-label={t("header.openScanner", "Open QR code scanner")}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 mr-1.5">
-                    <defs>
-                      <linearGradient id="qr-grad-mobile" x1="0%" y1="100%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#C9539F" />
-                        <stop offset="51.11%" stopColor="#82298D" />
-                        <stop offset="100%" stopColor="#2AA6DE" />
-                      </linearGradient>
-                    </defs>
-                    <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm9-1h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-2h2v2h-2v-2z" fill="url(#qr-grad-mobile)" />
-                  </svg>
-                  <span style={{
-                    background: "linear-gradient(231.46deg, #2AA6DE -14.5%, #82298D 51.11%, #C9539F 116.71%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                    fontWeight: 700,
-                    fontSize: "16px",
-                    lineHeight: "21px",
-                    fontFamily: "Helvetica, sans-serif",
-                  }}>{t("header.scanCode", "Scan Code")}</span>
-                  {scanHistory.length > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
-                    >
-                      {scanHistory.length}
-                    </Badge>
-                  )}
-                </Button>
-              </div>
-            )}
-            {/* Location Selector - Mobile */}
-            {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
-              <Select
-                value={selectedCustomerId !== null ? selectedCustomerId!.toString() : ""}
-                onValueChange={handleLocationChange}
-              >
-                <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
-                  <SelectValue placeholder={t("header.selectLab", "Select Lab")} />
-                </SelectTrigger>
-                <SelectContent className="rounded-lg shadow-lg">
-                  <SelectGroup>
-                    <SelectLabel className="font-medium text-gray-700">Labs</SelectLabel>
-                    {superAdminLabs.map((lab) => (
-                      <SelectItem
-                        key={lab.id}
-                        value={lab.id.toString()}
-                        className="hover:bg-blue-50"
-                      >
-                        {lab.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            )}
-            {!isSuperAdmin && safeLocations.length > 0 && (
-              <Select
-                value={selectedLocation !== null ? selectedLocation.toString() : ""}
-                onValueChange={handleLocationChange}
-              >
-                <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
-                  <SelectValue placeholder={t("header.selectLocation", "Select location")} />
-                </SelectTrigger>
-                <SelectContent className="rounded-lg shadow-lg">
-                  <SelectGroup>
-                    <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
-                    {safeLocations.map((location) => (
-                      <SelectItem
-                        key={location.id}
-                        value={location.id.toString()}
-                        className="hover:bg-blue-50"
-                      >
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
         </div>
       </header>
 
@@ -1276,7 +1320,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
         onClose={() => setShowNewLabModal(false)}
       />
 
-      {/* Enhanced Scanner Dialog with maintained functionality */}
+      {/* Fullscreen scanner — avoids CSS transform centering that breaks iOS camera video */}
       <Dialog
         open={scannerState.isOpen}
         onOpenChange={(open) => {
@@ -1285,96 +1329,52 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       >
         <DialogContent
           showCloseButton={false}
-          className="sm:max-w-[600px] lg:max-w-[700px] xl:max-w-[800px] 2xl:max-w-[900px] max-w-[95vw] w-full mx-auto overflow-hidden"
+          fullscreen
+          className="!z-[200] flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden bg-background p-0 sm:h-[100dvh]"
         >
-          <DialogHeader>
-            <DialogTitle className="flex justify-between items-center text-sm sm:text-base lg:text-lg xl:text-xl">
-              <span>QR Code Scanner: Position QR code in the frame</span>
-              <Button variant="ghost" size="icon" onClick={closeScanner} className="h-6 w-6 sm:h-8 sm:w-8 lg:h-9 lg:w-9 xl:h-10 xl:w-10">
-                <X className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
+          <DialogHeader className="shrink-0 border-b px-4 py-3 text-left sm:px-6 sm:py-4">
+            <DialogTitle className="flex items-center justify-between gap-3 text-lg sm:text-xl">
+              <span className="leading-tight">Scan slip QR code</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeScanner}
+                className="h-11 w-11 shrink-0 rounded-full"
+                aria-label="Close scanner"
+              >
+                <X className="h-6 w-6" />
               </Button>
             </DialogTitle>
+            <DialogDescription className="text-left text-sm text-muted-foreground sm:text-base">
+              Fill the frame with the printed QR on the case slip.
+            </DialogDescription>
           </DialogHeader>
 
-          {/* Scanner view */}
-          <div className="space-y-3 sm:space-y-4 lg:space-y-5 xl:space-y-6">
-            <LoadingOverlay
-              isLoading={scannerState.isLoading}
-              title="Loading camera..."
-              message="Please wait while we initialize the camera"
-              zIndex={99999}
-            />
-
-            {scannerState.error && (
-              <div className="text-center p-3 sm:p-4 lg:p-5 xl:p-6 bg-red-50 rounded-lg lg:rounded-xl transform transition-all duration-300">
-                <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 lg:h-10 lg:w-10 xl:h-12 xl:w-12 mx-auto mb-2 text-red-500" />
-                <p className="text-red-700 text-sm sm:text-base lg:text-lg xl:text-xl mb-3">{scannerState.error}</p>
-                {scannerState.error.includes("permission") && (
-                  <div className="mb-3 text-xs sm:text-sm text-red-600 bg-red-100 p-2 rounded">
-                    <p className="font-semibold mb-1">How to enable camera access:</p>
-                    <ul className="text-left list-disc list-inside space-y-1">
-                      <li>Click the camera icon in your browser's address bar</li>
-                      <li>Select "Allow" for camera permissions</li>
-                      <li>Refresh the page and try again</li>
-                    </ul>
-                  </div>
-                )}
-                <Button className="mt-2 lg:mt-3 xl:mt-4 transform transition-transform hover:scale-105 text-xs sm:text-sm lg:text-base xl:text-lg px-4 lg:px-6 xl:px-8 py-2 lg:py-2.5 xl:py-3" onClick={startScanner}>
-                  <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 mr-2" />
-                  Retry
-                </Button>
-              </div>
-            )}
-
-            <div className="relative aspect-video bg-black rounded-lg lg:rounded-xl overflow-hidden shadow-2xl">
-              <video 
-                ref={videoRef} 
-                className="w-full h-full object-cover" 
-                autoPlay 
-                playsInline 
-                muted
-                style={{
-                  filter: 'contrast(1.2) brightness(1.1)', // Enhance contrast for better QR detection
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-0 py-0 sm:gap-4 sm:px-6 sm:py-4">
+            <div className="min-h-0 flex-1 px-0 sm:px-0">
+              <DriverQrScanner
+                ref={driverQrScannerRef}
+                active={scannerState.isOpen}
+                onScan={(text) => {
+                  void handleScanSuccess(text, "QR_CODE")
                 }}
               />
-
-              {scannerState.isScanning && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  {/* Larger, more visible scanning frame */}
-                  <div className="w-48 h-48 sm:w-56 sm:h-56 lg:w-72 lg:h-72 xl:w-80 xl:h-80 2xl:w-96 2xl:h-96 relative">
-                    {/* Main scanning frame */}
-                    <div className="w-full h-full border-4 border-white/30 rounded-2xl relative">
-                      {/* Corner brackets for better visibility */}
-                      <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-green-400 rounded-tl-2xl"></div>
-                      <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-green-400 rounded-tr-2xl"></div>
-                      <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-green-400 rounded-bl-2xl"></div>
-                      <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-green-400 rounded-br-2xl"></div>
-                      
-                      {/* Scanning line animation */}
-                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-400 to-transparent animate-pulse"></div>
-                      <div className="absolute top-1/2 left-1/2 w-4 h-4 bg-green-400 rounded-full transform -translate-x-1/2 -translate-y-1/2 animate-ping opacity-75"></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Overlay to help with focus */}
-              <div className="absolute inset-0 bg-black/20 pointer-events-none"></div>
             </div>
 
-            {/* Recent scans */}
             {scanHistory.length > 0 && (
-              <div className="space-y-2 lg:space-y-3 xl:space-y-4">
-                <h4 className="text-sm sm:text-base lg:text-lg xl:text-xl font-medium">Recent Scans</h4>
-                <div className="space-y-1 lg:space-y-2 max-h-24 sm:max-h-32 lg:max-h-40 xl:max-h-48 overflow-y-auto">
-                  {scanHistory.slice(0, 3).map((scan, index) => (
+              <div className="space-y-2 px-4 sm:px-0">
+                <h4 className="text-sm font-medium sm:text-base">Recent Scans</h4>
+                <div className="max-h-24 space-y-1 overflow-y-auto sm:max-h-36">
+                  {scanHistory.slice(0, 3).map((scan) => (
                     <div
                       key={scan.id}
-                      className="flex items-center justify-between p-2 sm:p-2.5 lg:p-3 xl:p-4 bg-muted rounded-lg lg:rounded-xl text-xs sm:text-sm lg:text-base transform transition-all duration-300 hover:scale-105 hover:shadow-md"
+                      className="flex items-center justify-between rounded-lg bg-muted p-2.5 text-sm"
                     >
-                      <div className="flex items-center gap-2 lg:gap-3 min-w-0 flex-1">
-                        <span className="font-mono truncate">{scan.text.substring(0, 20)}...</span>
-                        <Badge variant="outline" className="text-xs sm:text-sm lg:text-base flex-shrink-0">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="truncate font-mono text-xs sm:text-sm">
+                          {scan.text.substring(0, 24)}…
+                        </span>
+                        <Badge variant="outline" className="shrink-0 text-xs">
                           {scan.format}
                         </Badge>
                       </div>
@@ -1382,7 +1382,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                         variant="ghost"
                         size="sm"
                         onClick={() => copyToClipboard(scan.text)}
-                        className="transform transition-transform hover:scale-110 flex-shrink-0 text-xs sm:text-sm lg:text-base px-2 sm:px-3 lg:px-4 py-1 sm:py-1.5 lg:py-2"
+                        className="h-9 shrink-0 px-3"
                       >
                         Copy
                       </Button>
@@ -1392,38 +1392,25 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               </div>
             )}
 
-            {/* Controls */}
-            <div className="flex gap-2 sm:gap-3 lg:gap-4 xl:gap-5 flex-wrap">
+            <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:flex-row sm:gap-3 sm:border-0 sm:px-0 sm:pb-0">
               <Button
-                onClick={startScanner}
-                disabled={scannerState.isScanning || isDecoding}
-                className="transform transition-all duration-200 hover:scale-105 hover:shadow-lg text-xs sm:text-sm lg:text-base xl:text-lg px-3 sm:px-4 lg:px-6 xl:px-8 py-2 sm:py-2.5 lg:py-3 xl:py-3.5 flex-1 sm:flex-none"
+                onClick={handleScannerRestart}
+                className="h-12 w-full text-base sm:flex-1"
               >
-                {scannerState.isScanning ? (
-                  <>
-                    <div className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    <span className="hidden sm:inline">Scanning...</span>
-                    <span className="sm:hidden">Scan...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="hidden sm:inline">Start Scanner</span>
-                    <span className="sm:hidden">Start</span>
-                  </>
-                )}
+                Restart
               </Button>
               <Button
                 onClick={closeScanner}
                 variant="outline"
-                className="transform transition-all duration-200 hover:scale-105 text-xs sm:text-sm lg:text-base xl:text-lg px-3 sm:px-4 lg:px-6 xl:px-8 py-2 sm:py-2.5 lg:py-3 xl:py-3.5"
+                className="h-12 w-full text-base sm:flex-1"
               >
                 Close
               </Button>
               <Button
                 onClick={clearScanHistory}
                 variant="outline"
-                disabled={scanHistory.length === 0}
-                className="transform transition-all duration-200 hover:scale-105 disabled:hover:scale-100 text-xs sm:text-sm lg:text-base xl:text-lg px-3 sm:px-4 lg:px-6 xl:px-8 py-2 sm:py-2.5 lg:py-3 xl:py-3.5 hidden sm:inline-flex"
+                disabled={scanHistory.length === 0 && activeTripCount === 0}
+                className="h-12 w-full text-base sm:flex-1"
               >
                 Clear History
               </Button>
@@ -1432,33 +1419,108 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
         </DialogContent>
       </Dialog>
 
+      {/* QR post-identify action chooser (outside an active pickup session) */}
+      <QrScanActionChooser
+        open={showQrActionChooser}
+        identifying={qrChooserIdentifying}
+        loading={qrChooserLoading}
+        caseId={qrIdentify?.caseId}
+        slipNumber={qrIdentify?.slipNumber}
+        patientName={qrIdentify?.patientName}
+        location={qrIdentify?.location}
+        officeLabel={qrIdentify?.officeLabel}
+        actions={qrChooserActions}
+        onSelect={handleQrChooserSelect}
+        onClose={() => {
+          if (qrChooserLoading || qrChooserIdentifying) return
+          setShowQrActionChooser(false)
+          setPendingQrParse(null)
+          setQrIdentify(null)
+          setQrChooserActions([])
+        }}
+      />
+
+      <ReadyToSendModal
+        open={showReadyToSendFromQr}
+        onClose={() => {
+          if (!readyToSendSubmitting) setShowReadyToSendFromQr(false)
+        }}
+        onConfirm={handleReadyToSendFromQr}
+        submitting={readyToSendSubmitting}
+        slipId={qrIdentify?.slipId ?? 0}
+        office={qrIdentify?.officeLabel}
+        patientName={qrIdentify?.patientName}
+        slipNumber={qrIdentify?.slipNumber}
+        location={qrIdentify?.location}
+        title="Mark Ready to Pick Up"
+        signatureRequired={readyToSendRequired}
+        photoEnabled={readyToSendPhotoEnabled}
+        photoRequired={readyToSendPhotoRequired}
+      />
+
       {/* Driver History Modal */}
-      {qrScanData && (
+      {qrScanData && Array.isArray(qrScanData.data) && qrScanData.data.length > 0 && (
         <DriverHistoryModal
           isOpen={showDriverHistoryModal}
           onClose={() => {
             setShowDriverHistoryModal(false);
             setQrScanData(null);
             scannedQrTextsRef.current.clear();
-            // End the driver session (submit or cancel) so a new batch can start fresh.
             if (qrSessionRef.current) {
               void clearDriverSession(qrSessionRef.current);
               qrSessionRef.current = null;
             }
+            saveDriverSessionKey(null);
+            clearDriverScanBatch();
           }}
           qrScanData={qrScanData.data}
           onRequestScan={() => {
-            // "Add Slip": keep the session + scanned slips and reopen the scanner.
+            persistDriverScanBatch(qrScanData)
             setShowDriverHistoryModal(false);
             openScanner();
           }}
           onSubmitted={() => {
-            // Scanned slips submitted — clear the driver session id.
             if (qrSessionRef.current) {
               void clearDriverSession(qrSessionRef.current);
               qrSessionRef.current = null;
             }
             scannedQrTextsRef.current.clear();
+            saveDriverSessionKey(null);
+            clearDriverScanBatch();
+          }}
+          onQrBatchChange={(remaining) => {
+            const remainingCaseIds = new Set(remaining.map((s) => s.case_id))
+            for (const text of [...scannedQrTextsRef.current]) {
+              const parsed = parseDriverQrText(text)
+              if (parsed && !remainingCaseIds.has(parsed.case_id)) {
+                scannedQrTextsRef.current.delete(text)
+              }
+            }
+            if (!remaining.length) {
+              setQrScanData(null)
+              clearDriverScanBatch()
+              return
+            }
+            setQrScanData((prev: any) => {
+              const next = {
+                ...(prev && typeof prev === "object" ? prev : { success: true }),
+                data: remaining,
+                scanned_cases_count: remaining.length,
+              }
+              persistDriverScanBatch(next)
+              return next
+            })
+          }}
+          onClearBatch={() => {
+            setShowDriverHistoryModal(false)
+            setQrScanData(null)
+            scannedQrTextsRef.current.clear()
+            if (qrSessionRef.current) {
+              void clearDriverSession(qrSessionRef.current)
+              qrSessionRef.current = null
+            }
+            saveDriverSessionKey(null)
+            clearDriverScanBatch()
           }}
         />
       )}
@@ -1498,6 +1560,33 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             })
             throw error
           }
+        }}
+        onEmailUpdated={(updated) => {
+          setUserProfileData(updated)
+          updateSessionUser({
+            email: updated.email,
+            is_email_verified: updated.is_email_verified,
+          })
+          toast({
+            title: "Email updated",
+            description: "Your account email has been changed.",
+          })
+        }}
+        onLeftCustomer={(updated, customerId) => {
+          setUserProfileData(updated)
+          updateSessionUser({
+            customers: updated.customers as any,
+          })
+          if (selectedCustomerId && Number(selectedCustomerId) === Number(customerId)) {
+            const nextCustomer = updated.customers?.find((c) => c.id !== customerId)
+            if (nextCustomer) {
+              void setCustomerId(String(nextCustomer.id))
+            }
+          }
+          toast({
+            title: "Left organization",
+            description: "You have been marked Offboarded for that organization.",
+          })
         }}
       />
 

@@ -90,10 +90,13 @@ interface CenterActionIconsProps {
   onAttach?: () => void;
   onDriverHistory?: () => void;
   onCallLog?: () => void;
+  onChangeDate?: () => void;
   onSendBackToOffice?: () => void;
   onHold?: () => void;
   onCancel?: () => void;
   canPutOnHold?: boolean;
+  /** Lab admin — undo one location step (shown in more actions). */
+  onUndoLocation?: () => void;
   /** @deprecated Collapsible extras removed — use row props above. */
   extraActions?: CenterExtraAction[];
 }
@@ -111,10 +114,12 @@ export function CenterActionIcons({
   onAttach,
   onDriverHistory,
   onCallLog,
+  onChangeDate,
   onSendBackToOffice,
   onHold,
   onCancel,
   canPutOnHold = true,
+  onUndoLocation,
 }: CenterActionIconsProps) {
   const [moreExpanded, setMoreExpanded] = useState(false);
 
@@ -128,6 +133,9 @@ export function CenterActionIcons({
       : "h-14 w-14 transition-transform duration-200 ease-out hover:scale-[1.15]"
   );
   const rushIconClass = virtualSlipIconSizing
+    ? VIRTUAL_SLIP_ICON_CLASS
+    : LEGACY_ICON_CLASS;
+  const calendarIconClass = virtualSlipIconSizing
     ? VIRTUAL_SLIP_ICON_CLASS
     : LEGACY_ICON_CLASS;
   const driverHistoryIconClass = virtualSlipIconSizing
@@ -158,8 +166,8 @@ export function CenterActionIcons({
 
   const primaryRowDefs: CenterRowIconDef[] = [
     rowIcon("edit-stage", "Edit slip", "edit-stage.svg", onEditGeneral),
-    rowIcon("stage-notes", "Stage notes", "slip-note.png", stickyNoteHandler),
-    rowIcon("add-product", "Add add-ons", "add-general.svg", onAddProduct),
+    rowIcon("stage-notes", "Slip notes", "slip-note.png", stickyNoteHandler),
+    rowIcon("add-product", "Add add-ons", "add.png", onAddProduct),
     {
       key: "rush",
       label: rushLabel,
@@ -175,12 +183,49 @@ export function CenterActionIcons({
       className: driverHistoryIconClass,
     }),
     rowIcon("call-log", "Call log", "call-log.svg", onCallLog),
+    {
+      key: "change-date",
+      label: "Change date",
+      onClick: onChangeDate,
+      node: (
+        // eslint-disable-next-line @next/next/no-img-element -- bundled PNG glyph
+        <img
+          src="/icons/slip-listing/calendar.png"
+          alt="Change date"
+          width={virtualSlipIconSizing ? 40 : 52}
+          height={virtualSlipIconSizing ? 40 : 52}
+          className={cn("object-contain", calendarIconClass)}
+        />
+      ),
+    },
     rowIcon("send-back-to-office", "Send back to office", "send-back-to-office.svg", onSendBackToOffice),
     rowIcon("on-hold", "On hold", "on-hold.png", onHold, {
       disabled: onHold ? !canPutOnHold : true,
       disabledMessage: canPutOnHold ? undefined : SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
     }),
     rowIcon("cancel", "Cancel case", "cancel.svg", onCancel),
+    ...(onUndoLocation
+      ? [
+          {
+            key: "undo-location",
+            label: "Undo location step",
+            onClick: onUndoLocation,
+            node: (
+              // eslint-disable-next-line @next/next/no-img-element -- bundled SVG glyph
+              <img
+                src={`${CENTER_ICON_BASE}/undo.svg`}
+                alt="Undo location step"
+                width={virtualSlipIconSizing ? 40 : 52}
+                height={virtualSlipIconSizing ? 40 : 52}
+                className={cn(
+                  "object-contain",
+                  virtualSlipIconSizing ? VIRTUAL_SLIP_ICON_CLASS : LEGACY_ICON_CLASS
+                )}
+              />
+            ),
+          } satisfies CenterRowIconDef,
+        ]
+      : []),
   ];
 
   const fullRowDefs: CenterRowIconDef[] = [...primaryRowDefs, ...moreRowDefs];
@@ -190,10 +235,10 @@ export function CenterActionIcons({
       ? rowIcon("edit-stage", "Edit slip", "edit-stage.svg", onEditGeneral)
       : null,
     stickyNoteHandler
-      ? rowIcon("stage-notes", "Stage notes", "slip-note.png", stickyNoteHandler)
+      ? rowIcon("stage-notes", "Slip notes", "slip-note.png", stickyNoteHandler)
       : null,
     onAddProduct
-      ? rowIcon("add-product", "Add add-ons", "add-general.svg", onAddProduct)
+      ? rowIcon("add-product", "Add add-ons", "add.png", onAddProduct)
       : null,
     onRush
       ? {

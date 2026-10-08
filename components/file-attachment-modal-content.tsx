@@ -19,6 +19,7 @@ import {
   ZoomOut,
   Eye,
   Plus,
+  Trash2,
 } from "lucide-react"
 import dynamic from "next/dynamic"
 import SimpleSTLViewer from "./demo/simple-stl-generator"
@@ -26,6 +27,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useSlipCreation } from "../contexts/slip-creation-context"
 import {
   validateSlipAttachmentFile,
+  SLIP_ATTACHMENT_ACCEPT,
+  isSlipAttachment3dExtension,
 } from "@/services/slip-attachments-service"
 
 
@@ -43,6 +46,7 @@ type LocalUploadItem = {
   slipStageName?: string
 }
 import { toProxiedFileUrl } from "@/lib/file-proxy"
+import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import * as THREE from "three"
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 
@@ -155,6 +159,7 @@ export default function FileAttachmentModalContent({
   open,
   initialViewerItems,
 }: FileAttachmentModalContentProps) {
+  const { can3dViewer } = usePlanCapabilities()
   const {
     uploadSlipAttachment,
     fetchSlipAttachments,
@@ -336,7 +341,7 @@ export default function FileAttachmentModalContent({
       }
       const url = URL.createObjectURL(file)
       let type: "stl" | "image" | "3dobject" | "other" = "other"
-      if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
+      if (isSlipAttachment3dExtension(file.name)) type = "stl"
       else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
       else if (file.type.startsWith("image/")) type = "image"
       newUploads.push({
@@ -367,7 +372,7 @@ export default function FileAttachmentModalContent({
       const newUploads = Array.from(files).map(file => {
         const url = URL.createObjectURL(file)
         let type: "stl" | "image" | "3dobject" | "other" = "other"
-        if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
+        if (isSlipAttachment3dExtension(file.name)) type = "stl"
         else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
         else if (file.type.startsWith("image/")) type = "image"
         return { file, url, type, stage: targetStage }
@@ -397,7 +402,7 @@ export default function FileAttachmentModalContent({
       const newUploads = Array.from(files).map(file => {
         const url = URL.createObjectURL(file)
         let type: "stl" | "image" | "3dobject" | "other" = "other"
-        if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
+        if (isSlipAttachment3dExtension(file.name)) type = "stl"
         else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
         else if (file.type.startsWith("image/")) type = "image"
         return { file, url, type, stage: targetStage }
@@ -425,7 +430,7 @@ export default function FileAttachmentModalContent({
         const mapped = data.map((a: any) => {
           const fileName = (a.file_name || a.download_url?.split("/").pop() || "remote-file").toLowerCase()
           let type: "stl" | "image" | "3dobject" | "other" = "other"
-          if (a.is_stl || fileName.endsWith(".stl")) type = "stl"
+          if (a.is_stl || a.is_3d || isSlipAttachment3dExtension(fileName)) type = "stl"
           else if (fileName.endsWith(".3dobject") || a.is_3d) type = "3dobject"
           else if (a.is_image) type = "image"
           else if (a.is_pdf) type = "other"
@@ -509,7 +514,7 @@ export default function FileAttachmentModalContent({
           const fileName = (a.file_name || a.download_url?.split("/").pop() || "remote-file").toLowerCase()
           const mime = (a.mime_type || a.file_type || "").toLowerCase()
           let type: "stl" | "image" | "3dobject" | "other" = "other"
-          if (a.is_stl || fileName.endsWith(".stl") || mime === "model/stl" || mime === "application/sla") type = "stl"
+          if (a.is_stl || a.is_3d || isSlipAttachment3dExtension(fileName) || mime === "model/stl" || mime === "application/sla") type = "stl"
           else if (a.is_image || mime.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/.test(fileName)) type = "image"
           return {
             file: {
@@ -875,7 +880,7 @@ export default function FileAttachmentModalContent({
     // Add selected STL/3D files
     selectedStlUrls.forEach(url => {
       const item = simulatedUploads.find(u => u.url === url)
-      if (item && (item.type === "stl" || item.file?.name?.toLowerCase().endsWith(".stl"))) {
+      if (item && (item.type === "stl" || isSlipAttachment3dExtension(item.file?.name ?? ""))) {
         newItems.push({ url, type: "stl" })
       }
     })
@@ -937,7 +942,7 @@ export default function FileAttachmentModalContent({
   // Reusable file card renderer
   const renderFileCard = (item: typeof simulatedUploads[number], idx: number) => {
     const { file, url, archived } = item
-    const isStl = file.name?.toLowerCase().endsWith(".stl") || url.toLowerCase().endsWith(".stl")
+    const isStl = can3dViewer && (file.name?.toLowerCase().endsWith(".stl") || url.toLowerCase().endsWith(".stl"))
     const is3dObj = file.name?.toLowerCase().endsWith(".3dobject") || url.toLowerCase().endsWith(".3dobject")
     const isImage =
       ("type" in file && typeof file.type === "string" && file.type.startsWith("image/")) ||
@@ -1042,11 +1047,14 @@ export default function FileAttachmentModalContent({
             {!isCaseSubmitted && (
               <button
                 type="button"
-                className="ml-auto p-0 hover:text-red-500"
-                title="Delete"
-                onClick={() => void handleDeleteFile(item)}
+                className="ml-auto p-0.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                title="Delete attachment"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void handleDeleteFile(item)
+                }}
               >
-                <X className="w-2.5 h-2.5" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -1278,6 +1286,13 @@ export default function FileAttachmentModalContent({
                           <Download className="w-2.5 h-2.5" />
                         </button>
                       )}
+                      {!isCaseSubmitted && (
+                        <button type="button" className="w-5 h-5 rounded bg-white/90 border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:text-red-600"
+                          title="Delete attachment"
+                          onClick={(e) => { e.stopPropagation(); void handleDeleteFile(upload) }}>
+                          <Trash2 className="w-2.5 h-2.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="px-1.5 py-1">
@@ -1371,7 +1386,7 @@ export default function FileAttachmentModalContent({
       </div>
 
       {/* Hidden file input */}
-      <input type="file" style={{ display: "none" }} onChange={handleFileChange} multiple ref={fileInputRef} accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx" />
+      <input type="file" style={{ display: "none" }} onChange={handleFileChange} multiple ref={fileInputRef} accept={SLIP_ATTACHMENT_ACCEPT} />
 
       {/* Cancel Confirmation Modal */}
       <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>

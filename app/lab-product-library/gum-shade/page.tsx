@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Package, Plus, Package2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -84,14 +84,42 @@ export default function GumShadePage() {
     isBulk: false,
   })
 
-  // Fetch when search, sort, or pagination changes
+  // Debounce search input into context, then reset to page 1
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchGumShadeBrands(pagination.current_page, pagination.per_page, searchQuery, sortColumn, sortDirection)
-    }, 300)
+    const timer = setTimeout(() => {
+      if (searchInput !== searchQuery) {
+        setSearchQuery(searchInput)
+        setCurrentPage(1)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchInput, searchQuery, setSearchQuery])
 
-    return () => clearTimeout(timeoutId)
-  }, [searchQuery, sortColumn, sortDirection, currentLanguage])
+  useEffect(() => {
+    if (searchQuery !== searchInput) {
+      setSearchInput(searchQuery)
+    }
+  }, [searchQuery])
+
+  // Fetch with the page/size the user selected (same pattern as teeth-shade)
+  const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
+      fetchGumShadeBrands(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
+    }, 50)
+    return () => {
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    }
+  }, [
+    fetchGumShadeBrands,
+    currentPage,
+    entriesPerPage,
+    searchQuery,
+    sortColumn,
+    sortDirection,
+    currentLanguage,
+  ])
 
   // Handle column sort
   const handleSort = (column: string) => {
@@ -172,12 +200,32 @@ export default function GumShadePage() {
 
   // Confirm delete (single or bulk)
   const handleConfirmDelete = async () => {
+    if (isLoading) return
     if (deleteConfirmation.isBulk) {
-      // Bulk delete
-      for (const id of selectedItems) {
-        await deleteGumShadeBrand(id)
+      const ids = [...selectedItems]
+      let deletedCount = 0
+      // Silent per-item deletes so success popup/toast only fires once at the end
+      for (const id of ids) {
+        const ok = await deleteGumShadeBrand(id, { silent: true })
+        if (ok) deletedCount += 1
       }
       setSelectedItems([])
+      if (deletedCount > 0) {
+        toast({
+          title: "Success",
+          description:
+            deletedCount === 1
+              ? "Gum shade brand deleted successfully!"
+              : `Successfully deleted ${deletedCount} gum shade brand(s).`,
+        })
+        await fetchGumShadeBrands(
+          pagination.current_page,
+          pagination.per_page,
+          searchQuery,
+          sortColumn,
+          sortDirection,
+        )
+      }
     } else if (deleteConfirmation.item) {
       await deleteGumShadeBrand(deleteConfirmation.item.id)
     }

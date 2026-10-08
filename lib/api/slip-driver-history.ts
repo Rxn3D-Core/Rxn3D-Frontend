@@ -210,9 +210,8 @@ export type ChangeLocationRequest = {
   action_date_time?: string;
   notes?: string;
   /**
-   * Optional drop-off proof photos keyed by slip id. When present the request
-   * is sent as multipart/form-data with each file under `images[{slip_id}]`
-   * (one image per slip; jpeg/jpg/png/gif/webp, max 10MB).
+   * Optional drop-off proof photos keyed by slip id. Sent as multipart/form-data
+   * under `images[{slip_id}]` (jpeg/jpg/png/gif/webp, max 10MB).
    */
   images?: Record<number, File>;
 };
@@ -289,6 +288,10 @@ export type CaseDriverHistorySlip = {
   id: number;
   slip_number: string;
   current_location: SlipDriverHistoryLocation;
+  /** Unique stage names from slip products, joined with `/` when multiple. */
+  stage_name?: string | null;
+  /** Unique stage codes from slip products, joined with `/` when multiple. */
+  stage_code?: string | null;
   driver_history: SlipDriverHistoryEntry[];
 };
 

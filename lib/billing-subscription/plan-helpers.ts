@@ -51,12 +51,7 @@ export function formatUserSeats(maxUserSeats?: number | null): string {
   return String(maxUserSeats)
 }
 
-export function isEnterprisePlan(plan?: CatalogPlan | null): boolean {
-  return !!plan?.name?.toLowerCase().includes("enterprise")
-}
-
 export function formatPlanPriceLabel(plan?: CatalogPlan | null): string {
-  if (isEnterprisePlan(plan)) return "Custom"
   const fee = getPlanMonthlyFee(plan)
   if (fee <= 0) return "Free"
   return `$${fee.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
@@ -96,7 +91,7 @@ export function buildPlanFeatures(plan: CatalogPlan): string[] {
   if (adminSeats != null) features.push(`${adminSeats} admin seat${adminSeats !== 1 ? "s" : ""}`)
 
   if (features.length === 0) {
-    return ["Standard production access", "Core reporting", "Regular support"]
+    return []
   }
   return features
 }
@@ -112,7 +107,6 @@ export function collectCatalogHighlights(plans: CatalogPlan[]): string[] {
 }
 
 export function isFreePlan(plan?: CatalogPlan | null): boolean {
-  if (isEnterprisePlan(plan)) return false
   return getPlanMonthlyFee(plan) <= 0
 }
 

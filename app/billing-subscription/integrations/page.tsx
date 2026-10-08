@@ -31,10 +31,10 @@ export default function IntegrationsPage() {
   const [view, setView] = useState<View>("integrations")
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 px-6 py-4">
       <BreadcrumbBar
         items={[
-          { label: "Billing & Subscription Control", href: "/billing-subscription" },
+          { label: "Billing & Subscription Control", href: "/billing-subscription/billing-configuration" },
           { label: "Integrations & Connections" },
         ]}
       />

@@ -23,6 +23,7 @@ export function usePermissionCapabilities() {
       canViewCases: hasPermission("view_case_details_status"),
       canSubmitCase: hasPermission("submit_new_case"),
       canEditSlip: hasPermission("edit_slip"),
+      canCancelCase: hasPermission("cancel_case"),
       canDeleteCase: hasPermission("soft_delete_case"),
       canManageUsers: hasAnyPermission(["manage_users", "create_user", "edit_user"]),
       canViewUsers: hasPermission("view_users"),

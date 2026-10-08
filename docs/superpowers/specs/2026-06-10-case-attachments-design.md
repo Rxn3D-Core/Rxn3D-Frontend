@@ -17,7 +17,7 @@ Wire the existing `GET /v1/slip/case/{caseId}/attachments` endpoint into three p
 | `components/file-attachment-modal-content.tsx` | Add `caseId` prop, new fetch path, slip-grouped file list UI |
 | `services/slip-attachments-service.ts` | Extend `mapSlipAttachmentToLocalItem` to accept slip context fields |
 | `app/lab-case-management/page.tsx` | Pass `caseId={selectedSlipForAttachment.caseId}` to modal |
-| `app/virtual-slip-v2/[caseNumber]/page.tsx` | Pass `caseId={caseId}` to modal |
+| `app/virtual-slip/[caseId]/[slipId]/page.tsx` | Pass `caseId={caseId}` to modal |
 | `components/case-design-center/components/ModalOrchestrator.tsx` | Add `slipId?` + `caseId?` props, thread through |
 | `components/case-design-center/components/CaseDesignCenter.tsx` | Accept `slipId?` + `caseId?` in `CaseDesignProps`, pass to orchestrator |
 | `components/case-design-center/types.ts` | Add `slipId?: number` and `caseId?: number` to `CaseDesignProps` |
@@ -143,7 +143,7 @@ Unchanged — existing accordion render path.
 
 If `slip.caseId` is falsy (edge case), falls back to slip-mode (existing behaviour).
 
-### `/virtual-slip-v2/[caseNumber]`
+### `/virtual-slip/[caseId]/[slipId]`
 
 `caseId` is already derived via `useMemo`. Thread it into the modal:
 
@@ -202,7 +202,7 @@ These are per-file endpoints independent of fetch mode. No changes required.
 
 **Integration tests**:
 - `lab-case-management`: clicking attachment icon on a slip row opens modal with case-level files grouped by slip
-- `virtual-slip-v2`: attachment modal shows all slips' files grouped by slip number
+- `virtual-slip`: attachment modal shows all slips' files grouped by slip number
 
 **Coverage target:** 80%+
 

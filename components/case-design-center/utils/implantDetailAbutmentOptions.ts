@@ -48,6 +48,22 @@ export function getProductAbutmentFieldOptions(productAbutments: ProductAbutment
   };
 }
 
+/** False when the selected abutment type has no options (e.g. none for this category). */
+export function selectedAbutmentHasTypeOptions(
+  data: { abutmentType?: string; abutmentId?: number | null } | undefined,
+  productAbutments?: ProductAbutment[]
+): boolean {
+  if (!data?.abutmentType && data?.abutmentId == null) return true;
+  const fromProduct = getProductAbutmentFieldOptions(productAbutments ?? []);
+  if (!fromProduct.usesApiAbutments) return true;
+  const category =
+    data.abutmentType ||
+    productAbutments?.find((row) => row.id === data.abutmentId)?.type ||
+    "";
+  if (!category) return true;
+  return fromProduct.getTypeOptionsForCategory(category).length > 0;
+}
+
 export function getImplantDetailAbutmentOptions({
   advanceFields,
   productAbutments,

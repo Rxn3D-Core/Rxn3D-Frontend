@@ -5,6 +5,9 @@ import type { SlipCreationResponse } from "@/services/slip-creation-service";
 import { caseDesignInter } from "../case-design-inter-font";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { isLabCustomerContext } from "@/lib/role-utils";
+import { DOCTOR_PLACEHOLDER_IMAGE, doctorDisplayImageUrl } from "@/utils/avatar-utils";
+import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
+import { SubmitCutoffBanner, useIsWithinCutoffWarningWindow } from "@/components/submit-cutoff-banner";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
@@ -50,6 +53,13 @@ export interface PatientHeaderProps {
   createdByName?: string | null;
   /** Override the "Created By" image URL (falls back to localStorage user). */
   createdByImageUrl?: string | null;
+  /** Pre-submit estimated delivery date label (e.g. "Oct 9, 2026"); always shown when available. */
+  estimatedDueDate?: string | null;
+  /** When true, show a loading placeholder for the estimated delivery date. */
+  estimatedDueDateLoading?: boolean;
+  /** Lab cut-off time(s); cutoff warning banner shows only within 10 minutes before cut-off. */
+  cutoffTime?: string | null;
+  cutoffTime2?: string | null;
 }
 
 function SkeletonField({ label, width = "w-[160px]" }: { label: string; width?: string }) {
@@ -143,21 +153,20 @@ export function PatientHeader({
   onEditLab,
   createdByName: createdByNameProp,
   createdByImageUrl: createdByImageUrlProp,
+  estimatedDueDate,
+  estimatedDueDateLoading = false,
+  cutoffTime,
+  cutoffTime2,
 }: PatientHeaderProps = {}) {
-  const hasDoctorImage = Boolean(doctorImageUrl && doctorImageUrl.trim() !== "");
   const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
-  const doctorInitials = displayName
-    .replace(/,?\s*DDS$/i, "")
-    .split(/\s+/)
-    .map((n) => n[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const doctorImgSrc = doctorDisplayImageUrl(doctorImageUrl);
+  const showCutoffWarning = useIsWithinCutoffWarningWindow(cutoffTime, cutoffTime2);
   const isEditable = !caseSubmitted;
   const displayPatientName = isEditable ? (patientName ?? "") : (patientName && patientName.trim() !== "" ? patientName : DEFAULT_PATIENT_NAME);
-  const displayGender = gender && gender.trim() !== "" ? gender : (isEditable ? "" : DEFAULT_GENDER);
+  const displayGender = gender && gender.trim() !== "" ? gender : "";
   const displayAge = age !== undefined && age !== null && String(age).trim() !== "" ? String(age) : "";
+  const showGenderInHeader = Boolean(displayGender);
+  const showAgeInHeader = Boolean(displayAge);
 
   const firstSlip = slipResponseData?.slips?.[0];
 
@@ -167,27 +176,23 @@ export function PatientHeader({
   const status = firstSlip?.status ?? slipResponseData?.case_status ?? "";
   const location = firstSlip?.location?.name ?? "";
 
+  // Calendar day from the API string prefix — never `new Date(iso)`, which
+  // shifts the day across timezones (UTC midnight → previous local evening).
   const formatDate = (iso: string | null | undefined) => {
     if (!iso) return "";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "";
-    return `${String(d.getMonth() + 1).padStart(2, "0")}/ ${String(d.getDate()).padStart(2, "0")}/ ${String(d.getFullYear()).slice(2)}`;
-  };
-
-  const formatTime = (iso: string | null | undefined) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "";
-    const h = d.getHours();
-    const m = d.getMinutes();
-    const ampm = h >= 12 ? "pm" : "am";
-    const hour = h % 12 || 12;
-    return m === 0 ? `${hour} ${ampm}` : `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    if (!m) return "";
+    const [, year, month, day] = m;
+    return `${month}/${day}/${year.slice(2)}`;
   };
 
   const pickupDate = formatDate(firstSlip?.delivery?.pickup_date);
-  const dueDate = formatDate(firstSlip?.delivery?.delivery_date);
-  const deliveryTime = formatTime(firstSlip?.delivery?.delivery_time);
+  const dueDate = formatDate(
+    firstSlip?.delivery?.final_date ?? firstSlip?.delivery?.delivery_date
+  );
+  const deliveryTime = resolveSlipDeliveryTimeDisplay(
+    firstSlip?.delivery?.delivery_time
+  );
 
   const useSessionCreatedBy =
     createdByNameProp === undefined && createdByImageUrlProp === undefined;
@@ -264,18 +269,16 @@ export function PatientHeader({
         <div className={`flex ${AVATAR_COLUMN_WIDTH} shrink-0 flex-col items-center justify-center gap-1 self-stretch`}>
           <div className="relative">
             <div className={`${AVATAR_SIZE} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center`}>
-              <span className="absolute inset-0 flex items-center justify-center font-bold text-gray-500 text-lg">{doctorInitials || "?"}</span>
-              {hasDoctorImage && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={doctorImageUrl!}
-                  onError={(e) => {
-                    e.currentTarget.remove();
-                  }}
-                  alt="Doctor"
-                  className="relative w-full h-full object-cover"
-                />
-              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={doctorImgSrc}
+                onError={(e) => {
+                  if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                  e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
+                }}
+                alt="Doctor"
+                className="relative w-full h-full object-cover"
+              />
             </div>
             {!caseSubmitted && canEditDoctor && onEditDoctorClick && (
               <button
@@ -326,31 +329,55 @@ export function PatientHeader({
                   className="min-w-0 flex-1 max-w-[360px]"
                   smartPatientLabel
                 />
-                {onGenderChange ? (
-                  <SelectField
-                    label="Gender"
-                    value={displayGender}
-                    options={["Male", "Female"]}
-                    onChange={onGenderChange}
-                    caseSubmitted={false}
-                    className="w-[140px] shrink-0"
-                  />
-                ) : (
+                {showGenderInHeader && (
+                  onGenderChange ? (
+                    <SelectField
+                      label="Gender"
+                      value={displayGender}
+                      options={["Male", "Female"]}
+                      onChange={onGenderChange}
+                      caseSubmitted={false}
+                      className="w-[140px] shrink-0"
+                    />
+                  ) : (
+                    <FieldInput
+                      label="Gender"
+                      value={displayGender}
+                      submitted={false}
+                      className="w-[140px] shrink-0"
+                    />
+                  )
+                )}
+                {showAgeInHeader && (
                   <FieldInput
-                    label="Gender"
-                    value={displayGender}
+                    label="Age"
+                    value={displayAge}
                     submitted={false}
-                    className="w-[140px] shrink-0"
+                    onChange={onAgeChange}
+                    className="w-[90px] shrink-0"
+                    type="number"
                   />
                 )}
-                <FieldInput
-                  label="Age"
-                  value={displayAge}
-                  submitted={false}
-                  onChange={onAgeChange}
-                  className="w-[90px] shrink-0"
-                  type="number"
-                />
+                <div className="ml-auto flex min-w-0 flex-col items-end gap-1.5">
+                  {estimatedDueDateLoading && !estimatedDueDate ? (
+                    <p className="text-xs text-[#9CA3AF]">Estimating delivery date…</p>
+                  ) : estimatedDueDate ? (
+                    <p
+                      className="text-sm leading-snug text-[#666666]"
+                      title="Calendar delivery date from the lab delivery-date API."
+                    >
+                      Estimated delivery date:{" "}
+                      <span className="font-semibold text-[#374151]">{estimatedDueDate}</span>
+                    </p>
+                  ) : null}
+                  {showCutoffWarning && (cutoffTime || cutoffTime2) && (
+                    <SubmitCutoffBanner
+                      cutoffTime={cutoffTime}
+                      cutoffTime2={cutoffTime2}
+                      compact
+                    />
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex w-full flex-col gap-3">

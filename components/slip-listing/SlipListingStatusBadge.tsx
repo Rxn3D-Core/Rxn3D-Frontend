@@ -10,6 +10,8 @@ const TONE_CLASSES = {
     "border-yellow-200 bg-yellow-100 text-yellow-800 hover:border-yellow-300 hover:bg-yellow-200",
   cancelled:
     "border-gray-200 bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-gray-200",
+  deleted:
+    "border-gray-300 bg-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-300",
   draft:
     "border-gray-200 bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-gray-200",
   finished:

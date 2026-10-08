@@ -12,6 +12,10 @@ import {
   mergeCatalogWithArchSelections,
   reconcileArchSelectionsWithCatalog,
   getArchImpressionQtyForOption,
+  isStlImpressionOption,
+  findStlImpressionOption,
+  applyOppositeStlQtyForMultiFileUpload,
+  oppositeArch,
 } from "./impressionStorage.ts";
 
 const alginate = {
@@ -97,6 +101,39 @@ test("reconcileArchSelectionsWithCatalog updates ids without dropping qty", () =
   const next = reconcileArchSelectionsWithCatalog(s, "maxillary", catalog);
   assert.equal(next.maxillary[0].impression_id, 99);
   assert.equal(next.maxillary[0].qty, 2);
+});
+
+test("isStlImpressionOption matches stl name and code", () => {
+  assert.equal(isStlImpressionOption({ id: 2, name: "STL File", code: "stl", value: "stl_file" }), true);
+  assert.equal(isStlImpressionOption({ id: 3, name: "PVS", code: "pvs", value: "pvs" }), false);
+});
+
+test("findStlImpressionOption returns the STL catalog row", () => {
+  const stl = { id: 2, name: "STL File", code: "stl", value: "stl_file" };
+  assert.equal(findStlImpressionOption([alginate, stl])?.id, 2);
+  assert.equal(findStlImpressionOption([alginate]), undefined);
+});
+
+test("applyOppositeStlQtyForMultiFileUpload selects opposite STL when 2+ files", () => {
+  const stl = { id: 2, name: "STL File", code: "stl", value: "stl_file" };
+  let s = emptyImpressionSelections();
+  s = setArchImpressionQty(s, "maxillary", stl, 2);
+  s = applyOppositeStlQtyForMultiFileUpload(s, "maxillary", 2, stl);
+  assert.equal(s.mandibular.length, 1);
+  assert.equal(s.mandibular[0].code, "stl");
+  assert.equal(s.mandibular[0].qty, 1);
+  assert.equal(oppositeArch("maxillary"), "mandibular");
+});
+
+test("applyOppositeStlQtyForMultiFileUpload skips single-file and existing opposite STL", () => {
+  const stl = { id: 2, name: "STL File", code: "stl", value: "stl_file" };
+  let s = setArchImpressionQty(emptyImpressionSelections(), "maxillary", stl, 1);
+  s = applyOppositeStlQtyForMultiFileUpload(s, "maxillary", 1, stl);
+  assert.equal(s.mandibular.length, 0);
+
+  s = setArchImpressionQty(s, "mandibular", stl, 3);
+  const next = applyOppositeStlQtyForMultiFileUpload(s, "maxillary", 2, stl);
+  assert.equal(next.mandibular[0].qty, 3);
 });
 
 test("getArchImpressionQtyForOption matches by name when code differs", () => {

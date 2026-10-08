@@ -9,10 +9,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslation } from "react-i18next"
 import { AddImplantModal, LinkImplantModal } from "@/components/advance-mode"
-import { useImplants, useUpdateImplantStatus, useDeleteImplant, useCreateImplant, useUpdateImplant, useDuplicateImplant, useLinkImplantProducts, useImplant } from "@/lib/api/advance-mode-query"
+import { useImplants, useUpdateImplantStatus, useDeleteImplant, useCreateImplant, useUpdateImplant, useDuplicateImplant, useImplant } from "@/lib/api/advance-mode-query"
 import { useToast } from "@/hooks/use-toast"
 import { useDebounce } from "@/lib/performance-utils"
 import { LoadingDots } from "@/components/ui/loading-dots"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 export default function ImplantLibraryPage() {
   const { t } = useTranslation()
@@ -45,7 +46,6 @@ export default function ImplantLibraryPage() {
   const createImplantMutation = useCreateImplant()
   const updateImplantMutation = useUpdateImplant()
   const duplicateImplantMutation = useDuplicateImplant()
-  const linkProductsMutation = useLinkImplantProducts()
   const { data: editingImplantData } = useImplant(editingImplantId || 0)
 
   const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
@@ -286,6 +286,7 @@ export default function ImplantLibraryPage() {
                     <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4" />
                   </TableCell>
                   <TableCell className="py-2 px-2">
+                    <TableNameWithImage src={item.image_url} alt={item.brand_name}>
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-medium">{item.brand_name}</span>
                       {item.brand_name === 'Other' && (
@@ -295,6 +296,7 @@ export default function ImplantLibraryPage() {
                         </svg>
                       )}
                     </div>
+                    </TableNameWithImage>
                   </TableCell>
                   <TableCell className="py-2 px-2">
                     <span className="text-xs">{item.system_name || '-'}</span>
@@ -472,51 +474,6 @@ export default function ImplantLibraryPage() {
         }}
         context="lab"
         implantId={linkingImplantId}
-        onApply={(selectedImplants, selectedProducts) => {
-          const implantsToLink = linkingImplantId ? [linkingImplantId] : selectedImplants
-          
-          if (implantsToLink.length === 0) {
-            toast({
-              title: "Error",
-              description: "Please select at least one implant",
-              variant: "destructive",
-            })
-            return
-          }
-
-          if (selectedProducts.length === 0) {
-            toast({
-              title: "Error",
-              description: "Please select at least one product",
-              variant: "destructive",
-            })
-            return
-          }
-
-          // Link products to each selected implant
-          const linkPromises = implantsToLink.map(implantId =>
-            linkProductsMutation.mutateAsync(
-              { id: implantId, product_ids: selectedProducts },
-            )
-          )
-
-          Promise.all(linkPromises)
-            .then(() => {
-              toast({
-                title: "Success",
-                description: `Products linked to ${implantsToLink.length} implant(s) successfully`,
-              })
-              setIsLinkImplantModalOpen(false)
-              setLinkingImplantId(null)
-            })
-            .catch((error: any) => {
-              toast({
-                title: "Error",
-                description: error.message || "Failed to link products",
-                variant: "destructive",
-              })
-            })
-        }}
       />
     </div>
   )

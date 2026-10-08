@@ -1,12 +1,14 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { Edit, Upload, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
-import { TOP_BAR_RECOMMENDED_LOGO_SIZES } from "@/components/case-design-center/components/TopBar"
+import { TOP_BAR_LOGO_UPLOAD_HINT } from "@/components/case-design-center/components/TopBar"
+import { EditCustomerProfileModal } from "@/components/lab-office-management/edit-customer-profile-modal"
+import { formatNotificationEmails } from "@/lib/notification-emails"
 
 interface OverviewTabProps {
   officeData: {
@@ -15,7 +17,10 @@ interface OverviewTabProps {
     id: string
     number: string
     email: string
+    notification_emails?: string[]
     address: string
+    /** Street-only address for the edit modal (not the formatted display string). */
+    streetAddress?: string
     phone: string
     website: string
     contactName: string
@@ -24,6 +29,14 @@ interface OverviewTabProps {
     joiningDate: string
     position: string
     logo_url?: string
+    unique_code?: string
+    code?: string
+    city?: string
+    postal_code?: string
+    stateName?: string
+    stateId?: number | null
+    countryName?: string
+    countryId?: number | null
   }
   onLogoUpdate?: (logoUrl: string) => void
   onProfileUpdate?: () => void
@@ -32,6 +45,7 @@ interface OverviewTabProps {
 export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate }: OverviewTabProps) {
   const [logoUrl, setLogoUrl] = useState<string>(officeData.logo_url || "")
   const [isUploading, setIsUploading] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { setCustomerLogo, setCurrentCustomerLogo } = useCustomerLogoStore()
@@ -45,6 +59,42 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
     }
   }, [officeData.logo_url])
 
+  const editCustomer = useMemo(
+    () => ({
+      id: Number(officeData.id),
+      name: officeData.name,
+      email: officeData.email,
+      notification_emails: officeData.notification_emails,
+      website: officeData.website,
+      address: officeData.streetAddress || officeData.address,
+      city: officeData.city,
+      postal_code: officeData.postal_code,
+      stateName: officeData.stateName,
+      stateId: officeData.stateId,
+      countryName: officeData.countryName,
+      countryId: officeData.countryId,
+      code: officeData.code,
+      logo_url: logoUrl || officeData.logo_url,
+    }),
+    [
+      officeData.id,
+      officeData.name,
+      officeData.email,
+      officeData.notification_emails,
+      officeData.website,
+      officeData.streetAddress,
+      officeData.address,
+      officeData.city,
+      officeData.postal_code,
+      officeData.stateName,
+      officeData.stateId,
+      officeData.countryName,
+      officeData.countryId,
+      officeData.code,
+      officeData.logo_url,
+      logoUrl,
+    ]
+  )
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -152,12 +202,19 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
   }
 
   return (
-    <div className="p-6">
+    <div className="px-6 py-4">
       <Card className="">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             Office Info
-            <Edit className="h-4 w-4 text-gray-400" />
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+              title="Edit Office Info"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -211,7 +268,7 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Recommended: {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.width} × {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.height} px (displays in header center).
+                  {TOP_BAR_LOGO_UPLOAD_HINT}
                 </p>
               </div>
             </div>
@@ -240,6 +297,13 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
               <div className="grid grid-cols-2 gap-4">
                 <label className="text-sm text-gray-500">Office email:</label>
                 <p className="font-medium text-sm">{officeData.email}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="text-sm text-gray-500">Notification emails:</label>
+                <p className="font-medium text-sm">
+                  {formatNotificationEmails(officeData.notification_emails)}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -281,10 +345,29 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
                 <label className="text-sm text-gray-500">Position:</label>
                 <p className="font-medium text-sm">{officeData.position}</p>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="text-sm text-gray-500">Office Code:</label>
+                <p className="font-medium text-sm">{officeData.code || "—"}</p>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <EditCustomerProfileModal
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        customerType="office"
+        customer={editCustomer}
+        onSuccess={(updated) => {
+          if (updated.logo_url) {
+            setLogoUrl(updated.logo_url)
+            onLogoUpdate?.(updated.logo_url)
+          }
+          onProfileUpdate?.()
+        }}
+      />
     </div>
   )
 }

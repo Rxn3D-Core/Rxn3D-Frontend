@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Filter, Plus, Search, ChevronDown } from "lucide-react";
+import { Filter, Plus, Search, ChevronDown, Camera, Pencil } from "lucide-react";
 import { Check } from "@/components/ui/custom-check";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
@@ -15,6 +15,7 @@ import {
 import { useDebounce } from "@/lib/performance-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing";
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal";
 import { AddNewLabModal } from "@/components/add-new-lab-modal";
 import { AddDoctorModal } from "@/components/add-doctor-modal";
@@ -33,7 +34,17 @@ import { usePatientFieldSettings } from "@/hooks/use-patient-field-settings";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { getActiveCustomerId } from "@/lib/customer-scope";
 import { isLabCustomerContext, isOfficeCustomerContext } from "@/lib/role-utils";
-import { resolveDoctorImageUrl, getInitials, formatDoctorDisplayName } from "@/utils/avatar-utils";
+import { resolveDoctorImageUrl, getInitials, formatDoctorDisplayName, doctorDisplayImageUrl, DOCTOR_PLACEHOLDER_IMAGE } from "@/utils/avatar-utils";
+import { DoctorPhotoUploadModal } from "@/components/doctor-photo-upload-modal";
+import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
+import { PatientDemographicModal } from "@/components/case-design-center/components/PatientDemographicModal";
+import { fetchCaseDesignProductDetails } from "@/components/case-design-center/utils/caseDesignProductDetails";
+import { hasPendingDemographics } from "@/lib/product-demographics";
+import {
+  canUploadDoctorPhoto,
+  readDoctorPhotoActor,
+  type DoctorPhotoActor,
+} from "@/utils/doctor-photo-permissions";
 
 /** Slip-settings-driven patient field flags shared across wizard steps. */
 interface WizardPatientFieldSettings {
@@ -44,9 +55,9 @@ interface WizardPatientFieldSettings {
 }
 
 const DEFAULT_WIZARD_FIELD_SETTINGS: WizardPatientFieldSettings = {
-  showGender: true,
-  genderRequired: true,
-  showAge: true,
+  showGender: false,
+  genderRequired: false,
+  showAge: false,
   ageRequired: false,
 };
 
@@ -98,11 +109,13 @@ function ProductImageWithFallback({
   // Reset failed state when src changes
   React.useEffect(() => { setFailed(!src); }, [src]);
 
-  const sizeClass = fillHeight ? "w-full flex-1 min-h-0" : "w-full aspect-square";
+  const sizeClass = fillHeight
+    ? "relative w-full flex-1 min-h-0"
+    : "relative w-full aspect-square flex-shrink-0";
 
   if (failed) {
     return (
-      <div className={`${sizeClass} ${className} overflow-hidden flex-shrink-0 ${bgClassName} flex items-center justify-center p-3`}>
+      <div className={`${sizeClass} ${className} overflow-hidden ${bgClassName} flex items-center justify-center p-3`}>
         <span
           className={`text-[13px] font-semibold ${textClassName} text-center leading-tight`}
           style={{ fontFamily: "Verdana, sans-serif" }}
@@ -114,11 +127,11 @@ function ProductImageWithFallback({
   }
 
   return (
-    <div className={`${sizeClass} ${className} overflow-hidden flex-shrink-0 ${bgClassName}`}>
+    <div className={`${sizeClass} ${className} overflow-hidden ${bgClassName}`}>
       <img
         src={src!}
         alt={alt}
-        className="w-full h-full object-cover"
+        className="absolute inset-0 w-full h-full object-cover"
         onError={() => setFailed(true)}
       />
     </div>
@@ -128,12 +141,15 @@ function ProductImageWithFallback({
 /* ------------------------------------------------------------------ */
 /*  Product search (shared across category / subcategory / material)   */
 /* ------------------------------------------------------------------ */
+type WizardArch = "maxillary" | "mandibular" | "both";
+
 interface ProductSearchProps {
   productSearch: string;
   onProductSearchChange: (value: string) => void;
   searchResults: LibraryProductApi[];
   isSearchingProducts: boolean;
-  onSearchProductSelect: (product: LibraryProductApi) => void;
+  onSearchProductSelect: (product: LibraryProductApi, arch?: WizardArch) => void;
+  forceArch?: WizardArch;
 }
 
 function ProductSearchBar({
@@ -187,7 +203,7 @@ const PRODUCT_CARD_SKELETON_COUNT = 6;
 
 function productPickerCardClass(selected: boolean, extra?: string) {
   return cn(
-    "group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-full transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5",
+    "group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-full aspect-[4/5] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5",
     selected ? "border-[#1162A8] bg-[#1162A8]/5" : "border-[#d9d9d9] bg-white",
     extra
   );
@@ -201,12 +217,14 @@ const ProductPickerCardLabel = React.forwardRef<
     <span
       ref={ref}
       className={cn(
-        "text-[16px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2 flex items-center justify-center",
+        "h-[52px] min-h-[52px] shrink-0 px-2 py-1 flex items-center justify-center self-stretch overflow-hidden",
         className
       )}
       style={{ fontFamily: "Verdana, sans-serif" }}
     >
-      {children}
+      <span className="text-[16px] font-normal text-black text-center tracking-[-0.02em] leading-[18px] line-clamp-2">
+        {children}
+      </span>
     </span>
   );
 });
@@ -240,7 +258,58 @@ function BackToProductsIcon({ gradientId }: { gradientId: string }) {
   );
 }
 
-/** Single-row toolbar: back (left) · title (center) · search (right). */
+function DoctorEditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute bottom-0 right-0 z-10 p-1 rounded-full bg-white shadow border border-[#d9d9d9] hover:bg-[#e5e7eb] transition-colors text-[#7f7f7f] hover:text-[#1d1d1b]"
+      aria-label="Change doctor"
+      title="Change doctor"
+    >
+      <Pencil size={12} />
+    </button>
+  );
+}
+
+/** Step title with an optional back chevron on the left; the title stays centred whether or not the chevron is shown. */
+function WizardStepHeader({
+  title,
+  onBack,
+  backLabel,
+  className,
+}: {
+  title: string;
+  onBack?: () => void;
+  backLabel?: string;
+  className?: string;
+}) {
+  const gradientId = React.useId().replace(/:/g, "");
+
+  return (
+    <div className={cn("grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 min-h-[34px]", className)}>
+      <div className="flex items-center justify-start min-w-[27px]">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-0.5 hover:opacity-80 transition-opacity"
+            aria-label={backLabel ?? "Go back"}
+            title={backLabel ?? "Go back"}
+          >
+            <BackToProductsIcon gradientId={gradientId} />
+          </button>
+        ) : null}
+      </div>
+
+      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center">{title}</h2>
+
+      <div />
+    </div>
+  );
+}
+
+/** Title row (back left · title center) with search centered below. */
 function CaseDesignCenterToolbar({
   onBack,
   productSearch,
@@ -255,39 +324,80 @@ function CaseDesignCenterToolbar({
   const gradientId = React.useId().replace(/:/g, "");
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 mb-4 min-h-[34px]">
-      <div className="flex items-center justify-start min-w-[27px]">
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="p-0.5 hover:opacity-80 transition-opacity"
-            aria-label="Back to products"
-          >
-            <BackToProductsIcon gradientId={gradientId} />
-          </button>
-        ) : null}
+    <div className="mb-4">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 min-h-[34px]">
+        <div className="flex items-center justify-start min-w-[27px]">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="p-0.5 hover:opacity-80 transition-opacity"
+              aria-label="Back to products"
+            >
+              <BackToProductsIcon gradientId={gradientId} />
+            </button>
+          ) : null}
+        </div>
+
+        <h2
+          className="text-center text-[18px] sm:text-[20px] font-bold text-[#1d1d1b] tracking-wide whitespace-nowrap px-1"
+          style={{ fontFamily: "Verdana, sans-serif" }}
+        >
+          CASE DESIGN CENTER
+        </h2>
+
+        <div />
       </div>
 
-      <h2
-        className="text-center text-[18px] sm:text-[20px] font-bold text-[#1d1d1b] tracking-wide whitespace-nowrap px-1"
-        style={{ fontFamily: "Verdana, sans-serif" }}
-      >
-        CASE DESIGN CENTER
-      </h2>
-
-      <div className="flex items-center justify-end min-w-0">
-        {showSearch ? (
-          <ProductSearchBar
-            inline
-            value={productSearch}
-            onChange={onProductSearchChange}
-            className="w-full max-w-[200px] sm:max-w-[280px] md:max-w-[373px]"
-          />
-        ) : null}
-      </div>
+      {showSearch ? (
+        <div className="flex justify-center mt-2">
+          <div className="w-full max-w-[373px]">
+            <ProductSearchBar
+              inline
+              value={productSearch}
+              onChange={onProductSearchChange}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function searchResultNeedsJawSelection(
+  product: LibraryProductApi,
+  forceArch?: WizardArch,
+): boolean {
+  if (forceArch) return false;
+  return shouldShowJawArchSelection(
+    product,
+    categoryShowsJawSelection(product.subcategory?.category),
+  );
+}
+
+function getSearchResultJawOptions(product: LibraryProductApi) {
+  const fallbackImg = product.image_url;
+  const useJawPhotos =
+    product.show_jaw_photo === "Yes" ||
+    !!(product.jaw_photos?.upper || product.jaw_photos?.lower || product.jaw_photos?.both);
+  const jawPhotos = product.jaw_photos ?? {};
+  return [
+    {
+      label: "Upper only",
+      value: "maxillary" as const,
+      img: useJawPhotos ? (jawPhotos.upper ?? fallbackImg) : (product.arch_image_maxillary ?? fallbackImg),
+    },
+    {
+      label: "Both",
+      value: "both" as const,
+      img: useJawPhotos ? (jawPhotos.both ?? fallbackImg) : (product.arch_image_both ?? fallbackImg),
+    },
+    {
+      label: "Lower only",
+      value: "mandibular" as const,
+      img: useJawPhotos ? (jawPhotos.lower ?? fallbackImg) : (product.arch_image_mandibular ?? fallbackImg),
+    },
+  ];
 }
 
 function ProductSearchResults({
@@ -295,11 +405,58 @@ function ProductSearchResults({
   searchResults,
   isSearchingProducts,
   onSearchProductSelect,
+  forceArch,
 }: Pick<
   ProductSearchProps,
-  "productSearch" | "searchResults" | "isSearchingProducts" | "onSearchProductSelect"
+  "productSearch" | "searchResults" | "isSearchingProducts" | "onSearchProductSelect" | "forceArch"
 >) {
   const trimmed = productSearch.trim();
+  const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
+  const [activeLabelHeight, setActiveLabelHeight] = useState(0);
+  const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const labelRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setArchPopoverProductId(null);
+  }, [trimmed]);
+
+  useEffect(() => {
+    if (!archPopoverProductId) return;
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        const cardEl = cardRefs.current[archPopoverProductId];
+        if (cardEl && cardEl.contains(e.target as Node)) return;
+        setArchPopoverProductId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [archPopoverProductId]);
+
+  useEffect(() => {
+    if (archPopoverProductId === null) {
+      setActiveLabelHeight(0);
+      return;
+    }
+
+    const labelEl = labelRefs.current[archPopoverProductId];
+    if (!labelEl) return;
+
+    const updateLabelHeight = () => {
+      setActiveLabelHeight(labelEl.getBoundingClientRect().height);
+    };
+
+    updateLabelHeight();
+
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(updateLabelHeight);
+    observer.observe(labelEl);
+
+    return () => observer.disconnect();
+  }, [archPopoverProductId, searchResults]);
+
   if (!trimmed) return null;
 
   if (isSearchingProducts) {
@@ -324,24 +481,89 @@ function ProductSearchResults({
 
   return (
     <div className={PRODUCT_CARD_GRID_CLASS}>
-      {searchResults.map((product) => (
-        <button
-          key={product.id}
-          type="button"
-          onClick={() => onSearchProductSelect(product)}
-          className={cn(productPickerCardClass(false), PRODUCT_CARD_ITEM_CLASS)}
-        >
-          <ProductPickerCardLabel>{product.name}</ProductPickerCardLabel>
-          <ProductImageWithFallback
-            src={product.image_url}
-            alt={product.name}
-            name={product.name}
-            className="rounded-none"
-            bgClassName="bg-[#080808]"
-            textClassName="text-[#b4b0b0]"
-          />
-        </button>
-      ))}
+      {searchResults.map((product) => {
+        const prodId = String(product.id);
+        const isPendingArch = archPopoverProductId === prodId;
+        return (
+          <div key={product.id} className={cn("relative", PRODUCT_CARD_ITEM_CLASS)}>
+            <button
+              ref={(el) => { cardRefs.current[prodId] = el; }}
+              type="button"
+              onClick={() => {
+                if (!searchResultNeedsJawSelection(product, forceArch)) {
+                  onSearchProductSelect(product, forceArch);
+                  return;
+                }
+                if (isPendingArch) {
+                  setArchPopoverProductId(null);
+                } else {
+                  setActiveLabelHeight(labelRefs.current[prodId]?.getBoundingClientRect().height ?? 0);
+                  setArchPopoverProductId(prodId);
+                }
+              }}
+              className={productPickerCardClass(isPendingArch, "relative")}
+            >
+              <ProductPickerCardLabel ref={(el) => { labelRefs.current[prodId] = el; }}>
+                {product.name}
+              </ProductPickerCardLabel>
+              <ProductImageWithFallback
+                src={product.image_url}
+                alt={product.name}
+                name={product.name}
+                className="rounded-none"
+                bgClassName="bg-[#080808]"
+                textClassName="text-[#b4b0b0]"
+                fillHeight
+              />
+            </button>
+            {isPendingArch && (() => {
+              const archOptions = getSearchResultJawOptions(product);
+              const popoverInsets = getJawSelectionPopoverInsets(activeLabelHeight);
+              return (
+                <div
+                  ref={popoverRef}
+                  className="absolute z-20 overflow-hidden rounded-b-[7px] bg-black"
+                  style={popoverInsets}
+                >
+                  <div className="flex h-full flex-col">
+                    {archOptions.map((option, i) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`group flex min-h-0 flex-1 flex-row overflow-hidden ${i < archOptions.length - 1 ? "border-b border-gray-700" : ""}`}
+                        onClick={() => {
+                          setArchPopoverProductId(null);
+                          onSearchProductSelect(product, option.value);
+                        }}
+                      >
+                        <div className="h-full w-[55%] flex-shrink-0 overflow-hidden">
+                          {option.img ? (
+                            <img src={option.img} alt={option.label} className="block h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-[#111]">
+                              <span className="text-xl font-bold text-gray-600">
+                                {product.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-1 items-center justify-center bg-black px-2 transition-colors group-hover:bg-[#1162A8]">
+                          <span
+                            style={{ fontFamily: "Verdana, sans-serif", fontSize: 12 }}
+                            className="text-center font-semibold text-white"
+                          >
+                            {option.label}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -385,6 +607,10 @@ function StepDoctor({
   isLoading,
   error,
   onAddNew,
+  photoActor,
+  onAddPhoto,
+  onBack,
+  backLabel,
 }: {
   doctors: WizardDoctorShape[];
   selected: number | null;
@@ -392,14 +618,23 @@ function StepDoctor({
   isLoading?: boolean;
   error?: Error | null;
   onAddNew?: () => void;
+  /** Role/identity deciding who may add a missing doctor photo. */
+  photoActor?: DoctorPhotoActor;
+  onAddPhoto?: (doctor: WizardDoctorShape) => void;
+  /** When set, a back chevron returns to the previous wizard step. */
+  onBack?: () => void;
+  backLabel?: string;
 }) {
   if (error) {
     return (
-      <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
-        <p className="text-[#7f7f7f] text-center mb-4">
-          Unable to load doctors. Please try again.
-        </p>
-        <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+      <div className="flex-1 flex flex-col px-6 py-6">
+        <WizardStepHeader title="Choose a Doctor" onBack={onBack} backLabel={backLabel} className="mb-6" />
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <p className="text-[#7f7f7f] text-center mb-4">
+            Unable to load doctors. Please try again.
+          </p>
+          <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+        </div>
       </div>
     );
   }
@@ -407,9 +642,7 @@ function StepDoctor({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-6">
-        <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
-          Choose a Doctor
-        </h2>
+        <WizardStepHeader title="Choose a Doctor" onBack={onBack} backLabel={backLabel} className="mb-6" />
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 justify-items-center max-w-[1600px] mx-auto w-full">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Skeleton key={i} className="w-full max-w-[219.68px] aspect-square rounded-full" />
@@ -421,9 +654,7 @@ function StepDoctor({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-6">
-      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
-        Choose a Doctor
-      </h2>
+      <WizardStepHeader title="Choose a Doctor" onBack={onBack} backLabel={backLabel} className="mb-6" />
 
       <div className="flex items-center justify-between mb-2">
         <button className="p-2 hover:bg-[#eef1f4] rounded transition-colors">
@@ -444,29 +675,67 @@ function StepDoctor({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 justify-items-center max-w-[1600px] mx-auto w-full">
         {doctors.map((doc) => (
-          <button
+          // Rendered as a div, not a button, so the optional photo badge below
+          // can be a real button without nesting interactive controls.
+          <div
             key={doc.id}
+            role="button"
+            tabIndex={0}
             onClick={() => onSelect(doc.id)}
-            className="group flex flex-col items-center gap-3 p-2 sm:p-4 transition-all w-full max-w-[250px]"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(doc.id);
+              }
+            }}
+            className="group flex flex-col items-center gap-3 p-2 sm:p-4 transition-all w-full max-w-[250px] cursor-pointer"
           >
-            <div
-              className={`relative flex items-center justify-center w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all bg-[#eef1f4] ${selected === doc.id
-                ? "border-[4px] border-[#1162A8]"
-                : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
-                }`}
-            >
-              <span className="absolute inset-0 flex items-center justify-center text-4xl font-semibold text-[#1162a8]">
-                {getInitials(doc.name) || "?"}
-              </span>
-              {doc.img && (
+            {/* Wrapper is unclipped so the photo badge can straddle the ring */}
+            <div className="relative w-full aspect-square max-w-[219.68px] flex-shrink-0">
+              <div
+                className={`relative flex items-center justify-center w-full h-full rounded-full overflow-hidden transition-all bg-[#eef1f4] ${selected === doc.id
+                  ? "border-[4px] border-[#1162A8]"
+                  : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
+                  }`}
+              >
                 <img
-                  src={doc.img}
+                  src={doctorDisplayImageUrl(doc.img)}
                   alt={doc.name}
                   className="relative w-full h-full object-cover"
                   onError={(e) => {
-                    e.currentTarget.remove();
+                    if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                    e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
                   }}
                 />
+              </div>
+
+              {/* Optional photo upload, only when this doctor has none and the
+                  signed-in user may add it. Centred on the ring at the upper
+                  right, away from where the pointer lands when selecting.
+                  14.6% = (1 - 1/√2)/2, the circle's edge at 45°, so the badge
+                  stays on the ring at any diameter or badge size. */}
+              {!doc.img && photoActor && canUploadDoctorPhoto(doc.id, photoActor) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onAddPhoto?.(doc);
+                  }}
+                  className="absolute top-[14.6%] right-[14.6%] translate-x-1/2 -translate-y-1/2 z-10 flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white text-[#1162a8] shadow-md ring-1 ring-[#d9d9d9] transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162a8]"
+                  title={
+                    photoActor.currentUserId === doc.id
+                      ? "Add your photo"
+                      : `Add photo for ${doc.name}`
+                  }
+                  aria-label={
+                    photoActor.currentUserId === doc.id
+                      ? "Add your photo"
+                      : `Add photo for ${doc.name}`
+                  }
+                >
+                  <Camera size={16} />
+                </button>
               )}
             </div>
             <span className="text-[14px] font-weight-700 font-bold text-[#1d1d1b] text-center">
@@ -480,7 +749,7 @@ function StepDoctor({
             >
               Click and select
             </span>
-          </button>
+          </div>
         ))}
       </div>
     </div>
@@ -499,6 +768,8 @@ function StepLab({
   stepTitle,
   entityLabel = "lab",
   onAddNew,
+  onBack,
+  backLabel,
 }: {
   labs: WizardLabShape[];
   selected: number | null;
@@ -508,6 +779,9 @@ function StepLab({
   stepTitle: string;
   entityLabel?: "lab" | "office";
   onAddNew?: () => void;
+  /** When set, a back chevron returns to the previous wizard step. */
+  onBack?: () => void;
+  backLabel?: string;
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const entityPlural = entityLabel === "office" ? "offices" : "labs";
@@ -528,11 +802,14 @@ function StepLab({
 
   if (error) {
     return (
-      <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
-        <p className="text-[#7f7f7f] text-center mb-4">
-          {loadErrorMsg}
-        </p>
-        <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+      <div className="flex-1 flex flex-col px-6 py-6">
+        <WizardStepHeader title={stepTitle} onBack={onBack} backLabel={backLabel} className="mb-6" />
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <p className="text-[#7f7f7f] text-center mb-4">
+            {loadErrorMsg}
+          </p>
+          <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+        </div>
       </div>
     );
   }
@@ -540,9 +817,7 @@ function StepLab({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-6">
-        <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
-          {stepTitle}
-        </h2>
+        <WizardStepHeader title={stepTitle} onBack={onBack} backLabel={backLabel} className="mb-6" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto mb-6 px-4">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton
@@ -558,9 +833,7 @@ function StepLab({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-6">
-      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-4">
-        {stepTitle}
-      </h2>
+      <WizardStepHeader title={stepTitle} onBack={onBack} backLabel={backLabel} className="mb-4" />
 
       {/* Centered search — same density as product search */}
       <div className="flex justify-center mb-4">
@@ -673,6 +946,8 @@ function StepPatientInfo({
   setGender,
   onComplete,
   fieldSettings = DEFAULT_WIZARD_FIELD_SETTINGS,
+  canEditDoctor = false,
+  onEditDoctorClick,
 }: {
   doctor: WizardDoctorShape | undefined;
   patientName: string;
@@ -681,6 +956,8 @@ function StepPatientInfo({
   setGender: (v: string) => void;
   onComplete?: () => void;
   fieldSettings?: WizardPatientFieldSettings;
+  canEditDoctor?: boolean;
+  onEditDoctorClick?: () => void;
 }) {
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isGenderFocused, setIsGenderFocused] = useState(false);
@@ -693,6 +970,7 @@ function StepPatientInfo({
   const genderKeyboardActiveRef = useRef(false);
   const highlightedGenderIndexRef = useRef(-1);
   const genderOptions = ["Male", "Female"] as const;
+  const [nameInteractionTick, setNameInteractionTick] = useState(0);
 
   /** Focus whichever patient name input is currently visible */
   const focusPatientInput = () => {
@@ -732,6 +1010,15 @@ function StepPatientInfo({
     }
   }, [isGenderFocused]);
 
+  // Auto-advance to category selection once the patient name is valid.
+  useEffect(() => {
+    if (!isValidPatientName(patientName)) return;
+    const timer = setTimeout(() => {
+      onComplete?.();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [patientName, nameInteractionTick, onComplete]);
+
   const getGenderDisplay = (g?: string) => {
     if (g === "Male" || g === "male") return "Male";
     if (g === "Female" || g === "female") return "Female";
@@ -740,10 +1027,11 @@ function StepPatientInfo({
 
   const { showGender, genderRequired } = fieldSettings;
   const name = patientName ?? "";
-  const showGenderField = showGender && shouldShowPatientGenderField(name);
+  const showGenderField = false;
 
   const handleNameChange = (value: string) => {
     setPatientName(value);
+    setNameInteractionTick((t) => t + 1);
     if (refocusTimerRef.current) {
       clearTimeout(refocusTimerRef.current);
     }
@@ -951,19 +1239,20 @@ function StepPatientInfo({
         <div className="flex flex-row items-start gap-5">
           {doctor && (
             <div className="flex flex-col justify-center items-center gap-0 w-auto sm:w-[170px] flex-shrink-0">
-              <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-                <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
-                  {getInitials(doctor.name) || "?"}
-                </span>
-                {doctor.img && (
+              <div className="relative flex-shrink-0">
+                <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
                   <img
-                    src={doctor.img}
+                    src={doctorDisplayImageUrl(doctor.img)}
                     alt={doctor.name}
                     className="relative w-full h-full object-cover"
                     onError={(e) => {
-                      e.currentTarget.remove();
+                      if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                      e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
                     }}
                   />
+                </div>
+                {canEditDoctor && onEditDoctorClick && (
+                  <DoctorEditButton onClick={onEditDoctorClick} />
                 )}
               </div>
               <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
@@ -1080,19 +1369,20 @@ function StepPatientInfo({
         {/* Row 1: Doctor avatar + name */}
         {doctor && (
           <div className="flex flex-col items-center gap-0">
-            <div className="relative w-[105px] h-[105px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
-              <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-gray-500">
-                {getInitials(doctor.name) || "?"}
-              </span>
-              {doctor.img && (
+            <div className="relative flex-shrink-0">
+              <div className="relative w-[105px] h-[105px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
                 <img
-                  src={doctor.img}
+                  src={doctorDisplayImageUrl(doctor.img)}
                   alt={doctor.name}
                   className="relative w-full h-full object-cover"
                   onError={(e) => {
-                    e.currentTarget.remove();
+                    if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                    e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
                   }}
                 />
+              </div>
+              {canEditDoctor && onEditDoctorClick && (
+                <DoctorEditButton onClick={onEditDoctorClick} />
               )}
             </div>
             <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative">
@@ -1232,6 +1522,9 @@ function StepCategory({
   searchResults,
   isSearchingProducts,
   onSearchProductSelect,
+  forceArch,
+  canEditDoctor,
+  onEditDoctorClick,
 }: {
   categories: { id: number; name: string; img: string }[];
   selected: number | null;
@@ -1248,6 +1541,8 @@ function StepCategory({
   fieldSettings?: WizardPatientFieldSettings;
   /** When false, category selection is blocked until required patient fields are filled. */
   patientInfoComplete?: boolean;
+  canEditDoctor?: boolean;
+  onEditDoctorClick?: () => void;
 } & ProductSearchProps) {
   if (error) {
     return (
@@ -1260,7 +1555,7 @@ function StepCategory({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} canEditDoctor={canEditDoctor} onEditDoctorClick={onEditDoctorClick} />
         <CaseDesignCenterToolbar
           productSearch={productSearch}
           onProductSearchChange={onProductSearchChange}
@@ -1285,6 +1580,8 @@ function StepCategory({
         onGenderChange={onGenderChange}
         onAgeChange={onAgeChange}
         fieldSettings={fieldSettings}
+        canEditDoctor={canEditDoctor}
+        onEditDoctorClick={onEditDoctorClick}
       />
 
       {/* Case design center is revealed only once required patient details are filled */}
@@ -1300,6 +1597,7 @@ function StepCategory({
             searchResults={searchResults}
             isSearchingProducts={isSearchingProducts}
             onSearchProductSelect={onSearchProductSelect}
+            forceArch={forceArch}
           />
 
           {!productSearch.trim() && (
@@ -1311,7 +1609,7 @@ function StepCategory({
                 className={cn(productPickerCardClass(selected === cat.id), PRODUCT_CARD_ITEM_CLASS)}
               >
                 <ProductPickerCardLabel>{cat.name}</ProductPickerCardLabel>
-                <ProductImageWithFallback src={cat.img} alt={cat.name} name={cat.name} className="rounded-none" bgClassName="" />
+                <ProductImageWithFallback src={cat.img} alt={cat.name} name={cat.name} className="rounded-none" bgClassName="" fillHeight />
               </button>
             ))}
           </div>
@@ -1351,6 +1649,9 @@ function StepSubProduct({
   searchResults,
   isSearchingProducts,
   onSearchProductSelect,
+  forceArch,
+  canEditDoctor,
+  onEditDoctorClick,
 }: {
   categoryId: number;
   subProducts: { id: number; name: string; img: string }[];
@@ -1372,6 +1673,8 @@ function StepSubProduct({
   subcategoryProductCounts?: Record<number, number | undefined>;
   subcategoryProducts?: Record<number, LibraryProductApi[] | undefined>;
   onArchPickForSingle?: (subcatId: number, arch: "maxillary" | "mandibular" | "both") => void;
+  canEditDoctor?: boolean;
+  onEditDoctorClick?: () => void;
 } & ProductSearchProps) {
   const [activeSubLabelHeight, setActiveSubLabelHeight] = useState(0);
   const subCardRefs = useRef<Record<number, HTMLButtonElement | null>>({});
@@ -1425,6 +1728,8 @@ function StepSubProduct({
         onGenderChange={onGenderChange}
         onAgeChange={onAgeChange}
         fieldSettings={fieldSettings}
+        canEditDoctor={canEditDoctor}
+        onEditDoctorClick={onEditDoctorClick}
       />
 
       <CaseDesignCenterToolbar
@@ -1438,6 +1743,7 @@ function StepSubProduct({
         searchResults={searchResults}
         isSearchingProducts={isSearchingProducts}
         onSearchProductSelect={onSearchProductSelect}
+        forceArch={forceArch}
       />
 
       {!productSearch.trim() && (
@@ -1470,7 +1776,7 @@ function StepSubProduct({
               <ProductPickerCardLabel ref={(el) => { subLabelRefs.current[prod.id] = el; }}>
                 {prod.name}
               </ProductPickerCardLabel>
-              <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" />
+              <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" fillHeight />
             </button>
             {archPopoverSubId === prod.id &&
               onArchPickForSingle &&
@@ -1562,8 +1868,10 @@ function StepMaterial({
   searchResults,
   isSearchingProducts,
   onSearchProductSelect,
-  initialArchPopoverProductId = null,
+  canEditDoctor,
+  onEditDoctorClick,
 }: {
+  categoryName: string;
   subProductName: string;
   products: { id: number; name: string; img: string; arch_images?: { maxillary?: string | null; both?: string | null; mandibular?: string | null }; show_jaw_photo?: boolean; jaw_photos?: { upper?: string | null; lower?: string | null; both?: string | null } }[];
   selected: string | null;
@@ -1577,11 +1885,12 @@ function StepMaterial({
   error?: Error | null;
   categoryShowJawSelection: boolean;
   forceArch?: "maxillary" | "mandibular";
-  onPatientNameChange?: (value: string) => void;
-  onGenderChange?: (value: string) => void;
-  onAgeChange?: (value: string) => void;
+  onPatientNameChange?: (name: string) => void;
+  onGenderChange?: (gender: string) => void;
+  onAgeChange?: (age: string) => void;
   fieldSettings?: WizardPatientFieldSettings;
-  initialArchPopoverProductId?: string | null;
+  canEditDoctor?: boolean;
+  onEditDoctorClick?: () => void;
 } & ProductSearchProps) {
   const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
   const [activeProductLabelHeight, setActiveProductLabelHeight] = useState(0);
@@ -1634,11 +1943,6 @@ function StepMaterial({
     }
   }, [products, selected, categoryShowJawSelection, forceArch, isLoading, onSelect]);
 
-  useEffect(() => {
-    if (!initialArchPopoverProductId || isLoading) return;
-    setArchPopoverProductId(initialArchPopoverProductId);
-  }, [initialArchPopoverProductId, isLoading]);
-
   const onlyProduct = products.length === 1 ? products[0] : null;
   const onlyProductId = onlyProduct != null ? String(onlyProduct.id) : null;
   const singleProductNeedsArch =
@@ -1648,14 +1952,12 @@ function StepMaterial({
   // Single product that needs arch: open the image popover on the card (same as multi-product).
   useEffect(() => {
     if (isLoading || !onlyProductId || !singleProductNeedsArch || forceArch) return;
-    if (initialArchPopoverProductId) return;
     setArchPopoverProductId(onlyProductId);
   }, [
     isLoading,
     onlyProductId,
     singleProductNeedsArch,
     forceArch,
-    initialArchPopoverProductId,
   ]);
 
   if (error) {
@@ -1669,7 +1971,7 @@ function StepMaterial({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} canEditDoctor={canEditDoctor} onEditDoctorClick={onEditDoctorClick} />
         <CaseDesignCenterToolbar
           onBack={onBack}
           productSearch={productSearch}
@@ -1696,6 +1998,8 @@ function StepMaterial({
         onGenderChange={onGenderChange}
         onAgeChange={onAgeChange}
         fieldSettings={fieldSettings}
+        canEditDoctor={canEditDoctor}
+        onEditDoctorClick={onEditDoctorClick}
       />
 
       <CaseDesignCenterToolbar
@@ -1709,6 +2013,7 @@ function StepMaterial({
         searchResults={searchResults}
         isSearchingProducts={isSearchingProducts}
         onSearchProductSelect={onSearchProductSelect}
+        forceArch={forceArch}
       />
 
       {!productSearch.trim() && (
@@ -1735,12 +2040,12 @@ function StepMaterial({
                       }
                     }
                   }}
-                  className={productPickerCardClass(isSelected, "relative items-center")}
+                  className={productPickerCardClass(isSelected, "relative")}
                 >
                   <ProductPickerCardLabel ref={(el) => { labelRefs.current[prodId] = el; }}>
                     {prod.name}
                   </ProductPickerCardLabel>
-                  <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" />
+                  <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" fillHeight />
                 </button>
                   {archPopoverProductId === prodId && (() => {
                     const archImages = prod.arch_images ?? {};
@@ -1838,6 +2143,8 @@ function PatientMiniHeader({
   onGenderChange,
   onAgeChange,
   fieldSettings = DEFAULT_WIZARD_FIELD_SETTINGS,
+  canEditDoctor = false,
+  onEditDoctorClick,
 }: {
   doctor: WizardDoctorShape | undefined;
   patientName: string;
@@ -1847,18 +2154,22 @@ function PatientMiniHeader({
   onGenderChange?: (value: string) => void;
   onAgeChange?: (value: string) => void;
   fieldSettings?: WizardPatientFieldSettings;
+  canEditDoctor?: boolean;
+  onEditDoctorClick?: () => void;
 }) {
   const { showGender, showAge, genderRequired, ageRequired } = fieldSettings;
+  const showGenderField = Boolean(gender?.trim());
+  const showAgeField = Boolean(age?.toString().trim());
   const { createdByName, createdByImageUrl: createdByImage } = useCreatedByUser();
   const ageInputRef = useRef<HTMLInputElement>(null);
 
   // After gender is selected (or on entry with gender already set), move focus
   // to the age field when age is shown and still empty.
   const focusAge = useCallback(() => {
-    if (showAge) {
+    if (showAgeField) {
       setTimeout(() => ageInputRef.current?.focus(), 50);
     }
-  }, [showAge]);
+  }, [showAgeField]);
 
   const handleGenderChange = useCallback(
     (value: string) => {
@@ -1869,7 +2180,7 @@ function PatientMiniHeader({
   );
 
   useEffect(() => {
-    if (showAge && gender && !(age ?? "").trim()) {
+    if (showAgeField && gender && !(age ?? "").trim()) {
       focusAge();
     }
     // Only on mount — auto-focus age when arriving with gender already chosen.
@@ -1877,24 +2188,25 @@ function PatientMiniHeader({
   }, []);
 
   return (
-    <div className="bg-white border-b border-[#d9d9d9] px-4 sm:px-6 py-1 -mx-6 -mt-4 mb-4">
+    <div className="bg-white border-b border-[#d9d9d9] px-4 sm:px-6 py-1 -mx-6 -mt-4 mb-1">
       <div className="flex flex-col lg:flex-row items-center gap-2 lg:gap-4">
         {/* Doctor photo + name */}
         {doctor && (
           <div className="flex flex-col justify-center items-center gap-0 w-auto sm:w-[170px] flex-shrink-0">
-            <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-              <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
-                {getInitials(doctor.name) || "?"}
-              </span>
-              {doctor.img && (
+            <div className="relative flex-shrink-0">
+              <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
                 <img
-                  src={doctor.img}
+                  src={doctorDisplayImageUrl(doctor.img)}
                   alt={doctor.name}
                   className="relative w-full h-full object-cover"
                   onError={(e) => {
-                    e.currentTarget.remove();
+                    if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                    e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
                   }}
                 />
+              </div>
+              {canEditDoctor && onEditDoctorClick && (
+                <DoctorEditButton onClick={onEditDoctorClick} />
               )}
             </div>
             <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
@@ -1909,9 +2221,9 @@ function PatientMiniHeader({
           <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
             <FieldInput label="Patient name" value={patientName} onChange={onPatientNameChange} className="w-[330px]" smartPatientLabel />
           </div>
-          {(showGender || showAge) && (
+          {(showGenderField || showAgeField) && (
             <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start w-[330px]">
-              {showGender && (
+              {showGenderField && (
                 onGenderChange ? (
                   <SelectField
                     label="Gender"
@@ -1926,7 +2238,7 @@ function PatientMiniHeader({
                   <FieldInput label="Gender" value={gender} submitted={false} className="flex-1" />
                 )
               )}
-              {showAge && (
+              {showAgeField && (
                 <FieldInput
                   label="Age"
                   value={age ?? ""}
@@ -1979,9 +2291,11 @@ function PatientMiniHeader({
 export default function NewCaseWizard({
   onComplete,
   onLabSelect,
+  onDoctorSelect,
   startStep = 1,
   mode = "initial",
   initialLabId = null,
+  officeId = null,
   initialPatientName = "",
   initialGender = "",
   initialAge = "",
@@ -1994,9 +2308,13 @@ export default function NewCaseWizard({
 }: {
   onComplete: (result: WizardResult) => void;
   onLabSelect?: (lab: WizardLabShape) => void;
+  /** Called when the selected doctor changes (including clear-to-null after an office change). */
+  onDoctorSelect?: (doctor: WizardDoctorShape | null) => void;
   startStep?: number;
   mode?: "initial" | "addProduct";
   initialLabId?: number | null;
+  /** Office customer id for `GET /v1/slip/office/{id}/doctors`. Required in edit/add-stage for lab_admin (do not pass the lab id). */
+  officeId?: number | null;
   initialPatientName?: string;
   initialGender?: string;
   initialAge?: string;
@@ -2022,16 +2340,47 @@ export default function NewCaseWizard({
   const [archPopoverSubId, setArchPopoverSubId] = useState<number | null>(null);
   const [shouldAutoAdvanceProducts, setShouldAutoAdvanceProducts] = useState(false);
   const [productSearch, setProductSearch] = useState("");
-  const [pendingArchProductId, setPendingArchProductId] = useState<string | null>(null);
   const debouncedProductSearch = useDebounce(productSearch, 300);
+  const [demographicModalOpen, setDemographicModalOpen] = useState(false);
+  const [pendingFinalize, setPendingFinalize] = useState<{
+    materialId: string;
+    arch?: "maxillary" | "mandibular" | "both";
+    fromSearch?: {
+      categoryId?: number;
+      categoryName?: string;
+      subcategoryId?: number;
+      materialName?: string;
+    };
+  } | null>(null);
+  const [pendingProductDetails, setPendingProductDetails] = useState<{
+    name?: string;
+    gender_required?: string;
+    age_required?: string;
+  } | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
   const [showAddLabModal, setShowAddLabModal] = useState(false);
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
+  const [doctorEditModalOpen, setDoctorEditModalOpen] = useState(false);
+  const [photoActor, setPhotoActor] = useState<DoctorPhotoActor>({ roles: [], currentUserId: null });
+  const [photoTargetDoctor, setPhotoTargetDoctor] = useState<WizardDoctorShape | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Read from localStorage after mount; useWizardRole only distinguishes office
+  // vs lab context, so it cannot tell a doctor apart from an office_admin.
+  useEffect(() => {
+    setPhotoActor(readDoctorPhotoActor());
+  }, []);
+
   const { role, customerId, isOfficeAdmin, isLabAdmin } = useWizardRole();
-  const { officesAsLabs, isLoading: labsLoading, error: labsError, refetch } = useConnectedOfficesOrLabs(role);
+  const {
+    officesAsLabs,
+    isLoading: labsLoading,
+    isSuccess: labsSuccess,
+    error: labsError,
+    refetch,
+  } = useConnectedOfficesOrLabs(role);
   const lab = officesAsLabs.find((l) => l.id === selectedLab);
 
   // customer_id for library/categories: office_admin = selected lab id, lab_admin = their customerId
@@ -2047,10 +2396,7 @@ export default function NewCaseWizard({
   // All shown + required patient fields satisfied. Age (when required) is only
   // collected in the mini header on the category step, so it gates category
   // selection rather than the step-3 Next button.
-  const patientInfoComplete =
-    isValidPatientName(patientName) &&
-    (!patientFieldSettings.genderRequired || Boolean(gender)) &&
-    (!patientFieldSettings.ageRequired || Boolean(age));
+  const patientInfoComplete = isValidPatientName(patientName);
 
   const {
     categoriesAsWizard,
@@ -2095,12 +2441,17 @@ export default function NewCaseWizard({
     enabled: step === 5 && selectedCategory != null,
   });
 
-  // Office ID for doctors: office_admin = logged-in user's customerId; lab_admin = selected lab (office) id
+  // Office ID for doctors: during lab/office edit for lab_admin, always use the
+  // selected office so doctors refresh after an office switch. Otherwise explicit
+  // officeId (edit/add-stage) wins. office_admin uses their customerId. lab_admin
+  // create uses selectedLab because that picker is offices.
   const officeIdForDoctors = useMemo(() => {
+    if (editTarget === "lab" && isLabAdmin && selectedLab != null) return selectedLab;
+    if (typeof officeId === "number" && officeId > 0) return officeId;
     if (isOfficeAdmin && customerId != null) return customerId;
     if (isLabAdmin && selectedLab != null) return selectedLab;
     return undefined;
-  }, [isOfficeAdmin, isLabAdmin, customerId, selectedLab]);
+  }, [editTarget, officeId, isOfficeAdmin, isLabAdmin, customerId, selectedLab]);
 
   const {
     data: officeDoctorsRaw = [],
@@ -2124,13 +2475,42 @@ export default function NewCaseWizard({
   );
 
   const doctor = doctorsForWizard.find((d) => d.id === selectedDoctor) ?? initialDoctor;
+  const canEditDoctor = doctorsSuccess && doctorsForWizard.length > 1;
 
-  const finalizeSelection = useCallback(
-    (materialId: string, arch?: "maxillary" | "mandibular" | "both") => {
-      const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
-      const subProductName =
-        (subcategoriesByCategoryId[selectedCategory ?? -1] ?? []).find((p) => p.id === selectedSubProduct)?.name ?? "";
-      const materialName = productsAsWizard.find((p) => String(p.id) === String(materialId))?.name ?? "";
+  const handleEditDoctorClick = useCallback(() => {
+    if (!canEditDoctor) return;
+    setDoctorEditModalOpen(true);
+  }, [canEditDoctor]);
+
+  const handleDoctorEditSelect = useCallback((nextDoctor: WizardDoctorShape) => {
+    setSelectedDoctor(nextDoctor.id);
+    setDoctorEditModalOpen(false);
+  }, []);
+
+  const runFinalizeSelection = useCallback(
+    (
+      materialId: string,
+      arch?: "maxillary" | "mandibular" | "both",
+      fromSearch?: {
+        categoryId?: number;
+        categoryName?: string;
+        subcategoryId?: number;
+        materialName?: string;
+      },
+      demographicOverride?: { gender: string; age: string },
+    ) => {
+      const resolvedGender = demographicOverride?.gender ?? gender;
+      const resolvedAge = demographicOverride?.age ?? age;
+      const categoryId = fromSearch?.categoryId ?? selectedCategory;
+      const subcategoryId = fromSearch?.subcategoryId ?? selectedSubProduct;
+      const selectedCategoryName =
+        fromSearch?.categoryName ??
+        categoriesAsWizard.find((c) => c.id === categoryId)?.name ??
+        "";
+      const materialName =
+        fromSearch?.materialName ??
+        productsAsWizard.find((p) => String(p.id) === String(materialId))?.name ??
+        "";
       const archToUse = arch ?? selectedArch ?? forceArch;
 
       setSelectedMaterial(materialId);
@@ -2143,11 +2523,11 @@ export default function NewCaseWizard({
         doctor: doctor ?? { id: 0, name: "", img: "" },
         lab: lab ?? { id: 0, name: "", location: "", logo: null },
         patientName,
-        gender,
-        age,
-        category: String(selectedCategory),
+        gender: resolvedGender,
+        age: resolvedAge,
+        category: String(categoryId ?? ""),
         categoryName: selectedCategoryName,
-        product: String(selectedSubProduct),
+        product: String(subcategoryId ?? ""),
         material: materialId,
         materialName,
         arch: archToUse,
@@ -2162,7 +2542,6 @@ export default function NewCaseWizard({
     [
       categoriesAsWizard,
       selectedCategory,
-      subcategoriesByCategoryId,
       selectedSubProduct,
       productsAsWizard,
       selectedArch,
@@ -2177,8 +2556,49 @@ export default function NewCaseWizard({
     ]
   );
 
+  const finalizeSelection = useCallback(
+    async (
+      materialId: string,
+      arch?: "maxillary" | "mandibular" | "both",
+      fromSearch?: {
+        categoryId?: number;
+        categoryName?: string;
+        subcategoryId?: number;
+        materialName?: string;
+      },
+    ) => {
+      const details = await fetchCaseDesignProductDetails(
+        Number(materialId),
+        customerIdForCategories ?? null,
+      );
+      if (hasPendingDemographics(details, gender, age)) {
+        setPendingProductDetails(details);
+        setPendingFinalize({ materialId, arch, fromSearch });
+        setDemographicModalOpen(true);
+        return;
+      }
+      runFinalizeSelection(materialId, arch, fromSearch);
+    },
+    [customerIdForCategories, gender, age, runFinalizeSelection],
+  );
+
+  const handleDemographicConfirm = useCallback(
+    (values: { gender: string; age: string }) => {
+      setGender(values.gender);
+      setAge(values.age);
+      setDemographicModalOpen(false);
+      const pending = pendingFinalize;
+      setPendingFinalize(null);
+      setPendingProductDetails(null);
+      if (pending) {
+        runFinalizeSelection(pending.materialId, pending.arch, pending.fromSearch, values);
+      }
+    },
+    [pendingFinalize, runFinalizeSelection],
+  );
+
   const handleSearchProductSelect = useCallback(
-    (product: LibraryProductApi) => {
+    (product: LibraryProductApi, arch?: WizardArch) => {
       const categoryId = product.subcategory?.category?.id ?? product.subcategory?.category_id;
       const subcategoryId = product.subcategory?.id;
       const categoryName =
@@ -2192,21 +2612,12 @@ export default function NewCaseWizard({
       setShouldAutoAdvanceProducts(false);
       setProductSearch("");
 
-      const categoryShowJaw = categoryShowsJawSelection(
-        product.subcategory?.category ??
-          categoriesAsWizard.find((c) => c.id === categoryId),
-      );
-      const needsArchSelection = shouldShowJawArchSelection(product, categoryShowJaw);
-      const productId = String(product.id);
-
-      if (needsArchSelection && !forceArch) {
-        setSelectedMaterial(productId);
-        setPendingArchProductId(productId);
-        setStep(6);
-        return;
-      }
-
-      finalizeSelection(productId, forceArch);
+      finalizeSelection(String(product.id), arch ?? forceArch, {
+        categoryId: categoryId ?? undefined,
+        categoryName,
+        subcategoryId: subcategoryId ?? undefined,
+        materialName: product.name,
+      });
     },
     [categoriesAsWizard, forceArch, finalizeSelection]
   );
@@ -2218,8 +2629,9 @@ export default function NewCaseWizard({
       searchResults: productSearchResults,
       isSearchingProducts,
       onSearchProductSelect: handleSearchProductSelect,
+      forceArch,
     }),
-    [productSearch, productSearchResults, isSearchingProducts, handleSearchProductSelect]
+    [productSearch, productSearchResults, isSearchingProducts, handleSearchProductSelect, forceArch]
   );
 
   useEffect(() => {
@@ -2262,6 +2674,20 @@ export default function NewCaseWizard({
   const isStepDoctor = (s: number) => (s === 1 && role === "office_admin") || (s === 2 && role !== "office_admin");
   const isStepLab = (s: number) => (s === 1 && role !== "office_admin") || (s === 2 && role === "office_admin");
 
+  // Step 2 offers a way back to step 1 so a wrong doctor/lab can be re-picked.
+  // Single-step edit mode opens straight onto its own step, so there is nothing to go back to —
+  // except lab_admin office edit, which advances to the doctor step after an office change.
+  const stepOneBackLabel = isStepDoctor(1)
+    ? "Back to doctor selection"
+    : role === "office_admin"
+      ? "Back to lab selection"
+      : "Back to office selection";
+  const handleBackToStepOne =
+    (!editTarget && startStep < 2) ||
+    (editTarget === "lab" && role !== "office_admin" && step === 2)
+      ? () => setStep(1)
+      : undefined;
+
   // When there is only one doctor, auto-select and proceed to next step
   const didAutoAdvanceDoctorRef = useRef(false);
   useEffect(() => {
@@ -2279,13 +2705,49 @@ export default function NewCaseWizard({
     ) {
       didAutoAdvanceDoctorRef.current = true;
       setSelectedDoctor(oneDoctor.id);
-      if (editTarget === "doctor" && onEditDone) {
+      if ((editTarget === "doctor" || editTarget === "lab") && onEditDone) {
+        onDoctorSelect?.(oneDoctor);
         onEditDone();
       } else {
         setStep((s) => s + 1);
       }
     }
-  }, [step, role, doctorsSuccess, doctorsForWizard, selectedDoctor]);
+  }, [step, role, doctorsSuccess, doctorsForWizard, selectedDoctor, editTarget, onEditDone, onDoctorSelect]);
+
+  // Office profile: when only one lab is connected, auto-select and proceed to patient info
+  const didAutoAdvanceLabRef = useRef(false);
+  useEffect(() => {
+    const onLabStep = isStepLab(step);
+    if (!onLabStep || role !== "office_admin") {
+      didAutoAdvanceLabRef.current = false;
+      return;
+    }
+    const oneLab = officesAsLabs.length === 1 ? officesAsLabs[0] : null;
+    if (
+      labsSuccess &&
+      oneLab != null &&
+      selectedLab === null &&
+      !didAutoAdvanceLabRef.current
+    ) {
+      didAutoAdvanceLabRef.current = true;
+      setSelectedLab(oneLab.id);
+      onLabSelect?.(oneLab);
+      if (editTarget === "lab" && onEditDone) {
+        onEditDone();
+      } else {
+        setStep((s) => s + 1);
+      }
+    }
+  }, [
+    step,
+    role,
+    labsSuccess,
+    officesAsLabs,
+    selectedLab,
+    editTarget,
+    onEditDone,
+    onLabSelect,
+  ]);
 
   const canProceed = () => {
     switch (step) {
@@ -2294,10 +2756,7 @@ export default function NewCaseWizard({
       case 2:
         return isStepDoctor(2) ? selectedDoctor !== null : selectedLab !== null;
       case 3:
-        return (
-          isValidPatientName(patientName) &&
-          (!patientFieldSettings.genderRequired || Boolean(gender))
-        );
+        return isValidPatientName(patientName);
       case 4:
         return selectedCategory !== null;
       case 5:
@@ -2350,7 +2809,7 @@ export default function NewCaseWizard({
 
   const handleConfirmCancel = () => {
     setShowCancelModal(false);
-    router.push("/dashboard");
+    router.push(getActiveLandingPath());
   };
 
   return (
@@ -2368,7 +2827,9 @@ export default function NewCaseWizard({
             selected={selectedDoctor}
             onSelect={(id) => {
               setSelectedDoctor(id);
-              if (editTarget === "doctor" && onEditDone) {
+              const selected = doctorsForWizard.find((d) => d.id === id);
+              if (selected) onDoctorSelect?.(selected);
+              if ((editTarget === "doctor" || editTarget === "lab") && onEditDone) {
                 setTimeout(() => onEditDone(), 300);
               } else {
                 setTimeout(() => setStep(2), 300);
@@ -2377,6 +2838,8 @@ export default function NewCaseWizard({
             isLoading={doctorsLoading}
             error={doctorsError}
             onAddNew={() => setShowAddDoctorModal(true)}
+            photoActor={photoActor}
+            onAddPhoto={setPhotoTargetDoctor}
           />
         )}
         {step === 1 && role !== null && isStepLab(1) && (
@@ -2388,7 +2851,17 @@ export default function NewCaseWizard({
               const selected = officesAsLabs.find((l) => l.id === id);
               if (selected) onLabSelect?.(selected);
               if (editTarget === "lab" && onEditDone) {
-                setTimeout(() => onEditDone(), 300);
+                // lab_admin office edit: doctors belong to the office — re-pick when office changes.
+                // office_admin lab edit: doctors are unchanged — finish immediately.
+                const officeChanged = role !== "office_admin" && id !== initialLabId;
+                if (officeChanged) {
+                  setSelectedDoctor(null);
+                  onDoctorSelect?.(null);
+                  didAutoAdvanceDoctorRef.current = false;
+                  setTimeout(() => setStep(2), 300);
+                } else {
+                  setTimeout(() => onEditDone(), 300);
+                }
               } else {
                 setTimeout(() => setStep(2), 300);
               }
@@ -2406,7 +2879,9 @@ export default function NewCaseWizard({
             selected={selectedDoctor}
             onSelect={(id) => {
               setSelectedDoctor(id);
-              if (editTarget === "doctor" && onEditDone) {
+              const selected = doctorsForWizard.find((d) => d.id === id);
+              if ((editTarget === "doctor" || editTarget === "lab") && onEditDone) {
+                if (selected) onDoctorSelect?.(selected);
                 setTimeout(() => onEditDone(), 300);
               } else {
                 setTimeout(() => setStep(3), 300);
@@ -2415,6 +2890,10 @@ export default function NewCaseWizard({
             isLoading={doctorsLoading}
             error={doctorsError}
             onAddNew={() => setShowAddDoctorModal(true)}
+            photoActor={photoActor}
+            onAddPhoto={setPhotoTargetDoctor}
+            onBack={handleBackToStepOne}
+            backLabel={stepOneBackLabel}
           />
         )}
         {step === 2 && role !== null && isStepLab(2) && (
@@ -2436,6 +2915,8 @@ export default function NewCaseWizard({
             stepTitle={role === "office_admin" ? "Choose a Lab" : "Choose an Office"}
             entityLabel={role === "office_admin" ? "lab" : "office"}
             onAddNew={() => setShowAddLabModal(true)}
+            onBack={handleBackToStepOne}
+            backLabel={stepOneBackLabel}
           />
         )}
         {step === 3 && (
@@ -2447,6 +2928,8 @@ export default function NewCaseWizard({
             setGender={setGender}
             onComplete={() => setStep(4)}
             fieldSettings={patientFieldSettings}
+            canEditDoctor={canEditDoctor}
+            onEditDoctorClick={handleEditDoctorClick}
           />
         )}
         {step === 4 && (
@@ -2470,13 +2953,18 @@ export default function NewCaseWizard({
             onAgeChange={setAge}
             fieldSettings={patientFieldSettings}
             patientInfoComplete={patientInfoComplete}
+            canEditDoctor={canEditDoctor}
+            onEditDoctorClick={handleEditDoctorClick}
             {...productSearchProps}
+            forceArch={forceArch}
           />
         )}
         {step === 5 && selectedCategory != null && (
           <StepSubProduct
             categoryId={selectedCategory}
-            subProducts={subcategoriesByCategoryId[selectedCategory] ?? []}
+            subProducts={(subcategoriesByCategoryId[selectedCategory] ?? []).filter(
+              (s) => subcategoryProductCounts?.[s.id] !== 0
+            )}
             categoryName={categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? ""}
             categoryShowJawSelection={categoryShowsJawSelection(
               categoriesAsWizard.find((c) => c.id === selectedCategory),
@@ -2514,6 +3002,8 @@ export default function NewCaseWizard({
               setShouldAutoAdvanceProducts(false);
               finalizeSelection(String(only.id), arch);
             }}
+            canEditDoctor={canEditDoctor}
+            onEditDoctorClick={handleEditDoctorClick}
             {...productSearchProps}
           />
         )}
@@ -2536,47 +3026,14 @@ export default function NewCaseWizard({
               forceArch={forceArch ?? selectedArch}
               onBack={() => {
                 setShouldAutoAdvanceProducts(false);
-                setPendingArchProductId(null);
                 setStep(5);
               }}
               onSelect={(id, arch) => {
-                setPendingArchProductId(null);
                 setSelectedMaterial(id);
                 if (arch) setSelectedArch(arch);
-                const materialName = productsAsWizard.find((p) => String(p.id) === String(id))?.name ?? "";
-                if (mode === "addProduct") {
-                  setTimeout(() => {
-                    onComplete({
-                      doctor: doctor ?? { id: 0, name: "", img: "" },
-                      lab: lab ?? { id: 0, name: "", location: "", logo: null },
-                      patientName,
-                      gender,
-                      age,
-                      category: String(selectedCategory),
-                      categoryName: selectedCategoryName,
-                      product: String(selectedSubProduct),
-                      material: id,
-                      materialName,
-                      arch,
-                    });
-                  }, 300);
-                } else if (doctor && lab) {
-                  setTimeout(() => {
-                    onComplete({
-                      doctor,
-                      lab,
-                      patientName,
-                      gender,
-                      age,
-                      category: String(selectedCategory),
-                      categoryName: selectedCategoryName,
-                      product: String(selectedSubProduct),
-                      material: id,
-                      materialName,
-                      arch,
-                    });
-                  }, 300);
-                }
+                setTimeout(() => {
+                  void finalizeSelection(id, arch);
+                }, 300);
               }}
               doctor={doctor}
               patientName={patientName}
@@ -2586,8 +3043,10 @@ export default function NewCaseWizard({
               onGenderChange={setGender}
               onAgeChange={setAge}
               fieldSettings={patientFieldSettings}
-              initialArchPopoverProductId={pendingArchProductId}
+              canEditDoctor={canEditDoctor}
+              onEditDoctorClick={handleEditDoctorClick}
               {...productSearchProps}
+              forceArch={forceArch ?? selectedArch}
             />
           );
         })()}
@@ -2676,6 +3135,21 @@ export default function NewCaseWizard({
         />
       )}
 
+      {/* Patient demographic modal — shown when selected product requires gender/age */}
+      <PatientDemographicModal
+        open={demographicModalOpen}
+        product={pendingProductDetails}
+        productName={pendingProductDetails?.name}
+        initialGender={gender}
+        initialAge={age}
+        onConfirm={handleDemographicConfirm}
+        onCancel={() => {
+          setDemographicModalOpen(false);
+          setPendingFinalize(null);
+          setPendingProductDetails(null);
+        }}
+      />
+
       {/* Cancel slip creation modal (steps 1–3) */}
       <CancelSlipCreationModal
         open={showCancelModal}
@@ -2727,6 +3201,27 @@ export default function NewCaseWizard({
             })
           }
         }}
+      />
+
+      {/* Optional doctor photo upload */}
+      <DoctorPhotoUploadModal
+        isOpen={photoTargetDoctor !== null}
+        onClose={() => setPhotoTargetDoctor(null)}
+        doctor={photoTargetDoctor}
+        customerId={officeIdForDoctors ?? customerId}
+        isSelf={photoTargetDoctor?.id === photoActor.currentUserId}
+        onUploaded={() => refetchDoctors()}
+      />
+
+      {/* Change doctor from patient info and later wizard steps */}
+      <DoctorEditModal
+        open={doctorEditModalOpen}
+        onClose={() => setDoctorEditModalOpen(false)}
+        doctors={doctorsForWizard}
+        selectedDoctorId={selectedDoctor}
+        isLoading={doctorsLoading}
+        error={doctorsError}
+        onSelect={handleDoctorEditSelect}
       />
     </div>
   );

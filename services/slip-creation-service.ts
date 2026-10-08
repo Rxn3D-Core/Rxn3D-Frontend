@@ -77,6 +77,7 @@ export interface SlipCreationExtraction {
 }
 
 export interface SlipCreationAddon {
+  id?: number;
   addon_id: number;
   quantity: number;
   notes?: string;
@@ -108,13 +109,17 @@ export interface SlipCreationTeethSelection {
 }
 
 export interface SlipCreationImplantDetail {
+  id?: number;
   teeth_number: number;
-  implant_id: number;
+  implant_id?: number;
   implant_platform_id?: number;
   implant_platform_size_id?: number;
+  lab_recommendation_requested?: boolean;
+  reference_photo?: string;
 }
 
 export interface SlipCreationAbutmentDetail {
+  id?: number;
   teeth_number: number;
   abutment_id?: number;
   abutment_type_id: number;
@@ -186,6 +191,8 @@ export interface SlipCreationSlip {
   created_by?: number;
   products: SlipCreationProduct[];
   notes?: SlipCreationNote[];
+  /** Attachment ids uploaded before this slip existed. */
+  pending_attachment_ids?: number[];
   pickup_date?: string | null;
   delivery_date?: string | null;
   delivery_time?: string | null;
@@ -276,6 +283,7 @@ export interface SlipCreationResponse {
         delivery_time: string | null;
         pickup_date: string | null;
         pickup_time: string | null;
+        final_date?: string | null;
       } | null;
     }>;
   };

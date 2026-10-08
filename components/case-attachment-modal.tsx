@@ -11,11 +11,13 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
+  Trash2,
 } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import {
   SlipAttachmentsService,
   validateSlipAttachmentFile,
+  SLIP_ATTACHMENT_ACCEPT,
 } from "@/services/slip-attachments-service"
 import type {
   CaseAttachmentsData,
@@ -191,11 +193,11 @@ export default function CaseAttachmentModal({
             </span>
             <button
               type="button"
-              className="ml-auto p-0 hover:text-red-500"
-              title="Delete"
+              className="ml-auto p-0.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+              title="Delete attachment"
               onClick={() => void handleDelete(attachment.id)}
             >
-              <X className="w-2.5 h-2.5" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -256,7 +258,7 @@ export default function CaseAttachmentModal({
         ref={(el) => {
           fileInputRefs.current[slip.id] = el
         }}
-        accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx"
+        accept={SLIP_ATTACHMENT_ACCEPT}
         onChange={(e) => void handleUpload(slip.id, e.target.files)}
       />
     </div>

@@ -8,11 +8,18 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Plus, Loader2, AlertCircle, Trash2 } from "lucide-react"
+import { Plus, Loader2, AlertCircle, Trash2, QrCode } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDriverSlip, QRScanResponseData } from "@/contexts/DriverSlipContext"
 import { useSlipContext } from "../app/lab-case-management/SlipContext"
 import { useToast } from "@/hooks/use-toast"
+import {
+  loadDriverSessionKey,
+  beginPickupAddSlipScan,
+  DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT,
+  DRIVER_QR_SCANNER_CLOSED_EVENT,
+} from "@/lib/driver-qr-scan"
+import { apiClient } from "@/lib/api/client"
 import {
   buildPickupDeliveryEntryFromSlip,
   type PickupDeliveryEntry,
@@ -20,12 +27,23 @@ import {
 import {
   slipPickupDropoffAction,
   slipNextLocationIdFromRef,
+  filterValidQrScanSlips,
+  slipLocationsMatch,
+  slipIsLabDropoff,
+  slipHasPhysicalImpression,
+  googleMapsSearchUrl,
+  slipDirectionsAddress,
   type SlipPickupDropoffAction,
 } from "@/lib/slip-location"
 import { postSlipDriverHistoryChangeLocation } from "@/lib/api/slip-driver-history"
 import { getCurrentUserName } from "@/lib/current-user"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
-import { driverActionRequiresSignature } from "@/lib/slip-settings-utils"
+import {
+  driverActionAllowsMultiple,
+  driverActionPhotoEnabled,
+  driverActionRequiresPhoto,
+  driverActionRequiresSignature,
+} from "@/lib/slip-settings-utils"
 import type { UploadedImage } from "@/lib/image-to-base64"
 import {
   CaseDriverHistorySection,
@@ -33,6 +51,7 @@ import {
   DeliveryModalFooter,
   DeliveryModalHeader,
   ImageDropzone,
+  RowImageUpload,
   SignaturePad,
   type DeliveryInfoField,
 } from "@/components/driver-delivery/delivery-parts"
@@ -69,6 +88,54 @@ function DirectionsIcon() {
   )
 }
 
+/** Opens Google Maps for the lab/office address where the slip is going. */
+function DirectionsLink({
+  locationId,
+  location,
+  labAddress,
+  officeAddress,
+  className,
+}: {
+  locationId?: number
+  location: string
+  labAddress?: string
+  officeAddress?: string
+  className?: string
+}) {
+  const address = slipDirectionsAddress(
+    { locationId, location },
+    { labAddress, officeAddress }
+  )
+  const href = googleMapsSearchUrl(address)
+  if (!href || !address) {
+    return (
+      <span
+        className={cn("inline-flex opacity-40", className)}
+        title="Address unavailable"
+        aria-label="Directions unavailable"
+      >
+        <DirectionsIcon />
+      </span>
+    )
+  }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "inline-flex rounded-md p-0.5 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]",
+        className
+      )}
+      title={`Open directions to ${address}`}
+      aria-label={`Open Google Maps directions to ${address}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <DirectionsIcon />
+    </a>
+  )
+}
+
 interface DriverHistoryModalProps {
   isOpen: boolean
   onClose: () => void
@@ -80,6 +147,10 @@ interface DriverHistoryModalProps {
   onRequestScan?: () => void
   /** QR flow: called after scanned slips are submitted successfully (clear session). */
   onSubmitted?: () => void
+  /** QR flow: parent sync after removing a case (or emptying the batch). */
+  onQrBatchChange?: (remaining: QRScanResponseData[]) => void
+  /** QR flow: clear entire batch + session (parent closes / resets). */
+  onClearBatch?: () => void
 }
 
 export default function DriverHistoryModal({
@@ -90,28 +161,38 @@ export default function DriverHistoryModal({
   singleSlipMode = false,
   onRequestScan,
   onSubmitted,
+  onQrBatchChange,
+  onClearBatch,
 }: DriverHistoryModalProps) {
   const [deliveryEntries, setDeliveryEntries] = useState<DeliveryEntry[]>([])
   const [signature, setSignature] = useState("")
-  const [image, setImage] = useState<UploadedImage | null>(null)
+  /** Proof photos keyed by slip_id — one image per slip when multi-selected. */
+  const [imagesBySlipId, setImagesBySlipId] = useState<
+    Record<number, UploadedImage>
+  >({})
   const { qrScanData: contextQrScanData, qrScanLoading, qrScanError, sessionKey } = useDriverSlip()
-  const { submitScannedSlips, fetchPickupDeliverySlips } = useSlipContext()
+  const { submitScannedSlips, fetchPickupDeliverySlips, removeScannedCase, clearDriverSession } = useSlipContext()
   const { toast } = useToast()
   const [loadingPickup, setLoadingPickup] = useState(false)
   const [pickupError, setPickupError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [removingCaseId, setRemovingCaseId] = useState<number | null>(null)
+  const [clearingBatch, setClearingBatch] = useState(false)
+  const [addingByScan, setAddingByScan] = useState(false)
   const lastFetchedSlipIdRef = useRef<number | null>(null)
+  const addingByScanRef = useRef(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // Convert QR scan data to delivery entries
+  // Convert QR scan data to delivery entries (valid pick-up / drop-off locations only)
   const convertQRDataToDeliveryEntries = (qrData: QRScanResponseData[]): DeliveryEntry[] => {
-    return qrData.map((item, index) => ({
+    return filterValidQrScanSlips(qrData).map((item, index) => ({
       id: `qr-${item.slip_id}-${index}`,
       // Show the code when the backend provides one, otherwise the full name.
       // Note: customer_code is the lab's code here, so it must not feed office.
       office: firstNonEmpty(item.office_code, item.office_name),
       labName: firstNonEmpty(item.lab_code, item.lab_name),
       patientName: item.patient_name,
+      // Prefer real slip location (not current_driver_location display alias).
       location: item.location || item.current_driver_location,
       isChecked: true, // Auto-select QR scanned items
       case_id: item.case_id,
@@ -119,9 +200,19 @@ export default function DriverHistoryModal({
       case_number: item.case_number,
       slip_number: item.slip_number,
       casepan_number: item.casepan_number,
-      location_id: item.location_id,
+      location_id:
+        typeof item.location_id === "number"
+          ? item.location_id
+          : Number(item.location_id) || undefined,
       customer_code: item.customer_code,
       customer_id: item.customer_id,
+      lab_address: firstNonEmpty(item.lab_address) || undefined,
+      office_address: firstNonEmpty(item.office_address) || undefined,
+      // Missing flag ⇒ assume physical so lab drop-off still requires a photo.
+      has_physical_impression:
+        typeof item.has_physical_impression === "boolean"
+          ? item.has_physical_impression
+          : true,
     }))
   }
 
@@ -129,9 +220,13 @@ export default function DriverHistoryModal({
   useEffect(() => {
     if (singleSlipMode) return
     const activeQrData = qrScanData || contextQrScanData?.data
-    if (activeQrData && activeQrData.length > 0) {
-      const qrEntries = convertQRDataToDeliveryEntries(activeQrData)
+    const validQrData = activeQrData ? filterValidQrScanSlips(activeQrData) : []
+    if (validQrData.length > 0) {
+      const qrEntries = convertQRDataToDeliveryEntries(validQrData)
       setDeliveryEntries(qrEntries)
+    } else if (activeQrData && activeQrData.length > 0) {
+      setDeliveryEntries([])
+      setPickupError("No slips in a valid pick-up or drop-off location.")
     }
   }, [qrScanData, contextQrScanData, singleSlipMode])
 
@@ -140,6 +235,43 @@ export default function DriverHistoryModal({
     if (!slip) return null
     return typeof slip === 'number' ? slip : slip.slip_id || slip.id || null
   }, [slip])
+
+  /** Location of the slip that opened this modal. The list stays on this location only. */
+  const anchorLocation = useMemo(() => {
+    if (!slip || typeof slip === "number") return null
+    const raw = slip as Record<string, unknown>
+    const locationObj = raw.location
+    const locationName =
+      typeof locationObj === "string"
+        ? locationObj
+        : firstNonEmpty(
+            (locationObj as { current?: { name?: string }; name?: string } | null)?.current?.name,
+            (locationObj as { name?: string } | null)?.name,
+          )
+    const locationIdRaw = raw.locationId ?? raw.location_id
+    const locationId =
+      typeof locationIdRaw === "number"
+        ? locationIdRaw
+        : Number(locationIdRaw)
+    if (!locationName && !(Number.isFinite(locationId) && locationId > 0)) return null
+    return {
+      locationId: Number.isFinite(locationId) && locationId > 0 ? locationId : undefined,
+      location: locationName,
+    }
+  }, [slip])
+
+  const keepSameLocation = useCallback(
+    (entries: DeliveryEntry[]) => {
+      if (!anchorLocation) return entries
+      return entries.filter((entry) =>
+        slipLocationsMatch(
+          { locationId: entry.location_id, location: entry.location },
+          anchorLocation,
+        ),
+      )
+    },
+    [anchorLocation],
+  )
 
   const pickupDropoffAction = useMemo((): SlipPickupDropoffAction | null => {
     if (!singleSlipMode || !slip) return null
@@ -153,32 +285,180 @@ export default function DriverHistoryModal({
 
   const isDropoff = singleSlipMode && pickupDropoffAction === "dropoff"
   const isPickup = singleSlipMode && pickupDropoffAction === "pickup"
+  const isLabDropoff = useMemo(() => {
+    if (!singleSlipMode || !slip) return false
+    const entry = buildPickupDeliveryEntryFromSlip(slip)
+    if (!entry) return false
+    return slipIsLabDropoff({
+      locationId: entry.location_id,
+      location: entry.location,
+    })
+  }, [singleSlipMode, slip])
 
-  // Per-lab signature requirement settings (loaded while the modal is open).
-  const { driverSettings } = useSignatureRequirementSettings(isOpen)
+  /** Single-slip: physical tray present (default true when unknown). */
+  const singleSlipHasPhysicalImpression = useMemo(() => {
+    if (!singleSlipMode || !slip) return true
+    return slipHasPhysicalImpression(slip)
+  }, [singleSlipMode, slip])
+
+  // Per-lab signature / photo / multi-slip settings (loaded while the modal is open).
+  const { driverSettings, photoSettings, allowMultipleSettings } =
+    useSignatureRequirementSettings(isOpen)
+
+  const entryHasPhysicalImpression = useCallback((entry: DeliveryEntry): boolean => {
+    if (typeof entry.has_physical_impression === "boolean") {
+      return entry.has_physical_impression
+    }
+    // Unknown (e.g. listing without products) — require photo/signature.
+    return true
+  }, [])
 
   // Whether a manual signature is required for this submit, per the lab's
-  // settings mapped from each selected slip's current location. Single-slip
-  // drop-off auto-signs with the current user's name, so it never requires one.
+  // settings mapped from each selected slip's current location (pickup and drop-off).
+  // Fully digital lab drop-offs skip signature even when the lab setting is on.
   const signatureRequired = useMemo(() => {
-    if (isDropoff) return false
     const relevant = singleSlipMode
       ? deliveryEntries
       : deliveryEntries.filter((entry) => entry.isChecked)
-    return relevant.some((entry) =>
-      driverActionRequiresSignature(
-        { locationId: entry.location_id, location: entry.location },
-        driverSettings
-      )
+    return relevant.some((entry) => {
+      const ref = { locationId: entry.location_id, location: entry.location }
+      if (
+        slipIsLabDropoff(ref) &&
+        !entryHasPhysicalImpression(entry)
+      ) {
+        return false
+      }
+      return driverActionRequiresSignature(ref, driverSettings)
+    })
+  }, [singleSlipMode, deliveryEntries, driverSettings, entryHasPhysicalImpression])
+
+  /** Selected slips whose location has photo upload enabled. */
+  const photoEligibleEntries = useMemo(() => {
+    const relevant = singleSlipMode
+      ? deliveryEntries
+      : deliveryEntries.filter((entry) => entry.isChecked)
+    return relevant.filter((entry) => {
+      if (typeof entry.slip_id !== "number") return false
+      const ref = { locationId: entry.location_id, location: entry.location }
+      return driverActionPhotoEnabled(ref, photoSettings)
+    })
+  }, [singleSlipMode, deliveryEntries, photoSettings])
+
+  const photoEligibleSlipIds = useMemo(
+    () =>
+      photoEligibleEntries
+        .map((entry) => entry.slip_id)
+        .filter((id): id is number => typeof id === "number"),
+    [photoEligibleEntries]
+  )
+
+  const showProofPhoto = photoEligibleSlipIds.length > 0
+
+  const photoRequired = useMemo(() => {
+    const relevant = singleSlipMode
+      ? deliveryEntries
+      : deliveryEntries.filter((entry) => entry.isChecked)
+    return relevant.some((entry) => {
+      const ref = { locationId: entry.location_id, location: entry.location }
+      return driverActionRequiresPhoto(ref, photoSettings)
+    })
+  }, [singleSlipMode, deliveryEntries, photoSettings])
+
+  const missingPhotoSlipIds = useMemo(() => {
+    if (!photoRequired) return [] as number[]
+    return photoEligibleSlipIds.filter((id) => !imagesBySlipId[id])
+  }, [photoRequired, photoEligibleSlipIds, imagesBySlipId])
+
+  const entryNeedsPhoto = useCallback(
+    (entry: DeliveryEntry): boolean => {
+      if (typeof entry.slip_id !== "number") return false
+      const ref = { locationId: entry.location_id, location: entry.location }
+      return driverActionPhotoEnabled(ref, photoSettings)
+    },
+    [photoSettings]
+  )
+
+  const entryPhotoRequired = useCallback(
+    (entry: DeliveryEntry): boolean => {
+      if (!entryNeedsPhoto(entry)) return false
+      const ref = { locationId: entry.location_id, location: entry.location }
+      return driverActionRequiresPhoto(ref, photoSettings)
+    },
+    [entryNeedsPhoto, photoSettings]
+  )
+
+  const setSlipImage = useCallback((slipId: number, next: UploadedImage | null) => {
+    setImagesBySlipId((prev) => {
+      if (!next) {
+        if (!(slipId in prev)) return prev
+        const { [slipId]: _removed, ...rest } = prev
+        return rest
+      }
+      return { ...prev, [slipId]: next }
+    })
+  }, [])
+
+  /** Anchor location for multi-slip rules (clicked slip / first listed). */
+  const allowMultiple = useMemo(() => {
+    // Prefer the slip that opened the modal so listing location_id quirks
+    // cannot re-enable Add Slip when multi is off for this location.
+    if (anchorLocation) {
+      return driverActionAllowsMultiple(anchorLocation, allowMultipleSettings)
+    }
+    const anchor =
+      deliveryEntries.find((entry) => entry.isChecked) ?? deliveryEntries[0]
+    if (!anchor) return false
+    return driverActionAllowsMultiple(
+      { locationId: anchor.location_id, location: anchor.location },
+      allowMultipleSettings
     )
-  }, [isDropoff, singleSlipMode, deliveryEntries, driverSettings])
+  }, [deliveryEntries, allowMultipleSettings, anchorLocation])
+
+  /** Keep only the clicked slip when this location disallows multiple. */
+  const limitEntriesForAllowMultiple = useCallback(
+    (entries: DeliveryEntry[]): DeliveryEntry[] => {
+      if (entries.length === 0) return entries
+      const clickedId = slipId != null ? Number(slipId) : null
+      const preferred =
+        (clickedId != null
+          ? entries.find((entry) => entry.slip_id === clickedId)
+          : null) ?? entries[0]
+      const locationRef = anchorLocation ?? {
+        locationId: preferred.location_id,
+        location: preferred.location,
+      }
+      const allows = driverActionAllowsMultiple(locationRef, allowMultipleSettings)
+      if (allows) return entries
+      return [{ ...preferred, isChecked: true }]
+    },
+    [allowMultipleSettings, slipId, anchorLocation]
+  )
 
   const modalCopy = useMemo(
     () => pickupDropoffModalCopy(singleSlipMode ? pickupDropoffAction : null),
     [singleSlipMode, pickupDropoffAction]
   )
 
-  // Logged-in user's name — used as the drop-off signature (captured automatically).
+  /** QR driver batch (header scanner / deep link) — Add Slip opens camera, not manual rows. */
+  const isQrScanFlow = !singleSlipMode && ((qrScanData?.length ?? 0) > 0 || Boolean(onRequestScan))
+
+  const tableEntries = useMemo(
+    () =>
+      isQrScanFlow
+        ? deliveryEntries.filter((entry) => typeof entry.slip_id === "number")
+        : deliveryEntries,
+    [deliveryEntries, isQrScanFlow]
+  )
+
+  /** Show Photo column when this location has photo upload enabled. */
+  const showPhotoColumn = useMemo(() => {
+    if (anchorLocation && driverActionPhotoEnabled(anchorLocation, photoSettings)) {
+      return true
+    }
+    return tableEntries.some((entry) => entryNeedsPhoto(entry))
+  }, [anchorLocation, photoSettings, tableEntries, entryNeedsPhoto])
+
+  // Logged-in user's name — used as the drop-off signature when settings do not require one.
   const currentUserName = useMemo(() => getCurrentUserName(), [isOpen])
 
   const scrollToBottom = useCallback(() => {
@@ -214,7 +494,9 @@ export default function DriverHistoryModal({
       try {
         const res = await fetchPickupDeliverySlips(Number(slipId))
         if (res && res.success && Array.isArray(res.data)) {
-          const entries = convertQRDataToDeliveryEntries(res.data)
+          const entries = limitEntriesForAllowMultiple(
+            keepSameLocation(convertQRDataToDeliveryEntries(res.data))
+          )
           setDeliveryEntries(entries)
           lastFetchedSlipIdRef.current = Number(slipId)
         } else {
@@ -229,50 +511,184 @@ export default function DriverHistoryModal({
     }
 
     void loadPickup()
-  }, [isOpen, slipId, fetchPickupDeliverySlips, singleSlipMode])
+  }, [
+    isOpen,
+    slipId,
+    fetchPickupDeliverySlips,
+    singleSlipMode,
+    keepSameLocation,
+    limitEntriesForAllowMultiple,
+  ])
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setDeliveryEntries([])
       setSignature("")
-      setImage(null)
+      setImagesBySlipId({})
       setPickupError(null)
       setSubmitting(false)
       lastFetchedSlipIdRef.current = null
+      setAddingByScan(false)
+      addingByScanRef.current = false
     }
   }, [isOpen])
 
+  // When multi-slip is disallowed, show only the clicked slip in the listing.
+  useEffect(() => {
+    if (allowMultiple || singleSlipMode) return
+    setDeliveryEntries((prev) => limitEntriesForAllowMultiple(prev))
+  }, [allowMultiple, singleSlipMode, deliveryEntries.length, limitEntriesForAllowMultiple])
+
   // Header checkbox: check if all are selected
-  const allChecked = deliveryEntries.length > 0 && deliveryEntries.every(entry => entry.isChecked)
+  const allChecked = tableEntries.length > 0 && tableEntries.every((entry) => entry.isChecked)
 
   const handleCheckboxToggle = (id: string) => {
-    setDeliveryEntries((prevEntries) =>
-      prevEntries.map((entry) =>
-        entry.id === id ? { ...entry, isChecked: !entry.isChecked } : entry,
-      ),
-    )
+    setDeliveryEntries((prevEntries) => {
+      const target = prevEntries.find((entry) => entry.id === id)
+      if (!target) return prevEntries
+      if (target.isChecked) {
+        return prevEntries.map((entry) =>
+          entry.id === id ? { ...entry, isChecked: false } : entry
+        )
+      }
+      if (!allowMultiple) {
+        return prevEntries.map((entry) => ({
+          ...entry,
+          isChecked: entry.id === id,
+        }))
+      }
+      return prevEntries.map((entry) =>
+        entry.id === id ? { ...entry, isChecked: true } : entry
+      )
+    })
   }
 
-  // Select/deselect all
   const handleAllToggle = () => {
+    if (!allowMultiple) return
     setDeliveryEntries((prevEntries) =>
-      prevEntries.map((entry) => ({ ...entry, isChecked: !allChecked })),
+      prevEntries.map((entry) => ({ ...entry, isChecked: !allChecked }))
     )
   }
 
-  const handleAddCase = () => {
-    const newId = String(Date.now())
-    const newEntry: DeliveryEntry = {
-      id: newId,
-      office: "",
-      labName: "",
-      patientName: "",
-      location: "",
-      isChecked: false,
+  const handleAddSlipClick = () => {
+    if (!allowMultiple) return
+    if (isQrScanFlow) {
+      onRequestScan?.()
+      return
     }
-    setDeliveryEntries((prevEntries) => [...prevEntries, newEntry])
+    const lock = anchorLocation ?? (
+      deliveryEntries.find((entry) => entry.location || entry.location_id)
+        ? {
+            locationId: deliveryEntries.find((entry) => entry.location_id)?.location_id,
+            location: deliveryEntries.find((entry) => entry.location)?.location || "",
+          }
+        : null
+    )
+    if (!lock || (!lock.location && !lock.locationId)) {
+      toast({
+        title: "No location",
+        description: "Open a slip that is ready to pick up or drop off first.",
+        variant: "destructive",
+      })
+      return
+    }
+    addingByScanRef.current = true
+    setAddingByScan(true)
+    beginPickupAddSlipScan({
+      locationId: lock.locationId,
+      location: lock.location,
+    })
   }
+
+  const finishAddByScan = useCallback(() => {
+    addingByScanRef.current = false
+    setAddingByScan(false)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen || singleSlipMode) return
+
+    const onScanned = (event: Event) => {
+      const detail = (event as CustomEvent<{ slipIds?: number[] }>).detail
+      const scannedSlipId = detail?.slipIds?.[0]
+      finishAddByScan()
+      if (typeof scannedSlipId !== "number") return
+
+      void (async () => {
+        try {
+          const { data } = await apiClient.get<unknown>(`/slip/slip/${scannedSlipId}/details`)
+          const root = data && typeof data === "object" ? (data as Record<string, unknown>) : null
+          const details =
+            root?.data && typeof root.data === "object" && !Array.isArray(root.data)
+              ? root.data
+              : data
+          const entry = buildPickupDeliveryEntryFromSlip(details)
+          if (!entry) {
+            toast({
+              title: "Could not add slip",
+              description: "This QR code did not match a slip.",
+              variant: "destructive",
+            })
+            return
+          }
+          const lock = anchorLocation
+          if (
+            lock &&
+            !slipLocationsMatch(
+              { locationId: entry.location_id, location: entry.location },
+              lock,
+            )
+          ) {
+            toast({
+              title: "Different location",
+              description: `That slip is “${entry.location || "another location"}”. Only slips at “${lock.location}” can be added.`,
+              variant: "destructive",
+            })
+            return
+          }
+          let alreadyListed = false
+          let blockedBySingle = false
+          setDeliveryEntries((prev) => {
+            if (prev.some((row) => row.slip_id === entry.slip_id)) {
+              alreadyListed = true
+              return prev
+            }
+            if (!allowMultiple && prev.some((row) => row.isChecked)) {
+              blockedBySingle = true
+              return prev
+            }
+            return [...prev, { ...entry, id: `scan-${entry.slip_id}`, isChecked: true }]
+          })
+          if (alreadyListed) {
+            toast({ title: "Already added", description: "This slip is already in the list." })
+          } else if (blockedBySingle) {
+            toast({
+              title: "One slip at a time",
+              description:
+                "This location only allows one slip per submit. Finish the current slip first.",
+              variant: "destructive",
+            })
+          }
+        } catch {
+          toast({
+            title: "Could not add slip",
+            description: "Failed to look up the scanned slip.",
+            variant: "destructive",
+          })
+        }
+      })()
+    }
+
+    const onClosed = () => finishAddByScan()
+
+    window.addEventListener(DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT, onScanned)
+    window.addEventListener(DRIVER_QR_SCANNER_CLOSED_EVENT, onClosed)
+    return () => {
+      window.removeEventListener(DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT, onScanned)
+      window.removeEventListener(DRIVER_QR_SCANNER_CLOSED_EVENT, onClosed)
+    }
+  }, [isOpen, singleSlipMode, anchorLocation, finishAddByScan, toast, allowMultiple])
 
   const handleUpdateManualEntry = (id: string, field: keyof DeliveryEntry, value: string) => {
     setDeliveryEntries((prevEntries) =>
@@ -285,6 +701,101 @@ export default function DriverHistoryModal({
   const handleDeleteManualEntry = (id: string) => {
     setDeliveryEntries((prevEntries) => prevEntries.filter((entry) => entry.id !== id))
   }
+
+  /** Build remaining QR slips after removing a case (all slips for that case_id). */
+  const remainingQrSlipsAfterCaseRemoval = useCallback(
+    (caseId: number): QRScanResponseData[] => {
+      const source = (qrScanData || contextQrScanData?.data || []) as QRScanResponseData[]
+      return filterValidQrScanSlips(source.filter((s) => s.case_id !== caseId))
+    },
+    [qrScanData, contextQrScanData],
+  )
+
+  const handleRemoveQrCase = useCallback(
+    async (caseId: number) => {
+      if (!isQrScanFlow || removingCaseId != null) return
+      setRemovingCaseId(caseId)
+      try {
+        const key = loadDriverSessionKey() || sessionKey
+        if (key) {
+          const res = await removeScannedCase(key, caseId)
+          if (res && res.success === false) {
+            toast({
+              title: "Could not remove case",
+              description: res.message || "Please try again.",
+              variant: "destructive",
+            })
+            return
+          }
+        }
+
+        const remaining = remainingQrSlipsAfterCaseRemoval(caseId)
+        setDeliveryEntries((prev) => prev.filter((e) => e.case_id !== caseId))
+        onQrBatchChange?.(remaining)
+
+        if (remaining.length === 0) {
+          toast({ title: "Batch cleared", description: "All scanned cases were removed.", duration: 3000 })
+          onClearBatch?.()
+          return
+        }
+
+        toast({
+          title: "Case removed",
+          description: "Removed from this pickup batch. You can scan it again if needed.",
+          duration: 3000,
+        })
+      } catch {
+        toast({
+          title: "Could not remove case",
+          description: "Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setRemovingCaseId(null)
+      }
+    },
+    [
+      isQrScanFlow,
+      removingCaseId,
+      sessionKey,
+      removeScannedCase,
+      remainingQrSlipsAfterCaseRemoval,
+      onQrBatchChange,
+      onClearBatch,
+      toast,
+    ],
+  )
+
+  const handleClearBatch = useCallback(async () => {
+    if (!isQrScanFlow || clearingBatch) return
+    setClearingBatch(true)
+    try {
+      const key = loadDriverSessionKey() || sessionKey
+      if (key) {
+        await clearDriverSession(key)
+      }
+      setDeliveryEntries([])
+      onQrBatchChange?.([])
+      toast({ title: "Batch cleared", description: "All scanned cases were removed.", duration: 3000 })
+      onClearBatch?.()
+    } catch {
+      toast({
+        title: "Could not clear batch",
+        description: "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setClearingBatch(false)
+    }
+  }, [
+    isQrScanFlow,
+    clearingBatch,
+    sessionKey,
+    clearDriverSession,
+    onQrBatchChange,
+    onClearBatch,
+    toast,
+  ])
 
   const handleRejectedImages = (names: string[]) => {
     toast({
@@ -303,10 +814,35 @@ export default function DriverHistoryModal({
       return
     }
 
-    // Drop off captures the current user's signature automatically; pick up needs a
-    // manual signature only when the lab's settings require it for the slip's location.
-    const effectiveSignature = isDropoff ? currentUserName : signature.trim()
-    if (!isDropoff && signatureRequired && !effectiveSignature) {
+    if (!allowMultiple && selectedCases.length > 1) {
+      toast({
+        title: "One slip at a time",
+        description: "This location only allows one slip per submit.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (missingPhotoSlipIds.length > 0) {
+      toast({
+        title: "Photo required",
+        description: "Please attach a proof photo for each selected slip.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // When slip settings require a signature for this location, use the pad input.
+    // Drop-off with signature disabled still auto-signs with the current user's name,
+    // except fully digital lab drop-offs (no physical tray) skip signature entirely.
+    const skipSignatureForDigitalLabDropoff =
+      isLabDropoff && !singleSlipHasPhysicalImpression
+    const effectiveSignature = signatureRequired
+      ? signature.trim()
+      : isDropoff && !skipSignatureForDigitalLabDropoff
+        ? currentUserName
+        : signature.trim()
+    if (signatureRequired && !effectiveSignature) {
       toast({ title: "Signature required", description: "Please enter your signature.", variant: "destructive" })
       return
     }
@@ -334,14 +870,15 @@ export default function DriverHistoryModal({
             return
           }
 
+          const singleImage = imagesBySlipId[slipIds[0]]
           const result = await postSlipDriverHistoryChangeLocation({
             slip_ids: slipIds,
             to_location_id: toLocationId,
             notes: effectiveSignature || undefined,
-            // Drop-off proof photo (one per slip). Optional; pick up sends none.
+            // Proof photo when present (and location has photo enabled).
             images:
-              isDropoff && image
-                ? { [slipIds[0]]: image.file }
+              showProofPhoto && singleImage
+                ? { [slipIds[0]]: singleImage.file }
                 : undefined,
           })
           if (result.success) {
@@ -362,7 +899,21 @@ export default function DriverHistoryModal({
           return
         }
 
-        const result = await submitScannedSlips(slipIds, effectiveSignature)
+        const proofImages =
+          photoEligibleSlipIds.length > 0
+            ? Object.fromEntries(
+                photoEligibleSlipIds
+                  .filter((id) => imagesBySlipId[id])
+                  .map((id) => [id, imagesBySlipId[id].file])
+              )
+            : undefined
+
+        const result = await submitScannedSlips(slipIds, effectiveSignature, {
+          images:
+            proofImages && Object.keys(proofImages).length > 0
+              ? proofImages
+              : undefined,
+        })
         if (result && result.success) {
           toast({ title: "Submission Successful", description: result.message || "Scanned slips submitted successfully", duration: 3000 })
           onSubmitted?.()
@@ -406,14 +957,42 @@ export default function DriverHistoryModal({
     : []
 
   const confirmDisabled = singleSlipMode
-    ? deliveryEntries.length === 0 || (isPickup && signatureRequired && !signature.trim())
-    : deliveryEntries.filter((e) => e.isChecked).length === 0 || (signatureRequired && !signature.trim())
+    ? deliveryEntries.length === 0 ||
+      (signatureRequired && !signature.trim()) ||
+      missingPhotoSlipIds.length > 0
+    : deliveryEntries.filter((e) => e.isChecked).length === 0 ||
+      (signatureRequired && !signature.trim()) ||
+      missingPhotoSlipIds.length > 0
+
+  const proofPhotoHint = photoRequired
+    ? "Photo required for this slip"
+    : "Photo optional for this slip"
+
+  const singleListedSlipId = useMemo(() => {
+    if (singleSlipMode && typeof singleEntry?.slip_id === "number") {
+      return singleEntry.slip_id
+    }
+    if (tableEntries.length === 1 && typeof tableEntries[0]?.slip_id === "number") {
+      return tableEntries[0].slip_id as number
+    }
+    return null
+  }, [singleSlipMode, singleEntry, tableEntries])
+
+  const singleSlipPhotoId =
+    singleListedSlipId ??
+    (typeof photoEligibleSlipIds[0] === "number" ? photoEligibleSlipIds[0] : undefined)
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      modal={!addingByScan}
+      onOpenChange={(open) => {
+        if (!open && !addingByScanRef.current) onClose()
+      }}
+    >
       <DialogContent
         showCloseButton={false}
-        className="flex w-[min(96vw,1080px)] max-w-none flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white p-0 shadow-xl max-h-[90dvh]"
+        className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 bg-white p-0 shadow-xl sm:h-auto sm:max-h-[90dvh] sm:w-[min(96vw,1080px)] sm:rounded-xl sm:border sm:border-[#E5E7EB]"
       >
         <DialogTitle className="sr-only">{modalCopy.title}</DialogTitle>
 
@@ -427,7 +1006,7 @@ export default function DriverHistoryModal({
           onClose={onClose}
         />
 
-        <div ref={scrollContainerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-2 sm:px-8">
+        <div ref={scrollContainerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-2 sm:px-8">
           {!singleSlipMode && contextQrScanData ? (
             <p className="mb-3 text-xs text-green-700">
               QR scanned ({contextQrScanData.scanned_cases_count} cases)
@@ -453,19 +1032,75 @@ export default function DriverHistoryModal({
                 onLoaded={scrollToBottom}
               />
 
-              {isDropoff ? (
+              {showProofPhoto && typeof singleSlipPhotoId === "number" ? (
                 <div className="space-y-3 pt-2">
                   <ImageDropzone
-                    image={image}
-                    onChange={setImage}
+                    image={imagesBySlipId[singleSlipPhotoId] ?? null}
+                    onChange={(next) => setSlipImage(singleSlipPhotoId, next)}
                     onRejected={handleRejectedImages}
+                    required={photoRequired}
+                    hint={proofPhotoHint}
                   />
-                  <p className="text-center text-sm text-[#6B7280]">
-                    Signed automatically as{" "}
-                    <span className="font-semibold text-[#111827]">
-                      {currentUserName || "current user"}
-                    </span>
-                  </p>
+                  {isDropoff ? (
+                    signatureRequired ? (
+                      <SignaturePad
+                        value={signature}
+                        onChange={setSignature}
+                        onSubmit={() => {
+                          if (!confirmDisabled && !submitting) void handleSubmit();
+                        }}
+                        placeholder="Receiver's Signature"
+                      />
+                    ) : (
+                      <p className="text-center text-sm text-[#6B7280]">
+                        {isLabDropoff && !singleSlipHasPhysicalImpression
+                          ? "Digital case — signature not required"
+                          : (
+                            <>
+                              Signed automatically as{" "}
+                              <span className="font-semibold text-[#111827]">
+                                {currentUserName || "current user"}
+                              </span>
+                            </>
+                          )}
+                      </p>
+                    )
+                  ) : signatureRequired ? (
+                    <SignaturePad
+                      value={signature}
+                      onChange={setSignature}
+                      onSubmit={() => {
+                        if (!confirmDisabled && !submitting) void handleSubmit();
+                      }}
+                      placeholder="Receiver's Signature"
+                    />
+                  ) : null}
+                </div>
+              ) : isDropoff ? (
+                <div className="space-y-3 pt-2">
+                  {signatureRequired ? (
+                    <SignaturePad
+                      value={signature}
+                      onChange={setSignature}
+                      onSubmit={() => {
+                        if (!confirmDisabled && !submitting) void handleSubmit();
+                      }}
+                      placeholder="Receiver's Signature"
+                    />
+                  ) : (
+                    <p className="text-center text-sm text-[#6B7280]">
+                      {isLabDropoff && !singleSlipHasPhysicalImpression
+                        ? "Digital case — signature not required"
+                        : (
+                          <>
+                            Signed automatically as{" "}
+                            <span className="font-semibold text-[#111827]">
+                              {currentUserName || "current user"}
+                            </span>
+                          </>
+                        )}
+                    </p>
+                  )}
                 </div>
               ) : signatureRequired ? (
                 <div className="pt-2">
@@ -490,9 +1125,129 @@ export default function DriverHistoryModal({
                 </div>
               ) : null}
 
+              {/* Mobile: card list (QR / multi-slip) */}
+              <div className="space-y-3 md:hidden">
+                {loadingPickup ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div
+                      key={`m-skel-${i}`}
+                      className="h-24 animate-pulse rounded-xl border border-[#E5E7EB] bg-gray-100"
+                    />
+                  ))
+                ) : tableEntries.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-[#E5E7EB] px-4 py-8 text-center text-sm text-gray-600">
+                    {isQrScanFlow
+                      ? 'No slips scanned yet. Tap "Scan Slip" to scan a QR code.'
+                      : 'No slips at this location. Click "Add Slip" to scan a QR code.'}
+                  </p>
+                ) : (
+                  tableEntries.map((entry) => {
+                    const isManual = !entry.slip_id
+                    const rowAction = slipPickupDropoffAction({
+                      locationId: entry.location_id,
+                      location: entry.location,
+                    })
+                    return (
+                      <div
+                        key={`m-${entry.id}`}
+                        className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm"
+                      >
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-base font-semibold text-[#111827]">
+                              {entry.patientName || "—"}
+                            </p>
+                            <p className="mt-0.5 text-sm text-[#6B7280]">
+                              {[entry.office, entry.labName].filter(Boolean).join(" · ") || "—"}
+                            </p>
+                          </div>
+                          <Checkbox
+                            checked={entry.isChecked}
+                            onCheckedChange={() => handleCheckboxToggle(entry.id)}
+                            className="mt-1 h-5 w-5 border-[#1162A8] data-[state=checked]:border-[#1162A8] data-[state=checked]:bg-[#1162A8]"
+                            aria-label={`Select ${entry.patientName || "entry"}`}
+                          />
+                        </div>
+                        {typeof entry.slip_id === "number" && showPhotoColumn ? (
+                          <div className="mb-3">
+                            <RowImageUpload
+                              image={imagesBySlipId[entry.slip_id] ?? null}
+                              onChange={(next) =>
+                                setSlipImage(entry.slip_id as number, next)
+                              }
+                              onRejected={handleRejectedImages}
+                              required={
+                                entry.isChecked && entryPhotoRequired(entry)
+                              }
+                              label="Proof photo"
+                            />
+                          </div>
+                        ) : null}
+                        <div className="flex items-center gap-2 text-sm text-[#374151]">
+                          {rowAction ? (
+                            <Image
+                              src={
+                                rowAction === "dropoff"
+                                  ? "/icons/virtual-slip-center/drop-off.svg"
+                                  : "/icons/virtual-slip-center/pick-up.svg"
+                              }
+                              alt={rowAction === "dropoff" ? "Drop off" : "Pick up"}
+                              width={20}
+                              height={20}
+                              className="h-5 w-5 shrink-0"
+                            />
+                          ) : null}
+                          <span className="min-w-0 flex-1 leading-snug">{entry.location || "—"}</span>
+                          {!isManual ? (
+                            <DirectionsLink
+                              locationId={entry.location_id}
+                              location={entry.location}
+                              labAddress={entry.lab_address}
+                              officeAddress={entry.office_address}
+                              className="shrink-0"
+                            />
+                          ) : null}
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          {isManual ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-10 text-red-600 hover:bg-red-50"
+                              onClick={() => handleDeleteManualEntry(entry.id)}
+                              type="button"
+                            >
+                              <Trash2 className="mr-1.5 h-4 w-4" />
+                              Remove
+                            </Button>
+                          ) : isQrScanFlow && typeof entry.case_id === "number" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-10 text-red-600 hover:bg-red-50"
+                              onClick={() => void handleRemoveQrCase(entry.case_id as number)}
+                              type="button"
+                              disabled={removingCaseId === entry.case_id || clearingBatch}
+                            >
+                              {removingCaseId === entry.case_id ? (
+                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="mr-1.5 h-4 w-4" />
+                              )}
+                              Remove
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Desktop: table */}
               <div
                 className={cn(
-                  "w-full overflow-x-auto",
+                  "hidden w-full overflow-x-auto md:block",
                   tableScrollable && "max-h-[min(42dvh,320px)] overflow-y-auto",
                 )}
               >
@@ -505,6 +1260,7 @@ export default function DriverHistoryModal({
                         <Checkbox
                           checked={allChecked}
                           onCheckedChange={handleAllToggle}
+                          disabled={!allowMultiple}
                           className="mx-auto border-[#1162A8] data-[state=checked]:border-[#1162A8] data-[state=checked]:bg-[#1162A8] data-[state=checked]:text-white"
                           aria-label="Select all"
                         />
@@ -512,6 +1268,11 @@ export default function DriverHistoryModal({
                       <th className="w-[88px] px-3 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-4">Lab</th>
                       <th className="w-[88px] px-3 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-4">Office</th>
                       <th className="min-w-[140px] px-4 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-5">Patient Name</th>
+                      {showPhotoColumn ? (
+                        <th className="min-w-[120px] px-2 py-3 text-center text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">
+                          Photo
+                        </th>
+                      ) : null}
                       <th className="w-[52px] px-2 py-3" />
                     </tr>
                   </thead>
@@ -519,24 +1280,28 @@ export default function DriverHistoryModal({
                     {loadingPickup ? (
                       Array.from({ length: 3 }).map((_, i) => (
                         <tr key={`skeleton-${i}`} className="border-b border-dashed border-[#E5E7EB]">
-                          <td colSpan={7} className="px-5 py-4">
+                          <td colSpan={8} className="px-5 py-4">
                             <div className="h-4 w-full max-w-md animate-pulse rounded bg-gray-200" />
                           </td>
                         </tr>
                       ))
-                    ) : deliveryEntries.length === 0 ? (
+                    ) : tableEntries.length === 0 ? (
                       <tr className="border-b border-dashed border-[#E5E7EB]">
-                        <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-600">
-                          No entries available. Click &quot;Add Slip&quot; to add one manually or scan a QR code.
+                        <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-600">
+                          {isQrScanFlow
+                            ? 'No slips scanned yet. Tap "Scan Slip" to scan a QR code.'
+                            : 'No slips at this location. Click "Add Slip" to scan a QR code.'}
                         </td>
                       </tr>
                     ) : (
-                      deliveryEntries.map((entry) => {
+                      tableEntries.map((entry) => {
                         const isManual = !entry.slip_id
                         const rowAction = slipPickupDropoffAction({
                           locationId: entry.location_id,
                           location: entry.location,
                         })
+                        const showRowPhoto =
+                          typeof entry.slip_id === "number" && showPhotoColumn
                         return (
                           <tr key={entry.id} className="border-b border-dashed border-[#E5E7EB] text-[14px] text-[#374151] last:border-b-0">
                             <td className="px-4 py-4 align-middle sm:px-5">
@@ -568,7 +1333,14 @@ export default function DriverHistoryModal({
                               )}
                             </td>
                             <td className="px-2 py-4 text-center align-middle">
-                              {!isManual ? <DirectionsIcon /> : null}
+                              {!isManual ? (
+                                <DirectionsLink
+                                  locationId={entry.location_id}
+                                  location={entry.location}
+                                  labAddress={entry.lab_address}
+                                  officeAddress={entry.office_address}
+                                />
+                              ) : null}
                             </td>
                             <td className="px-2 py-4 text-center align-middle">
                               <Checkbox
@@ -615,6 +1387,26 @@ export default function DriverHistoryModal({
                                 <span>{entry.patientName}</span>
                               )}
                             </td>
+                            {showPhotoColumn ? (
+                              <td className="px-2 py-4 text-center align-middle">
+                                {showRowPhoto ? (
+                                  <RowImageUpload
+                                    image={
+                                      imagesBySlipId[entry.slip_id as number] ??
+                                      null
+                                    }
+                                    onChange={(next) =>
+                                      setSlipImage(entry.slip_id as number, next)
+                                    }
+                                    onRejected={handleRejectedImages}
+                                    required={
+                                      entry.isChecked && entryPhotoRequired(entry)
+                                    }
+                                    label="Proof photo"
+                                  />
+                                ) : null}
+                              </td>
+                            ) : null}
                             <td className="px-2 py-4 text-center align-middle">
                               {isManual ? (
                                 <Button
@@ -627,6 +1419,22 @@ export default function DriverHistoryModal({
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
+                              ) : isQrScanFlow && typeof entry.case_id === "number" ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                                  onClick={() => void handleRemoveQrCase(entry.case_id as number)}
+                                  title="Remove from batch"
+                                  type="button"
+                                  disabled={removingCaseId === entry.case_id || clearingBatch}
+                                >
+                                  {removingCaseId === entry.case_id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </Button>
                               ) : null}
                             </td>
                           </tr>
@@ -637,16 +1445,41 @@ export default function DriverHistoryModal({
                 </table>
               </div>
 
-              <div className="mt-4 flex justify-center">
-                <Button
-                  variant="outline"
-                  className="border-[#1162A8] text-[#1162A8] hover:bg-blue-50"
-                  onClick={onRequestScan ?? handleAddCase}
-                  type="button"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Slip
-                </Button>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
+                {allowMultiple ? (
+                  <Button
+                    variant="outline"
+                    className="h-12 w-full border-[#1162A8] text-base text-[#1162A8] hover:bg-blue-50 sm:h-10 sm:w-auto sm:text-sm"
+                    onClick={handleAddSlipClick}
+                    type="button"
+                    disabled={
+                      (isQrScanFlow && !onRequestScan) || clearingBatch || removingCaseId != null
+                    }
+                  >
+                    {isQrScanFlow ? (
+                      <QrCode className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" />
+                    )}
+                    {isQrScanFlow ? "Scan Slip" : "Add Slip"}
+                  </Button>
+                ) : null}
+                {isQrScanFlow && tableEntries.length > 0 ? (
+                  <Button
+                    variant="outline"
+                    className="h-12 w-full border-red-300 text-base text-red-700 hover:bg-red-50 sm:h-10 sm:w-auto sm:text-sm"
+                    onClick={() => void handleClearBatch()}
+                    type="button"
+                    disabled={clearingBatch || removingCaseId != null}
+                  >
+                    {clearingBatch ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Clear Batch
+                  </Button>
+                ) : null}
               </div>
 
               {signatureRequired && (
@@ -670,6 +1503,8 @@ export default function DriverHistoryModal({
           onConfirm={handleSubmit}
           confirmLabel={modalCopy.confirmLabel}
           confirmDisabled={confirmDisabled}
+          // Drop-off / signature: hide Confirm until required fields are done.
+          hideConfirmUntilReady={showProofPhoto || signatureRequired || photoRequired}
           submitting={submitting}
         />
       </DialogContent>

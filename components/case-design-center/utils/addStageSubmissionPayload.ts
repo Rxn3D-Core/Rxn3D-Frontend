@@ -1,5 +1,6 @@
 import type { SlipProductSnapshot } from "../types";
 import {
+  groupProductsIntoSlips,
   partitionAdvanceFieldsForMultipart,
   prefetchImplantCatalogsForSnapshots,
 } from "./slipPayloadMappers";
@@ -18,9 +19,9 @@ export interface BuildAddStagePayloadParams {
   caseSummaryNotes?: string;
 }
 
-export async function buildAddStageSubmissionPayloadAsync(
+export async function buildAddStageSubmissionPayloadsAsync(
   params: BuildAddStagePayloadParams
-): Promise<AddStageToSlipPayload> {
+): Promise<AddStageToSlipPayload[]> {
   const { snapshots, sourceSlipLocationId, labCustomerId, createdBy, caseSummaryNotes } = params;
 
   const filteredSnapshots = snapshots.filter(
@@ -36,17 +37,8 @@ export async function buildAddStageSubmissionPayloadAsync(
     snapshotToProduct(snap, implantCatalogs.get(snap.productId))
   );
 
-  products.forEach((product) => {
-    const { jsonFields } = partitionAdvanceFieldsForMultipart(
-      product.advance_fields,
-      0,
-      0
-    );
-    product.advance_fields = jsonFields;
-  });
-
-  clearProductNotesWhenUsingCaseSummary(products, caseSummaryNotes);
-  const slipNotes = buildSlipLevelNotes(products, caseSummaryNotes, 0);
+  const slipProductGroups = groupProductsIntoSlips(products);
+  const totalSlips = slipProductGroups.length;
 
   const userId =
     createdBy ??
@@ -54,13 +46,36 @@ export async function buildAddStageSubmissionPayloadAsync(
       ? Number(localStorage.getItem("userId")) || undefined
       : undefined);
 
-  const slipNotesFromProducts = slipNotes;
+  return slipProductGroups.map((slipProducts, slipIndex) => {
+    slipProducts.forEach((product, productIndex) => {
+      const { jsonFields } = partitionAdvanceFieldsForMultipart(
+        product.advance_fields,
+        slipIndex,
+        productIndex
+      );
+      product.advance_fields = jsonFields;
+    });
 
-  return {
-    ...(sourceSlipLocationId ? { location_id: sourceSlipLocationId } : {}),
-    status: "In Progress",
-    ...(userId ? { created_by: userId } : {}),
-    products,
-    ...(slipNotesFromProducts.length > 0 ? { notes: slipNotesFromProducts } : {}),
-  };
+    clearProductNotesWhenUsingCaseSummary(slipProducts, caseSummaryNotes, totalSlips);
+    const slipNotes = buildSlipLevelNotes(slipProducts, caseSummaryNotes, slipIndex, totalSlips);
+
+    return {
+      ...(sourceSlipLocationId ? { location_id: sourceSlipLocationId } : {}),
+      status: "In Progress",
+      ...(userId ? { created_by: userId } : {}),
+      products: slipProducts,
+      ...(slipNotes.length > 0 ? { notes: slipNotes } : {}),
+    };
+  });
+}
+
+/** @deprecated Use buildAddStageSubmissionPayloadsAsync for grouped add-stage slips */
+export async function buildAddStageSubmissionPayloadAsync(
+  params: BuildAddStagePayloadParams
+): Promise<AddStageToSlipPayload> {
+  const payloads = await buildAddStageSubmissionPayloadsAsync(params);
+  if (payloads.length === 0) {
+    return { status: "In Progress", products: [] };
+  }
+  return payloads[0];
 }

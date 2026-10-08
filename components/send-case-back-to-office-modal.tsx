@@ -49,7 +49,7 @@ export default function SendCaseBackToOfficeModal({
         if (!next && !loading) onClose()
       }}
     >
-      <DialogContent className="max-w-lg gap-0 rounded-[20px] border border-[#E5E7EB] p-0 shadow-xl">
+      <DialogContent className="w-[calc(100%-1.5rem)] max-w-lg gap-0 rounded-[20px] border border-[#E5E7EB] p-0 shadow-xl sm:w-full">
         <DialogHeader className="sr-only">
           <DialogTitle>Send back to office</DialogTitle>
           <DialogDescription>

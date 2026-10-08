@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, Filter, Search, Plus, ChevronDown, Pencil, Trash2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Filter, Search, Plus, ChevronDown, Pencil, Trash2, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,12 +17,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { StaffUserDetail } from "@/components/lab-administrator/staff-user-detail"
-import { AddUserForm } from "@/components/lab-administrator/add-user-form"
+import { CreateUserModal } from "@/components/office-administrator/create-user-modal"
+import { SearchInviteUserModal } from "@/components/office-administrator/search-invite-user-modal"
+import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
+import { ResetUserPasswordModal } from "@/components/office-administrator/reset-user-password-modal"
 import { useAuth } from "@/contexts/auth-context"
 import { useCustomer } from "@/contexts/customer-context"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { normalizeUserStatus, type UserStatus } from "@/lib/user-status"
 
 interface StaffUser {
   id: number
@@ -31,7 +34,8 @@ interface StaffUser {
   phone: string
   userType: string
   joinDate: string
-  status: "Active" | "Inactive" | "Suspended" | "Archived"
+  status: UserStatus
+  membershipStatus?: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded"
   avatar?: string
   avatarColor?: string
   uuid?: string
@@ -90,16 +94,19 @@ const deriveRoleAndDepartments = (apiUser: any) => {
 
 export default function StaffManagementPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { toast } = useToast()
-  const { user, fetchUsers, updateUser, hasPermission } = useAuth()
+  const { user, fetchUsers, updateUser, updateMembershipStatus, hasPermission } = useAuth()
   const { removeCustomerRoleFromUser } = useCustomer()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [showFilterPanel, setShowFilterPanel] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null)
+  const [showSearchInvite, setShowSearchInvite] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
+  const [createPrefill, setCreatePrefill] = useState<{ first_name?: string; last_name?: string; email?: string }>({})
+  const [showUpdateUser, setShowUpdateUser] = useState(false)
   const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
   const [userToRemove, setUserToRemove] = useState<StaffUser | null>(null)
   const [isRemoving, setIsRemoving] = useState(false)
   const [entriesPerPage, setEntriesPerPage] = useState("20")
@@ -160,6 +167,16 @@ export default function StaffManagementPage() {
       // Transform API response to StaffUser format
       const transformedUsers: StaffUser[] = response.data.map((apiUser: any, index: number) => {
         const { role, userType, department } = deriveRoleAndDepartments(apiUser)
+        const selectedCustomerId = Number(localStorage.getItem("customerId") || 0)
+        const scopedCustomer = Array.isArray(apiUser.customers)
+          ? apiUser.customers.find((c: any) => Number(c?.id) === selectedCustomerId) || apiUser.customers[0]
+          : null
+        const membershipRaw = scopedCustomer?.status || "Active"
+        const membershipStatus = (
+          ["Active", "Inactive", "Suspended", "Archived", "Offboarded"].includes(membershipRaw)
+            ? membershipRaw
+            : "Active"
+        ) as StaffUser["membershipStatus"]
         return {
           id: apiUser.id,
           uuid: apiUser.uuid,
@@ -170,7 +187,8 @@ export default function StaffManagementPage() {
           role,
           department,
           joinDate: apiUser.created_at ? new Date(apiUser.created_at).toLocaleDateString('en-US') : "-",
-          status: apiUser.status as "Active" | "Inactive" | "Suspended" | "Archived",
+          status: normalizeUserStatus(apiUser.status),
+          membershipStatus,
           avatarColor: avatarColors[index % avatarColors.length],
           work_number: apiUser.work_number,
           roles: apiUser.roles,
@@ -194,17 +212,6 @@ export default function StaffManagementPage() {
     loadStaffUsers()
   }, [loadStaffUsers])
 
-  // Check URL params for user detail view
-  useEffect(() => {
-    const userId = searchParams.get("userId")
-    if (userId) {
-      const user = staffUsers.find((u) => u.id === Number.parseInt(userId))
-      if (user) {
-        setSelectedUser(user)
-      }
-    }
-  }, [searchParams, staffUsers])
-
   // Filter staff users based on search term and status filter
   const filteredUsers = staffUsers.filter((user) => {
     const matchesSearch =
@@ -212,7 +219,9 @@ export default function StaffManagementPage() {
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.phone.includes(searchTerm)
 
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter
+    const matchesStatus =
+      statusFilter === "all" ||
+      (user.membershipStatus || user.status) === statusFilter
 
     return matchesSearch && matchesStatus
   })
@@ -232,23 +241,21 @@ export default function StaffManagementPage() {
     setAllSelected(!allSelected)
   }
 
-  // Handle view user details
-  const handleViewUser = (user: StaffUser) => {
-    setSelectedUser(user)
-    router.replace(`/lab-administrator/staff-management?userId=${user.id}`)
-  }
-
-  // Handle edit user – open the same form as create, in edit mode
+  // Handle edit user – same Update User modal as superadmin
   const handleEditUser = (user: StaffUser) => {
     setUserToUpdate(user)
-    setSelectedUser(null)
-    setShowAddUser(false)
-    router.replace(`/lab-administrator/staff-management?action=edit&userId=${user.id}`)
+    setShowUpdateUser(true)
   }
 
-  // Handle successful user update – refresh the list and return to it
+  const handleResetPassword = (user: StaffUser) => {
+    setUserToResetPassword(user)
+    setShowResetPassword(true)
+  }
+
+  // Handle successful user update – refresh the list
   const handleUpdateUserSuccess = () => {
-    handleBackToList()
+    setShowUpdateUser(false)
+    setUserToUpdate(null)
     loadStaffUsers()
   }
 
@@ -270,10 +277,10 @@ export default function StaffManagementPage() {
       const success = await removeCustomerRoleFromUser(customerId, userToRemove.id)
       if (success) {
         toast({
-          title: "User Removed",
-          description: `${userToRemove.name} has been removed from this customer.`,
+          title: "Offboarded",
+          description: `${userToRemove.name} is marked Offboarded for this organization. History stays intact.`,
         })
-        setStaffUsers((prev) => prev.filter((u) => u.id !== userToRemove.id))
+        loadStaffUsers()
         setUserToRemove(null)
       }
     } finally {
@@ -281,24 +288,15 @@ export default function StaffManagementPage() {
     }
   }
 
-  // Handle add new user
+  // Handle add new user – search existing first, then create
   const handleAddUser = () => {
-    setShowAddUser(true)
-    setSelectedUser(null)
-    router.replace("/lab-administrator/staff-management?action=add")
+    setShowSearchInvite(true)
   }
 
-  // Handle back to list
-  const handleBackToList = () => {
-    setSelectedUser(null)
-    setShowAddUser(false)
-    setUserToUpdate(null)
-    router.replace("/lab-administrator/staff-management")
-  }
-
-  // Handle successful user creation – refresh the list and return to it
+  // Handle successful user creation / invite – refresh the list
   const handleAddUserSuccess = () => {
-    handleBackToList()
+    setShowSearchInvite(false)
+    setShowAddUser(false)
     loadStaffUsers()
   }
 
@@ -313,38 +311,62 @@ export default function StaffManagementPage() {
         return "bg-[#fff3e1] text-[#ff9500]"
       case "Archived":
         return "bg-[#f8dddd] text-[#eb0303]"
+      case "Offboarded":
+        return "bg-[#f3f4f6] text-[#6b7280] border border-[#d1d5db]"
       default:
         return "bg-[#eeeeee] text-[#a19d9d]"
     }
   }
 
-  // Handle status change
+  // Per-organization membership status only (not global users.status)
   const handleStatusChange = async (userId: number, newStatus: string) => {
-    
+    const customerId = Number(localStorage.getItem("customerId") || 0)
+    if (!customerId) {
+      toast({
+        title: "Error",
+        description: "No organization selected.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
-      // Update status via API
-      const result = await updateUser(userId, { status: newStatus });
-      
-      // Update local state on successful API call
+      const membershipStatus = newStatus as
+        | "Active"
+        | "Inactive"
+        | "Suspended"
+        | "Archived"
+        | "Offboarded"
+      await updateMembershipStatus(userId, customerId, membershipStatus)
+
       setStaffUsers((prevUsers) =>
         prevUsers.map((user) =>
-          user.id === userId ? { ...user, status: newStatus as "Active" | "Inactive" | "Suspended" | "Archived" } : user,
+          user.id === userId
+            ? {
+                ...user,
+                membershipStatus,
+                status:
+                  membershipStatus === "Offboarded"
+                    ? user.status
+                    : (membershipStatus as StaffUser["status"]),
+              }
+            : user,
         ),
       )
-      
+
       setShowStatusDropdown(null)
       setDropdownPosition(null)
-      
+
       toast({
         title: "Status Updated",
-        description: `User status has been successfully updated to ${newStatus}.`,
+        description: `Status for this organization changed to ${newStatus}.`,
         variant: "default",
       })
-    } catch (error) {
-      console.error("Failed to update user status:", error)
+    } catch (error: any) {
+      console.error("Failed to update membership status:", error)
       toast({
         title: "Update Failed",
-        description: "Failed to update user status. Please try again.",
+        description: error?.message || "Failed to update status. Please try again.",
         variant: "destructive",
       })
     }
@@ -365,21 +387,7 @@ export default function StaffManagementPage() {
     }
   }
 
-  // If showing user detail, add user form, or edit user form
-  if (selectedUser || showAddUser || userToUpdate) {
-    return (
-      <div className="h-full">
-        {selectedUser ? (
-          <StaffUserDetail user={selectedUser} onBack={handleBackToList} />
-        ) : userToUpdate ? (
-          <AddUserForm user={userToUpdate} onCancel={handleBackToList} onSuccess={handleUpdateUserSuccess} />
-        ) : (
-          <AddUserForm onCancel={handleBackToList} onSuccess={handleAddUserSuccess} />
-        )}
-      </div>
-    )
-  }
-
+  // If showing user detail, add user form, or edit user form — listing + modals only
   return (
     <div className="py-6">
       {/* Filters and actions */}
@@ -556,24 +564,15 @@ export default function StaffManagementPage() {
                         <button
                           data-status-dropdown={user.id}
                           onClick={(e) => handleStatusDropdownToggle(user.id, e)}
-                          className={`${getStatusBadgeClass(user.status)} px-3 py-1 rounded-md text-sm flex items-center`}
+                          className={`${getStatusBadgeClass(user.membershipStatus || user.status)} px-3 py-1 rounded-md text-sm flex items-center`}
                         >
-                          <span className="mr-1">•</span> {user.status}
+                          <span className="mr-1">•</span> {user.membershipStatus || user.status}
                           <ChevronDown className="h-4 w-4 ml-1" />
                         </button>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewUser(user)}
-                          className="text-blue-600 hover:text-blue-800"
-                          title="View user details"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -586,9 +585,19 @@ export default function StaffManagementPage() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => handleResetPassword(user)}
+                          className="text-amber-600 hover:text-amber-800"
+                          title="Set password"
+                        >
+                          <Lock className="h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setUserToRemove(user)}
                           className="text-red-600 hover:text-red-800"
-                          title="Remove from this customer"
+                          title="Mark as Offboarded"
+                          disabled={user.membershipStatus === "Offboarded"}
                         >
                           <Trash2 className="h-5 w-5" />
                         </Button>
@@ -657,6 +666,17 @@ export default function StaffManagementPage() {
                   <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
                   Archived
                 </button>
+                <button
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleStatusChange(showStatusDropdown!, "Offboarded");
+                  }}
+                >
+                  <span className="w-2 h-2 rounded-full bg-slate-500 mr-2"></span>
+                  Offboarded
+                </button>
               </div>
             </div>
           </div>
@@ -684,10 +704,10 @@ export default function StaffManagementPage() {
       <AlertDialog open={!!userToRemove} onOpenChange={(open) => !open && setUserToRemove(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove user from this customer?</AlertDialogTitle>
+            <AlertDialogTitle>Mark as Offboarded?</AlertDialogTitle>
             <AlertDialogDescription>
-              {userToRemove?.name} will be removed from this customer profile. Their account is not deleted
-              and any access to other customers is preserved.
+              {userToRemove?.name} will be marked Offboarded for this organization. Their profile
+              connection and history stay intact, and they can be invited again later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -700,11 +720,51 @@ export default function StaffManagementPage() {
               disabled={isRemoving}
               className="bg-red-600 hover:bg-red-700"
             >
-              {isRemoving ? "Removing..." : "Remove"}
+              {isRemoving ? "Offboarding…" : "Offboard"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SearchInviteUserModal
+        isOpen={showSearchInvite}
+        onClose={() => setShowSearchInvite(false)}
+        onInviteSuccess={handleAddUserSuccess}
+        onCreateNew={(prefill) => {
+          setCreatePrefill(prefill || {})
+          setShowSearchInvite(false)
+          setShowAddUser(true)
+        }}
+      />
+
+      <CreateUserModal
+        isOpen={showAddUser}
+        onClose={() => {
+          setShowAddUser(false)
+          setCreatePrefill({})
+        }}
+        onSuccess={handleAddUserSuccess}
+        initialPrefill={createPrefill}
+      />
+
+      <UpdateUserModal
+        isOpen={showUpdateUser}
+        onClose={() => {
+          setShowUpdateUser(false)
+          setUserToUpdate(null)
+        }}
+        onSuccess={handleUpdateUserSuccess}
+        user={userToUpdate}
+      />
+
+      <ResetUserPasswordModal
+        isOpen={showResetPassword}
+        onClose={() => {
+          setShowResetPassword(false)
+          setUserToResetPassword(null)
+        }}
+        user={userToResetPassword}
+      />
     </div>
   )
 }

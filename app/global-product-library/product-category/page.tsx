@@ -14,6 +14,7 @@ import { useProductCategory } from "@/contexts/product-category-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 export default function ProductCategoryPage() {
   const {
@@ -356,7 +357,9 @@ export default function ProductCategoryPage() {
                     />
                   </TableCell>
                   <TableCell className="font-medium text-gray-900" id={`category-name-${category.id}`}>
-                    {category.name}
+                    <TableNameWithImage src={category.image_url} alt={category.name}>
+                      {category.name}
+                    </TableNameWithImage>
                   </TableCell>
                   <TableCell>
                     <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-800">

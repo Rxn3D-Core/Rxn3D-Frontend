@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
+import SignatureCanvas from "react-signature-canvas"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -12,13 +13,31 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
-import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
-import { getActiveCustomerId } from "@/lib/customer-scope"
-import { Upload, X } from "lucide-react"
+import { Check, Loader2, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+import {
+  getCreateUserTitle,
+  getRoleDisplayLabel,
+  isDoctorRole,
+  isOfficeAdminRole,
+  requiresDoctorCredentials,
+  resolveOfficeMixedRole,
+} from "@/lib/user-role-labels"
+import { roleSelectOptionsForCustomerType } from "@/lib/user-customer-roles"
+import {
+  isEmailAlreadyRegistered,
+  type CreateUserPrefill,
+} from "@/services/user-lookup-service"
 
-// Form schema based on the API examples
+const passwordStrengthSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+  .regex(/[0-9]/, "Password must contain at least one number")
+  .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character")
+
 const createUserSchema = z
   .object({
     first_name: z.string().min(1, "First name is required"),
@@ -26,14 +45,16 @@ const createUserSchema = z
     email: z.string().email("Please enter a valid email address"),
     phone: z.string().min(1, "Phone number is required"),
     work_number: z.string().optional(),
+    customer_id: z.string().optional(),
     role: z.string().min(1, "Please select a role"),
     is_doctor: z.boolean().default(false),
+    is_also_admin: z.boolean().default(false),
     status: z.string().default("Pending"),
     department_ids: z.array(z.number()).optional(),
     license_number: z.string().optional(),
     signature: z.any().optional(),
     avatar: z.any().optional(),
-    password: z.string().min(8, "Password must be at least 8 characters"),
+    password: passwordStrengthSchema,
     password_confirmation: z.string().min(1, "Confirm password is required"),
   })
   .refine((data) => data.password === data.password_confirmation, {
@@ -43,10 +64,21 @@ const createUserSchema = z
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>
 
+interface CustomerOption {
+  value: string
+  label: string
+  type?: string
+}
+
 interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  lockedRole?: string
+  requireCustomerSelection?: boolean
+  customerOptions?: CustomerOption[]
+  /** Prefill from invite-search “Create new instead”. */
+  initialPrefill?: CreateUserPrefill
 }
 
 interface Department {
@@ -54,58 +86,62 @@ interface Department {
   name: string
 }
 
-const roles = [
-  { value: "lab_user", label: "Lab User" },
-  { value: "lab_admin", label: "Lab Admin" },
-  { value: "office_admin", label: "Office Admin" },
-  { value: "office_user", label: "Office User" },
-  { value: "doctor", label: "Doctor" },
-]
+const EMAIL_TAKEN_MSG =
+  "This email is already registered. Invite them from search instead of creating a new account."
 
+const PRIMARY_BTN =
+  "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
 
-export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalProps) {
+export function CreateUserModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  lockedRole,
+  requireCustomerSelection = false,
+  customerOptions = [],
+  initialPrefill,
+}: CreateUserModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [signatureFile, setSignatureFile] = useState<File | null>(null)
+  const [hasSignature, setHasSignature] = useState(false)
+  const [signatureMessage, setSignatureMessage] = useState("")
+  const signatureRef = useRef<SignatureCanvas>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null)
   const [departments, setDepartments] = useState<Department[]>([])
   const [selectedDepartments, setSelectedDepartments] = useState<number[]>([])
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false)
+  const [emailTaken, setEmailTaken] = useState(false)
+  const roleIsLocked = Boolean(lockedRole)
 
-  // Get auth context
   const authContext = useAuth()
-  const canManagePermissions = authContext.hasAnyPermission?.(["manage_users", "edit_user"]) ?? false
-  const activeCustomerId = getActiveCustomerId()
-
-  // Check if auth context is properly initialized
-  if (!authContext?.createUser) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-        <div className="bg-white p-6 rounded-lg max-w-md">
-          <h2 className="text-xl font-bold mb-4 text-red-600">Error</h2>
-          <p>Auth context is not available. Please refresh the page.</p>
-          <button 
-            onClick={onClose}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   const form = useForm<CreateUserFormValues>({
-    resolver: zodResolver(createUserSchema),
+    resolver: zodResolver(
+      requireCustomerSelection
+        ? createUserSchema.superRefine((data, ctx) => {
+            if (!data.customer_id?.trim()) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Please select a customer",
+                path: ["customer_id"],
+              })
+            }
+          })
+        : createUserSchema,
+    ),
     defaultValues: {
       first_name: "",
       last_name: "",
       email: "",
       phone: "",
       work_number: "",
-      role: "",
-      is_doctor: false,
+      customer_id: "",
+      role: lockedRole || "",
+      is_doctor: isDoctorRole(lockedRole) || requiresDoctorCredentials(lockedRole),
+      is_also_admin: false,
       status: "pending",
       department_ids: [],
       license_number: "",
@@ -115,164 +151,159 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
       password_confirmation: "",
     },
     mode: "onChange",
+    reValidateMode: "onChange",
   })
 
-  // Watch for changes to trigger validation
   const licenseNumber = form.watch("license_number")
   const isDoctor = form.watch("is_doctor")
+  const isAlsoAdmin = form.watch("is_also_admin")
   const selectedRole = form.watch("role")
+  const selectedCustomerId = form.watch("customer_id")
+  const watchedEmail = form.watch("email")
 
-  useEffect(() => {
-    if (!isOpen) {
-      setSelectedPermissions([])
+  const localCustomerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
+  const selectedCustomer = customerOptions.find((option) => option.value === selectedCustomerId)
+  const effectiveCustomerType = requireCustomerSelection
+    ? (selectedCustomer?.type || "").toLowerCase() || null
+    : localCustomerType
+  const isLabCustomer = effectiveCustomerType === "lab"
+  const isOfficeCustomer = effectiveCustomerType === "office"
+
+  const effectiveBaseRole = lockedRole || selectedRole
+  const resolvedCreateRole = resolveOfficeMixedRole({
+    baseRole: effectiveBaseRole,
+    isAlsoDoctor: isDoctorRole(effectiveBaseRole) || Boolean(isDoctor),
+    isAlsoAdmin: Boolean(isAlsoAdmin),
+  })
+  const treatingAsDoctor =
+    requiresDoctorCredentials(resolvedCreateRole) ||
+    isDoctorRole(effectiveBaseRole) ||
+    Boolean(isDoctor)
+  const showAlsoDoctorCheckbox =
+    isOfficeCustomer && (isOfficeAdminRole(effectiveBaseRole) || (!roleIsLocked && selectedRole === "office_admin"))
+  const showAlsoAdminCheckbox =
+    isOfficeCustomer && (isDoctorRole(effectiveBaseRole) || (!roleIsLocked && selectedRole === "doctor"))
+
+  const availableRoles = useMemo(() => {
+    if (requireCustomerSelection && !effectiveCustomerType) {
+      return []
     }
-  }, [isOpen, selectedRole])
-  const customerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
-  const isLabCustomer = customerType === "lab"
-
-  // Validate doctor fields and clear errors when both have values
-  useEffect(() => {
-    if (isDoctor) {
-      const hasLicense = licenseNumber && licenseNumber.trim() !== ""
-      const hasSignature = signatureFile !== null
-      
-      if (hasLicense && hasSignature) {
-        // Both fields have values - clear all errors
-        form.clearErrors("license_number")
-        form.clearErrors("signature")
-      } else if (!hasLicense && !hasSignature) {
-        // Both are empty - set error
-        if (!form.formState.errors.license_number) {
-          form.setError("license_number", {
-            type: "manual",
-            message: "License number and signature are required for doctors"
-          })
-        }
-      } else {
-        // One has value - clear error but don't set new one (wait for both)
-        form.clearErrors("license_number")
-        form.clearErrors("signature")
+    if (effectiveCustomerType === "lab" || effectiveCustomerType === "office") {
+      return roleSelectOptionsForCustomerType(effectiveCustomerType)
+    }
+    if (lockedRole) {
+      if (["lab_admin", "lab_user", "lab_driver"].includes(lockedRole)) {
+        return roleSelectOptionsForCustomerType("lab")
       }
-    } else {
-      // Not a doctor - clear any doctor-related errors
+      if (["office_admin", "office_user", "doctor", "doctor_admin"].includes(lockedRole)) {
+        return roleSelectOptionsForCustomerType("office")
+      }
+    }
+    return []
+  }, [requireCustomerSelection, effectiveCustomerType, lockedRole])
+
+  const resolveCustomerIdForChecks = () => {
+    if (requireCustomerSelection) return selectedCustomerId?.trim() || ""
+    return typeof window !== "undefined" ? localStorage.getItem("customerId") || "" : ""
+  }
+
+  useEffect(() => {
+    if (roleIsLocked || !selectedRole) return
+    if (!availableRoles.some((role) => role.value === selectedRole)) {
+      form.setValue("role", "", { shouldValidate: false, shouldDirty: false })
+    }
+  }, [availableRoles, selectedRole, form, roleIsLocked])
+
+  useEffect(() => {
+    if (!treatingAsDoctor) {
+      form.clearErrors("license_number")
+      form.clearErrors("signature")
+      return
+    }
+    const hasLicense = licenseNumber && licenseNumber.trim() !== ""
+    const hasSignature = signatureFile !== null
+    if (hasLicense && hasSignature) {
       form.clearErrors("license_number")
       form.clearErrors("signature")
     }
-  }, [licenseNumber, signatureFile, isDoctor, form])
+  }, [licenseNumber, signatureFile, treatingAsDoctor, form])
 
-  // Helper function to determine validation state
-  const getValidationState = (fieldName: keyof CreateUserFormValues, isRequired: boolean = false): "default" | "valid" | "warning" | "error" => {
-    const value = form.watch(fieldName)
-    const hasValue = value !== undefined && value !== null && value !== "" && String(value).trim() !== ""
-    const errors = form.formState.errors
-    const valueStr = String(value || "")
-    
-    // Special handling for license_number - show green border with checkmark when it has a value
-    if (fieldName === "license_number") {
-      const hasLicense = hasValue
-      
-      // If license has a value, show green border with checkmark
-      if (hasLicense) {
-        return "valid"
+  // Debounced email uniqueness check
+  useEffect(() => {
+    if (!isOpen) return
+
+    const email = (watchedEmail || "").trim()
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const customerId = resolveCustomerIdForChecks()
+
+    if (!email || !emailRegex.test(email) || !customerId) {
+      setEmailTaken(false)
+      setIsCheckingEmail(false)
+      if (form.formState.errors.email?.message === EMAIL_TAKEN_MSG) {
+        form.clearErrors("email")
       }
-      // If there's an error, show it
-      if (errors[fieldName]) {
-        return "error"
-      }
-      // If required and empty, show error
-      if (isRequired && !hasValue) {
-        return "error"
-      }
-      return "default"
+      return
     }
-    
-    if (fieldName === "signature") {
-      const hasLicense = licenseNumber && licenseNumber.trim() !== ""
-      const hasSignature = signatureFile !== null
-      
-      // If both have values, no error
-      if (hasLicense && hasSignature) {
-        return "default"
-      }
-      // If signature has value but license doesn't, no error on signature field
-      if (hasSignature) {
-        return "default"
-      }
-      // If there's an error, show it
-      if (errors[fieldName]) {
-        return "error"
-      }
-      // If required and empty, show error
-      if (isRequired && !hasSignature) {
-        return "error"
-      }
-      return "default"
-    }
-    
-    // If field has error, show error state
-    if (errors[fieldName]) {
-      return "error"
-    }
-    
-    // Required fields: red if empty, orange if has value, green if valid (has value and no errors)
-    if (isRequired) {
-      if (!hasValue) {
-        return "error" // Red: required but empty
-      }
-      // Check if field has minimum characters (5) for validation
-      if (valueStr.length >= 5) {
-        // Special validation for email
-        if (fieldName === "email") {
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-          if (emailRegex.test(valueStr)) {
-            return "valid" // Green: valid email
-          }
-          return "warning" // Orange: has value but invalid format
+
+    let cancelled = false
+    setIsCheckingEmail(true)
+    const timeoutId = setTimeout(async () => {
+      try {
+        const taken = await isEmailAlreadyRegistered(email, customerId)
+        if (cancelled) return
+        setEmailTaken(taken)
+        if (taken) {
+          form.setError("email", { type: "manual", message: EMAIL_TAKEN_MSG })
+        } else if (form.formState.errors.email?.message === EMAIL_TAKEN_MSG) {
+          form.clearErrors("email")
         }
-        return "valid" // Green: has value and meets minimum length
+      } catch {
+        if (!cancelled) setEmailTaken(false)
+      } finally {
+        if (!cancelled) setIsCheckingEmail(false)
       }
-      return "warning" // Orange: has value but less than 5 characters
+    }, 400)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
     }
-    
-    // Optional fields: orange if has value, default if empty
-    if (hasValue) {
-      return "warning" // Orange: has value
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedEmail, selectedCustomerId, isOpen, requireCustomerSelection])
+
+  const getValidationState = (fieldName: keyof CreateUserFormValues): "default" | "valid" | "warning" | "error" => {
+    if (fieldName === "email" && emailTaken) return "error"
+    const isDirty = Boolean(form.formState.dirtyFields[fieldName])
+    const hasError = Boolean(form.formState.errors[fieldName])
+    if (!isDirty && !hasError) return "default"
+    if (hasError) return "error"
+
+    const value = form.getValues(fieldName)
+    const hasValue = value !== undefined && value !== null && value !== "" && String(value).trim() !== ""
+    if (!hasValue) return "default"
+
+    if (fieldName === "email") {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      return emailRegex.test(String(value)) ? "valid" : "warning"
     }
-    
-    return "default"
+
+    return "valid"
   }
 
-  // Reset form when modal opens/closes
-  useEffect(() => {
-    if (isOpen) {
-      form.reset()
-      setSignatureFile(null)
-      setAvatarFile(null)
-      setSelectedDepartments([])
-      if (isLabCustomer) {
-        fetchDepartments()
-      }
-    }
-  }, [isOpen, form, isLabCustomer])
-
-  useEffect(() => {
-    form.setValue("department_ids", selectedDepartments, { shouldValidate: true })
-  }, [selectedDepartments, form])
-
-  // Auto-set is_doctor when role is doctor
-  useEffect(() => {
-    if (selectedRole === "doctor") {
-      form.setValue("is_doctor", true)
-    }
-  }, [selectedRole, form])
-
-  const fetchDepartments = async () => {
+  const fetchDepartments = async (customerIdOverride?: string) => {
     setIsLoadingDepartments(true)
     try {
-      const customerId = localStorage.getItem("customerId")
+      const customerId =
+        customerIdOverride ||
+        (requireCustomerSelection ? selectedCustomerId : null) ||
+        localStorage.getItem("customerId")
       const token = localStorage.getItem("token")
+      if (!customerId) {
+        setDepartments([])
+        return
+      }
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/departments?customer_id=${customerId || ""}`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/departments?customer_id=${customerId}`,
         {
           method: "GET",
           headers: {
@@ -288,7 +319,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
 
       const result = await response.json()
       setDepartments(result.data || [])
-    } catch (error) {
+    } catch {
       setDepartments([])
       toast({
         title: "Department Load Failed",
@@ -300,162 +331,304 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
     }
   }
 
+  useEffect(() => {
+    if (isOpen) {
+      form.reset({
+        first_name: initialPrefill?.first_name || "",
+        last_name: initialPrefill?.last_name || "",
+        email: initialPrefill?.email || "",
+        phone: "",
+        work_number: "",
+        customer_id: "",
+        role: lockedRole || "",
+        is_doctor: isDoctorRole(lockedRole),
+        is_also_admin: false,
+        status: "pending",
+        department_ids: [],
+        license_number: "",
+        signature: null,
+        avatar: null,
+        password: "",
+        password_confirmation: "",
+      })
+      setSignatureFile(null)
+      setHasSignature(false)
+      setSignatureMessage("")
+      signatureRef.current?.clear()
+      setAvatarFile(null)
+      setAvatarPreviewUrl(null)
+      setSelectedDepartments([])
+      setDepartments([])
+      setEmailTaken(false)
+      setIsCheckingEmail(false)
+      if (isLabCustomer && !requireCustomerSelection) {
+        void fetchDepartments()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, form, lockedRole, requireCustomerSelection, initialPrefill])
+
+  useEffect(() => {
+    if (!requireCustomerSelection || !isOpen) return
+    setSelectedDepartments([])
+    if (isLabCustomer && selectedCustomerId) {
+      void fetchDepartments(selectedCustomerId)
+    } else {
+      setDepartments([])
+    }
+    if (!roleIsLocked && selectedRole && !availableRoles.some((role) => role.value === selectedRole)) {
+      form.setValue("role", "", { shouldValidate: false, shouldDirty: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requireCustomerSelection, selectedCustomerId, isLabCustomer, isOpen])
+
+  useEffect(() => {
+    form.setValue("department_ids", selectedDepartments, { shouldValidate: false, shouldDirty: false })
+  }, [selectedDepartments, form])
+
+  useEffect(() => {
+    if (isDoctorRole(selectedRole) || isDoctorRole(lockedRole)) {
+      form.setValue("is_doctor", true, { shouldValidate: false })
+      return
+    }
+    if (!roleIsLocked && !isOfficeAdminRole(selectedRole)) {
+      form.setValue("is_doctor", false, { shouldValidate: false })
+      form.setValue("is_also_admin", false, { shouldValidate: false })
+    }
+  }, [selectedRole, form, roleIsLocked, lockedRole])
+
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(avatarFile)
+    setAvatarPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [avatarFile])
+
+  if (!authContext?.createUser) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-lg max-w-md">
+          <h2 className="text-xl font-bold mb-4 text-red-600">Error</h2>
+          <p>Auth context is not available. Please refresh the page.</p>
+          <button onClick={onClose} className="mt-4 px-4 py-2 bg-blue-500 text-white rounded">
+            Close
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const handleDepartmentToggle = (departmentId: number) => {
     setSelectedDepartments((prev) =>
       prev.includes(departmentId) ? prev.filter((id) => id !== departmentId) : [...prev, departmentId],
     )
   }
 
+  const dataURLtoFile = (dataURL: string, filename: string): File => {
+    const arr = dataURL.split(",")
+    const mime = arr[0].match(/:(.*?);/)![1]
+    const bstr = atob(arr[1])
+    const u8arr = new Uint8Array(bstr.length)
+    for (let i = 0; i < bstr.length; i++) {
+      u8arr[i] = bstr.charCodeAt(i)
+    }
+    return new File([u8arr], filename, { type: mime })
+  }
 
-  // Handle signature file upload
+  const showSignatureMessage = (message: string) => {
+    setSignatureMessage(message)
+    setTimeout(() => setSignatureMessage(""), 2000)
+  }
+
+  const applySignatureFile = (file: File) => {
+    setSignatureFile(file)
+    setHasSignature(true)
+    form.setValue("signature", file, { shouldValidate: true })
+    if (form.watch("license_number")?.trim()) {
+      form.clearErrors("license_number")
+      form.clearErrors("signature")
+    }
+  }
+
+  const handleSaveSignature = () => {
+    if (!signatureRef.current || signatureRef.current.isEmpty()) {
+      showSignatureMessage("Please draw your signature before saving")
+      return
+    }
+    try {
+      const quality = signatureRef.current.toDataURL().length > 1024 ? 0.5 : 1
+      const signatureData = signatureRef.current.toDataURL("image/png", quality)
+      applySignatureFile(dataURLtoFile(signatureData, "signature.png"))
+      showSignatureMessage("Signature saved")
+    } catch {
+      showSignatureMessage("Error saving signature")
+    }
+  }
+
+  const handleClearSignature = () => {
+    signatureRef.current?.clear()
+    setSignatureFile(null)
+    setHasSignature(false)
+    form.setValue("signature", null)
+    showSignatureMessage("Signature cleared")
+  }
+
   const handleSignatureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) {
-      // Validate file type (only JPG, JPEG, PNG as per backend requirements)
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png']
-      if (!allowedTypes.includes(file.type)) {
-        toast({
-          title: "Invalid file type",
-          description: "Please upload an image in JPG, JPEG, or PNG format.",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please upload a file smaller than 5MB.",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      setSignatureFile(file)
-      form.setValue("signature", file, { shouldValidate: true })
-      // Clear validation error if license number also has value
-      if (form.watch("license_number") && form.watch("license_number")?.trim() !== "") {
-        form.clearErrors("license_number")
-      }
+    if (!file) return
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/svg+xml"]
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image in JPG, JPEG, or PNG format.",
+        variant: "destructive",
+      })
+      return
     }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 5MB.",
+        variant: "destructive",
+      })
+      return
+    }
+    signatureRef.current?.clear()
+    applySignatureFile(file)
+    showSignatureMessage("Signature uploaded")
   }
 
-  // Handle avatar file upload
   const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) {
-      // Validate file type (only JPG, JPEG, PNG as per backend requirements)
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png']
-      if (!allowedTypes.includes(file.type)) {
-        toast({
-          title: "Invalid file type",
-          description: "Please upload an image in JPG, JPEG, or PNG format.",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please upload a file smaller than 5MB.",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      setAvatarFile(file)
-      form.setValue("avatar", file)
+    if (!file) return
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/svg+xml"]
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image in JPG, JPEG, or PNG format.",
+        variant: "destructive",
+      })
+      return
     }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 5MB.",
+        variant: "destructive",
+      })
+      return
+    }
+    setAvatarFile(file)
+    form.setValue("avatar", file)
   }
 
-  // Remove signature file
-  const removeSignatureFile = () => {
-    setSignatureFile(null)
-    form.setValue("signature", null)
-  }
-
-  // Remove avatar file
   const removeAvatarFile = () => {
     setAvatarFile(null)
     form.setValue("avatar", null)
   }
 
-
   const onSubmit = async (data: CreateUserFormValues) => {
-    // Validate doctor fields before submission
-    if (data.is_doctor) {
+    if (emailTaken) {
+      form.setError("email", { type: "manual", message: EMAIL_TAKEN_MSG })
+      toast({
+        title: "Email already registered",
+        description: "Use Invite from search to add this person.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const customerId = requireCustomerSelection
+      ? data.customer_id?.trim()
+      : localStorage.getItem("customerId")
+
+    if (!customerId) {
+      toast({
+        title: "Validation Error",
+        description: requireCustomerSelection ? "Please select a customer" : "No active customer selected",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Final email uniqueness check before create
+    try {
+      const taken = await isEmailAlreadyRegistered(data.email, customerId)
+      if (taken) {
+        setEmailTaken(true)
+        form.setError("email", { type: "manual", message: EMAIL_TAKEN_MSG })
+        toast({
+          title: "Email already registered",
+          description: "Use Invite from search to add this person.",
+          variant: "destructive",
+        })
+        return
+      }
+    } catch {
+      // Allow submit; backend unique constraint is the final guard
+    }
+
+    const baseRole = lockedRole || data.role
+    const effectiveRole = resolveOfficeMixedRole({
+      baseRole,
+      isAlsoDoctor: isDoctorRole(baseRole) || Boolean(data.is_doctor),
+      isAlsoAdmin: Boolean(data.is_also_admin),
+    })
+    const treatingAsDoctorOnSubmit =
+      requiresDoctorCredentials(effectiveRole) || isDoctorRole(baseRole) || Boolean(data.is_doctor)
+
+    if (treatingAsDoctorOnSubmit) {
       const hasLicense = data.license_number && data.license_number.trim() !== ""
       const hasSignature = signatureFile !== null
-      
       if (!hasLicense || !hasSignature) {
         form.setError("license_number", {
           type: "manual",
-          message: "License number and signature are required for doctors"
+          message: "License number and signature are required for doctors",
         })
         toast({
           title: "Validation Error",
           description: "License number and signature are required for doctors",
           variant: "destructive",
         })
-        setIsSubmitting(false)
         return
       }
     }
+
     setIsSubmitting(true)
     try {
-      const customerId = localStorage.getItem("customerId")
-      
-      // Create FormData for multipart form submission
       const formData = new FormData()
-      
-      // Add basic user data
-      formData.append('first_name', data.first_name)
-      formData.append('last_name', data.last_name)
-      formData.append('email', data.email)
-      formData.append('phone', data.phone)
-      formData.append('work_number', data.work_number || data.phone)
-      formData.append('customer_id', customerId || "1")
-      formData.append('role', data.role)
-      formData.append('is_doctor', data.is_doctor ? "1" : "0")
-      formData.append('status', "Pending")
-      formData.append('password', data.password)
-      formData.append('password_confirmation', data.password_confirmation)
-      
-      // Add department_ids only for lab customers
+      formData.append("first_name", data.first_name)
+      formData.append("last_name", data.last_name)
+      formData.append("email", data.email)
+      formData.append("phone", data.phone)
+      formData.append("work_number", data.work_number || data.phone)
+      formData.append("customer_id", customerId)
+      formData.append("role", effectiveRole)
+      formData.append("is_doctor", treatingAsDoctorOnSubmit ? "1" : "0")
+      formData.append("status", "Pending")
+      formData.append("password", data.password)
+      formData.append("password_confirmation", data.password_confirmation)
+
       if (isLabCustomer && selectedDepartments.length > 0) {
         selectedDepartments.forEach((id) => {
-          formData.append('department_ids[]', id.toString())
+          formData.append("department_ids[]", id.toString())
         })
       }
-      
-      // Add doctor-specific fields
-      if (data.is_doctor && data.license_number) {
-        formData.append('license_number', data.license_number)
+
+      if (treatingAsDoctorOnSubmit && data.license_number) {
+        formData.append("license_number", data.license_number)
       }
-      
-      // Add signature file if it exists
-      if (data.is_doctor && signatureFile) {
-        formData.append('signature', signatureFile)
+      if (treatingAsDoctorOnSubmit && signatureFile) {
+        formData.append("signature", signatureFile)
       }
-      
-      // Add avatar file if it exists
       if (avatarFile) {
-        formData.append('avatar', avatarFile)
+        formData.append("avatar", avatarFile)
       }
 
-      const createResult = await authContext.createUser(formData)
-      const newUserId =
-        createResult?.data?.id ??
-        createResult?.data?.user?.id ??
-        createResult?.user?.id ??
-        createResult?.id
-
-      if (canManagePermissions && newUserId) {
-        await persistUserDirectPermissions(Number(newUserId), selectedPermissions, activeCustomerId)
-      }
+      await authContext.createUser(formData)
 
       toast({
         title: "Success",
@@ -465,7 +638,6 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
       onSuccess()
       onClose()
     } catch (error: any) {
-      console.error("Error creating user:", error)
       toast({
         title: "Error",
         description: error.message || "Failed to create user. Please try again.",
@@ -476,199 +648,339 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
     }
   }
 
+  const fieldClass = "h-10 text-sm"
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] p-5 flex flex-col">
-        <DialogHeader className="pb-3 flex-shrink-0">
-          <DialogTitle className="text-xl font-semibold">Create New User</DialogTitle>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="w-[calc(100%-1.5rem)] sm:max-w-xl max-h-[min(92dvh,720px)] p-0 gap-0 overflow-hidden rounded-2xl flex flex-col">
+        <DialogHeader className="px-5 pt-4 pb-3 border-b border-[#f0f0f0] flex-shrink-0">
+          <DialogTitle className="text-[15px] font-semibold tracking-tight">
+            {getCreateUserTitle(lockedRole || selectedRole)}
+          </DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 flex flex-col max-h-[calc(90vh-120px)]">
-            <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-4">
-            {/* Avatar Section */}
-            <div className="flex items-start gap-4 pb-3 border-b border-gray-100">
-              <FormField
-                control={form.control}
-                name="avatar"
-                render={({ field }) => (
-                  <FormItem className="m-0">
-                    <FormLabel className="text-xs font-medium text-gray-700 mb-1.5 block">Profile Photo</FormLabel>
-                    <FormControl>
-                      <div className="w-32">
-                        {avatarFile ? (
-                          <div className="relative">
-                            <img
-                              src={URL.createObjectURL(avatarFile)}
-                              alt="Avatar preview"
-                              className="h-32 w-32 rounded-lg object-cover border border-gray-200"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={removeAvatarFile}
-                              className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-red-500 hover:bg-red-600 text-white p-0"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-gray-400 transition-all h-32 w-32 flex items-center justify-center bg-gray-50">
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/jpg,image/png"
-                              onChange={handleAvatarUpload}
-                              className="hidden"
-                              id="avatar-upload"
-                            />
-                            <label
-                              htmlFor="avatar-upload"
-                              className="cursor-pointer flex flex-col items-center space-y-2"
-                            >
-                              <Upload className="h-6 w-6 text-gray-400" />
-                              <div className="text-xs text-gray-600 text-center font-medium">
-                                Upload
-                              </div>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Basic Information Section */}
-              <div className="flex-1 space-y-3">
-                <div>
-                  <h3 className="text-xs font-semibold text-gray-900 mb-2">Basic Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="first_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input 
-                              label="First Name *"
-                              placeholder="Enter first name" 
-                              validationState={getValidationState("first_name", true)}
-                              errorMessage={form.formState.errors.first_name?.message as string}
-                              className="h-12"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="last_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input 
-                              label="Last Name *"
-                              placeholder="Enter last name" 
-                              validationState={getValidationState("last_name", true)}
-                              errorMessage={form.formState.errors.last_name?.message as string}
-                              className="h-12"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Contact Information Section */}
-            <div className="space-y-3 pb-3 border-b border-gray-100">
-              <h3 className="text-xs font-semibold text-gray-900">Contact Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex flex-col min-h-0 flex-1"
+            autoComplete="off"
+          >
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4">
+              {requireCustomerSelection && (
                 <FormField
                   control={form.control}
-                  name="email"
+                  name="customer_id"
                   render={({ field }) => (
                     <FormItem>
+                      <FormLabel className="text-xs text-[#6b7280]">Organization *</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="email"
-                          label="Email Address *"
-                          placeholder="Enter email address" 
-                          validationState={getValidationState("email", true)}
-                          errorMessage={form.formState.errors.email?.message as string}
-                          className="h-12"
-                          {...field} 
+                        <SearchableSelect
+                          options={customerOptions}
+                          value={field.value || ""}
+                          onValueChange={field.onChange}
+                          placeholder="Select office or lab"
+                          searchPlaceholder="Search…"
+                          emptyMessage="No customers found"
+                          className="h-10"
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+              )}
 
+              {/* Profile + identity */}
+              <div className="flex gap-3 items-start">
+                <FormField
+                  control={form.control}
+                  name="avatar"
+                  render={() => (
+                    <FormItem className="m-0 shrink-0">
+                      <FormControl>
+                        <div className="relative">
+                          {avatarPreviewUrl ? (
+                            <div className="relative h-14 w-14">
+                              <img
+                                src={avatarPreviewUrl}
+                                alt="Avatar preview"
+                                className="h-14 w-14 rounded-full object-cover border border-[#e5e7eb]"
+                              />
+                              <button
+                                type="button"
+                                onClick={removeAvatarFile}
+                                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/jpg,image/png,image/svg+xml"
+                                onChange={handleAvatarUpload}
+                                className="hidden"
+                                id="avatar-upload"
+                              />
+                              <label
+                                htmlFor="avatar-upload"
+                                className="h-14 w-14 rounded-full border border-dashed border-[#d1d5db] bg-[#fafafa] flex flex-col items-center justify-center cursor-pointer hover:border-[#9ca3af] transition-colors"
+                              >
+                                <Upload className="h-4 w-4 text-[#9ca3af]" />
+                              </label>
+                            </>
+                          )}
+                        </div>
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5 min-w-0">
                   <FormField
                     control={form.control}
-                    name="phone"
+                    name="first_name"
                     render={({ field }) => (
                       <FormItem>
                         <FormControl>
-                          <Input 
-                            label="Phone Number *"
-                            placeholder="Enter phone number" 
-                            validationState={getValidationState("phone", true)}
-                            errorMessage={form.formState.errors.phone?.message as string}
-                            className="h-12"
+                          <Input
+                            label="First name *"
+                            placeholder="First name"
+                            validationState={getValidationState("first_name")}
+                            errorMessage={form.formState.errors.first_name?.message as string}
+                            className={fieldClass}
                             {...field}
-                            onChange={(e) => {
-                              // Only allow numbers and + sign
-                              const value = e.target.value.replace(/[^0-9+]/g, '')
-                              field.onChange(value)
-                            }}
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
-                    name="work_number"
+                    name="last_name"
                     render={({ field }) => (
                       <FormItem>
                         <FormControl>
-                          <Input 
-                            label="Work Number"
-                            placeholder="Enter work number" 
-                            validationState={getValidationState("work_number", false)}
-                            className="h-12"
+                          <Input
+                            label="Last name *"
+                            placeholder="Last name"
+                            validationState={getValidationState("last_name")}
+                            errorMessage={form.formState.errors.last_name?.message as string}
+                            className={fieldClass}
                             {...field}
-                            onChange={(e) => {
-                              // Only allow numbers and + sign
-                              const value = e.target.value.replace(/[^0-9+]/g, '')
-                              field.onChange(value)
-                            }}
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                </div>
               </div>
-            </div>
 
-            {/* Account Security */}
-            <div className="space-y-3 pb-3 border-b border-gray-100">
-              <h3 className="text-xs font-semibold text-gray-900">Account Security</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Contact */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            type="email"
+                            label="Email *"
+                            placeholder="name@example.com"
+                            autoComplete="off"
+                            data-1p-ignore
+                            data-lpignore="true"
+                            validationState={getValidationState("email")}
+                            className={cn(fieldClass, "pr-9")}
+                            {...field}
+                          />
+                          {isCheckingEmail && (
+                            <Loader2 className="absolute right-3 bottom-3 h-3.5 w-3.5 animate-spin text-[#9ca3af]" />
+                          )}
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          label="Phone *"
+                          placeholder="Phone number"
+                          validationState={getValidationState("phone")}
+                          errorMessage={form.formState.errors.phone?.message as string}
+                          className={fieldClass}
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e.target.value.replace(/[^0-9+]/g, ""))
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="work_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          label="Work number"
+                          placeholder="Optional"
+                          validationState={getValidationState("work_number")}
+                          className={fieldClass}
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e.target.value.replace(/[^0-9+]/g, ""))
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Role */}
+              <div className="space-y-2">
+                {roleIsLocked ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-full bg-[#f3f4f6] px-2.5 py-1 text-xs font-medium text-[#374151]">
+                      {getRoleDisplayLabel(lockedRole)}
+                      {resolvedCreateRole === "doctor_admin" ? " · Admin" : ""}
+                    </span>
+                    {showAlsoDoctorCheckbox && (
+                      <FormField
+                        control={form.control}
+                        name="is_doctor"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 m-0">
+                            <FormControl>
+                              <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                            <FormLabel className="text-xs font-medium cursor-pointer">Also Doctor</FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                    {showAlsoAdminCheckbox && (
+                      <FormField
+                        control={form.control}
+                        name="is_also_admin"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 m-0">
+                            <FormControl>
+                              <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                            <FormLabel className="text-xs font-medium cursor-pointer">Also Admin</FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-center">
+                    <FormField
+                      control={form.control}
+                      name="role"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-[#6b7280]">Role *</FormLabel>
+                          <FormControl>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <SelectTrigger className={cn(fieldClass, "border")}>
+                                <SelectValue
+                                  placeholder={
+                                    requireCustomerSelection && !effectiveCustomerType
+                                      ? "Select organization first"
+                                      : "Select role"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableRoles.map((role) => (
+                                  <SelectItem key={role.value} value={role.value}>
+                                    {role.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="flex flex-wrap gap-3 pt-5">
+                      {showAlsoDoctorCheckbox && (
+                        <FormField
+                          control={form.control}
+                          name="is_doctor"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-2 space-y-0 m-0">
+                              <FormControl>
+                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                              </FormControl>
+                              <FormLabel className="text-xs font-medium cursor-pointer">Also Doctor</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                      {showAlsoAdminCheckbox && (
+                        <FormField
+                          control={form.control}
+                          name="is_also_admin"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-2 space-y-0 m-0">
+                              <FormControl>
+                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                              </FormControl>
+                              <FormLabel className="text-xs font-medium cursor-pointer">Also Admin</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {isLabCustomer && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-[#6b7280]">Departments</p>
+                  {isLoadingDepartments ? (
+                    <p className="text-xs text-[#9ca3af]">Loading…</p>
+                  ) : departments.length === 0 ? (
+                    <p className="text-xs text-[#9ca3af]">No departments available.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                      {departments.map((department) => (
+                        <label key={department.id} className="flex items-center gap-1.5 text-xs text-[#374151]">
+                          <Checkbox
+                            checked={selectedDepartments.includes(department.id)}
+                            onCheckedChange={() => handleDepartmentToggle(department.id)}
+                          />
+                          {department.name}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Security */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <FormField
                   control={form.control}
                   name="password"
@@ -678,11 +990,13 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                         <Input
                           type="password"
                           label="Password *"
-                          placeholder="Enter password"
+                          placeholder="Create password"
                           revealToggle
-                          validationState={getValidationState("password", true)}
-                          errorMessage={form.formState.errors.password?.message as string}
-                          className="h-12"
+                          autoComplete="new-password"
+                          data-1p-ignore
+                          data-lpignore="true"
+                          validationState={getValidationState("password")}
+                          className={fieldClass}
                           {...field}
                         />
                       </FormControl>
@@ -690,7 +1004,6 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="password_confirmation"
@@ -699,12 +1012,14 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                       <FormControl>
                         <Input
                           type="password"
-                          label="Confirm Password *"
-                          placeholder="Re-enter password"
+                          label="Confirm *"
+                          placeholder="Confirm password"
                           revealToggle
-                          validationState={getValidationState("password_confirmation", true)}
-                          errorMessage={form.formState.errors.password_confirmation?.message as string}
-                          className="h-12"
+                          autoComplete="new-password"
+                          data-1p-ignore
+                          data-lpignore="true"
+                          validationState={getValidationState("password_confirmation")}
+                          className={fieldClass}
                           {...field}
                         />
                       </FormControl>
@@ -713,110 +1028,25 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                   )}
                 />
               </div>
-            </div>
 
-            {/* Role & Permissions Section */}
-            <div className="space-y-3 pb-3 border-b border-gray-100">
-              <h3 className="text-xs font-semibold text-gray-900">Role & Permissions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <SelectTrigger className={cn(
-                            "h-12 border-2 text-sm",
-                            !field.value ? "border-[#CF0202]" : "border-[#119933]"
-                          )}>
-                            <SelectValue placeholder="Select a role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {roles.map((role) => (
-                              <SelectItem key={role.value} value={role.value}>
-                                {role.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {selectedRole !== "doctor" && (
-                  <FormField
-                    control={form.control}
-                    name="is_doctor"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border border-gray-200 p-2.5 bg-gray-50 h-12">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="leading-none">
-                          <FormLabel className="text-xs font-medium cursor-pointer">
-                            Is Doctor
-                          </FormLabel>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                )}
-              </div>
-            </div>
-
-            {isLabCustomer && (
-              <div className="space-y-3 pb-3 border-b border-gray-100">
-                <h3 className="text-xs font-semibold text-gray-900">Departments</h3>
-                {isLoadingDepartments ? (
-                  <div className="text-xs text-gray-500">Loading departments...</div>
-                ) : departments.length === 0 ? (
-                  <div className="text-xs text-gray-500">No departments available for this lab customer.</div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {departments.map((department) => (
-                      <label key={department.id} className="flex items-center space-x-2 text-sm">
-                        <Checkbox
-                          checked={selectedDepartments.includes(department.id)}
-                          onCheckedChange={() => handleDepartmentToggle(department.id)}
-                        />
-                        <span>{department.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-                {form.formState.errors.department_ids && (
-                  <p className="text-xs text-red-500">{form.formState.errors.department_ids.message as string}</p>
-                )}
-              </div>
-            )}
-
-            {/* Doctor-Specific Fields */}
-            {isDoctor && (
-              <div className="space-y-3 pb-3 border-b border-gray-100">
-                <h3 className="text-xs font-semibold text-gray-900">Doctor Information</h3>
-                <div className="space-y-3">
+              {treatingAsDoctor && (
+                <div className="space-y-2.5 rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-3">
+                  <p className="text-xs font-semibold text-[#374151]">Doctor credentials</p>
                   <FormField
                     control={form.control}
                     name="license_number"
                     render={({ field }) => (
                       <FormItem>
                         <FormControl>
-                          <Input 
-                            label="License Number *"
-                            placeholder="Enter license number" 
-                            validationState={getValidationState("license_number", true)}
+                          <Input
+                            label="License number *"
+                            placeholder="License number"
+                            validationState={getValidationState("license_number")}
                             errorMessage={form.formState.errors.license_number?.message as string}
-                            className="h-12"
+                            className={cn(fieldClass, "bg-white")}
                             {...field}
                             onChange={(e) => {
                               field.onChange(e)
-                              // Clear validation error if signature also has value
                               if (signatureFile && e.target.value.trim() !== "") {
                                 form.clearErrors("license_number")
                               }
@@ -827,61 +1057,76 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="signature"
-                    render={({ field }) => (
+                    render={() => (
                       <FormItem>
-                        <FormLabel className="text-xs font-medium text-gray-700">Signature *</FormLabel>
                         <FormControl>
-                          <div className="space-y-2">
-                            {signatureFile ? (
-                              <div className="flex items-center justify-between p-2.5 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                                <div className="flex items-center space-x-2">
-                                  <Upload className="h-4 w-4 text-gray-500" />
-                                  <div>
-                                    <span className="text-xs font-medium text-gray-700">{signatureFile.name}</span>
-                                    <span className="text-[10px] text-gray-500 ml-2">
-                                      ({(signatureFile.size / 1024 / 1024).toFixed(2)} MB)
+                          <div className="space-y-1.5">
+                            <div
+                              className={cn(
+                                "border rounded-lg overflow-hidden bg-white",
+                                form.formState.errors.signature ? "border-red-500" : "border-[#e5e7eb]",
+                              )}
+                            >
+                              <div className="px-2.5 py-1.5 border-b border-[#f0f0f0] flex justify-between items-center">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-medium text-[#374151]">Signature *</span>
+                                  {hasSignature && (
+                                    <span className="text-[10px] text-green-600 flex items-center">
+                                      <Check className="h-3 w-3 mr-0.5" />
+                                      Saved
                                     </span>
-                                  </div>
+                                  )}
                                 </div>
-                                <Button
+                                <button
                                   type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={removeSignatureFile}
-                                  className="text-red-500 hover:text-red-700 hover:bg-red-50 h-6 w-6 p-0"
+                                  onClick={handleClearSignature}
+                                  className="text-[11px] text-[#6b7280] hover:text-[#111827]"
                                 >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                                  Clear
+                                </button>
                               </div>
-                            ) : (
-                              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-all bg-gray-50">
-                                <input
-                                  type="file"
-                                  accept="image/jpeg,image/jpg,image/png"
-                                  onChange={handleSignatureUpload}
-                                  className="hidden"
-                                  id="signature-upload"
+                              <div className="p-2 relative">
+                                <SignatureCanvas
+                                  ref={signatureRef}
+                                  penColor="black"
+                                  canvasProps={{
+                                    className: "w-full border border-dashed border-[#e5e7eb] h-28 rounded",
+                                    style: { width: "100%", height: "112px" },
+                                  }}
+                                  onEnd={handleSaveSignature}
                                 />
-                                <label
-                                  htmlFor="signature-upload"
-                                  className="cursor-pointer flex flex-col items-center space-y-1.5"
-                                >
-                                  <Upload className="h-6 w-6 text-gray-400" />
-                                  <div className="text-xs text-gray-600">
-                                    <span className="font-medium text-blue-600 hover:text-blue-500">
-                                      Click to upload
-                                    </span>
+                                {!hasSignature && (
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-[#9ca3af] text-xs">
+                                    Sign here
                                   </div>
-                                  <div className="text-[10px] text-gray-500">
-                                    JPG, PNG up to 5MB
+                                )}
+                                {signatureMessage && (
+                                  <div
+                                    className={cn(
+                                      "absolute bottom-2 left-2 right-2 p-1 rounded text-[11px] text-center",
+                                      signatureMessage.includes("Error") || signatureMessage.includes("Please")
+                                        ? "bg-red-100 text-red-700"
+                                        : "bg-green-100 text-green-700",
+                                    )}
+                                  >
+                                    {signatureMessage}
                                   </div>
-                                </label>
+                                )}
                               </div>
-                            )}
+                            </div>
+                            <label className="inline-flex items-center gap-1 text-[#1162a8] text-xs font-medium cursor-pointer hover:underline">
+                              <Upload className="h-3 w-3" />
+                              Upload signature
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept="image/jpeg,image/jpg,image/png,image/svg+xml"
+                                onChange={handleSignatureUpload}
+                              />
+                            </label>
                           </div>
                         </FormControl>
                         <FormMessage />
@@ -889,39 +1134,19 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                     )}
                   />
                 </div>
-              </div>
-            )}
-
-            {canManagePermissions && selectedRole && (
-              <div className="space-y-3 border-t pt-4">
-                <h4 className="text-sm font-semibold">Permissions</h4>
-                <PermissionAssignmentPanel
-                  key={`${selectedRole}-${activeCustomerId ?? "none"}`}
-                  customerId={activeCustomerId ?? undefined}
-                  role={selectedRole}
-                  selected={selectedPermissions}
-                  onChange={setSelectedPermissions}
-                />
-              </div>
-            )}
+              )}
             </div>
 
-            <DialogFooter className="pt-3 border-t border-gray-100 flex-shrink-0">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onClose} 
-                disabled={isSubmitting}
-                className="px-6"
-              >
+            <DialogFooter className="px-5 py-3 border-t border-[#f0f0f0] flex-shrink-0 gap-2 sm:justify-end">
+              <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting} className="h-9">
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
-                disabled={isSubmitting}
-                className="px-6"
+              <Button
+                type="submit"
+                disabled={isSubmitting || emailTaken || isCheckingEmail}
+                className={cn("h-9 px-5", PRIMARY_BTN)}
               >
-                {isSubmitting ? "Creating..." : "Create User"}
+                {isSubmitting ? "Creating…" : getCreateUserTitle(lockedRole || selectedRole)}
               </Button>
             </DialogFooter>
           </form>

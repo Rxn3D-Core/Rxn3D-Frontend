@@ -13,6 +13,7 @@ import { DiscardChangesDialog } from "@/components/product-management/discard-ch
 import { useLanguage } from "@/contexts/language-context"
 import { useExtractionsData, useExtractionForm, useDeleteExtraction, useExtraction } from "@/hooks/use-extractions"
 import type { Extraction, ExtractionsFilters } from "@/lib/schemas"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 interface ToothStatusGroup {
   id: number
@@ -463,6 +464,7 @@ export default function ToothMappingPage() {
                         />
                       </TableCell>
                       <TableCell className="font-medium text-gray-900">
+                        <TableNameWithImage src={status.image_url || status.sample_image_url} alt={status.name}>
                         {(() => {
                           const tooltipData = getGlobalExtractionTooltipData(status)
                           if (!tooltipData) {
@@ -503,6 +505,7 @@ export default function ToothMappingPage() {
                             </TooltipProvider>
                           )
                         })()}
+                        </TableNameWithImage>
                       </TableCell>
                       <TableCell>
                         <div 

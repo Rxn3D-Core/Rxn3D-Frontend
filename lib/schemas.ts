@@ -19,7 +19,9 @@ const SubCategorySchema = BaseEntitySchema.extend({
   category: CategorySchema.optional(),
 })
 
-const GradeSchema = BaseEntitySchema.extend({})
+const GradeSchema = BaseEntitySchema.extend({
+  color: z.string().nullable().optional(),
+})
 const StageSchema = BaseEntitySchema.extend({
   is_common: z.enum(["Yes", "No"]).optional(),
   days_to_pickup: z.number().optional(),
@@ -238,6 +240,7 @@ export const ProductCreateFormSchema = z
           image_url: z.string().optional(),
           tooth_count: z.string().optional(), // e.g. "1", "2", "4 - 16" → API teeth_spec
           name_template: z.string().optional(), // e.g. "Flipper [x tooth/teeth]"
+          days: z.union([z.string(), z.number()]).nullable().optional(), // optional processing days
         }),
       )
       .max(
@@ -412,6 +415,8 @@ export const ProductCreateFormSchema = z
           retention_option_id: z.number(),
           sequence: z.number().optional(),
           status: z.enum(["Active", "Inactive"]).default("Active").optional(),
+          name: z.string().optional(),
+          code: z.string().optional(),
         }),
       )
       .optional()
@@ -421,6 +426,8 @@ export const ProductCreateFormSchema = z
               retention_option_id: item.retention_option_id,
               sequence: typeof item.sequence === "number" ? item.sequence : idx + 1,
               status: item.status === "Inactive" ? "Inactive" : "Active",
+              ...(item.name ? { name: item.name } : {}),
+              ...(item.code ? { code: item.code } : {}),
             }))
           : arr,
       ),
@@ -573,6 +580,8 @@ export const ProductCreateFormSchema = z
       .optional(),
     is_single_stage: z.enum(["Yes", "No"]).default("No"),
     is_splinted: z.enum(["Yes", "No"]).default("No"),
+    gender_required: z.enum(["Yes", "No"]).default("No"),
+    age_required: z.enum(["Yes", "No"]).default("No"),
     link_all_addons: z.enum(["Yes", "No"]).default("No"),
     apply_retention_mechanism: z.enum(["Yes", "No"]).default("No"),
     has_implant: z.enum(["Yes", "No"]).default("No"),
@@ -623,6 +632,11 @@ export const ProductCreateFormSchema = z
      * Defaults to No for all products.
      */
     enable_custom_label: z.enum(["Yes", "No"]).default("No").optional(),
+    /**
+     * When Yes, slip creation hides the reference teeth / tooth status boxes
+     * for this product. Only meaningful when extractions are enabled.
+     */
+    hide_reference_teeth_selection: z.enum(["Yes", "No"]).default("No").optional(),
     /** Free-text custom label; only meaningful when enable_custom_label is Yes. */
     custom_label: z.string().optional(),
     default_tooth_chart: z

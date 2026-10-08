@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Eye, Search, Plus, ChevronDown, X } from "lucide-react"
+import { Eye, Search, Plus, ChevronDown, X, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -10,10 +10,23 @@ import { StaffUserDetail } from "@/components/lab-administrator/staff-user-detai
 import { AddUserForm } from "@/components/lab-administrator/add-user-form"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useCustomer } from "@/contexts/customer-context"
 import ReactDOM from "react-dom"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import {
+  DEFAULT_CLOSE_TIME_12,
+  DEFAULT_DELIVERY_TIME_12,
+  DEFAULT_OPEN_TIME_12,
+  DEFAULT_PICKUP_TIME_12,
+  parseBusinessHourTime,
+  resolveDisplayTimezone,
+} from "@/utils/time-utils"
+import { getUserProfileImageUrl } from "@/utils/avatar-utils"
+import {
+  EditCustomerProfileModal,
+  type EditCustomerProfileData,
+} from "@/components/lab-office-management/edit-customer-profile-modal"
 
 // Updated interface to match customer data structure
 interface LabCustomer {
@@ -42,12 +55,15 @@ interface SelectedLabCustomer extends LabCustomer {
   city: string
   postal_code: string
   stateName?: string
+  stateId?: number | null
   countryName?: string
+  countryId?: number | null
   labNumber?: string
   contactName?: string
   contactEmail?: string
   contactNumber?: string
   release_casepan?: string
+  code?: string
   hoursData?: {
     workingDays: Array<{
       day: string
@@ -119,9 +135,57 @@ export default function AllLabs() {
   const [sortField, setSortField] = useState<keyof LabCustomer | null>(null)
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [editCustomer, setEditCustomer] = useState<EditCustomerProfileData | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   const { isCustomersLoading, labCustomers, fetchCustomers, pagination, updateCustomerProfile, fetchCustomerProfile } = useCustomer()
   const API_STATUS_OPTIONS = ["Active", "Inactive"] as const
+
+  const refreshLabList = () => {
+    fetchCustomers("lab", {
+      q: searchTerm.trim() || undefined,
+      status: statusFilter === "all" ? undefined : (statusFilter as "Active" | "Inactive"),
+      per_page: parseInt(entriesPerPage, 10),
+      order_by: sortField === "name" ? "name" : "created_at",
+      sort_by: sortOrder,
+      page: currentPage,
+    })
+  }
+
+  const openEditLab = async (lab: LabCustomer) => {
+    try {
+      const profile = await fetchCustomerProfile(lab.id)
+      const profileData = profile as any
+      setEditCustomer({
+        id: lab.id,
+        name: profileData?.name || lab.name,
+        email: profileData?.email || lab.email,
+        website: profileData?.website ?? lab.website,
+        address: profileData?.address || lab.address,
+        city: profileData?.city || lab.city,
+        postal_code: profileData?.postal_code || lab.postal_code,
+        stateName: profileData?.state?.name || "",
+        stateId: profileData?.state?.id ?? null,
+        countryName: profileData?.country?.name || "",
+        countryId: profileData?.country?.id ?? null,
+        release_casepan: profileData?.release_casepan || "",
+        code: profileData?.code || "",
+        logo_url: profileData?.logo_url || lab.logo_url,
+      })
+    } catch {
+      setEditCustomer({
+        id: lab.id,
+        name: lab.name,
+        email: lab.email,
+        website: lab.website,
+        address: lab.address,
+        city: lab.city,
+        postal_code: lab.postal_code,
+        logo_url: lab.logo_url,
+      })
+    }
+    setIsEditModalOpen(true)
+  }
 
   useEffect(() => {
     fetchCustomers("lab", {
@@ -197,10 +261,10 @@ export default function AllLabs() {
         workingDays: (profileData?.business_settings?.business_hours || []).map((hour: any) => ({
           day: hour?.day ? `${String(hour.day).charAt(0).toUpperCase()}${String(hour.day).slice(1)}` : "",
           enabled: !!hour?.is_open,
-          startTime: hour?.open_time ? toDisplayTime(hour.open_time) : "",
-          endTime: hour?.close_time ? toDisplayTime(hour.close_time) : "",
+          startTime: parseBusinessHourTime(hour?.open_time, hour?.is_open ? DEFAULT_OPEN_TIME_12 : ""),
+          endTime: parseBusinessHourTime(hour?.close_time, hour?.is_open ? DEFAULT_CLOSE_TIME_12 : ""),
         })),
-        timezone: profileData?.state?.name || "Unknown Timezone",
+        timezone: resolveDisplayTimezone(profileData?.state?.name),
         holidays: "All Federal Holidays",
       }
       const pickupData = {
@@ -208,9 +272,10 @@ export default function AllLabs() {
           profileData?.business_settings?.pickup_area ||
           `${profileData?.city || ""}, ${profileData?.state?.name || ""} ${profileData?.country?.name || ""}`.trim(),
         pickupDays: profileData?.business_settings?.pickup_days || "Lab hours",
-        cutOffTime: profileData?.business_settings?.case_schedule?.default_pickup_time
-          ? toDisplayTime(profileData.business_settings.case_schedule.default_pickup_time)
-          : "",
+        cutOffTime: parseBusinessHourTime(
+          profileData?.business_settings?.case_schedule?.default_pickup_time,
+          DEFAULT_PICKUP_TIME_12
+        ),
         frequency: profileData?.business_settings?.pickup_frequency || "Daily",
         window: profileData?.business_settings?.pickup_window || "10:00 am - 2:00 pm",
       }
@@ -219,9 +284,10 @@ export default function AllLabs() {
           profileData?.business_settings?.delivery_area ||
           `${profileData?.city || ""}, ${profileData?.state?.name || ""} ${profileData?.country?.name || ""}`.trim(),
         deliveryDays: profileData?.business_settings?.delivery_days || "Lab hours",
-        defaultTime: profileData?.business_settings?.case_schedule?.default_delivery_time
-          ? toDisplayTime(profileData.business_settings.case_schedule.default_delivery_time)
-          : "",
+        defaultTime: parseBusinessHourTime(
+          profileData?.business_settings?.case_schedule?.default_delivery_time,
+          DEFAULT_DELIVERY_TIME_12
+        ),
         window: profileData?.business_settings?.delivery_window || "3:00 pm - 6:00 pm",
       }
       const rushSettings = {
@@ -253,12 +319,17 @@ export default function AllLabs() {
         city: profileData?.city || user.city || "",
         postal_code: profileData?.postal_code || user.postal_code || "",
         stateName: profileData?.state?.name || "",
+        stateId: profileData?.state?.id ?? null,
         countryName: profileData?.country?.name || "",
+        countryId: profileData?.country?.id ?? null,
         labNumber: profileData?.default_admin?.work_number || "",
         contactName: profileData?.default_admin ? `${profileData.default_admin.first_name || ""} ${profileData.default_admin.last_name || ""}`.trim() : "",
         contactEmail: profileData?.default_admin?.email || "",
         contactNumber: profileData?.default_admin?.phone || "",
         release_casepan: profileData?.release_casepan || "",
+        code: profileData?.code || "",
+        logo_url: profileData?.logo_url || user.logo_url,
+        website: profileData?.website ?? user.website,
         hoursData,
         pickupData,
         deliveryData,
@@ -277,15 +348,18 @@ export default function AllLabs() {
         city: user.city || "",
         postal_code: user.postal_code || "",
         stateName: "",
+        stateId: null,
         countryName: "",
+        countryId: null,
         labNumber: "",
         contactName: "",
         contactEmail: "",
         contactNumber: "",
         release_casepan: "",
+        code: "",
         hoursData: {
           workingDays: [],
-          timezone: "Unknown Timezone",
+          timezone: resolveDisplayTimezone(null),
           holidays: "All Federal Holidays",
         },
         pickupData: {
@@ -554,7 +628,17 @@ export default function AllLabs() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <Avatar className={getAvatarColor(lab.id)}>
+                        <Avatar className={lab.logo_url ? "bg-white border border-gray-200" : getAvatarColor(lab.id)}>
+                          {lab.logo_url ? (
+                            <AvatarImage
+                              src={getUserProfileImageUrl({ image: lab.logo_url })}
+                              alt={`${lab.name} logo`}
+                              className="object-contain p-0.5"
+                            />
+                          ) : null}
+                          <AvatarFallback className={`${getAvatarColor(lab.id)} text-white text-xs font-semibold`}>
+                            {getAvatarFallback(lab.name)}
+                          </AvatarFallback>
                         </Avatar>
                         <span className="font-medium">{lab.name}</span>
                       </div>
@@ -603,14 +687,26 @@ export default function AllLabs() {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewUser(lab)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </Button>
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewUser(lab)}
+                          className="text-blue-600 hover:text-blue-800"
+                          title="View lab details"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditLab(lab)}
+                          className="text-purple-600 hover:text-purple-800"
+                          title="Edit lab profile"
+                        >
+                          <Pencil className="h-5 w-5" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -680,6 +776,33 @@ export default function AllLabs() {
                 onBack={() => setSelectedUser(null)}
                 mode="lab"
                 hideOtherNotes={true}
+                allowEdit={true}
+                onProfileUpdated={(updated) => {
+                  setSelectedUser((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          name: updated.name ?? prev.name,
+                          website: updated.website ?? prev.website,
+                          city: updated.city ?? prev.city,
+                          postal_code: updated.postal_code ?? prev.postal_code,
+                          stateName: updated.stateName ?? prev.stateName,
+                          stateId: updated.stateId ?? prev.stateId,
+                          countryName: updated.countryName ?? prev.countryName,
+                          countryId: updated.countryId ?? prev.countryId,
+                          release_casepan: updated.release_casepan ?? prev.release_casepan,
+                          code: updated.code ?? prev.code,
+                          logo_url: updated.logo_url ?? prev.logo_url,
+                          address: updated.address
+                            ? [updated.address, updated.city, updated.stateName, updated.countryName, updated.postal_code]
+                                .filter(Boolean)
+                                .join(", ")
+                            : prev.address,
+                        }
+                      : prev
+                  )
+                  refreshLabList()
+                }}
                 customerId={selectedUser.id}
                 customerType="lab"
                 hoursData={selectedUser.hoursData}
@@ -702,6 +825,22 @@ export default function AllLabs() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <EditCustomerProfileModal
+        open={isEditModalOpen}
+        onOpenChange={(open) => {
+          setIsEditModalOpen(open)
+          if (!open) setEditCustomer(null)
+        }}
+        customerType="lab"
+        customer={editCustomer}
+        onSuccess={() => {
+          refreshLabList()
+          if (selectedUser && editCustomer && selectedUser.id === editCustomer.id) {
+            void handleViewUser(selectedUser)
+          }
+        }}
+      />
     </div>
   )
 }

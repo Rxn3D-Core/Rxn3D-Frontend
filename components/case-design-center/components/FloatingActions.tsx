@@ -144,9 +144,9 @@ export function FloatingActions({
   showDriverHistoryFab = true,
   canPutOnHold = true,
 }: FloatingActionsProps = {}) {
-  const { canEditSlip, canDeleteCase } = usePermissionCapabilities();
+  const { canEditSlip, canCancelCase } = usePermissionCapabilities();
   const effectiveShowEditSlip = showEditSlip && canEditSlip;
-  const effectiveOnCancel = canDeleteCase ? onCancel : undefined;
+  const effectiveOnCancel = canCancelCase ? onCancel : undefined;
   const pickupActionLabel = pickupDropoffLabel ?? "Pick up/Drop off";
   const isDropoffFab = pickupDropoffAction === "dropoff";
   const isFooterDriverAction =

@@ -1,4 +1,5 @@
 import { buildVirtualSlipVM, type VirtualSlipVM } from "@/lib/virtual-slip-view-model";
+import { resolveLatestSlipNoteText } from "@/lib/paper-slip-notes-display";
 
 /**
  * Paper Slip v2 view model.
@@ -23,14 +24,12 @@ export interface PaperSlipPrintV2Extras {
   labAddress: string;
   labCode: string;
   doctorLicenseNumber: string;
-  labPhone: string;
-  labEmail: string;
 }
 
 export interface PaperSlipPrintV2SlipVM {
   slipId: number;
   extras: PaperSlipPrintV2Extras;
-  /** Authoritative body: identical to what /virtual-slip-v2/{id} renders. */
+  /** Authoritative body: identical to what /virtual-slip/{caseId}/{slipId} renders. */
   vm: VirtualSlipVM;
 }
 
@@ -77,8 +76,6 @@ export function extractPaperSlipPrintV2Extras(record: any): PaperSlipPrintV2Extr
     labAddress: joinAddress([lab?.address, lab?.city, lab?.state, lab?.postal_code]),
     labCode: firstStr(lab?.code, caseData?.lab_code),
     doctorLicenseNumber: firstStr(doctor?.license_number, doctor?.license_no),
-    labPhone: firstStr(lab?.phone, lab?.phone_number),
-    labEmail: firstStr(lab?.email),
   };
 }
 
@@ -86,11 +83,20 @@ export function extractPaperSlipPrintV2Extras(record: any): PaperSlipPrintV2Extr
 export function buildPaperSlipPrintV2SlipVM(
   details: any,
   extras: PaperSlipPrintV2Extras,
+  options?: { defaultDeliveryTime?: string | null },
 ): PaperSlipPrintV2SlipVM {
+  const vm = buildVirtualSlipVM(details, {
+    defaultDeliveryTime: options?.defaultDeliveryTime,
+  });
+  const latestSlipNote = resolveLatestSlipNoteText(details?.notes);
+
   return {
     slipId: extras.slipId,
     extras,
-    vm: buildVirtualSlipVM(details),
+    vm: {
+      ...vm,
+      notes: latestSlipNote || vm.notes,
+    },
   };
 }
 

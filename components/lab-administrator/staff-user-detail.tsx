@@ -4,12 +4,17 @@ import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
-import { Mail, MapPin, Phone, Search, Filter } from "lucide-react"
+import { Edit, Globe, Mail, MapPin, Phone, Search, Filter } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { OperatingHoursTab } from "@/components/lab-administrator/lab-profile-operating-hours"
 import { PickupDeliveryTab } from "@/components/lab-administrator/lab-profile-pickup-delivery"
+import {
+  EditCustomerProfileModal,
+  type EditCustomerProfileData,
+} from "@/components/lab-office-management/edit-customer-profile-modal"
 import { useAuth } from "@/contexts/auth-context"
+import { resolveDisplayTimezone } from "@/utils/time-utils"
 
 interface User {
   id: number
@@ -25,12 +30,17 @@ interface User {
   city?: string
   postal_code?: string
   stateName?: string
+  stateId?: number | null
   countryName?: string
+  countryId?: number | null
   labNumber?: string
   contactName?: string
   contactEmail?: string
   contactNumber?: string
   release_casepan?: string
+  code?: string
+  uniqueCode?: string
+  logo_url?: string | null
   dateOfBirth?: string
   payType?: string
   payRate?: string
@@ -50,6 +60,8 @@ interface StaffUserDetailProps {
   onBack: () => void
   mode?: "default" | "lab" | "office"
   hideOtherNotes?: boolean
+  allowEdit?: boolean
+  onProfileUpdated?: (updated: Partial<EditCustomerProfileData> & { logo_url?: string }) => void
   customerId?: number
   customerType?: "lab" | "office"
   hoursData?: {
@@ -89,6 +101,8 @@ interface StaffUserDetailProps {
     phone?: string
     status?: string
     role?: string
+    isPrimary?: boolean
+    avatar?: string
   }>
   officeAdmins?: Array<{
     id: number
@@ -97,6 +111,8 @@ interface StaffUserDetailProps {
     phone?: string
     status?: string
     role?: string
+    isPrimary?: boolean
+    avatar?: string
   }>
   doctors?: Array<{
     id: number
@@ -105,7 +121,25 @@ interface StaffUserDetailProps {
     phone?: string
     status?: string
     role?: string
+    isPrimary?: boolean
+    avatar?: string
   }>
+}
+
+function formatRoleLabel(role?: string) {
+  if (!role) return "-"
+  return role
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function membershipStatusClass(status?: string) {
+  const value = String(status || "").toLowerCase()
+  if (value === "active") return "bg-[#c3f2cf] text-[#119933]"
+  if (value === "inactive") return "bg-[#eeeeee] text-[#a19d9d]"
+  if (value === "suspended") return "bg-[#fff3e1] text-[#ff9500]"
+  if (value === "archived" || value === "offboarded") return "bg-[#f8dddd] text-[#eb0303]"
+  return "bg-[#eeeeee] text-[#a19d9d]"
 }
 
 export function StaffUserDetail({
@@ -113,6 +147,8 @@ export function StaffUserDetail({
   onBack,
   mode = "default",
   hideOtherNotes = false,
+  allowEdit = false,
+  onProfileUpdated,
   customerId,
   customerType = "lab",
   hoursData,
@@ -126,12 +162,45 @@ export function StaffUserDetail({
   const { fetchUserActivity } = useAuth()
   const isLabMode = mode === "lab"
   const isOfficeMode = mode === "office"
-  const sidebarPhone = (isLabMode || isOfficeMode) ? user.phone || user.contactNumber || "-" : user.phone || "-"
   const [activeTab, setActiveTab] = useState<"details" | "activity" | "lab_admins" | "office_admins" | "doctors" | "operating_hours" | "pickup_delivery">("details")
   const [searchTerm, setSearchTerm] = useState("")
   const [entriesPerPage, setEntriesPerPage] = useState("10")
   const [activities, setActivities] = useState<Activity[]>([])
   const [isActivityLoading, setIsActivityLoading] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [displayUser, setDisplayUser] = useState(user)
+  const sidebarPhone = (isLabMode || isOfficeMode)
+    ? displayUser.phone || displayUser.contactNumber || "-"
+    : displayUser.phone || "-"
+
+  useEffect(() => {
+    setDisplayUser(user)
+  }, [user])
+
+  const canEditProfile = allowEdit && (isLabMode || isOfficeMode)
+
+  const handleProfileSuccess = (updated: Partial<EditCustomerProfileData> & { logo_url?: string }) => {
+    setDisplayUser((prev) => ({
+      ...prev,
+      name: updated.name ?? prev.name,
+      website: updated.website ?? prev.website,
+      address: updated.address
+        ? [updated.address, updated.city, updated.stateName, updated.countryName, updated.postal_code]
+            .filter(Boolean)
+            .join(", ")
+        : prev.address,
+      city: updated.city ?? prev.city,
+      postal_code: updated.postal_code ?? prev.postal_code,
+      stateName: updated.stateName ?? prev.stateName,
+      stateId: updated.stateId ?? prev.stateId,
+      countryName: updated.countryName ?? prev.countryName,
+      countryId: updated.countryId ?? prev.countryId,
+      release_casepan: updated.release_casepan ?? prev.release_casepan,
+      code: updated.code ?? prev.code,
+      logo_url: updated.logo_url ?? prev.logo_url,
+    }))
+    onProfileUpdated?.(updated)
+  }
 
   const loadActivity = useCallback(async () => {
     if (!user.id) return
@@ -189,24 +258,41 @@ export function StaffUserDetail({
       <div className="w-full lg:w-80 border-r bg-white p-6">
         <div className="flex flex-col items-center">
           <Avatar className="h-32 w-32 mb-4">
-            <AvatarImage src="/placeholder.svg?height=128&width=128&query=james-cagney" alt={user.name} />
-            <AvatarFallback className="text-3xl bg-blue-100 text-blue-600">JC</AvatarFallback>
+            <AvatarImage
+              src={displayUser.logo_url || "/placeholder.svg?height=128&width=128&query=customer-logo"}
+              alt={displayUser.name}
+            />
+            <AvatarFallback className="text-3xl bg-blue-100 text-blue-600">
+              {(displayUser.name || "??")
+                .split(" ")
+                .map((word) => word[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase()}
+            </AvatarFallback>
           </Avatar>
-          <h2 className="text-xl font-bold mb-1">{user.name}</h2>
-          <p className="text-gray-500 mb-6">{user.userType}</p>
+          <h2 className="text-xl font-bold mb-1 text-center">{displayUser.name}</h2>
+          <p className="text-gray-500 mb-2">{displayUser.userType}</p>
+          {displayUser.status ? (
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium mb-4 ${membershipStatusClass(displayUser.status)}`}>
+              {displayUser.status}
+            </span>
+          ) : (
+            <div className="mb-6" />
+          )}
 
           <div className="w-full space-y-4">
             <div className="flex items-start gap-3">
               <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm">{user.email}</p>
+                <p className="text-sm">{displayUser.email || "-"}</p>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
               <MapPin className="h-5 w-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm">{user.address || "-"}</p>
+                <p className="text-sm">{displayUser.address || "-"}</p>
               </div>
             </div>
 
@@ -216,7 +302,27 @@ export function StaffUserDetail({
                 <p className="text-sm">{sidebarPhone}</p>
               </div>
             </div>
+
+            {(isLabMode || isOfficeMode) && displayUser.website ? (
+              <div className="flex items-start gap-3">
+                <Globe className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm break-all">{displayUser.website}</p>
+                </div>
+              </div>
+            ) : null}
           </div>
+
+          {canEditProfile && (
+            <Button
+              variant="outline"
+              className="w-full mt-6"
+              onClick={() => setIsEditModalOpen(true)}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit {isLabMode ? "Lab" : "Office"}
+            </Button>
+          )}
 
           {!isLabMode && !isOfficeMode && (
             <Button variant="outline" className="w-full mt-6">
@@ -296,6 +402,16 @@ export function StaffUserDetail({
                 >
                   Doctors
                 </button>
+                <button
+                  className={`px-8 py-4 font-medium ${
+                    activeTab === "operating_hours"
+                      ? "bg-[#e8f4fd] text-[#1162a8] border-b-2 border-[#1162a8]"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                  onClick={() => setActiveTab("operating_hours")}
+                >
+                  Operating Hours
+                </button>
               </>
             ) : (
               <button
@@ -313,48 +429,61 @@ export function StaffUserDetail({
         </div>
 
         {/* Tab content */}
-        <div className={isLabMode && (activeTab === "operating_hours" || activeTab === "pickup_delivery") ? "" : "p-6"}>
+        <div className={(isLabMode || isOfficeMode) && (activeTab === "operating_hours" || activeTab === "pickup_delivery") ? "" : "p-6"}>
           {activeTab === "details" ? (
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold flex items-center gap-2">
                     {isLabMode ? "Lab Info" : isOfficeMode ? "Office Info" : "Profile Details"}
-                    <span className="text-gray-400"><svg width="25" height="26" viewBox="0 0 25 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    {canEditProfile ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditModalOpen(true)}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        title={`Edit ${isLabMode ? "Lab" : "Office"} Info`}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <span className="text-gray-400"><svg width="25" height="26" viewBox="0 0 25 26" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M2.08325 22.3794C2.0831 21.0317 2.40983 19.7041 3.03542 18.5103C3.661 17.3166 4.56678 16.2924 5.67508 15.5256C6.78338 14.7588 8.06113 14.2722 9.39875 14.1076C10.7364 13.943 12.094 14.1052 13.3551 14.5805" stroke="#B4B0B0" strokeLinecap="round" strokeLinejoin="round"/>
 <path d="M22.2688 17.8231C22.6837 17.4082 22.9168 16.8454 22.9168 16.2586C22.9168 15.6717 22.6837 15.1089 22.2688 14.694C21.8538 14.279 21.291 14.0459 20.7042 14.0459C20.1174 14.0459 19.5546 14.279 19.1396 14.694L14.9625 18.8731C14.7149 19.1207 14.5336 19.4266 14.4354 19.7627L13.5636 22.7523C13.5374 22.8419 13.5358 22.937 13.559 23.0274C13.5822 23.1178 13.6293 23.2004 13.6953 23.2664C13.7613 23.3324 13.8438 23.3795 13.9343 23.4027C14.0247 23.4258 14.1198 23.4243 14.2094 23.3981L17.199 22.5263C17.5351 22.4281 17.841 22.2468 18.0886 21.9992L22.2688 17.8231Z" stroke="#B4B0B0" strokeLinecap="round" strokeLinejoin="round"/>
 <path d="M10.4166 14.0461C13.2931 14.0461 15.6249 11.7142 15.6249 8.83773C15.6249 5.96124 13.2931 3.62939 10.4166 3.62939C7.5401 3.62939 5.20825 5.96124 5.20825 8.83773C5.20825 11.7142 7.5401 14.0461 10.4166 14.0461Z" stroke="#B4B0B0" strokeLinecap="round" strokeLinejoin="round"/>
 </svg>
 </span>
+                    )}
                   </h3>
                 </div>
 
                 {isLabMode || isOfficeMode ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-12">
-                    <div><p className="text-sm text-gray-500 mb-1">{isLabMode ? "Lab Name:" : "Office Name:"}</p><p className="font-medium">{user.name || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">{isLabMode ? "Lab ID:" : "Office ID:"}</p><p className="font-medium">{user.id || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">{isLabMode ? "Lab Number:" : "Office Number:"}</p><p className="font-medium">{user.labNumber || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">{isLabMode ? "Lab Email:" : "Office Email:"}</p><p className="font-medium">{user.email || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Address:</p><p className="font-medium">{user.address || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">City:</p><p className="font-medium">{user.city || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">State:</p><p className="font-medium">{user.stateName || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Country:</p><p className="font-medium">{user.countryName || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Postal Code:</p><p className="font-medium">{user.postal_code || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Website:</p><p className="font-medium">{user.website || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Contact Name:</p><p className="font-medium">{user.contactName || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Contact Email:</p><p className="font-medium">{user.contactEmail || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Contact Number:</p><p className="font-medium">{user.contactNumber || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Joining Date:</p><p className="font-medium">{user.joinDate || "-"}</p></div>
-                    {isLabMode && <div><p className="text-sm text-gray-500 mb-1">Release Casepan:</p><p className="font-medium">{user.release_casepan || "-"}</p></div>}
+                    <div><p className="text-sm text-gray-500 mb-1">{isLabMode ? "Lab Name:" : "Office Name:"}</p><p className="font-medium">{displayUser.name || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">{isLabMode ? "Lab ID:" : "Office ID:"}</p><p className="font-medium">{displayUser.id || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">{isLabMode ? "Lab Number:" : "Office Number:"}</p><p className="font-medium">{displayUser.labNumber || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">{isLabMode ? "Lab Email:" : "Office Email:"}</p><p className="font-medium">{displayUser.email || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Address:</p><p className="font-medium">{displayUser.address || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">City:</p><p className="font-medium">{displayUser.city || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">State:</p><p className="font-medium">{displayUser.stateName || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Country:</p><p className="font-medium">{displayUser.countryName || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Postal Code:</p><p className="font-medium">{displayUser.postal_code || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Website:</p><p className="font-medium">{displayUser.website || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Contact Name:</p><p className="font-medium">{displayUser.contactName || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Contact Email:</p><p className="font-medium">{displayUser.contactEmail || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Contact Number:</p><p className="font-medium">{displayUser.contactNumber || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Joining Date:</p><p className="font-medium">{displayUser.joinDate || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">{isLabMode ? "Lab Code:" : "Office Code:"}</p><p className="font-medium">{displayUser.code || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Unique Code:</p><p className="font-medium">{displayUser.uniqueCode || "-"}</p></div>
+                    {isLabMode && <div><p className="text-sm text-gray-500 mb-1">Release Casepan:</p><p className="font-medium">{displayUser.release_casepan || "-"}</p></div>}
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-y-4 gap-x-12">
-                    <div><p className="text-sm text-gray-500 mb-1">Full Name:</p><p className="font-medium">{user.name}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">User Type:</p><p className="font-medium">{user.userType}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Email Address:</p><p className="font-medium">{user.email}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Mobile Number:</p><p className="font-medium">{user.phone || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Address:</p><p className="font-medium">{user.address || "-"}</p></div>
-                    <div><p className="text-sm text-gray-500 mb-1">Joining Date:</p><p className="font-medium">{user.joinDate || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Full Name:</p><p className="font-medium">{displayUser.name}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">User Type:</p><p className="font-medium">{displayUser.userType}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Email Address:</p><p className="font-medium">{displayUser.email}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Mobile Number:</p><p className="font-medium">{displayUser.phone || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Address:</p><p className="font-medium">{displayUser.address || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Joining Date:</p><p className="font-medium">{displayUser.joinDate || "-"}</p></div>
                   </div>
                 )}
 
@@ -418,11 +547,43 @@ export function StaffUserDetail({
                       ) : (
                         filteredStaff.slice(0, Number(entriesPerPage)).map((admin) => (
                           <tr key={admin.id} className="border-b hover:bg-gray-50">
-                            <td className="px-6 py-4 text-sm">{admin.name}</td>
-                            <td className="px-6 py-4 text-sm">{admin.email}</td>
+                            <td className="px-6 py-4 text-sm">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={admin.avatar || "/placeholder.svg"} alt={admin.name} />
+                                  <AvatarFallback className="text-xs bg-blue-100 text-blue-600">
+                                    {(admin.name || "?")
+                                      .split(" ")
+                                      .map((word) => word[0])
+                                      .slice(0, 2)
+                                      .join("")
+                                      .toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium text-gray-900">{admin.name}</p>
+                                  {admin.isPrimary ? (
+                                    <span className="inline-flex mt-0.5 items-center rounded-full bg-[#e8f4fd] text-[#1162a8] px-2 py-0.5 text-[11px] font-medium">
+                                      Primary
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-sm">{admin.email || "-"}</td>
                             <td className="px-6 py-4 text-sm">{admin.phone || "-"}</td>
-                            <td className="px-6 py-4 text-sm">{admin.role || (isLabMode ? "lab_admin" : activeTab === "office_admins" ? "office_admin" : "doctor")}</td>
-                            <td className="px-6 py-4 text-sm">{admin.status || "-"}</td>
+                            <td className="px-6 py-4 text-sm">
+                              {formatRoleLabel(admin.role || (isLabMode ? "lab_admin" : activeTab === "office_admins" ? "office_admin" : "doctor"))}
+                            </td>
+                            <td className="px-6 py-4 text-sm">
+                              {admin.status ? (
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${membershipStatusClass(admin.status)}`}>
+                                  {admin.status}
+                                </span>
+                              ) : (
+                                "-"
+                              )}
+                            </td>
                           </tr>
                         ))
                       )}
@@ -431,12 +592,12 @@ export function StaffUserDetail({
                 </div>
               </CardContent>
             </Card>
-          ) : isLabMode && activeTab === "operating_hours" ? (
+          ) : (isLabMode || isOfficeMode) && activeTab === "operating_hours" ? (
             <OperatingHoursTab
               hoursData={
                 hoursData || {
                   workingDays: [],
-                  timezone: "Unknown Timezone",
+                  timezone: resolveDisplayTimezone(null),
                   holidays: "All Federal Holidays",
                 }
               }
@@ -553,6 +714,31 @@ export function StaffUserDetail({
           ) : null}
         </div>
       </div>
+
+      {canEditProfile && (
+        <EditCustomerProfileModal
+          open={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          customerType={isLabMode ? "lab" : "office"}
+          customer={{
+            id: displayUser.id,
+            name: displayUser.name,
+            email: displayUser.email,
+            website: displayUser.website,
+            address: displayUser.address,
+            city: displayUser.city,
+            postal_code: displayUser.postal_code,
+            stateName: displayUser.stateName,
+            stateId: displayUser.stateId,
+            countryName: displayUser.countryName,
+            countryId: displayUser.countryId,
+            release_casepan: displayUser.release_casepan,
+            code: displayUser.code,
+            logo_url: displayUser.logo_url,
+          }}
+          onSuccess={handleProfileSuccess}
+        />
+      )}
     </div>
   )
 }

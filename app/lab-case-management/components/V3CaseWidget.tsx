@@ -1,20 +1,28 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { V3FilterBar, DEFAULT_VISIBLE, type ColumnKey } from "./V3FilterBar"
 import { V3CaseTable, type SortDirection } from "./V3CaseTable"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
+import {
+  loadSlipListingVisibleColumns,
+  saveSlipListingVisibleColumns,
+  type SlipListingProfile,
+} from "@/lib/slip-listing-preferences"
 
 const PAGE_SIZE_CHOICES = [20, 50, 100]
 
 interface Props {
+  /** Scopes saved column preferences in localStorage (lab vs office listing). */
+  listingProfile: SlipListingProfile
   // filter bar
   search: string
   onSearchChange: (value: string) => void
   onSearchEnter: () => void
   onAdvancedFilterClick: () => void
+  advancedFilterActive?: boolean
   advancedFilterContent?: ReactNode
   locations: string[]
   onLocationChange: (value: string) => void
@@ -31,6 +39,14 @@ interface Props {
   rowActions: V2RowActions
   canPrintStatement: (row: V2CaseRowData) => boolean
   canSendBack: (row: V2CaseRowData) => boolean
+  canCancelCase?: boolean
+  canDeleteCase?: boolean
+  /** Lab admin only — undo one location step from the ⋯ menu. */
+  allowUndoLocation?: boolean
+  /** Lab listing — click pan chip to toggle shared pan color. */
+  allowPanToggle?: boolean
+  canOverridePanColor?: boolean
+  currentUserId?: number | null
   /**
    * Office profile listing: counterparty column reads "Lab", driver actions and
    * rush-submit icons are withheld (rush status bolt still shows), and rush rows
@@ -43,7 +59,8 @@ interface Props {
   onMoreMenuRowChange: (id: number | null) => void
   // bulk actions — statement printing and archiving stay row-level only
   onBulkPrintDriverLabel: () => void
-  onBulkPrintPaperSlip: () => void
+  // Multiple paper slip print disabled from listing
+  // onBulkPrintPaperSlip: () => void
   // pagination
   currentPage: number
   totalPages: number
@@ -62,10 +79,16 @@ export function V3CaseWidget(props: Props) {
   const pages = getPaginationPages(props.currentPage, props.totalPages)
   const firstEntry = props.totalCount === 0 ? 0 : (props.currentPage - 1) * props.itemsPerPage + 1
   const lastEntry = Math.min(props.currentPage * props.itemsPerPage, props.totalCount)
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(DEFAULT_VISIBLE)
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
+    () => loadSlipListingVisibleColumns(props.listingProfile) ?? DEFAULT_VISIBLE,
+  )
   const pageSizeOptions = PAGE_SIZE_CHOICES.includes(props.itemsPerPage)
     ? PAGE_SIZE_CHOICES
     : [...PAGE_SIZE_CHOICES, props.itemsPerPage].sort((a, b) => a - b)
+
+  useEffect(() => {
+    saveSlipListingVisibleColumns(props.listingProfile, visibleColumns)
+  }, [props.listingProfile, visibleColumns])
 
   return (
     <section className="overflow-hidden rounded-lg border border-[#e5e7eb] bg-white shadow-sm">
@@ -74,6 +97,7 @@ export function V3CaseWidget(props: Props) {
         onSearchChange={props.onSearchChange}
         onSearchEnter={props.onSearchEnter}
         onAdvancedFilterClick={props.onAdvancedFilterClick}
+        advancedFilterActive={props.advancedFilterActive}
         locations={props.locations}
         onLocationChange={props.onLocationChange}
         statuses={props.statuses}
@@ -87,13 +111,16 @@ export function V3CaseWidget(props: Props) {
       {props.selected.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-blue-200 bg-blue-50 px-4 py-3">
           <span className="mr-1 text-sm font-semibold text-blue-700">Bulk actions:</span>
-          <button
-            type="button"
-            className="rounded px-2 py-1 text-sm text-blue-700 hover:bg-blue-100"
-            onClick={props.onBulkPrintDriverLabel}
-          >
-            Print Driver label
-          </button>
+          {!props.officeProfile && (
+            <button
+              type="button"
+              className="rounded px-2 py-1 text-sm text-blue-700 hover:bg-blue-100"
+              onClick={props.onBulkPrintDriverLabel}
+            >
+              Print Driver label
+            </button>
+          )}
+          {/* Multiple paper slip print disabled from listing
           <button
             type="button"
             className="rounded px-2 py-1 text-sm text-blue-700 hover:bg-blue-100"
@@ -101,6 +128,7 @@ export function V3CaseWidget(props: Props) {
           >
             Print Paper slip
           </button>
+          */}
         </div>
       )}
       <V3CaseTable
@@ -114,6 +142,12 @@ export function V3CaseWidget(props: Props) {
         rowActions={props.rowActions}
         canPrintStatement={props.canPrintStatement}
         canSendBack={props.canSendBack}
+        canCancelCase={props.canCancelCase}
+        canDeleteCase={props.canDeleteCase}
+        allowUndoLocation={props.allowUndoLocation}
+        allowPanToggle={props.allowPanToggle}
+        canOverridePanColor={props.canOverridePanColor}
+        currentUserId={props.currentUserId}
         officeProfile={props.officeProfile}
         printMenuRow={props.printMenuRow}
         moreMenuRow={props.moreMenuRow}

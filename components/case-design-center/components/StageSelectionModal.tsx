@@ -53,6 +53,7 @@ export function StageSelectionModal({
   onSelect,
   onClose,
   archLabel,
+  productName,
   lastCompletedStageId,
   lastCompletedSequence,
 }: {
@@ -61,8 +62,10 @@ export function StageSelectionModal({
   stageHistory?: NewStageEligibilityStageRef[];
   onSelect: (stageName: string, stageId?: number) => void;
   onClose: () => void;
-  /** When provided, appended to the title: "Select stage for <archLabel>" */
+  /** When provided, used in the title: "Select stage for <archLabel>" */
   archLabel?: string;
+  /** When provided with archLabel, appended: "Select stage for <archLabel> + <productName>" */
+  productName?: string;
   /** stage_id of the last completed stage — this stage is selectable (repeat) but earlier ones are not. */
   lastCompletedStageId?: number;
   /** sequence of the last completed stage — stages with lower sequence are disabled. */
@@ -74,6 +77,17 @@ export function StageSelectionModal({
     if (stage.sequence != null) return stage.sequence < lastCompletedSequence;
     return false;
   };
+
+  const titleProduct =
+    productName?.trim() && productName.trim().length > 0
+      ? productName.trim()
+      : undefined;
+  const title = archLabel
+    ? titleProduct
+      ? `Select stage for ${archLabel} + ${titleProduct}`
+      : `Select stage for ${archLabel}`
+    : "Select stage";
+
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="w-screen max-w-[100vw] max-h-[100vh] sm:max-w-[100vw] overflow-hidden flex flex-col p-0">
@@ -86,9 +100,7 @@ export function StageSelectionModal({
               letterSpacing: "-0.02em",
             }}
           >
-            <span className="text-xl sm:text-[30px]">
-              {archLabel ? `Select stage for ${archLabel}` : "Select stage"}
-            </span>
+            <span className="text-xl sm:text-[30px]">{title}</span>
           </DialogTitle>
         </DialogHeader>
 

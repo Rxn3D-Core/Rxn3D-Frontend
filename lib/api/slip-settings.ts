@@ -20,6 +20,34 @@ export interface SlipSettings {
   require_signature_drop_at_office: boolean
   /** Signature required on the lab "Ready to Send" action. Default false. */
   require_signature_ready_to_send: boolean
+  /** Show photo upload on lab "Ready to Send". Default false. */
+  enable_photo_ready_to_send: boolean
+  /** Require photo when ready-to-send photo is enabled. Default false. */
+  require_photo_ready_to_send: boolean
+  /** Show photo upload when picking up from office. Default false. */
+  enable_photo_pickup_from_office: boolean
+  /** Require photo when enabled for office pickup. Default false. */
+  require_photo_pickup_from_office: boolean
+  /** Show photo upload when picking up from lab. Default false. */
+  enable_photo_pickup_from_lab: boolean
+  /** Require photo when enabled for lab pickup. Default false. */
+  require_photo_pickup_from_lab: boolean
+  /** Show photo upload when dropping at lab. Default true. */
+  enable_photo_drop_at_lab: boolean
+  /** Require photo when enabled for lab drop-off. Default false. */
+  require_photo_drop_at_lab: boolean
+  /** Show photo upload when dropping at office. Default true. */
+  enable_photo_drop_at_office: boolean
+  /** Require photo when enabled for office drop-off. Default false. */
+  require_photo_drop_at_office: boolean
+  /** Allow multiple slips when picking up from office. Default true. */
+  allow_multiple_pickup_from_office: boolean
+  /** Allow multiple slips when picking up from lab. Default true. */
+  allow_multiple_pickup_from_lab: boolean
+  /** Allow multiple slips when dropping at lab. Default false. */
+  allow_multiple_drop_at_lab: boolean
+  /** Allow multiple slips when dropping at office. Default false. */
+  allow_multiple_drop_at_office: boolean
 }
 
 export type SlipSettingsUpdate = Partial<

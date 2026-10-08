@@ -1,7 +1,7 @@
 /**
  * Synchronous access to the logged-in user stored in localStorage under "user".
- * Used for the driver drop-off flow, where the current user's name is captured
- * automatically as the signature (no manual signature entry).
+ * Used for the driver drop-off flow when slip settings do not require a manual
+ * signature (auto-sign with the current user's name).
  */
 
 export type StoredCurrentUser = {

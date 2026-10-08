@@ -134,6 +134,7 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
       { id: "retention-option", label: t("productLibrary.sideBar.RetentionOption", "Retention Option"), href: `${routePrefix}/retention-option`, icon: <ShieldCheck className="h-4 w-4" /> },
       { id: "retention-type", label: t("productLibrary.sideBar.RetentionType", "Retention Type"), href: `${routePrefix}/retention`, icon: <ShieldCheck className="h-4 w-4" /> },
       { id: "implant-library", label: t("advanceMode.sidebar.ImplantLibrary", "Implant Library"), href: `${routePrefix}/implant-library`, icon: <Layers3 className="h-4 w-4" /> },
+      { id: "implant-settings", label: t("advanceMode.sidebar.ImplantSettings", "Implant Settings"), href: `${routePrefix}/implant-settings`, icon: <Settings2 className="h-4 w-4" /> },
       { id: "abutment-library", label: t("advanceMode.sidebar.AbutmentLibrary", "Abutment Library"), href: `${routePrefix}/abutment-library`, icon: <Layers3 className="h-4 w-4" /> },
     ]
   }), [t, routePrefix])

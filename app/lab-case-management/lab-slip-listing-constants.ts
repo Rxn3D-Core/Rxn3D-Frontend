@@ -18,6 +18,7 @@ export const LAB_SLIP_STATUS_OPTIONS = [
   "On hold",
   "cancelled",
   "Finished",
+  "Deleted",
 ] as const
 
 export function parseLocationFilterFromUrl(param: string | null): string {

@@ -22,9 +22,22 @@ import {
   postSlipHold,
   postSlipResume,
   postSlipSendBackToOffice,
+  postSlipSoftDelete,
+  postSlipRestore,
 } from "@/lib/api/slip-case-actions"
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
 import { getSlipLabIdForCurrentProfile } from "@/lib/customer-lab-scope"
+import { registerInMemoryCacheClearer } from "@/lib/cache/frontend-list-cache"
+
+const productDetailsCache = new Map<string, any>()
+const productDetailsInflight = new Map<string, Promise<any>>()
+
+export function clearSlipCreationProductDetailsCache() {
+  productDetailsCache.clear()
+  productDetailsInflight.clear()
+}
+
+registerInMemoryCacheClearer(clearSlipCreationProductDetailsCache)
 
 // --- Types based on sample payload ---
 export interface SlipCreationCase {
@@ -217,10 +230,10 @@ interface SlipCreationContextType {
   fetchProductRetentions: (labId: number, productId: number, params?: Record<string, any>) => Promise<void>
 
   deliveryDate: any | null
-  calculateDeliveryDate: (product_id: number, stage_id?: number) => Promise<void>
+  calculateDeliveryDate: (product_id: number, stage_id?: number, variation_id?: number) => Promise<void>
 
   rushFee: any | null
-  calculateRushFee: (labId: number, product_id: number, stage_id?: number, target_delivery_date?: string) => Promise<void>
+  calculateRushFee: (labId: number, product_id: number, stage_id?: number, target_delivery_date?: string, variation_id?: number) => Promise<void>
 
   caseDetails: any | null
   fetchCaseDetails: (caseId: number) => Promise<void>
@@ -251,9 +264,27 @@ interface SlipCreationContextType {
     params?: CaseAttachmentsParams
   ) => Promise<CaseAttachmentsData | null>
 
-  holdSlip: (slipId: number, reason: string) => Promise<any>
-  resumeSlip: (slipId: number, reason: string) => Promise<any>
-  cancelSlip: (slipId: number, reason: string) => Promise<any>
+  holdSlip: (
+    slipId: number,
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => Promise<any>
+  resumeSlip: (
+    slipId: number,
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => Promise<any>
+  cancelSlip: (
+    slipId: number,
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => Promise<any>
+  softDeleteSlip: (
+    slipId: number,
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => Promise<any>
+  restoreSlip: (slipId: number, reason?: string) => Promise<any>
   sendBackToOfficeSlip: (slipId: number, reason: string) => Promise<any>
 
   // Generate paper slips
@@ -468,10 +499,6 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
   }, [token])
 
   // Module-level cache & in-flight dedup for product details
-  const productDetailsCacheRef = useRef<Map<string, any>>(new Map());
-  const productDetailsInflightRef = useRef<Map<string, Promise<any>>>(new Map());
-
-  // Add function to fetch individual product details from library API
   const fetchProductDetails = useCallback(async (productId: number, labId?: number) => {
     try {
       const effectiveCustomerId = resolveLibraryCustomerId(labId) ?? null;
@@ -479,11 +506,11 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
       const cacheKey = `${productId}_${effectiveCustomerId ?? 0}`;
 
       // Return from cache
-      const cached = productDetailsCacheRef.current.get(cacheKey);
+      const cached = productDetailsCache.get(cacheKey);
       if (cached) return cached;
 
       // Deduplicate in-flight requests
-      const inflight = productDetailsInflightRef.current.get(cacheKey);
+      const inflight = productDetailsInflight.get(cacheKey);
       if (inflight) return inflight;
 
       // Build URL with required parameters
@@ -518,7 +545,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
           const json = await res.json();
           const data = json.data || json;
-          if (data) productDetailsCacheRef.current.set(cacheKey, data);
+          if (data) productDetailsCache.set(cacheKey, data);
           return data;
         } catch (e: any) {
           clearTimeout(timeoutId);
@@ -529,11 +556,11 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
           }
           return null;
         } finally {
-          productDetailsInflightRef.current.delete(cacheKey);
+          productDetailsInflight.delete(cacheKey);
         }
       })();
 
-      productDetailsInflightRef.current.set(cacheKey, promise);
+      productDetailsInflight.set(cacheKey, promise);
       return promise;
     } catch (e) {
       console.error('Error fetching product details:', e);
@@ -695,12 +722,13 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     }
   }, [token])
 
-  const calculateDeliveryDate = useCallback(async (product_id: number, stage_id?: number) => {
+  const calculateDeliveryDate = useCallback(async (product_id: number, stage_id?: number, variation_id?: number) => {
     try {
       const labId = getSlipLabIdForCurrentProfile()
       const url = new URL(`/v1/slip/lab/${labId}/delivery-date`, process.env.NEXT_PUBLIC_API_BASE_URL)
       url.searchParams.append("product_id", String(product_id))
       if (stage_id) url.searchParams.append("stage_id", String(stage_id))
+      if (variation_id) url.searchParams.append("variation_id", String(variation_id))
       const res = await fetch(url.toString(), {
         method: "GET",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -718,11 +746,12 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     }
   }, [token])
 
-  const calculateRushFee = useCallback(async (labId: number, product_id: number, stage_id?: number, target_delivery_date?: string) => {
+  const calculateRushFee = useCallback(async (labId: number, product_id: number, stage_id?: number, target_delivery_date?: string, variation_id?: number) => {
     try {
       const url = new URL(`/v1/slip/lab/${labId}/rush-fee`, process.env.NEXT_PUBLIC_API_BASE_URL)
       url.searchParams.append("product_id", String(product_id))
       if (stage_id) url.searchParams.append("stage_id", String(stage_id))
+      if (variation_id) url.searchParams.append("variation_id", String(variation_id))
       if (target_delivery_date) url.searchParams.append("target_delivery_date", target_delivery_date)
       const res = await fetch(url.toString(), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -784,6 +813,11 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
     const requestPromise = (async () => {
       try {
+        // Drop a different slip's cached details immediately so auto-print and
+        // header dates cannot briefly use the previous slip's due date.
+        setVirtualSlipDetails((prev: { id?: number } | null) =>
+          prev?.id === slipId ? prev : null
+        )
         const url = new URL(`/v1/slip/slip/${slipId}/details`, process.env.NEXT_PUBLIC_API_BASE_URL)
         const res = await fetch(url.toString(), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -855,17 +889,44 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
   // --- Hold, Resume, Cancel APIs ---
   const holdSlip = useCallback(
-    async (slipId: number, reason: string) => postSlipHold(slipId, reason),
+    async (
+      slipId: number,
+      reason: string,
+      options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+    ) => postSlipHold(slipId, reason, options),
     []
   );
 
   const resumeSlip = useCallback(
-    async (slipId: number, reason: string) => postSlipResume(slipId, reason),
+    async (
+      slipId: number,
+      reason: string,
+      options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+    ) => postSlipResume(slipId, reason, options),
     []
   );
 
   const cancelSlip = useCallback(
-    async (slipId: number, reason: string) => postSlipCancel(slipId, reason),
+    async (
+      slipId: number,
+      reason: string,
+      options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+    ) => postSlipCancel(slipId, reason, options),
+    []
+  );
+
+  const softDeleteSlip = useCallback(
+    async (
+      slipId: number,
+      reason: string,
+      options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+    ) => postSlipSoftDelete(slipId, reason, options),
+    []
+  );
+
+  const restoreSlip = useCallback(
+    async (slipId: number, reason?: string) =>
+      postSlipRestore(slipId, reason || "Restored to In Progress"),
     []
   );
 
@@ -986,6 +1047,8 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
         holdSlip,
         resumeSlip,
         cancelSlip,
+        softDeleteSlip,
+        restoreSlip,
         sendBackToOfficeSlip,
         generatePaperSlips,
         requestSlipRush,

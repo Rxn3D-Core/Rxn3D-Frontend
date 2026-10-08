@@ -13,6 +13,7 @@ import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-mod
 import { useMaterials } from "@/contexts/product-materials-context"
 import { TooltipContent, Tooltip, TooltipProvider, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { useLanguage } from "@/contexts/language-context"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 type SortDirection = "asc" | "desc" | null
 
 interface MaterialGroup {
@@ -324,7 +325,11 @@ export default function MaterialPage() {
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{material.name}</TableCell>
+                      <TableCell className="font-medium text-gray-900">
+                        <TableNameWithImage src={material.lab_material?.image_url || material.image_url} alt={material.name}>
+                          {material.name}
+                        </TableNameWithImage>
+                      </TableCell>
                       <TableCell className="text-gray-600">{material.code}</TableCell>
                       <TableCell>
                         <span

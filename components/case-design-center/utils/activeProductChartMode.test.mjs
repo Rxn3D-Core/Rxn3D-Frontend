@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  activeProductCardBelongsToArch,
   addedProductAppliesToArch,
   getActiveProductLayersOnArch,
   isActiveProductSelectionOnlyOnArch,
@@ -22,6 +23,52 @@ test("addedProductAppliesToArch accepts matching arch and both", () => {
     false
   );
 });
+
+test("activeProductCardBelongsToArch: other-arch card does not belong to empty arch", () => {
+  assert.equal(
+    activeProductCardBelongsToArch({
+      activeProductCardId: 7,
+      arch: "mandibular",
+      addedProducts: [{ id: 7, arch: "maxillary", product: {}, expanded: true }],
+      hasCard0OnArch: false,
+    }),
+    false
+  );
+});
+
+test("activeProductCardBelongsToArch: same-arch card belongs", () => {
+  assert.equal(
+    activeProductCardBelongsToArch({
+      activeProductCardId: 7,
+      arch: "maxillary",
+      addedProducts: [{ id: 7, arch: "maxillary", product: {}, expanded: true }],
+      hasCard0OnArch: false,
+    }),
+    true
+  );
+});
+
+test("activeProductCardBelongsToArch: card 0 requires hasCard0OnArch", () => {
+  assert.equal(
+    activeProductCardBelongsToArch({
+      activeProductCardId: 0,
+      arch: "mandibular",
+      addedProducts: [],
+      hasCard0OnArch: false,
+    }),
+    false
+  );
+  assert.equal(
+    activeProductCardBelongsToArch({
+      activeProductCardId: 0,
+      arch: "mandibular",
+      addedProducts: [],
+      hasCard0OnArch: true,
+    }),
+    true
+  );
+});
+
 
 test("fixed added product is not selection-only", () => {
   const selectionOnly = isActiveProductSelectionOnlyOnArch({

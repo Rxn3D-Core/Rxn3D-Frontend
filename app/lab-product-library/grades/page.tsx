@@ -14,6 +14,7 @@ import { CreateGradeGroupModal } from "@/components/product-management/create-gr
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useGrades, type Grade } from "@/contexts/product-grades-context"
 import { useLanguage } from "@/contexts/language-context"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 const mockGradeGroups = [
   { id: 1, name: "All Complete denture" },
@@ -136,6 +137,9 @@ export default function GradesPage() {
           </TableCell>
           <TableCell>
             <Skeleton className="h-4 w-1/4" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-5 rounded" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-6 w-20 rounded-full" />
@@ -289,6 +293,9 @@ export default function GradesPage() {
                   >
                     Sequence {renderSortIndicator("sequence")}
                   </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Color
+                  </TableHead>
                   <TableHead
                     className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors"
                     onClick={() => handleSort("status")}
@@ -314,11 +321,27 @@ export default function GradesPage() {
                         />
                       </TableCell>
                       <TableCell className="font-medium text-gray-900">
-                        {grade.name}
+                        <TableNameWithImage src={grade.image_url} alt={grade.name}>
+                          {grade.name}
+                        </TableNameWithImage>
                       </TableCell>
                       <TableCell className="text-gray-600">{grade.code}</TableCell>
                       <TableCell className="text-gray-600 text-center">
                         {grade.sequence}
+                      </TableCell>
+                      <TableCell>
+                        {grade.color ? (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="inline-block h-5 w-5 rounded border border-gray-200"
+                              style={{ backgroundColor: grade.color }}
+                              title={grade.color}
+                            />
+                            <span className="text-xs font-mono text-gray-500">{grade.color}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">Default</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <span
@@ -351,7 +374,7 @@ export default function GradesPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />

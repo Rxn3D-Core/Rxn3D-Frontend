@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Loader2, Upload, X } from "lucide-react";
+import { Camera, Loader2, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getCaseDriverHistory,
@@ -298,12 +298,20 @@ export function ImageDropzone({
   image,
   onChange,
   onRejected,
+  required = false,
+  hint,
 }: {
   image: UploadedImage | null;
   onChange: (image: UploadedImage | null) => void;
   onRejected?: (names: string[]) => void;
+  /** When true, empty state shows a required-photo prompt. */
+  required?: boolean;
+  /** Optional helper line under the main drop text. */
+  hint?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  // Android's photo picker (accept="image/*") has no camera option; capture forces the camera.
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -322,6 +330,21 @@ export function ImageDropzone({
     [onChange, onRejected]
   );
 
+  const cameraInput = (
+    <input
+      ref={cameraRef}
+      type="file"
+      accept="image/*"
+      capture="environment"
+      className="hidden"
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        if (e.target.files?.length) void addFiles(e.target.files);
+        e.target.value = "";
+      }}
+    />
+  );
+
   if (image) {
     return (
       <div className="flex items-center gap-3 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-3">
@@ -332,22 +355,33 @@ export function ImageDropzone({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-[#111827]">{image.name}</p>
           <p className="text-xs text-[#6B7280]">{(image.size / 1024).toFixed(0)} KB</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#0E66B2] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0B5594]"
+            >
+              <Camera className="h-3.5 w-3.5" aria-hidden />
+              Take Photo
+            </button>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-3 py-1.5 text-xs font-medium text-[#374151] hover:bg-gray-100"
+            >
+              <Upload className="h-3.5 w-3.5" aria-hidden />
+              Upload Photo
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+              Remove
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="rounded-md border border-[#D1D5DB] px-3 py-1.5 text-xs font-medium text-[#374151] hover:bg-gray-100"
-        >
-          Replace
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-[#9CA3AF] hover:bg-gray-200 hover:text-[#4B5563]"
-          aria-label="Remove image"
-        >
-          <X className="h-4 w-4" />
-        </button>
         <input
           ref={inputRef}
           type="file"
@@ -358,21 +392,21 @@ export function ImageDropzone({
             e.target.value = "";
           }}
         />
+        {cameraInput}
       </div>
     );
   }
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={() => inputRef.current?.click()}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          inputRef.current?.click();
-        }
-      }}
+      className={cn(
+        "flex min-h-[110px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-6 text-center transition-colors",
+        dragOver
+          ? "border-[#0E66B2] bg-blue-50"
+          : required
+            ? "border-[#F59E0B] bg-[#FFFBEB]"
+            : "border-[#CBD5E1] bg-[#F9FAFB]"
+      )}
       onDragOver={(e) => {
         e.preventDefault();
         setDragOver(true);
@@ -383,20 +417,37 @@ export function ImageDropzone({
         setDragOver(false);
         if (e.dataTransfer.files?.length) void addFiles(e.dataTransfer.files);
       }}
-      className={cn(
-        "flex min-h-[110px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-6 text-center transition-colors",
-        dragOver
-          ? "border-[#0E66B2] bg-blue-50"
-          : "border-[#CBD5E1] bg-[#F9FAFB] hover:border-[#0E66B2]"
-      )}
     >
       {busy ? (
         <Loader2 className="h-6 w-6 animate-spin text-[#0E66B2]" />
-      ) : (
-        <Upload className="h-6 w-6 text-[#9CA3AF]" aria-hidden />
-      )}
-      <p className="text-sm text-[#6B7280]">Drag &amp; drop a photo here or click to browse</p>
-      <p className="text-xs text-[#9CA3AF]">Image only (JPG, PNG, GIF, WEBP) · max 10MB</p>
+      ) : null}
+      <p className="text-sm text-[#6B7280]">
+        {hint ?? "Add a proof photo"}
+      </p>
+      <p className="text-xs text-[#9CA3AF]">
+        {required ? "Required · " : ""}
+        Image only (JPG, PNG, GIF, WEBP, SVG) · max 10MB
+      </p>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => cameraRef.current?.click()}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-md bg-[#0E66B2] px-4 py-2 text-sm font-medium text-white hover:bg-[#0B5594] disabled:opacity-60"
+        >
+          <Camera className="h-4 w-4" aria-hidden />
+          Take Photo
+        </button>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-gray-100 disabled:opacity-60"
+        >
+          <Upload className="h-4 w-4" aria-hidden />
+          Upload Photo
+        </button>
+      </div>
       <input
         ref={inputRef}
         type="file"
@@ -407,7 +458,146 @@ export function ImageDropzone({
           e.target.value = "";
         }}
       />
+      {cameraInput}
     </div>
+  );
+}
+
+/** Compact per-row photo control for the pickup/drop-off table listing. */
+export function RowImageUpload({
+  image,
+  onChange,
+  onRejected,
+  required = false,
+  disabled = false,
+  label = "Photo",
+}: {
+  image: UploadedImage | null;
+  onChange: (image: UploadedImage | null) => void;
+  onRejected?: (names: string[]) => void;
+  required?: boolean;
+  disabled?: boolean;
+  label?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  const addFiles = useCallback(
+    async (files: FileList | File[]) => {
+      setBusy(true);
+      try {
+        const { images: added, rejected } = await filesToUploadedImages(files);
+        if (rejected.length && onRejected) onRejected(rejected);
+        if (added.length) onChange(added[0]);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [onChange, onRejected]
+  );
+
+  if (disabled) {
+    return <span className="inline-block h-9 w-9" aria-hidden />;
+  }
+
+  const takePhotoButton = (
+    <button
+      type="button"
+      onClick={() => cameraRef.current?.click()}
+      disabled={busy}
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60",
+        required && !image
+          ? "bg-[#0E66B2] text-white hover:bg-[#0B5594]"
+          : "border border-[#D1D5DB] bg-white text-[#374151] hover:bg-gray-100"
+      )}
+    >
+      <Camera className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      Take Photo
+    </button>
+  );
+
+  const uploadPhotoButton = (
+    <button
+      type="button"
+      onClick={() => inputRef.current?.click()}
+      disabled={busy}
+      className="inline-flex items-center justify-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-2.5 py-1.5 text-xs font-medium text-[#374151] transition-colors hover:bg-gray-100 disabled:opacity-60"
+    >
+      {busy ? (
+        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+      ) : (
+        <Upload className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      )}
+      Upload Photo
+    </button>
+  );
+
+  const fileInputs = (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.length) void addFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.length) void addFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+    </>
+  );
+
+  if (image) {
+    return (
+      <div className="inline-flex flex-wrap items-center gap-1.5">
+        <div className="relative inline-flex">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={image.dataUrl}
+            alt={image.name}
+            className="h-12 w-12 rounded-md border border-[#E5E7EB] object-cover"
+          />
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#9CA3AF] shadow ring-1 ring-[#E5E7EB] hover:bg-red-50 hover:text-red-600"
+            aria-label={`Remove ${label.toLowerCase()}`}
+            title="Remove photo"
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+        </div>
+        {takePhotoButton}
+        {uploadPhotoButton}
+        {fileInputs}
+      </div>
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex flex-wrap items-center gap-1.5 rounded-md p-1",
+        required ? "bg-[#FFFBEB]" : undefined
+      )}
+    >
+      {takePhotoButton}
+      {uploadPhotoButton}
+      {fileInputs}
+    </span>
   );
 }
 
@@ -417,6 +607,7 @@ type CaseSlipHistoryItem = {
   slipId: number;
   slipNumber: string;
   currentLocation: string;
+  stageName: string | null;
   timeline: DeliveryTimelineRow[];
 };
 
@@ -452,6 +643,7 @@ export function useCaseDriverHistory(
           slipId: slip.id,
           slipNumber: slip.slip_number,
           currentLocation: slip.current_location?.name ?? "—",
+          stageName: slip.stage_name?.trim() || null,
           timeline: sorted.map(mapTimelineRow),
         };
       });
@@ -524,7 +716,11 @@ export function CaseDriverHistorySection({
       {slips.map((slip) => (
         <div key={slip.slipId}>
           <DeliveryPills
-            items={[`Slip# ${slip.slipNumber}`, slip.currentLocation]}
+            items={[
+              `Slip# ${slip.slipNumber}`,
+              slip.stageName,
+              slip.currentLocation,
+            ]}
           />
           <DeliveryTimeline
             rows={slip.timeline}
@@ -544,6 +740,8 @@ export function DeliveryModalFooter({
   confirmLabel,
   confirmDisabled,
   submitting,
+  /** When true, hide the confirm button until photo / signature requirements are met. */
+  hideConfirmUntilReady = false,
   extra,
 }: {
   onCancel: () => void;
@@ -551,26 +749,31 @@ export function DeliveryModalFooter({
   confirmLabel: string;
   confirmDisabled?: boolean;
   submitting?: boolean;
+  hideConfirmUntilReady?: boolean;
   extra?: ReactNode;
 }) {
+  const showConfirm = submitting || !hideConfirmUntilReady || !confirmDisabled;
+
   return (
-    <div className="flex shrink-0 items-center justify-center gap-3 border-t border-[#F3F4F6] px-6 py-5 sm:px-8">
+    <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#F3F4F6] px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-center sm:gap-3 sm:px-8 sm:py-5 sm:pb-5">
       <button
         type="button"
         onClick={onCancel}
         disabled={submitting}
-        className="h-10 rounded-lg border border-[#D1D5DB] px-6 text-sm font-medium text-[#374151] transition-colors hover:bg-gray-50 disabled:opacity-60"
+        className="h-12 w-full rounded-lg border border-[#D1D5DB] px-6 text-base font-medium text-[#374151] transition-colors hover:bg-gray-50 disabled:opacity-60 sm:h-10 sm:w-auto sm:text-sm"
       >
         Cancel
       </button>
-      <button
-        type="button"
-        onClick={onConfirm}
-        disabled={confirmDisabled || submitting}
-        className="h-10 rounded-lg bg-[#0E66B2] px-8 text-sm font-medium text-white transition-colors hover:bg-[#0c5a9f] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {submitting ? "Submitting…" : confirmLabel}
-      </button>
+      {showConfirm ? (
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={confirmDisabled || submitting}
+          className="h-12 w-full rounded-lg bg-[#0E66B2] px-8 text-base font-semibold text-white transition-colors hover:bg-[#0c5a9f] disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-auto sm:text-sm sm:font-medium"
+        >
+          {submitting ? "Submitting…" : confirmLabel}
+        </button>
+      ) : null}
       {extra}
     </div>
   );

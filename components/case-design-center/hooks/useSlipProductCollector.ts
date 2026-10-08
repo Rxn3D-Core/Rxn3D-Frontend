@@ -16,9 +16,11 @@ import {
   buildExtractionScopeTeeth,
   resolveProductTeethForSlipSubmit,
 } from "../utils/removableToothDisplay";
+import { isNoToothChartProduct } from "../utils/noToothChartProduct";
 import { splintKeyForProductCard, deriveWingTeeth } from "../utils/splintHelpers";
+import { collectAdvanceFieldFilesForCard } from "../utils/advanceFieldFileStore";
 import { useCaseDesignState } from "./useCaseDesignState";
-import type { CaseDesignProps, SlipProductSnapshot } from "../types";
+import type { CaseDesignProps, ProductApiData, SlipProductSnapshot } from "../types";
 
 type CaseDesignState = ReturnType<typeof useCaseDesignState>;
 
@@ -303,7 +305,15 @@ export function useSlipProductCollector({
         const relevantImplantDetail: Record<number, import("../components/ImplantDetailSection").ImplantDetailData> = {};
         for (const tn of productTeeth) {
           const detail = implantDetailMap[tn];
-          if (detail && (detail.brand || detail.platform || detail.size)) {
+          // Lab recommendation has no brand/platform/size — still must ship on create.
+          if (
+            detail &&
+            (detail.labRecommendationRequested ||
+              detail.brand ||
+              detail.platform ||
+              detail.size ||
+              detail.implantId)
+          ) {
             relevantImplantDetail[tn] = detail;
           }
         }
@@ -333,6 +343,8 @@ export function useSlipProductCollector({
             ? deriveWingTeeth(archRetentionTypes ?? {}, allTeeth, productPonticTeeth).join(",")
             : "";
 
+        const advanceFieldFiles = collectAdvanceFieldFilesForCard(arch, cardId);
+
         snapshots.push({
           type,
           productId,
@@ -358,8 +370,161 @@ export function useSlipProductCollector({
           selectedAddonsByTooth: { ...(state.selectedAddonsByTooth ?? {}) },
           ...(splintLinks.length > 0 ? { splintLinks } : {}),
           ...(wingTeeth ? { wingTeeth } : {}),
+          ...(Object.keys(advanceFieldFiles).length > 0 ? { advanceFieldFiles } : {}),
         });
       });
+
+      // No-tooth-chart products (impression-only / hide_reference_teeth): they often only
+      // bind a sentinel tooth for the accordion and never enter maxillaryTeeth[], so the
+      // loop above skips them. Still emit a slip line with empty teeth_selection.
+      const emittedCardIds = new Set(cardGroups.keys());
+      const tryEmitNoToothChart = (
+        cardId: number,
+        stubProduct: ProductApiData | null | undefined,
+        fallbackProductId?: number
+      ) => {
+        if (emittedCardIds.has(cardId)) return;
+        const productApiData = resolveAddedCardProductData(
+          arch,
+          cardId,
+          [],
+          state.getToothProduct,
+          stubProduct
+        );
+        const product = productApiData ?? stubProduct;
+        if (!isNoToothChartProduct(product)) return;
+
+        const repTooth = cardId === 0 ? (arch === "maxillary" ? 1 : 17) : -cardId;
+        // Prefer virtual slot for added cards; card 0 uses sentinel for field storage.
+        const fieldRep = cardId === 0 ? repTooth : -cardId;
+        const fieldScanTeeth = [fieldRep];
+        const productForSubmit =
+          resolveEnrichedProductForSubmit(
+            productApiData,
+            arch,
+            state.getToothProduct,
+            stubProduct
+          ) ?? productApiData;
+        const productId =
+          productApiData?.id ??
+          fallbackProductId ??
+          (cardId === 0 ? props.selectedProductId : undefined) ??
+          0;
+        if (!productId) return;
+
+        const fieldValues: Record<string, string> = {};
+        const allSteps = [
+          "grade", "stage", "teeth_shade", "gum_shade", "impression", "addons",
+          "material", "retention", "retention_option",
+          "fixed_stage", "fixed_stump_shade", "fixed_shade_trio", "fixed_characterization",
+          "fixed_contact_icons", "fixed_margin", "fixed_metal", "fixed_proximal_contact",
+          "fixed_impression", "fixed_addons", "fixed_notes", "fixed_retention_type",
+        ] as const;
+        const productFlags = product as ProductApiData | null | undefined;
+        const stepAllowed = (step: string): boolean => {
+          // Impression-only products: only collect fields the catalog enables.
+          if (step === "impression") return productFlags?.has_impression === "Yes";
+          if (step === "grade") return productFlags?.has_grade === "Yes";
+          if (step === "stage") return productFlags?.has_stage === "Yes";
+          if (step === "teeth_shade") return productFlags?.has_teeth_shade === "Yes";
+          if (step === "gum_shade") return productFlags?.has_gum_shade === "Yes";
+          if (step === "addons") return productFlags?.has_addon === "Yes";
+          return false;
+        };
+        for (const step of allSteps) {
+          if (!stepAllowed(step)) continue;
+          const val = resolveCardFieldValue(
+            arch,
+            cardId,
+            fieldScanTeeth,
+            fieldRep,
+            step as any,
+            state.getFieldValue
+          );
+          if (val) fieldValues[step] = val;
+        }
+
+        const stageRaw = fieldValues["stage"] ?? fieldValues["fixed_stage"] ?? null;
+        const parsedStage = parseStageFieldValue(stageRaw);
+        let stageName: string | null =
+          state.selectedStages?.[`${arch}_prep_${fieldRep}`]?.trim() || null;
+        if (!stageName) {
+          stageName =
+            parsedStage?.name ??
+            (stageRaw && !stageRaw.trim().startsWith("{")
+              ? parseStageDisplayName(stageRaw)
+              : null);
+        }
+        const stageId = resolveStageIdFromSelection(
+          productForSubmit,
+          stageRaw,
+          stageName
+        );
+
+        const catalog = productApiData?.impressions ?? [];
+        const resolveImpressionCode = (entryCode: string) => {
+          const match = catalog.find((i) => i.code === entryCode);
+          return match?.code ?? entryCode;
+        };
+        const impressions: Record<string, number> = {};
+        if (productApiData?.has_impression === "Yes") {
+          const archEntries = state.selectedImpressions?.[arch] ?? [];
+          for (const entry of archEntries) {
+            if (entry.qty <= 0) continue;
+            impressions[resolveImpressionCode(entry.code)] = entry.qty;
+          }
+        }
+
+        const rush =
+          getRushFromStore(state.rushedProducts, arch, cardId, fieldRep, false) ??
+          null;
+        const advanceFieldFiles = collectAdvanceFieldFilesForCard(arch, cardId);
+
+        emittedCardIds.add(cardId);
+        snapshots.push({
+          type,
+          productId,
+          productApiData: productForSubmit ?? productApiData ?? null,
+          cardFieldTeeth: fieldScanTeeth,
+          teethNumbers: [],
+          allCardTeeth: [],
+          repToothNumber: fieldRep,
+          fieldValues,
+          stageName,
+          ...(stageId && stageId > 0 ? { stageId } : {}),
+          impressions,
+          rush,
+          cardId,
+          toothExtractionMap: {},
+          claspTeeth: [],
+          retentionTypesByTooth: {},
+          // Do not inherit the case-wide shade map — that would pull opposite-arch picks.
+          selectedShades: {},
+          shadeGuide: state.selectedShadeGuide ?? "Vita Classical",
+          selectedAddonsByTooth: { ...(state.selectedAddonsByTooth ?? {}) },
+          ...(Object.keys(advanceFieldFiles).length > 0 ? { advanceFieldFiles } : {}),
+        });
+      };
+
+      for (const ap of props.addedProducts ?? []) {
+        if (ap.arch !== arch) continue;
+        tryEmitNoToothChart(
+          ap.id,
+          (ap.product as ProductApiData | null | undefined) ?? null,
+          ap.productId
+        );
+      }
+      // Card 0 no-tooth-chart: product on sentinel / initial details, no chart teeth selected.
+      if (
+        props.selectedProductId &&
+        (props.initialArch === arch || props.initialArch === "both")
+      ) {
+        const card0Stub =
+          state.getToothProduct(arch, arch === "maxillary" ? 1 : 17) ??
+          state.initialProductDetails ??
+          null;
+        tryEmitNoToothChart(0, card0Stub, props.selectedProductId);
+      }
     };
 
     processArch("maxillary", "Upper", MAXILLARY_ALL);
@@ -373,9 +538,11 @@ export function useSlipProductCollector({
     maxillarySplintLinksRef,
     props.addedProducts,
     props.selectedProductId,
+    props.initialArch,
     state.getFieldValue,
     state.getToothProduct,
     state.getToothProductCard,
+    state.initialProductDetails,
     state.mandibularClaspTeeth,
     state.mandibularNoActiveBoxTeeth,
     state.mandibularRetentionTypes,

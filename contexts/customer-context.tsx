@@ -15,8 +15,10 @@ interface Customer {
   city: string
   postal_code: string
   email: string
+  notification_emails?: string[]
   type: string
   status: string
+  code?: string
   unique_code: string
   created_at: string
   updated_at: string
@@ -134,7 +136,7 @@ interface CustomerContextType {
   }) => Promise<void>,
   officeCustomers: Customer[],
   labCustomers: Customer[],
-  fetchCustomerProfile: (customerId: number) => Promise<CustomerProfile | null>,
+  fetchCustomerProfile: (customerId: number, options?: { silent?: boolean }) => Promise<CustomerProfile | null>,
   customerProfile: CustomerProfile | null,
   isProfileLoading: boolean,
   profileError: string | null,
@@ -324,9 +326,12 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   )
 
   const fetchCustomerProfile = useCallback(
-    async (customerId: number): Promise<CustomerProfile | null> => {
-      setIsProfileLoading(true)
-      setProfileError(null)
+    async (customerId: number, options?: { silent?: boolean }): Promise<CustomerProfile | null> => {
+      const silent = options?.silent === true
+      if (!silent) {
+        setIsProfileLoading(true)
+        setProfileError(null)
+      }
 
       try {
         const token = localStorage.getItem("token") || localStorage.getItem("library_token")
@@ -348,18 +353,26 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
 
         const data = await response.json()
-        setCustomerProfile(data.data)
+        // Silent loads are for form hydration only — updating global profile state would
+        // re-render parents that pass inline `customer` props and re-trigger those effects.
+        if (!silent) {
+          setCustomerProfile(data.data)
+        }
         return data.data
       } catch (err: any) {
-        setProfileError(err.message || "Failed to fetch customer profile")
-        toast({
-          title: "Error",
-          description: err.message || "Failed to fetch customer profile",
-          variant: "destructive",
-        })
+        if (!silent) {
+          setProfileError(err.message || "Failed to fetch customer profile")
+          toast({
+            title: "Error",
+            description: err.message || "Failed to fetch customer profile",
+            variant: "destructive",
+          })
+        }
         return null
       } finally {
-        setIsProfileLoading(false)
+        if (!silent) {
+          setIsProfileLoading(false)
+        }
       }
     },
     [toast],
@@ -386,6 +399,9 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (data.city !== undefined) updateData.city = data.city
         if (data.postal_code !== undefined) updateData.postal_code = data.postal_code
         if (data.email !== undefined) updateData.email = data.email
+        if (data.notification_emails !== undefined) {
+          updateData.notification_emails = data.notification_emails
+        }
         if ((data as any).status !== undefined) updateData.status = (data as any).status
         // Support direct state_id and country_id (preferred) or nested structure
         if ((data as any).state_id !== undefined) {
@@ -401,6 +417,10 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Support release_casepan
         if ((data as any).release_casepan !== undefined) {
           updateData.release_casepan = (data as any).release_casepan
+        }
+        // Support code
+        if ((data as any).code !== undefined) {
+          updateData.code = (data as any).code
         }
 
         const response = await fetch(`${API_BASE_URL}/customers/${customerId}`, {

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
 import { lookupSlipIdByNumber } from "@/lib/api/slip-lookup";
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
 
 const BACK_TO_CASE_LIST_ICON_SRC =
   "/icons/virtual-slip-actions/gobacktoofficereturn.svg";
@@ -22,9 +23,9 @@ export interface VirtualSlipToolbarRowProps {
   children: ReactNode;
 }
 
-/** Allow alphanumeric slip numbers (e.g. C00001-S01); reject case numbers / stray punctuation. */
+/** Allow slip / case / case pan identifiers (alphanumeric, hyphen, underscore). */
 function sanitizeSlipNumberInput(value: string): string {
-  return value.replace(/[^A-Za-z0-9-]/g, "");
+  return value.replace(/[^A-Za-z0-9_-]/g, "");
 }
 
 /** One row: jump-to-slip (left), center action icons, related slip chips (right). */
@@ -79,14 +80,16 @@ export function VirtualSlipToolbarRow({
           return;
         }
 
-        router.push(`/virtual-slip-v2/${resolvedId}`);
+        // Replace so slip→slip jumps do not stack history; the close control
+        // always returns to listing instead of a previous slip.
+        router.replace(buildVirtualSlipPath(caseId, resolvedId));
       } catch {
         setJumpSlipError("Unable to find slip");
       } finally {
         setJumpSlipLoading(false);
       }
     },
-    [router, findSlipIdLocally, jumpSlipLoading]
+    [caseId, router, findSlipIdLocally, jumpSlipLoading]
   );
 
   return (
@@ -98,7 +101,7 @@ export function VirtualSlipToolbarRow({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="Back to case list view"
+                aria-label="Close to case list"
                 onClick={onBackToCaseList}
                 className="group flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center overflow-visible rounded-full transition-transform duration-200 ease-out hover:scale-[1.15] active:scale-95"
               >
@@ -114,7 +117,7 @@ export function VirtualSlipToolbarRow({
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={8} className="text-xs font-medium">
-              Back to case list view
+              Close to case list
             </TooltipContent>
           </Tooltip>
         ) : null}
@@ -138,7 +141,7 @@ export function VirtualSlipToolbarRow({
                 if (e.key === "Enter") void navigateToSlip(jumpSlip);
               }}
               disabled={jumpSlipLoading}
-              placeholder="Jump to slip"
+              placeholder="Slip / case / pan #"
               aria-invalid={jumpSlipError ? true : undefined}
               aria-describedby={jumpSlipError ? "jump-to-slip-error" : undefined}
               className="w-[130px] shrink-0 rounded-[10px] border-[0.5px] border-[#4C4D55] bg-white px-[10px] py-[5px] font-sans text-[15.4px] tracking-[-0.02em] text-[#4C4D55] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 disabled:cursor-wait disabled:opacity-60"

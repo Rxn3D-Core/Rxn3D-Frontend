@@ -5,6 +5,7 @@ import type React from "react";
 import type { Arch, RetentionType, ProductApiData, ProductAdvanceField } from "../types";
 import { shouldSkipStageSelection } from "../utils/categoryHelpers";
 import { productHasGrades } from "../utils/gradeHelpers";
+import { productSupportsAdvanceFields } from "../utils/advanceFieldStepHelpers";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 
 /**
@@ -89,12 +90,16 @@ const FIXED_STEP_ADVANCE_FIELD_PATTERNS: Record<string, (name: string) => boolea
  */
 export function getRetentionFieldChain(
   advanceFields: ProductAdvanceField[] | undefined,
-  product?: Pick<ProductApiData, "has_teeth_shade" | "has_gum_shade"> | null
+  product?: Pick<ProductApiData, "has_teeth_shade" | "has_gum_shade" | "has_advance_field"> | null
 ): readonly (typeof FIXED_FIELD_STEPS)[number][] {
   const hasTeethShadeFlag = product?.has_teeth_shade === "Yes";
   const hasGumShadeFlag = product?.has_gum_shade === "Yes";
+  // has_advance_field=No keeps shade/stage/impression via other flags, but hides AF-gated steps
+  const effectiveAdvanceFields = productSupportsAdvanceFields(product)
+    ? advanceFields
+    : undefined;
 
-  if (!advanceFields || advanceFields.length === 0) {
+  if (!effectiveAdvanceFields || effectiveAdvanceFields.length === 0) {
     // No advance_fields configured — show stage, shade steps (gated by has_* flags),
     // impression, addons. Exclude gated fields that require specific advance_field entries
     // (characterization, contact_icons, margin, metal, proximal_contact).
@@ -107,7 +112,7 @@ export function getRetentionFieldChain(
     });
   }
 
-  const normalizedNames = advanceFields.map((f) => (f.name ?? "").toLowerCase().trim());
+  const normalizedNames = effectiveAdvanceFields.map((f) => (f.name ?? "").toLowerCase().trim());
 
   return FIXED_FIELD_STEPS.filter((step) => {
     if (step === "fixed_stage" && shouldSkipStageSelection(product)) return false;

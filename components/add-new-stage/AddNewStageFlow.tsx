@@ -7,12 +7,17 @@ import { useToast } from "@/hooks/use-toast";
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage";
 import { fetchNewStageEligibility } from "@/lib/api/slip-new-stage-eligibility";
 import { postAddStageToSlip } from "@/lib/api/slip-add-stage";
-import { extractVirtualSlipProducts } from "@/lib/virtual-slip-products";
+import {
+  extractVirtualSlipProducts,
+  findSlipProductForEligibility,
+  slipProductLibraryId,
+} from "@/lib/virtual-slip-products";
 import {
   buildAddStagePreload,
   buildAddedProducts,
   buildWizardSeedFromSlipDetails,
   resolveLabIdFromSlipDetails,
+  resolveOfficeIdFromSlipDetails,
 } from "@/lib/add-stage/preload-state";
 import { buildAddStageInitFromProductApi } from "@/lib/add-stage/build-stage-selections";
 import {
@@ -27,7 +32,7 @@ import { CaseDesignCenter } from "@/components/case-design-center/components/Cas
 import { PatientHeader } from "@/components/case-design-center/components/PatientHeader";
 import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
 import type { SlipProductSnapshot, VirtualSlipInitialState } from "@/components/case-design-center/types";
-import { buildAddStageSubmissionPayloadAsync } from "@/components/case-design-center/utils/addStageSubmissionPayload";
+import { buildAddStageSubmissionPayloadsAsync } from "@/components/case-design-center/utils/addStageSubmissionPayload";
 import { resolveVirtualSlipPath } from "@/components/case-design-center/utils/caseCompletionDestination";
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId";
 import { fetchCaseDesignProductDetails } from "@/components/case-design-center/utils/caseDesignProductDetails";
@@ -35,14 +40,18 @@ import {
   useCaseWizardSession,
   type CaseDesignBootstrap,
 } from "@/components/case-design-center/hooks/useCaseWizardSession";
+import { useCaseEstimatedDueDate } from "@/components/case-design-center/hooks/useCaseEstimatedDueDate";
 import {
   getBusinessSettings,
   type BusinessHour,
   type CaseSchedule,
 } from "@/lib/api-business-settings";
 import { caseDesignInter } from "@/components/case-design-center/case-design-inter-font";
+import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
 import { Button } from "@/components/ui/button";
 import NewCaseWizard from "@/components/new-case-wizard";
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
+import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
 
 type FlowStep = "loading" | "ineligible" | "design";
 
@@ -108,10 +117,27 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     bootstrap,
   });
 
+  const productIdsForDueDate = [
+    wizard.selectedProductId,
+    ...wizard.addedProducts.map(
+      (p) => p.productId ?? (typeof p.product?.id === "number" ? p.product.id : null)
+    ),
+  ];
+  const {
+    displayDate: headerDueDate,
+    isLoading: headerDueDateLoading,
+    effectivePickupCutoffTime,
+  } = useCaseEstimatedDueDate(productIdsForDueDate);
+
+  const caseId = useMemo(
+    () => resolveVirtualSlipCaseId(virtualSlipDetails),
+    [virtualSlipDetails]
+  );
+
   const goBackToVirtualSlip = useCallback(() => {
     clearAddStageSession();
-    router.push(`/virtual-slip-v2/${sourceSlipId}`);
-  }, [router, sourceSlipId]);
+    router.push(buildVirtualSlipPath(caseId, sourceSlipId));
+  }, [caseId, router, sourceSlipId]);
 
   const labIdForProductFetch = useMemo(
     () => resolveLabIdFromSlipDetails(virtualSlipDetails),
@@ -139,7 +165,11 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
         const eligibilityRes = await fetchNewStageEligibility(sourceSlipId);
         if (cancelled) return;
         const data = eligibilityRes.data;
-        if (!data?.eligible) {
+        const eligibleLines = (data?.products ?? []).filter((p) => p.eligible);
+        const slipEligible = Boolean(data?.eligible) || eligibleLines.length > 0;
+        const remakeViaSendBack = Boolean(data?.finished_via_send_back_to_office);
+
+        if (!slipEligible) {
           const msg =
             data?.reasons?.join(" ") ||
             data?.message ||
@@ -150,10 +180,9 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           return;
         }
 
-        const eligibleLines = (data.products ?? []).filter((p) => p.eligible);
         if (eligibleLines.length === 0) {
           setIneligibleMessage(
-            data.message || "No product lines are eligible for a new stage."
+            data?.message || "No product lines are eligible for a new stage."
           );
           setStep("ineligible");
           return;
@@ -164,6 +193,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           apiProducts,
           fetchProductDetails,
           labId: labIdForProductFetch,
+          preferRepeatStage: remakeViaSendBack,
         });
         if (cancelled) return;
         if (init.matchedCount === 0) {
@@ -176,6 +206,19 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           return;
         }
 
+        // Only preload arches that are eligible so a finished side is not re-submitted.
+        const eligibleApiProducts = eligibleLines
+          .map((ep) => findSlipProductForEligibility(ep, apiProducts))
+          .filter((row): row is Record<string, unknown> => Boolean(row));
+        const uniqueEligibleApiProducts = Array.from(
+          new Map(
+            eligibleApiProducts.map((row) => {
+              const key = `${slipProductLibraryId(row)}:${String(row.type ?? "").toLowerCase()}`;
+              return [key, row] as const;
+            })
+          ).values()
+        );
+
         const session = readAddStageSession();
         const selections =
           session.sourceSlipId === sourceSlipId &&
@@ -187,13 +230,17 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
         const historyByArch = init.historyByArch;
         saveAddStageSession(sourceSlipId, selections, historyByArch);
 
-        const preload = buildAddStagePreload(apiProducts, selections);
+        const preload = buildAddStagePreload(uniqueEligibleApiProducts, selections);
         const seed = buildWizardSeedFromSlipDetails(virtualSlipDetails);
 
         setInitialSlipState(preload.initialSlipState);
         setAddStageContext({
           historyByArch,
-          promptStagesOnLoad: true,
+          // Send-back remake: autofill (repeat stage / skip single-stage); no forced picker.
+          promptStagesOnLoad: !remakeViaSendBack,
+          // Every new stage must choose New Impression / No Impression after stage
+          // selection (never reuse prior, never default to No Impression).
+          promptImpressionChoice: true,
         });
         setBootstrap({
           patientName: seed.patientName,
@@ -205,7 +252,8 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           lab: seed.lab
             ? { id: seed.lab.id, name: seed.lab.name, logo: seed.lab.logo }
             : null,
-          addedProducts: buildAddedProducts(apiProducts),
+          officeId: resolveOfficeIdFromSlipDetails(virtualSlipDetails),
+          addedProducts: buildAddedProducts(uniqueEligibleApiProducts),
           initialArch: preload.initialArch,
         });
         setStep("design");
@@ -253,34 +301,59 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     setSubmissionState("submitting");
 
     try {
-      const payload = await buildAddStageSubmissionPayloadAsync({
+      const payloads = await buildAddStageSubmissionPayloadsAsync({
         snapshots,
         sourceSlipLocationId: locationId,
         labCustomerId: labCustomerId ?? undefined,
         caseSummaryNotes: caseSummaryNotesRef.current,
       });
-      const res = await postAddStageToSlip(sourceSlipId, payload);
-      if (!res.success) {
-        throw new Error(res.message || "Could not create new stage slip.");
+
+      if (payloads.length === 0) {
+        throw new Error("No products to submit for the new stage slip.");
       }
 
-      const newSlipId =
-        (res.data as { id?: number })?.id ??
-        (res.data as { slip_id?: number })?.slip_id;
+      let firstNewSlipId: number | undefined;
+      let lastMessage: string | undefined;
+
+      for (const payload of payloads) {
+        const res = await postAddStageToSlip(sourceSlipId, payload);
+        if (!res.success) {
+          throw new Error(res.message || "Could not create new stage slip.");
+        }
+        lastMessage = res.message || lastMessage;
+
+        const newSlipId =
+          (res.data as { id?: number })?.id ??
+          (res.data as { slip_id?: number })?.slip_id;
+        if (typeof newSlipId === "number" && newSlipId > 0 && firstNewSlipId === undefined) {
+          firstNewSlipId = newSlipId;
+        }
+      }
+
       const redirectPath =
-        typeof newSlipId === "number" && newSlipId > 0
-          ? `/virtual-slip-v2/${newSlipId}`
+        typeof firstNewSlipId === "number" && firstNewSlipId > 0
+          ? buildVirtualSlipPath(caseId, firstNewSlipId)
           : resolveVirtualSlipPath({
-              kind: "single-slip",
               slipId: sourceSlipId,
-              caseNumber: "",
+              caseId: caseId ?? undefined,
             });
 
       clearAddStageSession();
       setSubmissionState("success-transition");
+
+      // Same as slip create: virtual slip page consumes this once to auto-open
+      // the paper slip print window for the newly created stage slip.
+      if (typeof firstNewSlipId === "number" && firstNewSlipId > 0) {
+        markSlipForAutoPrint(firstNewSlipId);
+      }
+
       toast({
         title: "New stage created",
-        description: res.message || "The new stage slip was created successfully.",
+        description:
+          lastMessage ||
+          (payloads.length > 1
+            ? `${payloads.length} new stage slips were created successfully.`
+            : "The new stage slip was created successfully."),
       });
       setTimeout(() => router.push(redirectPath), 2000);
     } catch (err) {
@@ -320,6 +393,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
             key={wizard.wizardKey}
             onComplete={wizard.handleWizardComplete}
             onLabSelect={(lab) => wizard.setCompletedLab(lab)}
+            onDoctorSelect={(doctor) => wizard.setCompletedDoctor(doctor)}
             startStep={wizard.wizardStartStep}
             mode={
               wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"
@@ -334,6 +408,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
                 ? wizard.completedLab.id
                 : null
             }
+            officeId={wizard.officeId}
             initialPatientName={
               wizard.labEditMode ||
               wizard.wizardMode === "backToProducts" ||
@@ -369,7 +444,12 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
             initialSubProduct={
               wizard.wizardMode === "backToProducts" ? wizard.lastSelectedSubProduct : null
             }
-            forceArch={wizard.wizardMode === "addProduct" ? wizard.pendingProductArch : undefined}
+            forceArch={
+              wizard.wizardMode === "addProduct" ||
+              (wizard.wizardMode === "backToProducts" && wizard.isPreloadedSession)
+                ? wizard.pendingProductArch
+                : undefined
+            }
             editTarget={wizard.labEditMode ? "lab" : undefined}
             onEditDone={wizard.handleEditDone}
           />
@@ -392,6 +472,11 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
               labLogoUrl={wizard.completedLab?.logo}
               labName={wizard.completedLab?.name}
               onEditLab={wizard.handleTopBarEditLab}
+              estimatedDueDate={headerDueDate}
+              estimatedDueDateLoading={headerDueDateLoading}
+              cutoffTime={
+                effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time
+              }
             />
 
             {initialSlipState && (
@@ -410,6 +495,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
                 onInlineAddProductCancel={wizard.cancelInlineAddProduct}
                 labCustomerId={labCustomerId}
                 onBackToProducts={wizard.handleBackToProducts}
+                onEditProductCard={wizard.handleEditProductCard}
                 onBackToCategories={wizard.handleBackToCategories}
                 selectedProductId={wizard.selectedProductId}
                 selectedProductName={wizard.selectedProductName}

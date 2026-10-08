@@ -113,10 +113,18 @@ export function RetentionSection({
   }
 
   const retentionOptionLinkedSet = useMemo(() => {
-    const ids = watchedRetentionOptions
-      .map((r) => Number(r.retention_option_id))
-      .filter((n) => Number.isFinite(n))
-    return new Set(ids)
+    const ids = new Set<number>()
+    const names = new Set<string>()
+    for (const r of watchedRetentionOptions) {
+      const rec = r as RetentionOptionFormRow & { id?: number }
+      const id = Number(rec.retention_option_id ?? rec.id)
+      if (Number.isFinite(id) && id > 0) ids.add(id)
+      const name = typeof rec.name === "string" ? rec.name.trim().toLowerCase() : ""
+      const code = typeof rec.code === "string" ? rec.code.trim().toLowerCase() : ""
+      if (name) names.add(name)
+      if (code) names.add(code)
+    }
+    return { ids, names }
   }, [watchedRetentionOptions])
 
   const toggleRetentionOption = useCallback(
@@ -271,7 +279,16 @@ export function RetentionSection({
                   ) : (
                     <ul className={cn("flex flex-col", compact ? "gap-2" : "gap-3")}>
                       {retentionCatalog.map((opt) => {
-                        const linked = retentionOptionLinkedSet.has(Number(opt.id))
+                        const optId = Number(opt.id)
+                        const globalId =
+                          opt.global_relationship_id != null ? Number(opt.global_relationship_id) : NaN
+                        const optName = (opt.name || "").trim().toLowerCase()
+                        const optCode = (opt.code || "").trim().toLowerCase()
+                        const linked =
+                          retentionOptionLinkedSet.ids.has(optId) ||
+                          (Number.isFinite(globalId) && globalId > 0 && retentionOptionLinkedSet.ids.has(globalId)) ||
+                          (optName !== "" && retentionOptionLinkedSet.names.has(optName)) ||
+                          (optCode !== "" && retentionOptionLinkedSet.names.has(optCode))
                         const tags = retentionTagLabels(opt)
                         return (
                           <li

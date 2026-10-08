@@ -55,13 +55,43 @@ test("groupProductsIntoSlips pairs same product_id on both arches", () => {
   assert.deepEqual(groups[1], [otherUpper]);
 });
 
-test("groupProductsIntoSlips splits different products into separate slips", () => {
+test("groupProductsIntoSlips keeps one upper and one lower on the same slip", () => {
   const upper = { type: "Upper", product_id: 101, stage_id: 2 };
   const lower = { type: "Lower", product_id: 102, stage_id: 2 };
   const groups = groupProductsIntoSlips([upper, lower]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0], [upper, lower]);
+});
+
+test("groupProductsIntoSlips pairs same product_id first when lower has two products", () => {
+  const upper = { type: "Upper", product_id: 101, stage_id: 2 };
+  const lowerMatch = { type: "Lower", product_id: 101, stage_id: 2 };
+  const lowerOther = { type: "Lower", product_id: 102, stage_id: 2 };
+  const groups = groupProductsIntoSlips([upper, lowerOther, lowerMatch]);
   assert.equal(groups.length, 2);
-  assert.deepEqual(groups[0], [upper]);
-  assert.deepEqual(groups[1], [lower]);
+  assert.deepEqual(groups[0], [upper, lowerMatch]);
+  assert.deepEqual(groups[1], [lowerOther]);
+});
+
+test("groupProductsIntoSlips pairs remaining products by order on both arches", () => {
+  const upperFda = { type: "Upper", product_id: 101, stage_id: 2 };
+  const upperCrown = { type: "Upper", product_id: 103, stage_id: 2 };
+  const lowerIsp = { type: "Lower", product_id: 102, stage_id: 2 };
+  const lowerFda = { type: "Lower", product_id: 101, stage_id: 2 };
+  const groups = groupProductsIntoSlips([upperFda, upperCrown, lowerIsp, lowerFda]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0], [upperFda, lowerFda]);
+  assert.deepEqual(groups[1], [upperCrown, lowerIsp]);
+});
+
+test("groupProductsIntoSlips pairs by order then leaves orphan lowers", () => {
+  const upper = { type: "Upper", product_id: 103, stage_id: 2 };
+  const lowerFirst = { type: "Lower", product_id: 102, stage_id: 2 };
+  const lowerSecond = { type: "Lower", product_id: 104, stage_id: 2 };
+  const groups = groupProductsIntoSlips([upper, lowerFirst, lowerSecond]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0], [upper, lowerFirst]);
+  assert.deepEqual(groups[1], [lowerSecond]);
 });
 
 test("buildProductExtractions groups teeth by extraction_id", () => {
@@ -310,8 +340,64 @@ test("buildImplantAndAbutmentDetails sends abutment type and option IDs", () => 
     {
       teeth_number: 8,
       abutment_id: 11,
-      abutment_type_id: 33,
+      abutment_type_id: 11,
       abutment_option_id: 22,
+    },
+  ]);
+});
+
+test("buildImplantAndAbutmentDetails sends abutment category without option", () => {
+  const product = {
+    abutments: [
+      {
+        id: 11,
+        type: "Office Provided",
+        options: [
+          { id: 22, abutment_type_id: 11, name: "Stock Abutment" },
+        ],
+        addons: [{ id: 91, name: "Analog", status: "Active" }],
+      },
+    ],
+  };
+  const implantDetailByTooth = {
+    8: {
+      brand: "Brand A",
+      systemName: "System X",
+      platform: "NP",
+      size: "3.5 x 10",
+      inclusions: "No inclusion",
+      inclusionQty: 0,
+      abutmentType: "Office Provided",
+      abutmentDetail: "",
+      abutmentId: 11,
+      dynamicFields: {},
+    },
+  };
+  const implantCatalog = [
+    {
+      id: 100,
+      brand_name: "Brand A",
+      system_name: "System X",
+      platforms: [
+        {
+          id: 200,
+          name: "NP",
+          sizes: [{ id: 300, label: "3.5 x 10" }],
+        },
+      ],
+    },
+  ];
+
+  const { abutment_details } = buildImplantAndAbutmentDetails(
+    product,
+    implantDetailByTooth,
+    implantCatalog
+  );
+  assert.deepEqual(abutment_details, [
+    {
+      teeth_number: 8,
+      abutment_id: 11,
+      abutment_type_id: 11,
     },
   ]);
 });

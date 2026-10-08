@@ -97,10 +97,10 @@ export default function InvoiceDetailPage() {
   const isVoided = status === "void" || status === "voided"
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 px-6 py-4">
       <BreadcrumbBar
         items={[
-          { label: "Billing & Subscription Control", href: "/billing-subscription" },
+          { label: "Billing & Subscription Control", href: "/billing-subscription/billing-configuration" },
           { label: "Invoicing", href: "/billing-subscription/invoicing" },
           { label: invoiceLabel },
         ]}

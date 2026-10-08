@@ -14,12 +14,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { getPrimaryRole } from "@/lib/get-primary-role"
-import { filterMenuByPermissions } from "@/lib/menu-permissions"
+import { filterMenuByPermissions, filterMenuByEntitlements } from "@/lib/menu-permissions"
 import { PROFILE_SCOPED_ROLES } from "@/lib/permissions"
 import { type MenuItem, getMenuForProfile } from "@/config/sidebar-menu"
+import { useEntitlements } from "@/contexts/entitlement-context"
 
 const FALLBACK_ICONS: Record<string, React.ReactNode> = {
   "staff-management":    <Users className="h-5 w-5" />,
+  "lab-admins":          <Users className="h-5 w-5" />,
+  "lab-users":           <Users className="h-5 w-5" />,
   "lab-schedule":        <CalendarDays className="h-5 w-5" />,
   "all-connections":     <Network className="h-5 w-5" />,
   "permission-management": <ShieldCheck className="h-5 w-5" />,
@@ -85,6 +88,7 @@ export function HeaderWaffleLauncher() {
   const [drilldown, setDrilldown] = useState<MenuItem | null>(null)
   const pathname = usePathname() || ""
   const { user, profilePermissions, isSuperadmin, isActingAsLabAdmin } = useAuth()
+  const { features } = useEntitlements()
 
   const topItems = useMemo(() => {
     const userRole = isActingAsLabAdmin ? "lab_admin" : getPrimaryRole(user)
@@ -97,8 +101,11 @@ export function HeaderWaffleLauncher() {
     const filtered = usesProfilePermissions
       ? filterMenuByPermissions(baseMenu, profilePermissions, isSuperadmin || isActingAsLabAdmin)
       : baseMenu
-    return getTopLevelItems(filtered)
-  }, [user, profilePermissions, isSuperadmin, isActingAsLabAdmin])
+    const entitled = filterMenuByEntitlements(filtered, features, {
+      unrestricted: isSuperadmin && !isActingAsLabAdmin,
+    })
+    return getTopLevelItems(entitled)
+  }, [user, profilePermissions, isSuperadmin, isActingAsLabAdmin, features])
 
   const displayItems = (drilldown ? (drilldown.children ?? []) : topItems).map(withFallbackIcon)
 

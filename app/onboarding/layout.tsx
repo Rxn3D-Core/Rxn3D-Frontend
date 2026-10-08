@@ -4,6 +4,7 @@ import type React from "react"
 import React, { useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { Loader2 } from "lucide-react"
 
@@ -52,8 +53,8 @@ export default function OnboardingLayout({
         }
         // Mark as redirected to prevent loops
         hasRedirectedRef.current = true
-        // Immediate redirect to dashboard
-        router.replace("/dashboard")
+        // Immediate redirect to landing page
+        router.replace(getActiveLandingPath(user))
       }
     }
   }, [isLoading, user, isOnboardingComplete, onboardingStatus, error, router, pathname])

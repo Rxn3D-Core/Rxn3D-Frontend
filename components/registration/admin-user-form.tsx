@@ -8,6 +8,8 @@ type AdminUserFormProps = {
   handleAdminFormChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   updateUser: () => void;
   registrationType: string;
+  dense?: boolean;
+  allowAdminEmailEdit?: boolean;
 };
 
 export function AdminUserForm({
@@ -16,10 +18,12 @@ export function AdminUserForm({
   handleAdminFormChange,
   updateUser,
   registrationType,
+  dense = false,
+  allowAdminEmailEdit = false,
 }: AdminUserFormProps) {
   return (
     <div>
-      <h2 className="text-lg font-medium mb-4">Admin User Profile</h2>
+      {!dense ? <h2 className="mb-4 text-lg font-medium">Admin User Profile</h2> : null}
       <UserForm
         user={adminUser}
         userValidationErrors={userValidationErrors}
@@ -29,6 +33,8 @@ export function AdminUserForm({
         registrationType={registrationType}
         isDoctor={adminUser?.role === "doctor" || adminUser?.role === "doctor_admin" || adminUser?.is_doctor}
         isAdminForm={true}
+        allowAdminEmailEdit={allowAdminEmailEdit}
+        dense={dense}
       />
     </div>
   )

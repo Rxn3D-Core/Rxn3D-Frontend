@@ -651,9 +651,13 @@ export function ProductDetailsSection({
   // is_teeth_based_price and show_jaw_photo also need explicit sync since their Controllers may not pick up reset values.
   useEffect(() => {
     if (editingProduct && setValue) {
-      if (editingProduct.is_teeth_based_price) {
-        setValueWithOptions("is_teeth_based_price", editingProduct.is_teeth_based_price, { shouldDirty: false })
-      }
+      const teethBased =
+        editingProduct.is_teeth_based_price === "Yes" ||
+        editingProduct.is_teeth_based_price === true ||
+        editingProduct.is_teeth_based_price === "yes"
+          ? "Yes"
+          : "No"
+      setValueWithOptions("is_teeth_based_price", teethBased, { shouldDirty: false })
       // Auto-toggle show_jaw_photo ON if the product has any jaw photos, regardless of stored flag
       const effectiveShowJawPhoto = productHasAnyJawPhotoUrls(editingProduct)
         ? "Yes"
@@ -1229,8 +1233,8 @@ export function ProductDetailsSection({
             </div>
           </div>
 
-          {/* Is Single Stage / Is Splinted Radio Buttons */}
-          <div className="flex flex-row gap-12">
+          {/* Product configuration flags — single row */}
+          <div className="flex flex-row flex-wrap gap-x-12 gap-y-4">
             {/* Is Single Stage Radio Button */}
             <div className="space-y-3">
               <label className="text-sm font-medium text-gray-700">
@@ -1301,6 +1305,84 @@ export function ProductDetailsSection({
                         className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
                       />
                       <label htmlFor="is_splinted-no" className="text-sm font-medium cursor-pointer">
+                        No
+                      </label>
+                    </div>
+                  </RadioGroup>
+                )}
+              />
+            </div>
+
+            {/* Gender Required */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-gray-700">
+                Gender Required
+              </label>
+              <Controller
+                name="gender_required"
+                control={control}
+                render={({ field }) => (
+                  <RadioGroup
+                    value={field.value || "No"}
+                    onValueChange={(value) => field.onChange(value)}
+                    className="flex flex-row gap-6"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="Yes"
+                        id="gender_required-yes"
+                        className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                      />
+                      <label htmlFor="gender_required-yes" className="text-sm font-medium cursor-pointer">
+                        Yes
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="No"
+                        id="gender_required-no"
+                        className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                      />
+                      <label htmlFor="gender_required-no" className="text-sm font-medium cursor-pointer">
+                        No
+                      </label>
+                    </div>
+                  </RadioGroup>
+                )}
+              />
+            </div>
+
+            {/* Age Required */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-gray-700">
+                Age Required
+              </label>
+              <Controller
+                name="age_required"
+                control={control}
+                render={({ field }) => (
+                  <RadioGroup
+                    value={field.value || "No"}
+                    onValueChange={(value) => field.onChange(value)}
+                    className="flex flex-row gap-6"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="Yes"
+                        id="age_required-yes"
+                        className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                      />
+                      <label htmlFor="age_required-yes" className="text-sm font-medium cursor-pointer">
+                        Yes
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="No"
+                        id="age_required-no"
+                        className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                      />
+                      <label htmlFor="age_required-no" className="text-sm font-medium cursor-pointer">
                         No
                       </label>
                     </div>

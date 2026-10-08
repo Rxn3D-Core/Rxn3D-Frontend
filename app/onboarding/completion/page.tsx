@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { AuthHeader } from "@/components/auth-header"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { clearLegacyOnboardingCompleteLocalFlag } from "@/lib/onboarding-storage"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 
 export default function CompletePage() {
   const router = useRouter()
@@ -21,7 +22,7 @@ export default function CompletePage() {
       // But redirect after a short delay to dashboard
       const timer = setTimeout(() => {
         if (!isSuperAdmin) {
-          router.replace("/dashboard")
+          router.replace(getActiveLandingPath(user))
         }
       }, 3000) // Give user 3 seconds to see completion message
       return () => clearTimeout(timer)

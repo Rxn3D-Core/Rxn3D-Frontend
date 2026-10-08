@@ -65,47 +65,51 @@ export function normalizeRush(rush: RushUiState): SlipCreationRush {
 }
 
 /**
- * Group slip products into `slips[]` entries: same `product_id` on Upper and Lower
- * share one slip; otherwise each arch product is its own slip.
+ * Group slip products into `slips[]` entries (create / add-stage):
+ * - Exactly one Upper and one Lower → one slip (even when product_id differs).
+ * - Otherwise pair same product_id across arches first, then pair remaining by order,
+ *   then emit single-arch orphan slips.
+ * - Output order: product_id pairs, order pairs, orphans.
  */
 export function groupProductsIntoSlips(
   products: SlipCreationProduct[]
 ): SlipCreationProduct[][] {
   const uppers = products.filter((p) => p.type === "Upper");
   const lowers = products.filter((p) => p.type === "Lower");
-  const lowersByProductId = new Map<number, SlipCreationProduct[]>();
 
-  for (const lower of lowers) {
-    const list = lowersByProductId.get(lower.product_id) ?? [];
-    list.push(lower);
-    lowersByProductId.set(lower.product_id, list);
+  if (uppers.length === 1 && lowers.length === 1) {
+    return [[uppers[0], lowers[0]]];
   }
 
-  const slips: SlipCreationProduct[][] = [];
-  const unpairedUppers: SlipCreationProduct[] = [];
+  let remainingUppers = [...uppers];
+  let remainingLowers = [...lowers];
+  const matchedSlips: SlipCreationProduct[][] = [];
+  const orderPairedSlips: SlipCreationProduct[][] = [];
 
   for (const upper of uppers) {
-    const lowerQueue = lowersByProductId.get(upper.product_id);
-    if (lowerQueue && lowerQueue.length > 0) {
-      slips.push([upper, lowerQueue.shift()!]);
-    } else {
-      unpairedUppers.push(upper);
-    }
+    const upperIdx = remainingUppers.indexOf(upper);
+    if (upperIdx === -1) continue;
+
+    const lowerIdx = remainingLowers.findIndex(
+      (lower) => lower.product_id === upper.product_id
+    );
+    if (lowerIdx === -1) continue;
+
+    matchedSlips.push([upper, remainingLowers[lowerIdx]]);
+    remainingUppers.splice(upperIdx, 1);
+    remainingLowers.splice(lowerIdx, 1);
   }
 
-  const unpairedLowers: SlipCreationProduct[] = [];
-  for (const queue of lowersByProductId.values()) {
-    unpairedLowers.push(...queue);
+  while (remainingUppers.length > 0 && remainingLowers.length > 0) {
+    orderPairedSlips.push([remainingUppers.shift()!, remainingLowers.shift()!]);
   }
 
-  for (const upper of unpairedUppers) {
-    slips.push([upper]);
-  }
-  for (const lower of unpairedLowers) {
-    slips.push([lower]);
-  }
+  const orphanSlips: SlipCreationProduct[][] = [
+    ...remainingUppers.map((upper) => [upper]),
+    ...remainingLowers.map((lower) => [lower]),
+  ];
 
-  return slips;
+  return [...matchedSlips, ...orderPairedSlips, ...orphanSlips];
 }
 
 function resolveExtractionId(row: { extraction_id?: number; id?: number } | undefined): number {
@@ -599,18 +603,19 @@ function matchPlatformSizeId(
 function resolveAbutmentSelectionIds(
   productAbutments: ProductAbutment[] | undefined,
   category: string,
-  typeName: string
+  typeName?: string | null
 ): { abutment_id?: number; abutment_type_id?: number; abutment_option_id?: number } {
-  if (!productAbutments?.length || !category || !typeName) return {};
+  if (!productAbutments?.length || !category) return {};
   const abutment = productAbutments.find((a) => a.type === category);
-  const option = abutment?.options?.find((o) => o.name === typeName);
-  const abutment_id = abutment?.id;
-  const abutment_type_id = option?.abutment_type_id;
-  const abutment_option_id = option?.id;
+  if (!abutment) return {};
+  const option = typeName
+    ? abutment.options?.find((o) => o.name === typeName)
+    : undefined;
+  // Always store the abutment category id — addon sync loads addons from Abutment.
   return {
-    ...(abutment_id ? { abutment_id } : {}),
-    ...(abutment_type_id ? { abutment_type_id } : {}),
-    ...(abutment_option_id ? { abutment_option_id } : {}),
+    abutment_id: abutment.id,
+    abutment_type_id: abutment.id,
+    ...(option?.id ? { abutment_option_id: option.id } : {}),
   };
 }
 
@@ -625,7 +630,7 @@ export function buildImplantAndAbutmentDetails(
 } {
   const implant_details: SlipCreationImplantDetail[] = [];
   const abutment_details: SlipCreationAbutmentDetail[] = [];
-  if (!product || !implantDetailByTooth || !implantCatalog?.length) {
+  if (!product || !implantDetailByTooth) {
     return { implant_details, abutment_details };
   }
 
@@ -633,7 +638,16 @@ export function buildImplantAndAbutmentDetails(
 
   for (const [toothKey, detail] of Object.entries(implantDetailByTooth)) {
     const teeth_number = Number(toothKey);
-    if (!detail?.brand && !detail?.platform) continue;
+    if (detail?.labRecommendationRequested) {
+      implant_details.push({
+        teeth_number,
+        lab_recommendation_requested: true,
+        ...(detail.referencePhoto ? { reference_photo: detail.referencePhoto } : {}),
+      });
+      continue;
+    }
+    if (!detail?.brand && !detail?.platform && !detail?.implantId) continue;
+    if (!implantCatalog?.length) continue;
 
     const row = matchImplantRow(implantCatalog, detail);
     if (!row) continue;
@@ -653,15 +667,19 @@ export function buildImplantAndAbutmentDetails(
       ...(implant_platform_size_id ? { implant_platform_size_id } : {}),
     });
 
-    if (detail.abutmentType && detail.abutmentDetail) {
+    if (detail.abutmentType || detail.abutmentId) {
+      const category =
+        detail.abutmentType ||
+        productAbutments?.find((row) => row.id === detail.abutmentId)?.type ||
+        "";
       const {
         abutment_id,
         abutment_type_id,
         abutment_option_id,
       } = resolveAbutmentSelectionIds(
         productAbutments,
-        detail.abutmentType,
-        detail.abutmentDetail
+        category,
+        detail.abutmentDetail || null
       );
       if (abutment_type_id) {
         abutment_details.push({

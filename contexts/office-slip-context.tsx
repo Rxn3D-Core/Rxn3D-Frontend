@@ -142,6 +142,10 @@ export interface UISlip {
   labName?: string;
   doctorName?: string;
   slipNumber?: string;
+  /** Distinct catalog product names on the slip (for advanced product filter). */
+  productNames?: string[];
+  /** Distinct stage names on the slip (for advanced stage filter). */
+  stageNames?: string[];
 }
 
 type OfficeSlipContextType = {
@@ -154,7 +158,12 @@ type OfficeSlipContextType = {
     current_page: number;
     last_page: number;
   } | null;
-  fetchOfficeSlips: (customerId: number, page?: number, perPage?: number) => Promise<void>;
+  fetchOfficeSlips: (
+    customerId: number,
+    page?: number,
+    perPage?: number,
+    options?: { statuses?: string[] }
+  ) => Promise<void>;
   refreshSlips: () => Promise<void>;
 };
 
@@ -218,7 +227,7 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
       officeCode: apiCase.lab?.name || "",
       patient: apiCase.patient_name || "",
       product: formatSlipListingProducts(slip.products),
-      status: slip.status || "",
+      status: (slip as any).deleted_at ? "Deleted" : (slip.status || ""),
       rush: slip.is_rush || false,
       location: slip.location?.name || "",
       locationId: typeof slip.location?.id === "number" ? slip.location.id : undefined,
@@ -227,15 +236,40 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
           ? slip.new_stage_eligible.trim().toLowerCase() === "yes"
           : Boolean(slip.new_stage_eligible),
       attachment: slip.attachments?.has_attachments || false,
-      dueDate: slip.delivery?.delivery_date ? new Date(slip.delivery.delivery_date).toLocaleDateString() : "",
+      dueDate: (() => {
+        const raw = slip.delivery?.delivery_date;
+        if (!raw) return "";
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+        if (m) return `${m[2]}/${m[3]}/${m[1].slice(2)}`;
+        return new Date(raw).toLocaleDateString();
+      })(),
       overdue: false, // You can implement overdue logic based on delivery date
       labName: apiCase.lab?.name,
       doctorName: apiCase.doctor?.name,
       slipNumber: slip.slip_number,
+      productNames: Array.from(
+        new Set(
+          (Array.isArray(slip.products) ? slip.products : [])
+            .map((p) => String(p?.product_name || "").trim())
+            .filter(Boolean)
+        )
+      ),
+      stageNames: Array.from(
+        new Set(
+          (Array.isArray(slip.products) ? slip.products : [])
+            .map((p) => String(p?.stage_name || "").trim())
+            .filter(Boolean)
+        )
+      ),
     }));
   };
 
-  const fetchOfficeSlips = useCallback(async (customerId: number, page: number = 1, perPage: number = SLIP_LISTING_DEFAULT_PER_PAGE) => {
+  const fetchOfficeSlips = useCallback(async (
+    customerId: number,
+    page: number = 1,
+    perPage: number = SLIP_LISTING_DEFAULT_PER_PAGE,
+    options?: { statuses?: string[] }
+  ) => {
     setLoading(true);
     setError(null);
     setCurrentCustomerId(customerId);
@@ -246,6 +280,9 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
       url.searchParams.append("customer_id", customerId.toString());
       url.searchParams.append("page", page.toString());
       url.searchParams.append("per_page", perPage.toString());
+      options?.statuses?.filter(Boolean).forEach((status) => {
+        url.searchParams.append("statuses[]", status);
+      });
 
       const res = await fetch(url.toString(), {
         headers: {

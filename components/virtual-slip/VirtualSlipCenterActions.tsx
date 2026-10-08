@@ -28,6 +28,8 @@ export interface VirtualSlipCenterActionsProps {
   deliveryTimeDisplay?: string;
   notesRefreshKey?: number;
   stageSeeds?: CaseNoteStageSeed[];
+  /** Current slip status — gates add/edit notes when Finished or cancelled. */
+  slipStatus?: string | null;
   productName?: string;
   productStage?: string;
   deliveryDateIso?: string;
@@ -38,6 +40,7 @@ export interface VirtualSlipCenterActionsProps {
   onNotesChanged?: (summaryText: string) => void;
   onAddonsChanged?: () => void;
   onRushChanged?: () => void;
+  onChangeDateSaved?: () => void;
   hasMaxillary?: boolean;
   hasMandibular?: boolean;
   visibleArches?: SlipProductArchKey[];
@@ -49,10 +52,13 @@ export interface VirtualSlipCenterActionsProps {
   onOpenRushModalChange?: (open: boolean) => void;
   onDriverHistory?: () => void;
   onCallLog?: () => void;
+  onChangeDate?: () => void;
   onSendBackToOffice?: () => void;
   onHold?: () => void;
   onCancel?: () => void;
   canPutOnHold?: boolean;
+  /** Lab admin — undo one location step. */
+  onUndoLocation?: () => void;
   /** When true, edit slip, add-ons, and rush icons are hidden. */
   caseOnHold?: boolean;
   /**
@@ -76,6 +82,7 @@ export function VirtualSlipCenterActions({
   deliveryTimeDisplay = "",
   notesRefreshKey = 0,
   stageSeeds = [],
+  slipStatus = null,
   productName = "Case",
   productStage = "Unknown Stage",
   deliveryDateIso = "",
@@ -86,6 +93,7 @@ export function VirtualSlipCenterActions({
   onNotesChanged,
   onAddonsChanged,
   onRushChanged,
+  onChangeDateSaved,
   hasMaxillary = true,
   hasMandibular = true,
   visibleArches,
@@ -97,10 +105,12 @@ export function VirtualSlipCenterActions({
   onOpenRushModalChange,
   onDriverHistory,
   onCallLog,
+  onChangeDate,
   onSendBackToOffice,
   onHold,
   onCancel,
   canPutOnHold = true,
+  onUndoLocation,
   caseOnHold = false,
   allowRush = true,
   rushCaseSchedule = null,
@@ -228,10 +238,12 @@ export function VirtualSlipCenterActions({
           onAttach={onAttachments}
           onDriverHistory={onDriverHistory}
           onCallLog={onCallLog}
+          onChangeDate={onChangeDate}
           onSendBackToOffice={onSendBackToOffice}
           onHold={onHold}
           onCancel={onCancel}
           canPutOnHold={canPutOnHold}
+          onUndoLocation={onUndoLocation}
         />
       </div>
 
@@ -327,6 +339,7 @@ export function VirtualSlipCenterActions({
           deliveryDateDisplay={deliveryDateDisplay}
           deliveryTimeDisplay={deliveryTimeDisplay}
           isRush={slipIsRush}
+          slipStatus={slipStatus}
           notesRefreshKey={notesRefreshKey}
           stageSeeds={stageSeeds}
           onNotesChanged={onNotesChanged}

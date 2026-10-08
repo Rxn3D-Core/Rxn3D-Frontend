@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from "react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Info } from "lucide-react"
 
@@ -187,18 +186,19 @@ export function ColorPicker({ value, onChange, predefinedColors = [], side = "bo
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button
+        <button
           type="button"
-          variant="outline"
-          className="w-full h-12 rounded-lg border-2 border-gray-300 hover:border-[#1162a8] transition-colors p-3 overflow-hidden flex items-center justify-center"
-          style={{ backgroundColor: value }}
+          className="w-full h-12 rounded-lg border-2 border-gray-300 hover:border-[#1162a8] transition-colors p-2 overflow-hidden flex items-center gap-3 bg-white text-left"
+          aria-label={`Brand color ${value}`}
         >
-          <span className="text-white font-semibold text-sm tracking-wider drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" style={{
-            textShadow: '0 1px 2px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.5)'
-          }}>
-            {value.toUpperCase()}
+          <span
+            className="h-8 w-8 shrink-0 rounded-md border border-gray-300"
+            style={{ backgroundColor: value || "#1162a8" }}
+          />
+          <span className="font-mono text-sm font-semibold text-gray-900 tracking-wider">
+            {(value || "#1162A8").toUpperCase()}
           </span>
-        </Button>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-[360px] p-0" side={side} align={align}>
         <div className="flex flex-col">

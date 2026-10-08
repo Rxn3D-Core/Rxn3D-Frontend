@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
+import { parseSlipListingDueDate } from "@/lib/slip-listing-due-date"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 
 import { countVisibleV2Columns } from "../case-table-ui.mjs"
@@ -105,7 +106,7 @@ export function V2CaseTable(props: V2CaseTableProps) {
                 <td className="px-3 py-2.5 align-top text-right">
                   <button
                     className="inline-flex items-center gap-1.5 rounded text-left text-xs text-[#5f5b55] hover:text-[#292724] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#918d84]"
-                    title={row.newStageEligible ? "Add stage" : isReadyToSendLocation(row) ? "Mark ready to send" : "View driver history"}
+                    title={row.newStageEligible ? "Add stage" : canMarkReadyToSend(row) ? "Mark ready to send" : "View driver history"}
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
@@ -113,7 +114,7 @@ export function V2CaseTable(props: V2CaseTableProps) {
                         props.rowActions.onAddStage(row)
                         return
                       }
-                      isReadyToSendLocation(row) ? props.rowActions.onReadyToSend(row) : props.rowActions.onDriverHistory(row)
+                      canMarkReadyToSend(row) ? props.rowActions.onReadyToSend(row) : props.rowActions.onDriverHistory(row)
                     }}
                   >
                     {locationIcon(row)}
@@ -180,15 +181,19 @@ function isReadyToSendLocation(row: V2CaseRowData) {
   return row.location === SLIP_LOCATION_FILTER_OPTIONS.find((option) => option.id === 3)?.label
 }
 
+function canMarkReadyToSend(row: V2CaseRowData) {
+  return isReadyToSendLocation(row) && !isSlipCaseCancelled(row.status)
+}
+
 function formatDueDate(dueDate: string): string {
   if (!dueDate) return "—"
-  const due = new Date(dueDate)
-  if (isNaN(due.getTime())) return dueDate
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
+  // Parse as calendar day (YYYY-MM-DD) so MM/DD matches the API date on every device.
+  const due = parseSlipListingDueDate(dueDate)
+  if (!due) return dueDate
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const days = Math.round((due.getTime() - today.getTime()) / 86_400_000)
-  const mmdd = due.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
+  const mmdd = `${String(due.getMonth() + 1).padStart(2, "0")}/${String(due.getDate()).padStart(2, "0")}`
   const label = days === 0 ? "Today" : days < 0 ? `${Math.abs(days)}d ago` : `${days}d`
   return `${label} · ${mmdd}`
 }

@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { useState } from "react"
+import { useRef, useState } from "react"
 
 export type WarningActionType = "delete" | "deactivate"
 
@@ -29,22 +29,35 @@ export function WarningActionModal({
   isLoading = false,
 }: WarningActionModalProps) {
   const [showProducts, setShowProducts] = useState(false)
+  const confirmInFlightRef = useRef(false)
 
   const title = type === "delete" ? "Confirm Deletion" : "Confirm Deactivation"
   const actionWord = type === "delete" ? "Deleting" : "Disabling"
 
   const handleClose = () => {
+    if (isLoading || confirmInFlightRef.current) return
     setShowProducts(false)
     onClose()
   }
 
   const handleConfirm = async () => {
-    await onConfirm()
-    setShowProducts(false)
+    if (isLoading || confirmInFlightRef.current) return
+    confirmInFlightRef.current = true
+    try {
+      await onConfirm()
+      setShowProducts(false)
+    } finally {
+      confirmInFlightRef.current = false
+    }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleClose()
+      }}
+    >
       <DialogContent
         className="flex flex-col items-start p-0 pb-[15px] w-[700px] max-w-[700px] bg-white border border-[#CF0202] rounded-[18px] gap-0 [&>button]:hidden"
         style={{ boxShadow: "9px 7px 21.5px rgba(0, 0, 0, 0.25)" }}
@@ -130,6 +143,7 @@ export function WarningActionModal({
           <div className="flex flex-row justify-center items-center gap-[10px] mt-[8px]">
             {/* Cancel button */}
             <button
+              type="button"
               onClick={handleClose}
               disabled={isLoading}
               className="flex flex-row justify-center items-center px-[16px] py-[12px] gap-[10px] w-[194px] h-[48px] border-2 border-[#9BA5B7] rounded-[6px] bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
@@ -144,7 +158,8 @@ export function WarningActionModal({
 
             {/* Continue anyway button */}
             <button
-              onClick={handleConfirm}
+              type="button"
+              onClick={() => void handleConfirm()}
               disabled={isLoading}
               className="flex flex-row justify-center items-center px-[16px] py-[12px] gap-[10px] w-[194px] h-[48px] bg-[#CF0202] rounded-[6px] hover:bg-[#B91C1C] transition-colors disabled:opacity-50"
             >

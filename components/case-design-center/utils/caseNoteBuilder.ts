@@ -88,6 +88,20 @@ const ADVANCE_FIELD_STEP_MATCHERS: Record<string, (name: string) => boolean> = {
 /** A consecutive run longer than this collapses to `#first–#last`. */
 const TEETH_RANGE_COLLAPSE_THRESHOLD = 8;
 
+const MAXILLARY_FULL_ARCH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+const MANDIBULAR_FULL_ARCH = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+
+/**
+ * True when `teeth` is the complete maxillary (#1–#16) or mandibular (#17–#32) arch.
+ * Full-arch products (e.g. Immediate Full Denture) omit tooth numbers from case summary notes.
+ */
+export function isFullArchTeeth(teeth: number[]): boolean {
+  const sorted = [...new Set(teeth)].sort((a, b) => a - b);
+  if (sorted.length !== 16) return false;
+  const matches = (arch: number[]) => sorted.every((tn, i) => tn === arch[i]);
+  return matches(MAXILLARY_FULL_ARCH) || matches(MANDIBULAR_FULL_ARCH);
+}
+
 export function formatTeethNumbers(teeth: number[]): string {
   if (teeth.length === 0) return "";
   const sorted = [...new Set(teeth)].sort((a, b) => a - b);
@@ -166,18 +180,36 @@ function resolveTeethShadeForNote(
   const name = parsed.name || parseFieldDisplayValue(raw);
   if (!name) return null;
 
-  let systemName = shadeGuide?.trim().replace(/_/g, " ") ?? "";
   const shades = (product?.teeth_shades ?? []) as ProductTeethShade[];
-  if (!systemName && shades.length > 0) {
+  const preferred = (shadeGuide ?? "").trim().toLowerCase().replace(/_/g, " ");
+  let systemName = shadeGuide?.trim().replace(/_/g, " ") ?? "";
+
+  if (shades.length > 0) {
+    const candidates = shades.filter((row) => {
+      const rowShadeId = Number(row.teeth_shade_id ?? row.id ?? 0);
+      const rowBrandId = Number(row.brand?.id ?? 0);
+      if (parsed.shadeId > 0 && rowShadeId === parsed.shadeId) return true;
+      if (parsed.brandId > 0 && rowBrandId === parsed.brandId && row.name === name) return true;
+      return row.name === name;
+    });
+
     const match =
-      shades.find((row) => {
-        const rowShadeId = Number(row.teeth_shade_id ?? row.id ?? 0);
-        const rowBrandId = Number(row.brand?.id ?? 0);
-        if (parsed.shadeId > 0 && rowShadeId === parsed.shadeId) return true;
-        if (parsed.brandId > 0 && rowBrandId === parsed.brandId && row.name === name) return true;
-        return row.name === name;
-      }) ?? null;
-    systemName = match?.brand?.system_name?.trim().replace(/_/g, " ") ?? "";
+      (preferred
+        ? candidates.find(
+            (row) =>
+              (row.brand?.system_name ?? "").trim().toLowerCase().replace(/_/g, " ") === preferred
+          ) ??
+          shades.find(
+            (row) =>
+              row.name === name &&
+              (row.brand?.system_name ?? "").trim().toLowerCase().replace(/_/g, " ") === preferred
+          )
+        : null) ??
+      candidates[0] ??
+      null;
+
+    const fromMatch = match?.brand?.system_name?.trim().replace(/_/g, " ") ?? "";
+    if (fromMatch) systemName = fromMatch;
   }
 
   return { name, systemName };
@@ -500,6 +532,10 @@ function buildImplantDetailSummary(
   for (const tn of [...teeth].sort((a, b) => a - b)) {
     const detail = implantDetailByTooth[tn];
     if (!detail) continue;
+    if (detail.labRecommendationRequested && !detail.brand) {
+      lines.push(`#${tn}: Lab recommendation requested`);
+      continue;
+    }
     const bits: string[] = [];
     if (detail.brand) bits.push(detail.brand);
     if (detail.systemName) bits.push(detail.systemName);
@@ -564,7 +600,8 @@ export function buildFixedProductNote(ctx: ProductNoteContext): string {
     selectedStages,
   } = ctx;
   const productName = product?.name || "restoration";
-  const teethStr = formatTeethNumbers(teeth);
+  // Full-arch selections omit `#1–#16` / `#17–#32` — the product implies the whole arch.
+  const teethStr = isFullArchTeeth(teeth) ? "" : formatTeethNumbers(teeth);
   const minTooth = teeth.length ? Math.min(...teeth) : repTooth;
 
   const grade = parseFieldDisplayValue(getFieldValue(arch, repTooth, "grade"));
@@ -621,7 +658,10 @@ export function buildRemovableProductNote(ctx: ProductNoteContext): string {
   const gradeBit = grade ? `${grade} ` : "";
   let line = `Please fabricate ${gradeBit}${productName}`;
   // `teeth` must be orange-header / teeth_selection only (not missing, extract, clasps).
-  if (teeth.length > 0) line += ` for ${formatTeethNumbers(teeth)}`;
+  // Omit numbers when the full arch is selected (e.g. Immediate Full Denture → no `#1–#16`).
+  if (teeth.length > 0 && !isFullArchTeeth(teeth)) {
+    line += ` for ${formatTeethNumbers(teeth)}`;
+  }
   if (stageName) line += ` for ${stageName}`;
   if (teethShade) {
     const shadeStr = `${teethShade.systemName ? `${teethShade.systemName} ` : ""}${teethShade.name}`.trim();
@@ -855,15 +895,110 @@ export function buildNoteGroups(props: NotesProps): NoteGroup[] {
   return groups;
 }
 
+/**
+ * Split a fabricate-note body into the unique product phrase and the shared
+ * trailing stage/shade suffix (e.g. ` for Finish, shade IPS Shade System A1`).
+ * Teeth clauses (` for #32`) stay on the product phrase.
+ */
+export function splitFabricateNoteBody(body: string): {
+  productPhrase: string;
+  suffix: string;
+} {
+  let rest = body.trim();
+  let shade = "";
+
+  const commaShadeIdx = rest.lastIndexOf(", shade ");
+  if (commaShadeIdx >= 0) {
+    shade = rest.slice(commaShadeIdx);
+    rest = rest.slice(0, commaShadeIdx);
+  }
+
+  let stage = "";
+  const forMatches = [...rest.matchAll(/ for /g)];
+  for (let i = forMatches.length - 1; i >= 0; i--) {
+    const idx = forMatches[i].index!;
+    const after = rest.slice(idx + " for ".length);
+    // Teeth: `for #8`, `for #8, #10`, `for #1–#16` — keep on product phrase.
+    if (after.startsWith("#")) continue;
+
+    // Variant without comma: `for Finish shade IPS Shade System A1`
+    const bareShade = commaShadeIdx < 0 ? after.match(/^(.+?) shade (.+)$/) : null;
+    if (bareShade) {
+      stage = ` for ${bareShade[1]}`;
+      shade = `, shade ${bareShade[2]}`;
+    } else {
+      stage = rest.slice(idx);
+    }
+    rest = rest.slice(0, idx);
+    break;
+  }
+
+  return { productPhrase: rest.trim(), suffix: `${stage}${shade}` };
+}
+
+function joinPhrasesWithAnd(parts: string[]): string {
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * Collapse multiple `Please fabricate …` lines that share the same stage/shade
+ * suffix into one note so shared wording is not repeated.
+ *
+ * Example:
+ * - Please fabricate Premium Full Denture Acrylic for Finish, shade A1.
+ * - Please fabricate Premium Acrylic Partial for #32 for Finish, shade A1.
+ * → Please fabricate Premium Full Denture Acrylic and Premium Acrylic Partial for #32 for Finish, shade A1.
+ */
+export function mergeFabricateNotes(notes: string[]): string {
+  const trimmed = notes.map((n) => n.trim()).filter(Boolean);
+  if (trimmed.length <= 1) return trimmed[0] ?? "";
+
+  type Bucket = { phrases: string[]; firstIndex: number };
+  const bySuffix = new Map<string, Bucket>();
+  const unparsed: Array<{ text: string; index: number }> = [];
+
+  trimmed.forEach((note, index) => {
+    const match = note.match(/^Please fabricate (.+)\.$/s);
+    if (!match) {
+      unparsed.push({ text: note, index });
+      return;
+    }
+    const { productPhrase, suffix } = splitFabricateNoteBody(match[1]);
+    if (!productPhrase) {
+      unparsed.push({ text: note, index });
+      return;
+    }
+    const existing = bySuffix.get(suffix);
+    if (existing) {
+      existing.phrases.push(productPhrase);
+    } else {
+      bySuffix.set(suffix, { phrases: [productPhrase], firstIndex: index });
+    }
+  });
+
+  const merged = [...bySuffix.entries()].map(([suffix, bucket]) => ({
+    text: `Please fabricate ${joinPhrasesWithAnd(bucket.phrases)}${suffix}.`,
+    index: bucket.firstIndex,
+  }));
+
+  return [...merged, ...unparsed]
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.text)
+    .join("\n");
+}
+
 export function buildSectionText(arch: Arch, groups: NoteGroup[]): string {
   const archGroups = groups.filter((g) => g.arch === arch);
   if (!archGroups.length) return "";
 
-  return archGroups.map((g) => g.note).join("\n");
+  return mergeFabricateNotes(archGroups.map((g) => g.note));
 }
 
 export function buildCaseSummaryText(groups: NoteGroup[]): string {
-  const maxText = buildSectionText("maxillary", groups);
-  const mandText = buildSectionText("mandibular", groups);
-  return [maxText, mandText].filter(Boolean).join("\n\n");
+  // Merge across arches when products share the same stage/shade suffix so the
+  // case summary (and paper-slip stage notes) stay a single concise line.
+  return mergeFabricateNotes(groups.map((g) => g.note).filter(Boolean));
 }

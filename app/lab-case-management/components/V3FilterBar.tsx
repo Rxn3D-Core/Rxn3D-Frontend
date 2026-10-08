@@ -3,9 +3,15 @@
 import { useState, useRef, useEffect } from "react"
 import { Filter, Search, Columns } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
 
 const GRADIENT = "linear-gradient(231.46deg, #2AA6DE -14.5%, #82298D 51.11%, #C9539F 116.71%)"
+const GRADIENT_TINT = "linear-gradient(231.46deg, rgba(42,166,222,0.10) -14.5%, rgba(130,41,141,0.10) 51.11%, rgba(201,83,159,0.10) 116.71%)"
+const ACTIVE_BUTTON_STYLE: React.CSSProperties = {
+  background: `${GRADIENT_TINT} padding-box, linear-gradient(#fff, #fff) padding-box, ${GRADIENT} border-box`,
+  border: "1.5px solid transparent",
+}
 
 const ALL_TAB = { id: 0, label: "All" }
 const LOCATION_TABS = [ALL_TAB, ...SLIP_LOCATION_FILTER_OPTIONS]
@@ -20,6 +26,7 @@ const COLUMN_KEYS = [
   "office",
   "caseNo",
   "timestamp",
+  "attachments",
 ] as const
 
 export type ColumnKey = typeof COLUMN_KEYS[number]
@@ -32,14 +39,15 @@ type ColumnDefinition = {
 }
 
 export const ALL_COLUMNS: readonly ColumnDefinition[] = [
-  { key: "patient",    label: "Patient / Slip", default: true, required: true },
-  { key: "panProduct", label: "Pan / Product",  default: true, required: true },
-  { key: "location",   label: "Location",       default: true },
-  { key: "dueDate",    label: "Due date",       default: true },
-  { key: "status",     label: "Status",         default: true, required: true },
-  { key: "office",     label: "Office",         default: false },
-  { key: "caseNo",     label: "Case #",         default: false },
-  { key: "timestamp",  label: "Time stamp",     default: false },
+  { key: "patient",     label: "Patient / Slip", default: true, required: true },
+  { key: "panProduct",  label: "Pan / Product",  default: true, required: true },
+  { key: "location",    label: "Location",       default: true },
+  { key: "attachments", label: "Attachments",    default: true },
+  { key: "dueDate",     label: "Due date",       default: true },
+  { key: "status",      label: "Status",         default: true, required: true },
+  { key: "office",      label: "Office",         default: false },
+  { key: "caseNo",      label: "Case #",         default: false },
+  { key: "timestamp",   label: "Time stamp",     default: false },
 ]
 
 // "timestamp" starts visible but is not marked `default: true`, which would
@@ -55,6 +63,7 @@ interface Props {
   onSearchChange: (value: string) => void
   onSearchEnter: () => void
   onAdvancedFilterClick: () => void
+  advancedFilterActive?: boolean
   locations: string[]
   onLocationChange: (value: string) => void
   statuses: string[]
@@ -71,6 +80,7 @@ export function V3FilterBar({
   onSearchChange,
   onSearchEnter,
   onAdvancedFilterClick,
+  advancedFilterActive = false,
   locations,
   onLocationChange,
   statuses,
@@ -106,30 +116,156 @@ export function V3FilterBar({
   }
 
   return (
-    <div className="border-b border-[#e5e7eb] bg-white px-4 py-3 space-y-3">
-      {/* Search row */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+    <div className="flex flex-wrap items-center gap-2 border-b border-[#e5e7eb] bg-white px-4 py-3 md:flex-nowrap">
+        <div className="relative order-1 min-w-0 flex-1 md:order-none md:w-56 md:flex-none md:shrink-0">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
           <Input
             aria-label="Search cases"
-            className="h-9 pl-9 border-[#e5e7eb] bg-white text-[13px] shadow-none placeholder:text-[#9ca3af] focus-visible:border-[#9ca3af] focus-visible:ring-1 focus-visible:ring-[#9ca3af]"
+            className="h-8 pl-9 border-[#e5e7eb] bg-white text-[13px] shadow-none placeholder:text-[#9ca3af] focus-visible:border-[#9ca3af] focus-visible:ring-1 focus-visible:ring-[#9ca3af]"
             placeholder="Search patient, slip, office…"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onSearchEnter()}
           />
         </div>
-        <IconBtn aria-label="Filters" onClick={onAdvancedFilterClick}><Filter className="h-4 w-4" /></IconBtn>
+
+      {/* Location pill tabs */}
+      <div className="order-3 flex w-full min-w-0 flex-col gap-2 md:order-none md:w-auto md:flex-1 md:flex-row md:items-center md:overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar md:shrink-0 md:overflow-visible">
+          {LOCATION_TABS.map((tab) => {
+            const value = tab.id === 0 ? "All" : String(tab.id)
+            const active = value === "All" ? locations.length === 0 : locations.includes(value)
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onLocationChange(value)}
+                className="relative inline-flex h-7 shrink-0 items-center whitespace-nowrap px-3 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#82298D]"
+                style={{
+                  borderRadius: 24,
+                  ...(active
+                    ? { background: "#fff", color: "#82298D" }
+                    : { background: "#fff", color: "#6b7280", border: "1px solid #E2E4E8" }),
+                }}
+              >
+                {active && (
+                  <>
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-0"
+                      style={{
+                        borderRadius: 24,
+                        padding: 1.5,
+                        background: GRADIENT,
+                        WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                        WebkitMaskComposite: "xor",
+                        maskComposite: "exclude",
+                      }}
+                    />
+                    <span
+                      style={{
+                        background: GRADIENT,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        backgroundClip: "text",
+                      }}
+                    >
+                      {tab.label}
+                    </span>
+                  </>
+                )}
+                {!active && tab.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Action icons */}
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar md:ml-2 md:shrink-0 md:overflow-visible">
+          <ActionIcon
+            active={visibleColumns.has("timestamp")}
+            aria-label="Show time stamp"
+            tooltip={visibleColumns.has("timestamp") ? "Hide time stamp" : "Show time stamp"}
+            onClick={() => toggleColumn("timestamp")}
+          >
+            <ClockActionIcon active={visibleColumns.has("timestamp")} />
+          </ActionIcon>
+          <ActionIcon
+            active={statusActive("In Progress")}
+            aria-label="Cases in progress"
+            tooltip="Cases in progress"
+            onClick={() => onStatusChange("In Progress")}
+          >
+            <StatusAssetIcon active={statusActive("In Progress")} src="/icons/virtual-slip-actions/resume.svg" />
+          </ActionIcon>
+          <ActionIcon
+            active={statusActive("On hold")}
+            aria-label="Cases on hold"
+            tooltip="Cases on hold"
+            onClick={() => onStatusChange("On hold")}
+          >
+            <PauseActionIcon active={statusActive("On hold")} />
+          </ActionIcon>
+          <ActionIcon
+            active={statusActive("cancelled")}
+            aria-label="Cases cancelled"
+            tooltip="Cases cancelled"
+            onClick={() => onStatusChange("cancelled")}
+          >
+            <CancelActionIcon active={statusActive("cancelled")} />
+          </ActionIcon>
+          <ActionIcon
+            active={statusActive("Finished")}
+            aria-label="Cases finished"
+            tooltip="Cases finished"
+            onClick={() => onStatusChange("Finished")}
+          >
+            <StatusAssetIcon active={statusActive("Finished")} src="/icons/check.svg" />
+          </ActionIcon>
+          <ActionIcon
+            active={statusActive("Deleted")}
+            aria-label="Cases deleted"
+            tooltip="Cases deleted"
+            onClick={() => onStatusChange("Deleted")}
+          >
+            <DeletedActionIcon active={statusActive("Deleted")} />
+          </ActionIcon>
+          <button
+            type="button"
+            disabled={!hasQuickFilters}
+            onClick={onClearQuickFilters}
+            className="ml-auto h-8 shrink-0 rounded-md md:ml-1 border border-[#d1d5db] px-3 text-[11px] font-medium text-[#374151] transition-colors hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Clear Filter
+          </button>
+        </div>
+      </div>
+
+        <div className="order-2 flex shrink-0 items-center gap-2 md:order-none">
+        <svg width="0" height="0" className="absolute" aria-hidden>
+          <defs>
+            <linearGradient id="v3IconStroke" x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#2AA6DE" />
+              <stop offset="51.11%" stopColor="#82298D" />
+              <stop offset="100%" stopColor="#C9539F" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <IconBtn aria-label="Filters" tooltip="Filters" active={advancedFilterActive} onClick={onAdvancedFilterClick}>
+          <Filter className="h-5 w-5" stroke={advancedFilterActive ? "url(#v3IconStroke)" : "currentColor"} />
+        </IconBtn>
 
         {/* Columns toggle button + panel */}
-        <div ref={colPanelRef} style={{ position: "relative" }}>
+        <div ref={colPanelRef} className="shrink-0" style={{ position: "relative" }}>
           <IconBtn
             aria-label="Show/Hide Columns"
+            tooltip="Show/Hide Columns"
+            active={colPanelOpen}
             onClick={() => setColPanelOpen((o) => !o)}
-            style={{ background: colPanelOpen ? "#f3f4f6" : undefined }}
           >
-            <Columns className="h-4 w-4" />
+            <Columns className="h-5 w-5" stroke={colPanelOpen ? "url(#v3IconStroke)" : "currentColor"} />
           </IconBtn>
 
           {colPanelOpen && (
@@ -191,145 +327,65 @@ export function V3FilterBar({
             </div>
           )}
         </div>
-      </div>
-
-      {/* Location pill tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
-        <div className="flex shrink-0 items-center gap-1.5">
-          {LOCATION_TABS.map((tab) => {
-            const value = tab.id === 0 ? "All" : String(tab.id)
-            const active = value === "All" ? locations.length === 0 : locations.includes(value)
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onLocationChange(value)}
-                className="relative inline-flex h-7 items-center px-3 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#82298D]"
-                style={{
-                  borderRadius: 24,
-                  ...(active
-                    ? { background: "#fff", color: "#82298D" }
-                    : { background: "#fff", color: "#6b7280", border: "1px solid #E2E4E8" }),
-                }}
-              >
-                {active && (
-                  <>
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute inset-0"
-                      style={{
-                        borderRadius: 24,
-                        padding: 1.5,
-                        background: GRADIENT,
-                        WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                        WebkitMaskComposite: "xor",
-                        maskComposite: "exclude",
-                      }}
-                    />
-                    <span
-                      style={{
-                        background: GRADIENT,
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text",
-                      }}
-                    >
-                      {tab.label}
-                    </span>
-                  </>
-                )}
-                {!active && tab.label}
-              </button>
-            )
-          })}
         </div>
-
-        {/* Action icons */}
-        <div className="flex shrink-0 items-center gap-1 ml-2">
-          <ActionIcon
-            active={visibleColumns.has("timestamp")}
-            aria-label="Show time stamp"
-            title={visibleColumns.has("timestamp") ? "Hide time stamp" : "Show time stamp"}
-            onClick={() => toggleColumn("timestamp")}
-          >
-            <ClockActionIcon active={visibleColumns.has("timestamp")} />
-          </ActionIcon>
-          <ActionIcon
-            active={statusActive("In Progress")}
-            aria-label="In Progress"
-            title="In Progress"
-            onClick={() => onStatusChange("In Progress")}
-          >
-            <StatusAssetIcon active={statusActive("In Progress")} src="/icons/virtual-slip-actions/resume.svg" />
-          </ActionIcon>
-          <ActionIcon
-            active={statusActive("On hold")}
-            aria-label="On Hold"
-            title="On Hold"
-            onClick={() => onStatusChange("On hold")}
-          >
-            <PauseActionIcon active={statusActive("On hold")} />
-          </ActionIcon>
-          <ActionIcon
-            active={statusActive("cancelled")}
-            aria-label="Cancelled"
-            title="Cancelled"
-            onClick={() => onStatusChange("cancelled")}
-          >
-            <CancelActionIcon active={statusActive("cancelled")} />
-          </ActionIcon>
-          <ActionIcon
-            active={statusActive("Finished")}
-            aria-label="Finished"
-            title="Finished"
-            onClick={() => onStatusChange("Finished")}
-          >
-            <StatusAssetIcon active={statusActive("Finished")} src="/icons/check.svg" />
-          </ActionIcon>
-          <button
-            type="button"
-            disabled={!hasQuickFilters}
-            onClick={onClearQuickFilters}
-            className="ml-1 h-8 shrink-0 rounded-md border border-[#d1d5db] px-3 text-[11px] font-medium text-[#374151] transition-colors hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Clear Filter
-          </button>
-        </div>
-      </div>
     </div>
+    </TooltipProvider>
   )
 }
 
-function IconBtn({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+type ToolbarButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; tooltip: string }
+
+function WithTooltip({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[#6b7280] transition-colors hover:bg-[#f3f4f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9ca3af]"
-      {...props}
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent
+        side="bottom"
+        className="border-none bg-[#111827] px-2 py-1 text-[11px] font-medium text-white animate-none data-[state=closed]:animate-none"
+        arrowClassName="text-[#111827]"
+      >
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+function IconBtn({ active, tooltip, children, style, ...props }: ToolbarButtonProps) {
+  return (
+    <WithTooltip label={tooltip}>
+      <button
+        type="button"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-md border-[1.5px] border-transparent text-[#6b7280] transition-colors hover:bg-[#f3f4f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9ca3af]"
+        aria-pressed={active}
+        style={{ ...(active ? ACTIVE_BUTTON_STYLE : null), ...style }}
+        {...props}
+      >
+        {children}
+      </button>
+    </WithTooltip>
   )
 }
 
 function ActionIcon({
   active,
+  tooltip,
   children,
   className = "",
   style,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+}: ToolbarButtonProps) {
   return (
-    <button
-      type="button"
-      className={`grid h-8 w-8 shrink-0 place-items-center rounded-md text-[#6b7280] transition-colors hover:bg-[#f3f4f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9ca3af] ${className}`}
-      aria-pressed={active}
-      style={{ ...(active ? { backgroundColor: "#f3f4f6" } : null), ...style }}
-      {...props}
-    >
-      {children}
-    </button>
+    <WithTooltip label={tooltip}>
+      <button
+        type="button"
+        className={`grid h-8 w-8 shrink-0 place-items-center rounded-md border-[1.5px] border-transparent text-[#6b7280] transition-colors hover:bg-[#f3f4f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9ca3af] ${className}`}
+        aria-pressed={active}
+        style={{ ...(active ? ACTIVE_BUTTON_STYLE : null), ...style }}
+        {...props}
+      >
+        {children}
+      </button>
+    </WithTooltip>
   )
 }
 
@@ -418,10 +474,34 @@ function CancelActionIcon({ active }: { active: boolean }) {
   )
 }
 
+function DeletedActionIcon({ active }: { active: boolean }) {
+  const inactiveFill = "#6B7280"
+
+  return (
+    <svg aria-hidden="true" className="h-6 w-6" fill="none" viewBox="0 0 20 20">
+      <defs>
+        <linearGradient id="v3TrashBody" x1="4" y1="4" x2="16" y2="18" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#6B7280" />
+          <stop offset="1" stopColor="#374151" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M7.5 3.5h5M4.5 5.5h11M6.5 5.5l.7 10.2a1.2 1.2 0 0 0 1.2 1.1h3.2a1.2 1.2 0 0 0 1.2-1.1L13.5 5.5M8.5 8.2v5.6M11.5 8.2v5.6"
+        stroke={active ? "url(#v3TrashBody)" : inactiveFill}
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={active ? 1 : 0.65}
+      />
+    </svg>
+  )
+}
+
 function normalizeStatus(status: string) {
   const value = status.trim().toLowerCase()
   if (value === "on hold" || value === "on-hold") return "on hold"
   if (value === "cancelled" || value === "canceled") return "cancelled"
+  if (value === "deleted") return "deleted"
   return value
 }
 

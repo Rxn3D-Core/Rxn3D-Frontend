@@ -10,6 +10,8 @@ interface AuditEntryDetailsDialogProps {
   entry: AuditEntry | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Hide IP, request URL, user agent, and raw JSON payloads (e.g. office profile). */
+  hideTechnicalDetails?: boolean
 }
 
 function formatTimestamp(value: string | null): string {
@@ -46,7 +48,12 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function AuditEntryDetailsDialog({ entry, open, onOpenChange }: AuditEntryDetailsDialogProps) {
+export function AuditEntryDetailsDialog({
+  entry,
+  open,
+  onOpenChange,
+  hideTechnicalDetails = false,
+}: AuditEntryDetailsDialogProps) {
   return (
     <TableDetailsSheet
       open={open}
@@ -72,7 +79,9 @@ export function AuditEntryDetailsDialog({ entry, open, onOpenChange }: AuditEntr
               <DetailRow label="Email" value={entry.user.email || "—"} />
               <DetailRow label="Target" value={entry.auditable.type_label} />
               <DetailRow label="Record ID" value={String(entry.auditable.id)} />
-              <DetailRow label="IP Address" value={entry.ip_address || "—"} />
+              {!hideTechnicalDetails && (
+                <DetailRow label="IP Address" value={entry.ip_address || "—"} />
+              )}
               <DetailRow label="Updated At" value={formatTimestamp(entry.updated_at)} />
             </div>
 
@@ -104,39 +113,43 @@ export function AuditEntryDetailsDialog({ entry, open, onOpenChange }: AuditEntr
               </div>
             </section>
 
-            <Separator />
+            {!hideTechnicalDetails && (
+              <>
+                <Separator />
 
-            <section className="space-y-3">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Technical Context</h3>
-                <p className="text-sm text-slate-500">Request metadata stored alongside the activity log.</p>
-              </div>
-              <div className="space-y-4 rounded-2xl border border-slate-200 p-4">
-                <DetailRow label="Request URL" value={entry.url || "—"} />
-                <DetailRow label="User Agent" value={entry.user_agent || "—"} />
-              </div>
-            </section>
+                <section className="space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Technical Context</h3>
+                    <p className="text-sm text-slate-500">Request metadata stored alongside the activity log.</p>
+                  </div>
+                  <div className="space-y-4 rounded-2xl border border-slate-200 p-4">
+                    <DetailRow label="Request URL" value={entry.url || "—"} />
+                    <DetailRow label="User Agent" value={entry.user_agent || "—"} />
+                  </div>
+                </section>
 
-            <section className="space-y-3">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Raw Payload</h3>
-                <p className="text-sm text-slate-500">Useful when the summary above truncates nested values.</p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Old Values</div>
-                  <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-100">
-                    {JSON.stringify(entry.old_values ?? {}, null, 2)}
-                  </pre>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">New Values</div>
-                  <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-100">
-                    {JSON.stringify(entry.new_values ?? {}, null, 2)}
-                  </pre>
-                </div>
-              </div>
-            </section>
+                <section className="space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Raw Payload</h3>
+                    <p className="text-sm text-slate-500">Useful when the summary above truncates nested values.</p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Old Values</div>
+                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-100">
+                        {JSON.stringify(entry.old_values ?? {}, null, 2)}
+                      </pre>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">New Values</div>
+                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-100">
+                        {JSON.stringify(entry.new_values ?? {}, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                </section>
+              </>
+            )}
           </div>
         </ScrollArea>
       ) : null}

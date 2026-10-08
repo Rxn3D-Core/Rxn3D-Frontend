@@ -13,7 +13,7 @@ import {
   shouldAutoOpenPatientGender,
   shouldShowPatientGenderField,
 } from "@/lib/patient-name-validation"
-import { resolveDoctorImageUrl } from "@/utils/avatar-utils"
+import { resolveDoctorImageUrl, doctorDisplayImageUrl, DOCTOR_PLACEHOLDER_IMAGE } from "@/utils/avatar-utils"
 
 interface Doctor {
   id: number
@@ -290,14 +290,8 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
 
 const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; variant?: "default" | "full" }) => {
   const router = useRouter()
-  const doctorImageSrc = resolveDoctorImageUrl(doctor) || undefined
+  const doctorImageSrc = doctorDisplayImageUrl(resolveDoctorImageUrl(doctor))
   
-  const getInitials = (firstName: string, lastName: string) => {
-    const first = firstName?.charAt(0) || ""
-    const last = lastName?.charAt(0) || ""
-    return `${first}${last}`.toUpperCase()
-  }
-
   const handleEditClick = () => {
     router.push("/choose-doctor")
   }
@@ -311,9 +305,15 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
               <AvatarImage
                 src={doctorImageSrc}
                 alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
+                onError={(e) => {
+                  const target = e.currentTarget
+                  if (target.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return
+                  target.src = DOCTOR_PLACEHOLDER_IMAGE
+                }}
               />
-              <AvatarFallback className="bg-gray-200 text-gray-600 text-xs sm:text-sm">
-                {getInitials(doctor?.first_name || "", doctor?.last_name || "")}
+              <AvatarFallback className="bg-transparent p-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={DOCTOR_PLACEHOLDER_IMAGE} alt="" className="h-full w-full object-cover" />
               </AvatarFallback>
             </Avatar>
           </div>
@@ -346,9 +346,15 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
           <AvatarImage
             src={doctorImageSrc}
             alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
+            onError={(e) => {
+              const target = e.currentTarget
+              if (target.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return
+              target.src = DOCTOR_PLACEHOLDER_IMAGE
+            }}
           />
-          <AvatarFallback className="bg-[#1162a8] text-white text-xl font-semibold">
-            {getInitials(doctor?.first_name || "", doctor?.last_name || "")}
+          <AvatarFallback className="bg-transparent p-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={DOCTOR_PLACEHOLDER_IMAGE} alt="" className="h-full w-full object-cover" />
           </AvatarFallback>
         </Avatar>
         <button
@@ -443,14 +449,13 @@ const PatientInfoSection = ({
   const gender = editablePatientData?.gender ?? patientData?.gender ?? ""
   const onNameChange = editablePatientData?.onNameChange ?? (() => {})
   const onGenderChange = editablePatientData?.onGenderChange ?? (() => {})
+  const onAgeChange = editablePatientData?.onAgeChange ?? (() => {})
 
   const { showGender, genderRequired, showAge, ageRequired } = fieldSettings
   const onInteraction = editablePatientData?.onInteraction
-
-  // Fields reveal once the name is far enough along AND the slip setting allows it.
-  const nameProgressed = shouldShowPatientGenderField(name)
-  const showGenderField = showGender && nameProgressed
-  const showAgeField = showAge && nameProgressed
+  const ageValue = editablePatientData?.age ?? patientData?.age ?? ""
+  const showGenderField = Boolean(gender?.trim())
+  const showAgeField = Boolean(ageValue !== undefined && ageValue !== null && String(ageValue).trim() !== "")
   const showSecondRow = showGenderField || showAgeField
 
   // Handle patient name change with auto-open logic
@@ -695,9 +700,6 @@ const PatientInfoSection = ({
     }
     return ""
   }
-
-  const ageValue = editablePatientData?.age ?? ""
-  const onAgeChange = editablePatientData?.onAgeChange ?? (() => {})
 
   const fieldHeight = 36.95
   const fieldGap = 10
@@ -978,7 +980,7 @@ export function SlipCreationHeader({
   patientData,
   editablePatientData,
   patientFieldSettings,
-  containerClassName = "container mx-auto px-6 max-w-[1400px] pt-8",
+  containerClassName = "container mx-auto px-6 max-w-[1400px] pt-4",
   headerClassName = "",
   hideSecondHeader = false,
 }: SlipCreationHeaderProps) {

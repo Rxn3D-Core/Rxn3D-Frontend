@@ -7,10 +7,6 @@ import {
 } from "./slipPayloadMappers";
 import { snapshotToProduct } from "./caseSubmissionPayload";
 import {
-  buildSlipLevelNotes,
-  clearProductNotesWhenUsingCaseSummary,
-} from "./caseSummaryNotesPayload";
-import {
   buildBaselineEditSlipProducts,
   findBaselineProductForPrepared,
   mergeEditSlipProductWithBaseline,
@@ -18,6 +14,25 @@ import {
 } from "./apiSlipProductPayload";
 
 export type { EditSlipProduct };
+
+/** Statuses that edit must keep intact (resume only via hold API; cancelled never resumes). */
+const PRESERVED_EDIT_PRODUCT_STATUSES = new Set(["cancelled", "On hold", "Finished"]);
+
+function isPreservedEditProductStatus(status: string | null | undefined): boolean {
+  return PRESERVED_EDIT_PRODUCT_STATUSES.has(String(status ?? ""));
+}
+
+/** Keep product notes that were already stored. Drop notes generated from the live design. */
+function keepSelectedProductNotes(
+  product: EditSlipProduct,
+  baseline?: EditSlipProduct
+): EditSlipProduct {
+  const selected = baseline?.notes?.trim();
+  if (selected) return { ...product, notes: selected };
+  if (product.notes == null) return product;
+  const { notes: _notes, ...rest } = product;
+  return rest;
+}
 
 export type EditSlipPayload = {
   location_id?: number;
@@ -39,7 +54,6 @@ export interface BuildEditSlipPayloadParams {
   casepanId?: number | null;
   casepanNumber?: string | null;
   labCustomerId?: number;
-  caseSummaryNotes?: string;
   /** Patient details from the editable header — sent so name/gender/age edits persist. */
   patientName?: string | null;
   gender?: string | null;
@@ -58,7 +72,10 @@ function buildSlipProductIdByType(apiProducts: unknown[]): Map<"Upper" | "Lower"
   if (!Array.isArray(apiProducts)) return map;
 
   for (const row of apiProducts) {
-    const product = row as { id?: number; type?: string };
+    const product = row as { id?: number; type?: string; status?: string };
+    // Do not attach cancelled/hold/finished ids to a newly designed arch product —
+    // those arches stay intact separately (or cancelled may be replaced without id).
+    if (isPreservedEditProductStatus(product.status)) continue;
     const archType = normalizeSlipProductType(product.type);
     if (archType && typeof product.id === "number" && product.id > 0) {
       map.set(archType, product.id);
@@ -109,7 +126,6 @@ export async function buildEditSlipSubmissionPayloadAsync(
     casepanId,
     casepanNumber,
     labCustomerId,
-    caseSummaryNotes,
     patientName,
     gender,
     age,
@@ -147,20 +163,35 @@ export async function buildEditSlipSubmissionPayloadAsync(
     return product;
   });
 
-  const products: EditSlipProduct[] =
+  const mergedActiveProducts: EditSlipProduct[] =
     preparedProducts.length > 0
       ? preparedProducts.map((prepared, index) => {
           const baseline = findBaselineProductForPrepared(prepared, baselineProducts, index);
-          return baseline ? mergeEditSlipProductWithBaseline(prepared, baseline) : prepared;
+          const merged = baseline ? mergeEditSlipProductWithBaseline(prepared, baseline) : prepared;
+          return keepSelectedProductNotes(merged, baseline);
         })
-      : baselineProducts.map((baseline) => {
-          const existingId = slipProductIds.get(baseline.type);
-          return existingId ? { ...baseline, id: existingId } : baseline;
-        });
+      : baselineProducts
+          .filter((baseline) => !isPreservedEditProductStatus(baseline.status))
+          .map((baseline) => {
+            const existingId = slipProductIds.get(baseline.type);
+            return existingId ? { ...baseline, id: existingId } : baseline;
+          });
 
-  clearProductNotesWhenUsingCaseSummary(products, caseSummaryNotes);
+  // Cancelled / On hold / Finished arches must stay on the slip when editing the other side.
+  // Backend also preserves them if omitted; include them here so status cannot flip to In Progress.
+  // Skip a preserved arch when the payload already has an active product of that type (replacement).
+  const includedIds = new Set(
+    mergedActiveProducts.map((p) => p.id).filter((id): id is number => typeof id === "number" && id > 0)
+  );
+  const activeTypes = new Set(mergedActiveProducts.map((p) => p.type));
+  const preservedProducts = baselineProducts.filter(
+    (baseline) =>
+      isPreservedEditProductStatus(baseline.status) &&
+      (baseline.id == null || !includedIds.has(baseline.id)) &&
+      !activeTypes.has(baseline.type)
+  );
 
-  const slipNotes = buildSlipLevelNotes(products, caseSummaryNotes, 0);
+  const products: EditSlipProduct[] = [...mergedActiveProducts, ...preservedProducts];
 
   const trimmedPatientName = patientName?.trim();
   const trimmedGender = gender?.trim();
@@ -178,7 +209,6 @@ export async function buildEditSlipSubmissionPayloadAsync(
     ...(trimmedGender ? { gender: trimmedGender } : {}),
     ...(parsedAge !== undefined && !Number.isNaN(parsedAge) ? { age: parsedAge } : {}),
     products,
-    ...(slipNotes.length > 0 ? { notes: slipNotes } : {}),
   };
 
   if (process.env.NODE_ENV === "development") {

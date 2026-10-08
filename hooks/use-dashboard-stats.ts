@@ -17,7 +17,6 @@ interface DashboardStatus {
   rush_cases: number
   on_hold_cases: number
   due_today: number
-  new_stage_notes: number
   late_cases: number
 }
 

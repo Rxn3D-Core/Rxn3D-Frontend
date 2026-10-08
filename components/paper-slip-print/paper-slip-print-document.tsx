@@ -9,8 +9,12 @@ import type {
   PaperSlipPrintableSlipVM,
 } from "@/lib/paper-slip-print-view-model";
 import { getPaperSlipCalloutVisual } from "@/lib/paper-slip-callout-layout";
-import { truncateTextToMaxLines } from "@/lib/paper-slip-notes-display";
+import {
+  truncateTextToMaxLines,
+  truncateTextToMaxWords,
+} from "@/lib/paper-slip-notes-display";
 import { VirtualSlipToothChart } from "@/components/virtual-slip/VirtualSlipToothChart";
+import { SlashedZeroText } from "@/components/paper-slip-print/slashed-zero-text";
 
 // Canonical row order down the center column of the detail grid, matching the
 // Figma paper-slip reference. Labels here must match the `label` values emitted
@@ -331,7 +335,7 @@ function PaperSlipNotes({ slip }: { slip: PaperSlipPrintableSlipVM }) {
           key={`${slip.slipId}-note-${index}`}
           className={`whitespace-pre-line ${index > 0 ? "mt-1" : ""}`}
         >
-          {truncateTextToMaxLines(note, 4)}
+          {truncateTextToMaxLines(truncateTextToMaxWords(note, 100), 4)}
         </p>
       ))}
     </section>
@@ -380,14 +384,6 @@ function PaperSlipFooter({ slip }: { slip: PaperSlipPrintableSlipVM }) {
           </div>
         </div>
       </div>
-
-      {(slip.footer.labPhone || slip.footer.labEmail) && (
-        <div className="text-center text-[11px] text-[#4c4d55]">
-          {slip.footer.labPhone ? `Lab Phone: ${slip.footer.labPhone}` : ""}
-          {slip.footer.labPhone && slip.footer.labEmail ? "  •  " : ""}
-          {slip.footer.labEmail ? `Email: ${slip.footer.labEmail}` : ""}
-        </div>
-      )}
     </section>
   );
 }
@@ -408,7 +404,7 @@ function PaperSlipCasePanBlock({ slip }: { slip: PaperSlipPrintableSlipVM }) {
       <div className="mt-4 text-center text-[10px] uppercase tracking-[0.14em] text-[#4c4d55]">
         Case Pan #
       </div>
-      <div className="mt-3 flex items-center justify-center gap-6">
+      <div className="mt-3 ml-[50px] flex items-center justify-center gap-6">
         {slip.header.qrCodeUrl ? (
           <img
             alt="Paper slip QR code"
@@ -421,7 +417,7 @@ function PaperSlipCasePanBlock({ slip }: { slip: PaperSlipPrintableSlipVM }) {
           </div>
         )}
         <div className="text-center font-sans text-[96px] font-normal leading-[100%] tracking-[0] text-[#111827]">
-          {slip.header.casePanNumber || ""}
+          <SlashedZeroText value={slip.header.casePanNumber || ""} />
         </div>
       </div>
     </section>

@@ -30,7 +30,7 @@ export default function LoginPage() {
     if (isOnboardingComplete) {
       const userRoles = user.roles || (user.role ? [user.role] : [])
       const isSuperAdmin = userRoles.includes("superadmin")
-      const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "office_admin", "office_user"]
+      const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "lab_driver", "office_admin", "office_user"]
       const shouldSeeMultiLocation = userRoles.some((role) => MULTI_LOCATION_ROLES.includes(role))
       const customers = user.customers || []
       const hasMultipleLocations = customers.length > 1

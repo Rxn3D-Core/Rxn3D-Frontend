@@ -1,6 +1,16 @@
 /** Lab roles that may run driver / due-date / ready-to-send slip actions. */
 export function isLabSlipUserRole(role: string | null | undefined): boolean {
-  return role === "lab_admin" || role === "lab_user"
+  return role === "lab_admin" || role === "lab_user" || role === "lab_driver"
+}
+
+/** Undo location step is restricted to lab admins (and superadmin acting as lab). */
+export function canUndoSlipLocation(role: string | null | undefined): boolean {
+  return role === "lab_admin" || role === "superadmin"
+}
+
+/** Lab roles may use pan color toggle when they have a pan_color assigned. */
+export function canToggleSlipPan(role: string | null | undefined): boolean {
+  return isLabSlipUserRole(role) || role === "superadmin"
 }
 
 /**

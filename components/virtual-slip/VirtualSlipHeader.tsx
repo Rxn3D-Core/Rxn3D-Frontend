@@ -1,13 +1,14 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
+import { Loader2 } from "lucide-react";
 import type { VirtualSlipHeaderVM } from "@/lib/virtual-slip-view-model";
 import { hasDisplayValue } from "@/lib/virtual-slip-display";
 import {
   VirtualSlipLocationAction,
   type VirtualSlipLocationActionProps,
 } from "@/components/virtual-slip/VirtualSlipLocationAction";
+import { DOCTOR_PLACEHOLDER_IMAGE, doctorDisplayImageUrl } from "@/utils/avatar-utils";
 
 const HEADER_ICON_BASE = "/icons/virtual-slip-actions";
 
@@ -45,21 +46,48 @@ function Avatar({
   src,
   name,
   sizeClass,
+  /** Doctor slot uses the shared illustration; Created By keeps initials. */
+  fallback = "initials",
 }: {
   src: string | null;
   name: string;
   sizeClass: string;
+  fallback?: "doctor" | "initials";
 }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     setFailed(false);
   }, [src]);
+
   const initials = name
     .split(" ")
     .map((n) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  if (fallback === "doctor") {
+    const imgSrc = failed
+      ? DOCTOR_PLACEHOLDER_IMAGE
+      : doctorDisplayImageUrl(src);
+    return (
+      <div
+        className={`flex items-center justify-center overflow-hidden rounded-full bg-gray-200 ${sizeClass}`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imgSrc}
+          alt={name}
+          className="h-full w-full object-cover"
+          onError={() => {
+            if (!failed) setFailed(true);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Created By (and any non-doctor avatar): show real photo only; else initials.
   const showImage = Boolean(src) && !failed;
   return (
     <div
@@ -74,7 +102,48 @@ function Avatar({
           onError={() => setFailed(true)}
         />
       ) : (
-        <span className="text-sm font-bold text-gray-500">{initials || "â€”"}</span>
+        <span className="text-sm font-bold text-gray-500">{initials || "—"}</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Shows a logo image when available; falls back to the entity's name as text
+ * so the header always identifies the office / lab even without a logo.
+ */
+function LogoOrName({
+  src,
+  name,
+  containerClassName,
+  imgClassName,
+  textClassName,
+}: {
+  src: string | null;
+  name: string;
+  containerClassName: string;
+  imgClassName: string;
+  textClassName: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+  const showImage = Boolean(src) && !failed;
+  return (
+    <div className={containerClassName}>
+      {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src!}
+          alt={name}
+          className={imgClassName}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className={textClassName} title={name}>
+          {name}
+        </span>
       )}
     </div>
   );
@@ -84,21 +153,29 @@ function HeaderActionButton({
   src,
   label,
   onClick,
+  loading = false,
 }: {
   src: string;
   label: string;
   onClick?: () => void;
+  loading?: boolean;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
+      aria-busy={loading || undefined}
+      title={loading ? "Preparing print…" : undefined}
       onClick={onClick}
-      disabled={!onClick}
-      className="flex h-[42px] w-[42px] shrink-0 items-center justify-center transition-opacity hover:opacity-85 disabled:cursor-default disabled:opacity-100"
+      disabled={!onClick || loading}
+      className="flex h-[42px] w-[42px] shrink-0 items-center justify-center transition-opacity hover:opacity-85 disabled:cursor-default disabled:opacity-100 aria-busy:cursor-wait"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="" aria-hidden className="h-[38px] w-[38px] object-contain" />
+      {loading ? (
+        <Loader2 aria-hidden className="h-[28px] w-[28px] animate-spin text-[#1162A8]" />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" aria-hidden className="h-[38px] w-[38px] object-contain" />
+      )}
     </button>
   );
 }
@@ -106,14 +183,20 @@ function HeaderActionButton({
 export interface VirtualSlipHeaderProps {
   header: VirtualSlipHeaderVM;
   onPrint?: () => void;
+  /** Paper slip print is being prepared; shows a spinner and blocks repeat clicks. */
+  printing?: boolean;
   onPrintInvoice?: () => void;
+  /** Prints Blade portrait-v4 HTML from API (base64 → iframe print). */
+  onPrintPaperSlipV4?: () => void;
   locationAction?: VirtualSlipLocationActionProps;
 }
 
 export function VirtualSlipHeader({
   header,
   onPrint,
+  printing = false,
   onPrintInvoice,
+  onPrintPaperSlipV4,
   locationAction,
 }: VirtualSlipHeaderProps) {
   return (
@@ -125,6 +208,7 @@ export function VirtualSlipHeader({
             src={header.doctorImage}
             name={header.doctorName || "Doctor"}
             sizeClass="h-[clamp(88px,10.5vw,118px)] w-[clamp(88px,10.5vw,118px)]"
+            fallback="doctor"
           />
           {hasDisplayValue(header.doctorName) && (
             <div className="flex flex-col items-center gap-[2px] text-center font-sans">
@@ -142,23 +226,31 @@ export function VirtualSlipHeader({
         {/* Center: office/actions/lab row + patient field columns */}
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center justify-between border-b border-[#D9D9D9] px-1 py-[6px]">
-            <div className="relative h-[40px] w-[clamp(120px,16vw,200px)] shrink-0">
-              <Image
-                src={header.officeLogo || "/images/practice-logo.png"}
-                alt={header.officeName || "Office"}
-                fill
-                className="object-contain object-center"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            </div>
+            <LogoOrName
+              src={header.officeLogo}
+              name={header.officeName || "Office"}
+              containerClassName="flex h-[40px] w-[clamp(120px,16vw,200px)] shrink-0 items-center"
+              imgClassName="h-full w-auto max-w-full object-contain object-left"
+              textClassName="min-w-0 truncate text-[clamp(14px,1.2vw,20px)] font-bold leading-tight text-[#4C4D55]"
+            />
 
             <div className="flex shrink-0 items-center gap-[18px]">
+              {onPrintPaperSlipV4 ? (
+                <button
+                  type="button"
+                  onClick={onPrintPaperSlipV4}
+                  className="font-sans text-[10px] font-medium leading-none text-[#1162A8] underline-offset-2 hover:underline"
+                  title="Print Blade paper slip v4"
+                  style={{ display: "none" }}
+                >
+                  v4
+                </button>
+              ) : null}
               <HeaderActionButton
                 src={`${HEADER_ICON_BASE}/printer.svg?v=1`}
                 label="Print"
                 onClick={onPrint}
+                loading={printing}
               />
               <HeaderActionButton
                 src={`${HEADER_ICON_BASE}/print-invoice.svg`}
@@ -167,17 +259,13 @@ export function VirtualSlipHeader({
               />
             </div>
 
-            <div className="relative h-[28px] w-[clamp(64px,8vw,84px)] shrink-0">
-              <Image
-                src={header.labLogo || "/images/hmci3-logo.png"}
-                alt={header.labName}
-                fill
-                className="object-contain object-center"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            </div>
+            <LogoOrName
+              src={header.labLogo}
+              name={header.labName}
+              containerClassName="flex h-[40px] w-[clamp(120px,16vw,200px)] shrink-0 items-center justify-end"
+              imgClassName="h-full w-auto max-w-full object-contain object-right"
+              textClassName="min-w-0 text-[clamp(14px,1.2vw,20px)] font-bold leading-tight text-[#4C4D55] text-right"
+            />
           </div>
 
           <div className="grid min-w-0 flex-1 grid-cols-5 items-center gap-x-[clamp(16px,1.4vw,28px)] py-[4px]">
@@ -254,6 +342,7 @@ export function VirtualSlipHeader({
               src={header.createdByImage}
               name={header.createdByName || "Created"}
               sizeClass="h-[clamp(88px,10.5vw,118px)] w-[clamp(88px,10.5vw,118px)]"
+              fallback="initials"
             />
             {hasDisplayValue(header.createdByName) && (
               <div className="flex flex-col items-center gap-[2px] text-center font-sans">

@@ -1,6 +1,7 @@
 import { buildApiUrl } from "@/lib/api/client"
 
-export interface SuperadminLabCustomer {
+/** Registered lab or office customer returned by `GET /customers/search`. */
+export interface SuperadminCustomer {
   id: number
   name: string
   website: string | null
@@ -16,7 +17,10 @@ export interface SuperadminLabCustomer {
   updated_at: string
 }
 
-export interface SuperadminLabCustomerProfile extends SuperadminLabCustomer {
+/** @deprecated Prefer `SuperadminCustomer` — kept for existing lab-billing callers. */
+export type SuperadminLabCustomer = SuperadminCustomer
+
+export interface SuperadminCustomerProfile extends SuperadminCustomer {
   state?: {
     id: number
     name: string
@@ -48,7 +52,12 @@ export interface SuperadminLabCustomerProfile extends SuperadminLabCustomer {
   }>
 }
 
-export interface SearchLabCustomersOptions {
+/** @deprecated Prefer `SuperadminCustomerProfile`. */
+export type SuperadminLabCustomerProfile = SuperadminCustomerProfile
+
+export type SuperadminCustomerType = "lab" | "office"
+
+export interface SearchSuperadminCustomersOptions {
   q?: string
   status?: "Active" | "Inactive"
   per_page?: number
@@ -57,8 +66,11 @@ export interface SearchLabCustomersOptions {
   page?: number
 }
 
-export interface SearchLabCustomersResponse {
-  data: SuperadminLabCustomer[]
+/** @deprecated Prefer `SearchSuperadminCustomersOptions`. */
+export type SearchLabCustomersOptions = SearchSuperadminCustomersOptions
+
+export interface SearchSuperadminCustomersResponse {
+  data: SuperadminCustomer[]
   pagination: {
     total: number
     per_page: number
@@ -66,6 +78,9 @@ export interface SearchLabCustomersResponse {
     last_page: number
   }
 }
+
+/** @deprecated Prefer `SearchSuperadminCustomersResponse`. */
+export type SearchLabCustomersResponse = SearchSuperadminCustomersResponse
 
 function getAuthHeaders() {
   if (typeof window === "undefined") {
@@ -99,12 +114,17 @@ async function fetchJson<T>(path: string): Promise<T> {
   return response.json()
 }
 
-export async function searchSuperadminLabCustomers(
-  options: SearchLabCustomersOptions = {}
-): Promise<SearchLabCustomersResponse> {
+/**
+ * Search registered customers by type via `GET /customers/search`.
+ * Superadmin dashboard uses separate calls for `office` and `lab`.
+ */
+export async function searchSuperadminCustomers(
+  type: SuperadminCustomerType,
+  options: SearchSuperadminCustomersOptions = {}
+): Promise<SearchSuperadminCustomersResponse> {
   const params = new URLSearchParams({
-    type: "lab",
-    per_page: String(options.per_page ?? 8),
+    type,
+    per_page: String(options.per_page ?? 100),
     order_by: options.order_by ?? "name",
     sort_by: options.sort_by ?? "asc",
     page: String(options.page ?? 1),
@@ -114,24 +134,38 @@ export async function searchSuperadminLabCustomers(
   if (options.status) params.append("status", options.status)
 
   const payload = await fetchJson<{
-    data?: SuperadminLabCustomer[]
-    pagination?: SearchLabCustomersResponse["pagination"]
+    data?: SuperadminCustomer[]
+    pagination?: SearchSuperadminCustomersResponse["pagination"]
   }>(`/customers/search?${params.toString()}`)
 
   return {
     data: payload.data ?? [],
     pagination: payload.pagination ?? {
       total: 0,
-      per_page: options.per_page ?? 8,
+      per_page: options.per_page ?? 100,
       current_page: options.page ?? 1,
       last_page: 1,
     },
   }
 }
 
+/** Registered offices (practices) for the superadmin dashboard. */
+export async function searchSuperadminOfficeCustomers(
+  options: SearchSuperadminCustomersOptions = {}
+): Promise<SearchSuperadminCustomersResponse> {
+  return searchSuperadminCustomers("office", options)
+}
+
+/** Registered labs for the superadmin dashboard and lab switcher. */
+export async function searchSuperadminLabCustomers(
+  options: SearchSuperadminCustomersOptions = {}
+): Promise<SearchSuperadminCustomersResponse> {
+  return searchSuperadminCustomers("lab", options)
+}
+
 export async function getSuperadminLabCustomerProfile(
   customerId: number
-): Promise<SuperadminLabCustomerProfile | null> {
-  const payload = await fetchJson<{ data?: SuperadminLabCustomerProfile }>(`/customers/${customerId}`)
+): Promise<SuperadminCustomerProfile | null> {
+  const payload = await fetchJson<{ data?: SuperadminCustomerProfile }>(`/customers/${customerId}`)
   return payload.data ?? null
 }

@@ -38,12 +38,15 @@ import {
   formatSlipStageTabLabel,
   resolveStageTabLabel,
   slipNoteAuthorName,
+  slipNoteStatusColor,
+  slipNoteStatusLabel,
   uploadSlipNoteAttachments,
   type CaseNoteStageSeed,
   type CaseSlipWithNotes,
   type SlipNoteAttachment,
   type SlipNoteDetail,
 } from "@/lib/api/slip-notes"
+import { canAddSlipNotes } from "@/lib/slip-case-status"
 import { cn } from "@/lib/utils"
 
 const MAX_NOTE_LENGTH = 2000
@@ -190,6 +193,8 @@ function NoteHistoryEntry({
 }) {
   const timestamp = formatStageNoteTimestamp(note.created_at)
   const author = slipNoteAuthorName(note)
+  const status = slipNoteStatusLabel(note)
+  const statusColor = slipNoteStatusColor(status)
   const slipNum = note.slip_number?.trim()
   const stageLabel = resolveNoteStageLabel(note, slips)
   const showDelivery = note.slip_id === currentSlipId && deliveryBadge
@@ -208,6 +213,11 @@ function NoteHistoryEntry({
     >
       <div className="mb-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-snug">
         <span className="italic text-[#9CA3AF]">{timestamp}</span>
+        {status ? (
+          <span className="font-bold uppercase" style={{ color: statusColor }}>
+            {status}
+          </span>
+        ) : null}
         <span className="font-bold text-[#111827]">{author}</span>
         {slipNum ? <MetaBadge>Slip # {slipNum}</MetaBadge> : null}
         <MetaBadge>{stageLabel}</MetaBadge>
@@ -256,7 +266,7 @@ function NotesHistoryList({
   deliveryBadge,
   isRush,
   isLoading,
-  emptyMessage = "No stage notes yet.",
+  emptyMessage = "No slip notes yet.",
   onEdit,
   className,
 }: {
@@ -273,7 +283,7 @@ function NotesHistoryList({
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       <h3 className="mb-3 shrink-0 text-base font-bold text-[#111827]">
-        Notes History
+        Slip Notes History
       </h3>
       <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">
         {isLoading ? (
@@ -318,6 +328,8 @@ interface SlipNotesModalProps {
   deliveryDateDisplay?: string
   deliveryTimeDisplay?: string
   isRush?: boolean
+  /** Current slip status — used to gate add/edit when Finished or cancelled. */
+  slipStatus?: string | null
   notesRefreshKey?: number
   stageSeeds?: CaseNoteStageSeed[]
   onNotesChanged?: (summaryText: string) => void
@@ -333,6 +345,7 @@ export function SlipNotesModal({
   deliveryDateDisplay = "",
   deliveryTimeDisplay = "",
   isRush = false,
+  slipStatus = null,
   notesRefreshKey = 0,
   stageSeeds = [],
   onNotesChanged,
@@ -389,6 +402,13 @@ export function SlipNotesModal({
   }, [caseId, caseNotesFromApi, slips, slipOnlyNotes, slipId, slipNumber])
 
   const isHistoryLoading = caseId ? isCaseNotesLoading : isSlipNotesLoading
+
+  const resolvedSlipStatus = useMemo(() => {
+    if (slipStatus?.trim()) return slipStatus
+    return slips.find((s) => s.id === slipId)?.status ?? null
+  }, [slipStatus, slips, slipId])
+
+  const allowNoteEdits = canAddSlipNotes(resolvedSlipStatus)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddingNote, setIsAddingNote] = useState(false)
@@ -509,12 +529,14 @@ export function SlipNotesModal({
   }, [isOpen, resetCompose])
 
   const handleStartAdd = () => {
+    if (!allowNoteEdits) return
     setEditingNoteId(null)
     setNewNoteContent("")
     setIsAddingNote(true)
   }
 
   const handleStartEdit = (note: SlipNoteDetail) => {
+    if (!allowNoteEdits) return
     setEditingNoteId(note.id)
     setNewNoteContent(note.note)
     setIsAddingNote(true)
@@ -525,6 +547,10 @@ export function SlipNotesModal({
   }
 
   const handleDone = async () => {
+    if (!allowNoteEdits) {
+      resetCompose()
+      return
+    }
     const text = newNoteContent.trim()
     if (!text) {
       resetCompose()
@@ -580,7 +606,7 @@ export function SlipNotesModal({
 
   const historyEmptyMessage =
     caseNotes.length === 0
-      ? "No stage notes yet."
+      ? "No slip notes yet."
       : "No notes match your search or filters."
 
   const composeBadges = (
@@ -605,7 +631,7 @@ export function SlipNotesModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className={cn(
-          "flex h-[90vh] flex-col gap-0 rounded-[20px] border border-[#E5E7EB] p-0 shadow-2xl",
+          "flex h-[min(90vh,90dvh)] w-[calc(100%-1.5rem)] flex-col gap-0 rounded-[20px] border border-[#E5E7EB] p-0 shadow-2xl sm:w-full",
           isAddingNote ? "max-w-6xl" : "max-w-3xl"
         )}
       >
@@ -622,7 +648,7 @@ export function SlipNotesModal({
                 aria-hidden
               />
               <DialogTitle className="text-xl font-bold tracking-tight text-[#111827]">
-                Stage Notes
+                Slip Notes
               </DialogTitle>
             </div>
             <button
@@ -641,7 +667,7 @@ export function SlipNotesModal({
             <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
               <Input
-                placeholder="Search all stage notes"
+                placeholder="Search all slip notes"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="h-10 rounded-lg border-[#D1D5DB] bg-white pl-9 text-sm shadow-none"
@@ -727,8 +753,14 @@ export function SlipNotesModal({
             </p>
           ) : null}
 
-          {isAddingNote ? (
-            <div className="flex min-h-0 flex-1 gap-6 overflow-hidden">
+          {!allowNoteEdits ? (
+            <p className="mb-3 shrink-0 text-sm text-[#6B7280]" role="status">
+              Notes cannot be added on finished or cancelled slips.
+            </p>
+          ) : null}
+
+          {isAddingNote && allowNoteEdits ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto sm:flex-row sm:gap-6 sm:overflow-hidden">
               <div className="flex min-w-0 flex-1 flex-col">
                 {composeBadges}
                 <Textarea
@@ -822,7 +854,7 @@ export function SlipNotesModal({
               </div>
 
               <NotesHistoryList
-                className="min-w-0 flex-1 border-l border-[#E5E7EB] pl-6"
+                className="min-w-0 flex-1 border-t border-[#E5E7EB] pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0"
                 notes={filteredNotes}
                 slips={slips}
                 currentSlipId={slipId}
@@ -830,18 +862,20 @@ export function SlipNotesModal({
                 isRush={isRush}
                 isLoading={isHistoryLoading}
                 emptyMessage={historyEmptyMessage}
-                onEdit={handleStartEdit}
+                onEdit={allowNoteEdits ? handleStartEdit : undefined}
               />
             </div>
           ) : (
             <>
-              <Button
-                type="button"
-                className="mb-4 h-11 w-full shrink-0 rounded-lg bg-[#1162A8] text-sm font-medium text-white hover:bg-[#0f5490]"
-                onClick={handleStartAdd}
-              >
-                Add stage notes
-              </Button>
+              {allowNoteEdits ? (
+                <Button
+                  type="button"
+                  className="mb-4 h-11 w-full shrink-0 rounded-lg bg-[#1162A8] text-sm font-medium text-white hover:bg-[#0f5490]"
+                  onClick={handleStartAdd}
+                >
+                  Add slip notes
+                </Button>
+              ) : null}
               <NotesHistoryList
                 notes={filteredNotes}
                 slips={slips}
@@ -850,7 +884,7 @@ export function SlipNotesModal({
                 isRush={isRush}
                 isLoading={isHistoryLoading}
                 emptyMessage={historyEmptyMessage}
-                onEdit={handleStartEdit}
+                onEdit={allowNoteEdits ? handleStartEdit : undefined}
               />
             </>
           )}

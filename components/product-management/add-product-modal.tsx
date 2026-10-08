@@ -64,11 +64,13 @@ import {
   serializeRetentionOptionsForApi,
   serializeRetentionsForProductApi,
 } from "@/lib/product-retention-links-form"
+import { applyReleasingStageFlagsToStages } from "@/lib/product-releasing-stages"
 import { useAdvanceFields, ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE } from "@/lib/api/advance-mode-query"
 import { useQueryClient } from "@tanstack/react-query"
 import {
   retentionOptionsCatalogQueryKey,
   useRetentionOptionsCatalogForProductModal,
+  useSyncProductFormRetentionOptionsToCatalog,
 } from "@/hooks/use-retention-options-catalog"
 import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
 import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
@@ -434,6 +436,8 @@ export function AddProductModal({
     enable_auto_billing: "No",
     is_single_stage: "No",
     is_splinted: "No",
+    gender_required: "No",
+    age_required: "No",
     link_all_addons: "No",
     apply_retention_mechanism: "No",
     has_implant: "No",
@@ -465,6 +469,7 @@ export function AddProductModal({
     enable_default_tooth_chart: "No",
     allow_select_only_implant: "No",
     enable_custom_label: "No",
+    hide_reference_teeth_selection: "No",
     custom_label: "",
     default_tooth_chart: [],
   }), [])
@@ -485,6 +490,14 @@ export function AddProductModal({
     mode: "onChange",
     reValidateMode: "onBlur",
     shouldFocusError: true,
+  })
+
+  useSyncProductFormRetentionOptionsToCatalog({
+    enabled: isOpen,
+    productKey: editingProduct?.id ?? null,
+    catalog: retentionOptionsCatalog,
+    control,
+    setValue,
   })
 
   const watchedIsTeethBased = useWatch({ control, name: "is_teeth_based_price" })
@@ -1011,6 +1024,8 @@ export function AddProductModal({
       enable_auto_billing: editingProduct.enable_auto_billing || "No",
       is_single_stage: editingProduct.is_single_stage || "No",
       is_splinted: editingProduct.is_splinted || "No",
+      gender_required: editingProduct.gender_required || "No",
+      age_required: editingProduct.age_required || "No",
       link_all_addons: editingProduct.link_all_addons || "No",
       apply_retention_mechanism: editingProduct.apply_retention_mechanism || "No",
       retention_type: editingProduct.retention_type,
@@ -1042,6 +1057,8 @@ export function AddProductModal({
         editingProduct.allow_select_only_implant === "Yes" ? "Yes" : "No",
       enable_custom_label:
         editingProduct.enable_custom_label === "Yes" ? "Yes" : "No",
+      hide_reference_teeth_selection:
+        editingProduct.hide_reference_teeth_selection === "Yes" ? "Yes" : "No",
       custom_label:
         typeof editingProduct.custom_label === "string" ? editingProduct.custom_label : "",
       default_tooth_chart: hydrateDefaultToothChartFromProduct(
@@ -1634,7 +1651,10 @@ export function AddProductModal({
       if (!sections.addOns) payload.addons = []
       // Preserve linked retention types + options when section is off; backend uses has_retention only.
       payload.retentions = serializeRetentionsForProductApi(data.retentions ?? [])
-      payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
+      payload.retention_options = serializeRetentionOptionsForApi(
+        data.retention_options ?? [],
+        retentionOptionsCatalog.items,
+      )
       // Preserve linked advance field IDs when section is off; backend uses has_advance_field only.
       payload.advance_fields = serializeAdvanceFieldsForApi(
         (data.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
@@ -1642,6 +1662,7 @@ export function AddProductModal({
       if (!sections.extractions) {
         payload.extractions = []
         payload.opposite_extractions = []
+        payload.hide_reference_teeth_selection = "No"
       }
 
       // Always include opposite_impression (backend field) so toggling is always persisted
@@ -1659,6 +1680,9 @@ export function AddProductModal({
         variation: sections.variation,
       })
       applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
+      if (Array.isArray(payload.stages)) {
+        payload.stages = applyReleasingStageFlagsToStages(payload.stages, releasingStageIds)
+      }
 
       saveResult = await updateProduct(editingProduct.id, payload, releasingStageIds)
     } else {
@@ -1705,7 +1729,10 @@ export function AddProductModal({
       if (!sections.material) payload.materials = []
       if (!sections.addOns) payload.addons = []
       payload.retentions = serializeRetentionsForProductApi(data.retentions ?? [])
-      payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
+      payload.retention_options = serializeRetentionOptionsForApi(
+        data.retention_options ?? [],
+        retentionOptionsCatalog.items,
+      )
       payload.advance_fields = serializeAdvanceFieldsForApi(
         (payload.advance_fields ?? data.advance_fields ?? []) as Parameters<
           typeof serializeAdvanceFieldsForApi
@@ -1714,6 +1741,7 @@ export function AddProductModal({
       if (!sections.extractions) {
         payload.extractions = []
         payload.opposite_extractions = []
+        payload.hide_reference_teeth_selection = "No"
       }
 
       const allocCreate = validateStageAllocationPercents(payload.stages, {
@@ -1728,8 +1756,11 @@ export function AddProductModal({
         variation: sections.variation,
       })
       applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
+      if (Array.isArray(payload.stages)) {
+        payload.stages = applyReleasingStageFlagsToStages(payload.stages, releasingStageIds)
+      }
 
-      saveResult = await createProduct(payload)
+      saveResult = await createProduct(payload, releasingStageIds)
     }
     if (!saveResult.success) return
 

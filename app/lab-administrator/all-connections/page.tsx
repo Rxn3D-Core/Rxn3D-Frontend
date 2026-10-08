@@ -7,39 +7,73 @@ import { Input } from "@/components/ui/input"
 import { ConnectionTabs } from "@/components/lab-administrator/connections/connection-tabs"
 import { ConnectionsTable } from "@/components/lab-administrator/connections/connections-table"
 import { NewConnectionModal } from "@/components/lab-administrator/connections/new-connection-modal"
-import { ProfileModal } from "@/components/lab-administrator/connections/profile-modal"
-import { useConnection } from "@/contexts/connection-context"
+import { ProfileModal, type ProfileData } from "@/components/profile-modal"
 import { useInvitation } from "@/contexts/invitation-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/components/ui/use-toast"
 import { fetchProfileData } from "@/lib/api-profile"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getPrimaryRole } from "@/lib/get-primary-role"
+import { useConnections } from "@/hooks/use-connections"
+import { DEFAULT_CONNECTIONS_PER_PAGE } from "@/lib/connection-api"
+import { ConnectionListPagination } from "@/components/dashboard/connection-list-pagination"
+import {
+  getConnectionPartnerEmail,
+  getConnectionPartnerId,
+  getConnectionPartnerLocation,
+  getConnectionPartnerName,
+} from "@/lib/connection-utils"
 
 export default function AllConnections() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const { practices, labs, isLoading, error, fetchConnections } = useConnection()
   const { sent, received, fetchAllInvitations, resendInvitation, deleteInvitation, acceptInvitation, cancelInvitation } = useInvitation()
-  
+
   const [activeTab, setActiveTab] = useState<"connected" | "sent" | "received">("connected")
   const [showNewConnectionModal, setShowNewConnectionModal] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
-  const [selectedProfile, setSelectedProfile] = useState<any>(null)
+  const [selectedProfile, setSelectedProfile] = useState<ProfileData | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [connectedPage, setConnectedPage] = useState(1)
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
 
   const selectedLocation = JSON.parse(localStorage.getItem("selectedLocation") || "null")
   const invitedBy = user?.roles?.includes("superadmin") ? 0 : selectedLocation?.id
   const hasFetchedRef = useRef(false)
+  const role = getPrimaryRole(user)
+  const isLabSide = role === "lab_admin" || role === "lab_user" || role === "lab_driver" || role === "superadmin"
 
-  // Fetch connections and invitations when component mounts
   useEffect(() => {
-    if (invitedBy && !hasFetchedRef.current) {
-      fetchConnections()
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  useEffect(() => {
+    setConnectedPage(1)
+  }, [debouncedSearch, activeTab])
+
+  const {
+    data: connectionsData,
+    isLoading: isLoadingConnections,
+    error: connectionsError,
+  } = useConnections(user?.id, {
+    page: connectedPage,
+    perPage: DEFAULT_CONNECTIONS_PER_PAGE,
+    search: debouncedSearch,
+    enabled: activeTab === "connected",
+  })
+
+  useEffect(() => {
+    if (invitedBy !== undefined && invitedBy !== null && !hasFetchedRef.current) {
       fetchAllInvitations(invitedBy)
       hasFetchedRef.current = true
     }
-  }, [invitedBy, fetchConnections, fetchAllInvitations])
+  }, [invitedBy, fetchAllInvitations])
+
+  const practices = connectionsData?.practices || []
+  const labs = connectionsData?.labs || []
+  const connectionsPagination = connectionsData?.pagination ?? null
 
   const handleViewProfile = async (connection: any) => {
     setShowProfileModal(true)
@@ -47,12 +81,11 @@ export default function AllConnections() {
     setSelectedProfile(null)
 
     try {
-      // Determine profile type based on connection type
       let profileType: "Office" | "Lab" = "Office"
       if (connection.type === "Lab") profileType = "Lab"
 
       const profileData = await fetchProfileData(connection.id, profileType)
-      setSelectedProfile({ ...profileData, type: profileType === "Office" ? "Office" : "Lab" })
+      setSelectedProfile(profileData)
     } catch (error) {
       console.error("Error fetching profile:", error)
       toast({
@@ -65,25 +98,16 @@ export default function AllConnections() {
     }
   }
 
-  const handleNewConnection = (data: any) => {
-    // Here you would typically send the data to your API
-  }
+  const handleNewConnection = (_data: any) => {}
 
   const handleAcceptConnection = async (id: string) => {
     try {
       await acceptInvitation(parseInt(id), "")
       await fetchAllInvitations(invitedBy)
-      toast({
-        title: "Success",
-        description: "Connection request accepted successfully.",
-      })
+      toast({ title: "Success", description: "Connection request accepted successfully." })
     } catch (error) {
       console.error("Error accepting connection:", error)
-      toast({
-        title: "Error",
-        description: "Failed to accept connection. Please try again.",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to accept connection. Please try again.", variant: "destructive" })
     }
   }
 
@@ -91,17 +115,10 @@ export default function AllConnections() {
     try {
       await cancelInvitation(parseInt(id))
       await fetchAllInvitations(invitedBy)
-      toast({
-        title: "Success",
-        description: "Connection request rejected successfully.",
-      })
+      toast({ title: "Success", description: "Connection request rejected successfully." })
     } catch (error) {
       console.error("Error rejecting connection:", error)
-      toast({
-        title: "Error",
-        description: "Failed to reject connection. Please try again.",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to reject connection. Please try again.", variant: "destructive" })
     }
   }
 
@@ -109,111 +126,95 @@ export default function AllConnections() {
     try {
       await deleteInvitation(parseInt(id))
       await fetchAllInvitations(invitedBy)
-      toast({
-        title: "Success",
-        description: "Connection deleted successfully.",
-      })
+      toast({ title: "Success", description: "Connection deleted successfully." })
     } catch (error) {
       console.error("Error deleting connection:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete connection. Please try again.",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to delete connection. Please try again.", variant: "destructive" })
     }
   }
 
   const handleResendInvitation = async (id: string, email: string) => {
     try {
       await resendInvitation(parseInt(id), email)
-      toast({
-        title: "Success",
-        description: "Invitation resent successfully.",
-      })
+      toast({ title: "Success", description: "Invitation resent successfully." })
     } catch (error) {
       console.error("Error resending invitation:", error)
-      toast({
-        title: "Error",
-        description: "Failed to resend invitation. Please try again.",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to resend invitation. Please try again.", variant: "destructive" })
     }
   }
 
   const getCurrentConnections = () => {
-    let connections: any[] = []
-
     if (activeTab === "connected") {
-      // Combine practices and labs for connected tab
-      const connectedPractices = practices
-        .filter((p) => p.status?.toLowerCase() === "active")
-        .map((p) => ({
-          id: p.id.toString(),
-          name: p.name,
-          address: p.address || "Address not available",
-          type: "Practice" as const,
-          phoneNumber: p.phone || "N/A",
-          emailAddress: p.email,
-          date: new Date(p.created_at || new Date()).toISOString().split('T')[0],
-          status: "Connected" as const,
-        }))
+      const activeConnections = isLabSide ? practices : labs
 
-      const connectedLabs = labs
-        .filter((l) => l.status?.toLowerCase() === "active")
-        .map((l) => ({
-          id: l.id.toString(),
-          name: ('partner' in l) ? l.partner.name : l.name || "Lab Name",
-          address: ('partner' in l) ? `${l.partner.city || ''}, ${l.partner.state || ''}` : "Address not available",
-          type: "Lab" as const,
-          phoneNumber: "N/A",
-          emailAddress: ('partner' in l) ? l.partner.email || "N/A" : l.email || "N/A",
-          date: new Date(l.created_at || new Date()).toISOString().split('T')[0],
-          status: "Connected" as const,
-        }))
-
-      connections = [...connectedPractices, ...connectedLabs]
-    } else if (activeTab === "sent") {
-      connections = (sent?.data || []).map((item: any) => ({
-        id: item.id.toString(),
-        name: item.name,
-        address: item.address || "Address not available",
-        type: item.type === "Office" ? "Practice" as const : "Lab" as const,
-        phoneNumber: item.phone || "N/A",
-        emailAddress: item.email,
-        date: new Date(item.created_at || new Date()).toISOString().split('T')[0],
-        status: "Requested" as const,
-      }))
-    } else if (activeTab === "received") {
-      connections = (received?.data || []).map((item: any) => ({
-        id: item.id.toString(),
-        name: item.invited_by?.name || "Unknown",
-        address: item.invited_by?.address || "Address not available",
-        type: item.type === "Office" ? "Practice" as const : "Lab" as const,
-        phoneNumber: item.invited_by?.phone || "N/A",
-        emailAddress: item.invited_by?.email || "N/A",
-        date: new Date(item.created_at || new Date()).toISOString().split('T')[0],
-        status: "Pending" as const,
+      return activeConnections.map((connection) => ({
+        id: getConnectionPartnerId(connection).toString(),
+        name: getConnectionPartnerName(connection),
+        address: getConnectionPartnerLocation(connection) || "Address not available",
+        type: isLabSide ? ("Practice" as const) : ("Lab" as const),
+        phoneNumber: "N/A",
+        emailAddress: getConnectionPartnerEmail(connection),
+        date: new Date(connection.connected_since || connection.created_at || new Date())
+          .toISOString()
+          .split("T")[0],
+        status: "Connected" as const,
       }))
     }
 
-    // Apply search filter
-    if (!searchTerm) return connections
-    return connections.filter(
-      (conn) =>
-        conn.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        conn.emailAddress.toLowerCase().includes(searchTerm.toLowerCase()),
-    )
+    if (activeTab === "sent") {
+      return (sent?.data || []).map((item: any) => ({
+        id: item.id.toString(),
+        name: item.name,
+        address: item.address || "Address not available",
+        type: item.type === "Office" ? ("Practice" as const) : ("Lab" as const),
+        phoneNumber: item.phone || "N/A",
+        emailAddress: item.email,
+        date: new Date(item.created_at || new Date()).toISOString().split("T")[0],
+        status: "Requested" as const,
+      }))
+    }
+
+    return (received?.data || []).map((item: any) => ({
+      id: item.id.toString(),
+      name: item.invited_by?.name || "Unknown",
+      address: item.invited_by?.address || "Address not available",
+      type: item.type === "Office" ? ("Practice" as const) : ("Lab" as const),
+      phoneNumber: item.invited_by?.phone || "N/A",
+      emailAddress: item.invited_by?.email || "N/A",
+      date: new Date(item.created_at || new Date()).toISOString().split("T")[0],
+      status: "Pending" as const,
+    }))
   }
+
+  const filteredInvitationConnections =
+    activeTab === "connected"
+      ? getCurrentConnections()
+      : getCurrentConnections().filter(
+          (conn) =>
+            conn.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            conn.emailAddress.toLowerCase().includes(searchTerm.toLowerCase()),
+        )
+
+  const displayConnections = activeTab === "connected" ? getCurrentConnections() : filteredInvitationConnections
+  const isLoading = activeTab === "connected" ? isLoadingConnections : false
+  const error =
+    activeTab === "connected" && connectionsError
+      ? connectionsError instanceof Error
+        ? connectionsError.message
+        : String(connectionsError)
+      : null
 
   return (
     <div className="flex-1 flex flex-col">
-      {/* Header */}
       <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm">
             <Filter className="h-4 w-4" />
           </Button>
-          <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110" onClick={() => setShowNewConnectionModal(true)}>
+          <Button
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
+            onClick={() => setShowNewConnectionModal(true)}
+          >
             Add Connection
           </Button>
         </div>
@@ -229,11 +230,9 @@ export default function AllConnections() {
         </div>
       </div>
 
-      {/* Tabs */}
       <ConnectionTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Table */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 px-6 py-4">
         {isLoading ? (
           <div className="space-y-4">
             {Array.from({ length: 5 }).map((_, index) => (
@@ -250,44 +249,52 @@ export default function AllConnections() {
             ))}
           </div>
         ) : error ? (
-          <div className="text-center py-8 text-red-500">
-            Failed to load connections: {error}
-          </div>
-        ) : getCurrentConnections().length === 0 ? (
+          <div className="text-center py-8 text-red-500">Failed to load connections: {error}</div>
+        ) : displayConnections.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <div className="text-lg font-medium mb-2">No connections found</div>
             <div className="text-sm">
-              {activeTab === "connected" 
+              {activeTab === "connected"
                 ? "You don't have any connected practices or labs yet."
                 : activeTab === "sent"
-                ? "You haven't sent any connection requests yet."
-                : "You don't have any pending connection requests."}
+                  ? "You haven't sent any connection requests yet."
+                  : "You don't have any pending connection requests."}
             </div>
           </div>
         ) : (
-          <ConnectionsTable
-            connections={getCurrentConnections()}
-            type={activeTab}
-            onViewProfile={handleViewProfile}
-            onAcceptConnection={handleAcceptConnection}
-            onRejectConnection={handleRejectConnection}
-            onDeleteConnection={handleDeleteConnection}
-            onResendInvitation={handleResendInvitation}
-          />
+          <>
+            <ConnectionsTable
+              connections={displayConnections}
+              type={activeTab}
+              onViewProfile={handleViewProfile}
+              onAcceptConnection={handleAcceptConnection}
+              onRejectConnection={handleRejectConnection}
+              onDeleteConnection={handleDeleteConnection}
+              onResendInvitation={handleResendInvitation}
+            />
+            {activeTab === "connected" && connectionsPagination && connectionsPagination.total > 0 && (
+              <div className="mt-6 bg-white rounded-lg border">
+                <ConnectionListPagination
+                  pagination={connectionsPagination}
+                  onPageChange={setConnectedPage}
+                  itemLabel={isLabSide ? "practices" : "labs"}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* Modals */}
       <NewConnectionModal
         open={showNewConnectionModal}
         onOpenChange={setShowNewConnectionModal}
         onSubmit={handleNewConnection}
       />
 
-      <ProfileModal 
-        open={showProfileModal} 
-        onOpenChange={setShowProfileModal} 
-        profile={selectedProfile}
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        data={selectedProfile}
         isLoading={isLoadingProfile}
       />
     </div>

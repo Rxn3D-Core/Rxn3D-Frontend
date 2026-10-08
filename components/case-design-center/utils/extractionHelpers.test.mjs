@@ -8,12 +8,35 @@ import {
   shouldAutoSelectArchForDefaultExtraction,
   isOverlayExtractionCode,
   toothHasTimBaseExtraction,
+  isDirectTwoExtractionToggleEligible,
+  resolveDirectTwoExtractionToggleCode,
+  resolveDirectTwoExtractionToggleAction,
 } from "./extractionHelpers.ts";
 
 const SAMPLE_EXTRACTIONS = [
   { name: "Teeth in mouth", code: "TIM1", is_default: "Yes", is_tim: "Yes", overlay: "No", status: "Active" },
   { name: "Missing teeth", code: "MT_L1_G2", is_default: "No", is_tim: "No", overlay: "No", status: "Active" },
   { name: "Clasps", code: "CLASP_L1_G6", is_default: "No", is_tim: "No", overlay: "Yes", status: "Active" },
+];
+
+const IMMEDIATE_FULL_DENTURE_EXTRACTIONS = [
+  {
+    name: "Missing teeth",
+    code: "MT_IFD",
+    is_default: "No",
+    is_tim: "No",
+    overlay: "No",
+    is_optional: "Yes",
+    status: "Active",
+  },
+  {
+    name: "Will extract on delivery",
+    code: "WE_IFD",
+    is_default: "Yes",
+    is_tim: "No",
+    overlay: "No",
+    status: "Active",
+  },
 ];
 
 test("single default extraction list still identifies a TIM-only list", () => {
@@ -144,4 +167,76 @@ test("toothHasTimBaseExtraction: missing teeth is not TIM base for overlay", () 
     toothHasTimBaseExtraction(5, { 5: "MT_L1_G2" }, SAMPLE_EXTRACTIONS),
     false
   );
+});
+
+test("isDirectTwoExtractionToggleEligible: immediate full denture (2 exclusive, one default, no retention)", () => {
+  assert.equal(
+    isDirectTwoExtractionToggleEligible(IMMEDIATE_FULL_DENTURE_EXTRACTIONS, { hasRetention: false }),
+    true
+  );
+});
+
+test("isDirectTwoExtractionToggleEligible: rejects when retention is present", () => {
+  assert.equal(
+    isDirectTwoExtractionToggleEligible(IMMEDIATE_FULL_DENTURE_EXTRACTIONS, { hasRetention: true }),
+    false
+  );
+});
+
+test("isDirectTwoExtractionToggleEligible: rejects 3+ extractions", () => {
+  assert.equal(isDirectTwoExtractionToggleEligible(SAMPLE_EXTRACTIONS, { hasRetention: false }), false);
+});
+
+test("isDirectTwoExtractionToggleEligible: rejects when one of two is overlay", () => {
+  assert.equal(
+    isDirectTwoExtractionToggleEligible(
+      [
+        { name: "Teeth in mouth", code: "TIM1", is_default: "Yes", is_tim: "Yes", overlay: "No", status: "Active" },
+        { name: "Clasps", code: "CLASP1", is_default: "No", overlay: "Yes", status: "Active" },
+      ],
+      { hasRetention: false }
+    ),
+    false
+  );
+});
+
+test("resolveDirectTwoExtractionToggleCode: toggles default ↔ non-default both ways", () => {
+  assert.equal(
+    resolveDirectTwoExtractionToggleCode("WE_IFD", IMMEDIATE_FULL_DENTURE_EXTRACTIONS),
+    "MT_IFD"
+  );
+  assert.equal(
+    resolveDirectTwoExtractionToggleCode("MT_IFD", IMMEDIATE_FULL_DENTURE_EXTRACTIONS),
+    "WE_IFD"
+  );
+  assert.equal(
+    resolveDirectTwoExtractionToggleCode(undefined, IMMEDIATE_FULL_DENTURE_EXTRACTIONS),
+    "MT_IFD"
+  );
+});
+
+test("resolveDirectTwoExtractionToggleAction: re-stamps non-TIM default", () => {
+  assert.deepEqual(
+    resolveDirectTwoExtractionToggleAction("MT_IFD", IMMEDIATE_FULL_DENTURE_EXTRACTIONS),
+    { type: "assign", code: "WE_IFD" }
+  );
+  assert.deepEqual(
+    resolveDirectTwoExtractionToggleAction("WE_IFD", IMMEDIATE_FULL_DENTURE_EXTRACTIONS),
+    { type: "assign", code: "MT_IFD" }
+  );
+});
+
+test("resolveDirectTwoExtractionToggleAction: clears map when returning to TIM default", () => {
+  const timPlusMissing = [
+    { name: "Teeth in mouth", code: "TIM1", is_default: "Yes", is_tim: "Yes", overlay: "No", status: "Active" },
+    { name: "Missing teeth", code: "MT1", is_default: "No", is_tim: "No", overlay: "No", status: "Active" },
+  ];
+  assert.deepEqual(resolveDirectTwoExtractionToggleAction("MT1", timPlusMissing), {
+    type: "clear",
+    code: "MT1",
+  });
+  assert.deepEqual(resolveDirectTwoExtractionToggleAction(undefined, timPlusMissing), {
+    type: "assign",
+    code: "MT1",
+  });
 });

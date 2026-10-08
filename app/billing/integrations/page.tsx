@@ -122,9 +122,9 @@ export default function IntegrationsPage() {
     : integrations.filter(integration => integration.category === activeCategory)
 
   return (
-    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Integrations</h1>
         <p className="mt-2 text-gray-600">
             Connect your favorite tools and services to streamline your billing and accounting workflows.

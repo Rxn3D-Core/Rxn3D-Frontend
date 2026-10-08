@@ -1,8 +1,27 @@
+import { resolveLatestSlipNoteText } from "@/lib/paper-slip-notes-display";
+import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
 import { buildOpposingArchVM } from "./virtual-slip-extraction-display.ts";
+import { resolveSlipDeliveryDates } from "./virtual-slip-rush-dates.ts";
 import {
   isSplintedSlipProduct,
   parseSplintedTeethToLinks,
 } from "@/components/case-design-center/utils/splintHelpers";
+import { formatShadeGuideWithBrand, formatShadeSystemName } from "@/components/case-design-center/utils/shadeFieldDisplay";
+
+/** Slip shade label: "Brand - System - A1" (drops brand when it matches system). */
+function formatSlipShadeLabel(
+  shadeName: string | null | undefined,
+  brand?: { name?: string | null; system_name?: string | null } | null,
+): string {
+  const code = (shadeName ?? "").trim();
+  if (!code) return "";
+  const guide = formatShadeGuideWithBrand(brand?.system_name, brand?.name);
+  if (!guide) return code;
+  // Avoid "Brand - Standard Pink - Standard Pink" when shade name equals system.
+  const system = formatShadeSystemName((brand?.system_name ?? "").trim());
+  if (system && system.toLowerCase() === code.toLowerCase()) return guide;
+  return `${guide} - ${code}`;
+}
 
 export type PaperSlipArch = "maxillary" | "mandibular";
 export type PaperSlipArchMode = "extraction" | "retention" | "default";
@@ -98,8 +117,6 @@ export interface PaperSlipPrintHeaderVM {
 }
 
 export interface PaperSlipPrintFooterVM {
-  labPhone: string;
-  labEmail: string;
   relatedSlips: string[];
 }
 
@@ -399,8 +416,14 @@ function buildDetailFields(product: any, rowKind: PaperSlipDetailRowKind): Paper
   maybePush("Product", firstStr(product?.product?.name, product?.name));
   maybePush("Grade", firstStr(product?.grade?.name, product?.grade_name));
   maybePush("Stage", firstStr(product?.stage?.name, product?.stage_name));
-  maybePush("Teeth shade", firstStr(product?.teeth_shade?.name, product?.teeth_shade_name));
-  maybePush("Gum shade", firstStr(product?.gum_shade?.name, product?.gum_shade_name));
+  maybePush("Teeth shade", formatSlipShadeLabel(
+    firstStr(product?.teeth_shade?.name, product?.teeth_shade_name),
+    product?.teeth_shade_brand,
+  ));
+  maybePush("Gum shade", formatSlipShadeLabel(
+    firstStr(product?.gum_shade?.name, product?.gum_shade_name),
+    product?.gum_shade_brand,
+  ));
   maybePush("Stump shade", firstStr(product?.stump_shade?.name, product?.stump_shade_name));
   maybePush("Impression", formatImpressions(product?.impressions));
   maybePush("Add ons", formatAddOns(product?.addons));
@@ -984,25 +1007,6 @@ function formatDate(iso: string | null | undefined): string {
   return `${month}/${day}/${year.slice(2)}`;
 }
 
-function formatTime(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const match = /T(\d{2}):(\d{2})/.exec(iso) ?? /^(\d{1,2}):(\d{2})/.exec(iso);
-  if (!match) return "";
-  const hours = Number.parseInt(match[1], 10);
-  const minutes = Number.parseInt(match[2], 10);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return "";
-  const ampm = hours >= 12 ? "PM" : "AM";
-  const hour = hours % 12 || 12;
-  return `${hour}:${String(minutes).padStart(2, "0")} ${ampm}`;
-}
-
-function formatDueDate(date: string | null | undefined, time: string | null | undefined): string {
-  const formattedDate = formatDate(date);
-  const formattedTime = formatTime(time);
-  if (formattedDate && formattedTime) return `${formattedDate} @ ${formattedTime}`;
-  return formattedDate || formattedTime;
-}
-
 function joinAddress(parts: unknown[]): string {
   return parts
     .map((part) => firstStr(part))
@@ -1011,22 +1015,32 @@ function joinAddress(parts: unknown[]): string {
 }
 
 function collectNotes(rawNotes: unknown): string[] {
-  if (!Array.isArray(rawNotes)) return [];
-  return rawNotes
-    .map((note: any) => firstStr(typeof note === "string" ? note : note?.note))
-    .filter(Boolean);
+  const latest = resolveLatestSlipNoteText(rawNotes);
+  return latest ? [latest] : [];
 }
 
-export function buildPaperSlipPrintSlipVM(data: any): PaperSlipPrintableSlipVM {
+export function buildPaperSlipPrintSlipVM(
+  data: any,
+  options?: { defaultDeliveryTime?: string | null },
+): PaperSlipPrintableSlipVM {
   const caseData = data?.case ?? {};
   const lab = caseData?.lab ?? data?.lab ?? {};
   const office = caseData?.office ?? data?.office ?? {};
   const doctor = caseData?.doctor ?? caseData?.doctor_details ?? data?.doctor ?? {};
   const delivery = data?.delivery ?? {};
   const products = Array.isArray(data?.products) ? data.products : [];
+  const deliveryDates = resolveSlipDeliveryDates(data, products);
   const relatedSlips = Array.isArray(caseData?.slips)
     ? caseData.slips.map((slip: any) => firstStr(slip?.slip_number)).filter(Boolean)
     : [];
+  const dueTime = resolveSlipDeliveryTimeDisplay(
+    delivery?.delivery_time,
+    options?.defaultDeliveryTime,
+  );
+  const dueDate =
+    deliveryDates.dueDate && dueTime
+      ? `${deliveryDates.dueDate} @ ${dueTime}`
+      : deliveryDates.dueDate || dueTime;
 
   return {
     slipId: Number(data?.id ?? 0),
@@ -1057,7 +1071,7 @@ export function buildPaperSlipPrintSlipVM(data: any): PaperSlipPrintableSlipVM {
       slipNumber: firstStr(data?.slip_number),
       locationName: firstStr(data?.location?.name),
       pickupDate: formatDate(delivery?.pickup_date),
-      dueDate: formatDueDate(delivery?.delivery_date, delivery?.delivery_time),
+      dueDate,
       casePanNumber: firstStr(data?.casepan?.number, data?.casepan?.code, data?.casepan_number),
     },
     arches: {
@@ -1067,8 +1081,6 @@ export function buildPaperSlipPrintSlipVM(data: any): PaperSlipPrintableSlipVM {
     opposing: buildOpposing(products),
     notes: collectNotes(data?.notes),
     footer: {
-      labPhone: firstStr(lab?.phone, lab?.phone_number),
-      labEmail: firstStr(lab?.email),
       relatedSlips,
     },
   };

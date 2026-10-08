@@ -286,7 +286,7 @@ export default function CallLogTable() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 px-6 py-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <Input
           className="w-full max-w-xl"

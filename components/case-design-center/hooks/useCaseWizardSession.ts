@@ -2,16 +2,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { WizardDoctorShape, WizardLabShape } from "@/components/new-case-wizard";
 import type { AddedProduct } from "../types";
 import type { CaseDesignProductDetails } from "../utils/caseDesignProductDetails";
+import { hasPendingDemographics } from "@/lib/product-demographics";
 import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { nextAddedProductCardId } from "../utils/nextAddedProductCardId";
 import { useOfficeDoctors } from "@/hooks/use-slip-data";
 import { mapOfficeDoctorsToWizardShape } from "../components/DoctorEditModal";
+import { coercePositiveId } from "@/lib/add-stage/preload-state";
 
 type WizardMode = "initial" | "addProduct" | "backToProducts";
 
 export type CaseDesignBootstrap = {
   doctor: WizardDoctorShape | null;
   lab: WizardLabShape | null;
+  /** Office customer id for `/slip/office/{id}/doctors` (required when lab_admin preloads from a slip). */
+  officeId?: number | null;
   patientName: string;
   gender: string;
   age: string;
@@ -57,6 +61,26 @@ function buildAddedProductStub(
     has_retention: details?.has_retention,
     has_variation: details?.has_variation,
     variations: details?.variations,
+    enable_custom_label: details?.enable_custom_label ?? "No",
+    custom_label: details?.custom_label ?? "",
+  };
+}
+
+function catalogIdsFromAddedProduct(product: unknown): {
+  categoryId: number | null;
+  subcategoryId: number | null;
+} {
+  if (!product || typeof product !== "object") {
+    return { categoryId: null, subcategoryId: null };
+  }
+  const p = product as {
+    subcategory_id?: unknown;
+    subcategory?: { id?: unknown; category?: { id?: unknown } };
+    category?: { id?: unknown };
+  };
+  return {
+    categoryId: coercePositiveId(p.subcategory?.category?.id ?? p.category?.id),
+    subcategoryId: coercePositiveId(p.subcategory?.id ?? p.subcategory_id),
   };
 }
 
@@ -88,6 +112,20 @@ export function useCaseWizardSession({
   const [addedProducts, setAddedProducts] = useState<AddedProduct[]>([]);
   const [caseDesignMounted, setCaseDesignMounted] = useState(false);
   const wizardCompletingRef = useRef(false);
+  const productSwapCardIdRef = useRef<number | null>(null);
+  const productSwapArchRef = useRef<"maxillary" | "mandibular">("maxillary");
+  const [hasSwappedProduct, setHasSwappedProduct] = useState(false);
+  const [demographicModalOpen, setDemographicModalOpen] = useState(false);
+  const [pendingDemographicDetails, setPendingDemographicDetails] = useState<CaseDesignProductDetails | null>(null);
+  const [pendingInlineAdd, setPendingInlineAdd] = useState<{
+    category?: string;
+    categoryName?: string;
+    product?: string;
+    material: string;
+    materialName?: string;
+    arch: "maxillary" | "mandibular";
+  } | null>(null);
+  const [pendingWizardResult, setPendingWizardResult] = useState<any | null>(null);
 
   useEffect(() => {
     const currentRole = typeof window !== "undefined" ? localStorage.getItem("role") : null;
@@ -116,11 +154,23 @@ export function useCaseWizardSession({
     return stored ? Number(stored) : null;
   }, []);
 
+  const sessionOfficeId = useMemo(
+    () => coercePositiveId(bootstrap?.officeId),
+    [bootstrap?.officeId]
+  );
+
   const officeIdForDoctors = useMemo(() => {
+    // Edit / add-stage: only the slip's office. Never fall back to the lab id.
+    if (bootstrap) {
+      if (sessionOfficeId) return sessionOfficeId;
+      if (role === "office_admin" && customerId != null) return customerId;
+      return undefined;
+    }
     if (role === "office_admin" && customerId != null) return customerId;
+    // Create (lab_admin): the wizard "lab" picker is actually the office.
     if (role === "lab_admin" && completedLab?.id != null) return completedLab.id;
     return undefined;
-  }, [role, customerId, completedLab?.id]);
+  }, [bootstrap, sessionOfficeId, role, customerId, completedLab?.id]);
 
   const { data: officeDoctorsRaw = [], isSuccess: doctorsLoaded, isLoading: doctorsLoading, error: doctorsError } = useOfficeDoctors(officeIdForDoctors);
   const canEditDoctor = doctorsLoaded && officeDoctorsRaw.length > 1;
@@ -129,62 +179,129 @@ export function useCaseWizardSession({
     [officeDoctorsRaw]
   );
 
+  const applyWizardComplete = async (result: any) => {
+    if (result.category) setLastSelectedCategory(Number(result.category) || null);
+    if (result.product) setLastSelectedSubProduct(Number(result.product) || null);
+
+    if (
+      wizardMode === "backToProducts" &&
+      (productSwapCardIdRef.current != null || (bootstrap && addedProducts.length > 0))
+    ) {
+      const swappedProductId = Number(result.material) || undefined;
+      const details = swappedProductId
+        ? await fetchProductDetails(swappedProductId, completedLab?.id)
+        : null;
+      const categoryName = details?.category_name || result.categoryName || "";
+      const swapId = productSwapCardIdRef.current ?? addedProducts[0]?.id;
+      const productStub = buildAddedProductStub(details, {
+        name: result.materialName || result.product || "Untitled Product",
+        categoryName,
+        subcategoryName: details?.subcategory_name,
+        subcategoryId: Number(result.product) || undefined,
+        imageUrl: details?.image_url ?? undefined,
+      });
+      if (swapId === 0) {
+        // Card 0 (initial product) can span both arches: hand its teeth on the chosen
+        // arch to a new card instead of changing selectedProductId (which resets the slip).
+        if (swappedProductId && swappedProductId !== selectedProductId) {
+          const arch = productSwapArchRef.current;
+          setAddedProducts((prev) => [
+            {
+              id: nextAddedProductCardId(prev),
+              productId: swappedProductId,
+              product: productStub,
+              arch,
+              expanded: true,
+              replacesInitialProduct: true,
+            },
+            ...prev.map((product) => ({ ...product, expanded: false })),
+          ]);
+        }
+      } else {
+        setAddedProducts((prev) =>
+          prev.map((ap) =>
+            ap.id !== swapId ? ap : { ...ap, productId: swappedProductId, product: productStub }
+          )
+        );
+      }
+      productSwapCardIdRef.current = null;
+      setHasSwappedProduct(true);
+      setWizardMode("initial");
+      setLabEditMode(false);
+      setDoctorEditModalOpen(false);
+      setWizardComplete(true);
+      setCaseDesignMounted(true);
+      return;
+    }
+
+    if (wizardMode === "addProduct") {
+      const addedProductId = Number(result.material) || undefined;
+      const details = addedProductId
+        ? await fetchProductDetails(addedProductId, completedLab?.id)
+        : null;
+      const categoryName = details?.category_name || result.categoryName || "";
+      setAddedProducts((prev) => {
+        const newProduct: AddedProduct = {
+          id: nextAddedProductCardId(prev),
+          productId: addedProductId,
+          product: buildAddedProductStub(details, {
+            name: result.product || "Untitled Product",
+            categoryName,
+            subcategoryName: details?.subcategory_name,
+            subcategoryId: Number(result.product) || undefined,
+            imageUrl: details?.image_url ?? undefined,
+          }),
+          arch: pendingProductArch,
+          expanded: true,
+        };
+        return [newProduct, ...prev.map((product) => ({ ...product, expanded: false }))];
+      });
+      setWizardMode("initial");
+      setWizardComplete(true);
+      return;
+    }
+
+    const productId = Number(result.material);
+    if (productId) {
+      setSelectedProductId(productId);
+      if (result.categoryName) setSelectedProductCategoryName(result.categoryName);
+      if (result.materialName) setSelectedProductName(result.materialName);
+    } else {
+      setSelectedProductCategoryName(undefined);
+    }
+    if (wizardMode !== "backToProducts") {
+      setCompletedDoctor(result?.doctor ?? null);
+      setCompletedLab(result?.lab ?? null);
+      setCompletedPatientName(result?.patientName ?? "");
+      setCompletedGender(result?.gender ?? "");
+      setCompletedAge(result?.age ?? "");
+    }
+    if (result?.arch) setInitialArch(result.arch);
+    setLabEditMode(false);
+    setDoctorEditModalOpen(false);
+    setWizardComplete(true);
+    setCaseDesignMounted(true);
+  };
+
   const handleWizardComplete = async (result: any) => {
     if (wizardCompletingRef.current) return;
     wizardCompletingRef.current = true;
     try {
-      if (result.category) setLastSelectedCategory(Number(result.category) || null);
-      if (result.product) setLastSelectedSubProduct(Number(result.product) || null);
-
-      if (wizardMode === "addProduct") {
-        const addedProductId = Number(result.material) || undefined;
-        const details = addedProductId
-          ? await fetchProductDetails(addedProductId, completedLab?.id)
-          : null;
-        const categoryName = details?.category_name || result.categoryName || "";
-        setAddedProducts((prev) => {
-          const newProduct: AddedProduct = {
-            id: nextAddedProductCardId(prev),
-            productId: addedProductId,
-            product: buildAddedProductStub(details, {
-              name: result.product || "Untitled Product",
-              categoryName,
-              subcategoryName: details?.subcategory_name,
-              subcategoryId: Number(result.product) || undefined,
-              imageUrl: details?.image_url ?? undefined,
-            }),
-            arch: pendingProductArch,
-            expanded: true,
-          };
-          return [newProduct, ...prev.map((product) => ({ ...product, expanded: false }))];
-        });
-        setWizardMode("initial");
-        setWizardComplete(true);
-      } else {
-        const productId = Number(result.material);
-        if (productId) {
-          setSelectedProductId(productId);
-          if (result.categoryName) setSelectedProductCategoryName(result.categoryName);
-          if (result.materialName) setSelectedProductName(result.materialName);
-        } else {
-          setSelectedProductCategoryName(undefined);
+      const productId = Number(result.material);
+      const labId = coercePositiveId(result.lab?.id) ?? completedLab?.id;
+      if (productId) {
+        const details = await fetchProductDetails(productId, labId);
+        const resultGender = result.gender ?? completedGender;
+        const resultAge = result.age ?? completedAge;
+        if (hasPendingDemographics(details, resultGender, resultAge)) {
+          setPendingDemographicDetails(details);
+          setPendingWizardResult(result);
+          setPendingInlineAdd(null);
+          setDemographicModalOpen(true);
+          return;
         }
-        // In backToProducts mode the wizard only collects product info (no doctor/lab/patient
-        // steps), so result.doctor/lab/patientName are undefined. Skip the update to avoid
-        // clearing the patient info header the user already filled in.
-        if (wizardMode !== "backToProducts") {
-          setCompletedDoctor(result?.doctor ?? null);
-          setCompletedLab(result?.lab ?? null);
-          setCompletedPatientName(result?.patientName ?? "");
-          setCompletedGender(result?.gender ?? "");
-          setCompletedAge(result?.age ?? "");
-        }
-        if (result?.arch) setInitialArch(result.arch);
-        setLabEditMode(false);
-        setDoctorEditModalOpen(false);
-        setWizardComplete(true);
-        setCaseDesignMounted(true);
       }
+      await applyWizardComplete(result);
     } finally {
       wizardCompletingRef.current = false;
     }
@@ -203,7 +320,40 @@ export function useCaseWizardSession({
     setInlineAddProductArch(arch);
   };
 
-  const handleBackToProducts = () => {
+  const handleBackToProducts = (productCardId?: number) => {
+    productSwapCardIdRef.current = null;
+    if (bootstrap && addedProducts.length > 0) {
+      const fromCard =
+        productCardId != null && productCardId > 0
+          ? addedProducts.find((product) => product.id === productCardId)
+          : undefined;
+      const target = fromCard ?? addedProducts.find((product) => product.expanded) ?? addedProducts[0];
+      productSwapCardIdRef.current = target?.id ?? null;
+      const ids = catalogIdsFromAddedProduct(target?.product);
+      if (ids.categoryId) setLastSelectedCategory(ids.categoryId);
+      if (ids.subcategoryId) setLastSelectedSubProduct(ids.subcategoryId);
+      if (target?.arch === "maxillary" || target?.arch === "mandibular") {
+        setPendingProductArch(target.arch);
+      }
+    }
+    setWizardMode("backToProducts");
+    setWizardComplete(false);
+  };
+
+  const handleEditProductCard = (productCardId: number, arch: "maxillary" | "mandibular") => {
+    if (productCardId === 0) {
+      if (!selectedProductId) return;
+      productSwapCardIdRef.current = 0;
+    } else {
+      const target = addedProducts.find((product) => product.id === productCardId);
+      if (!target) return;
+      productSwapCardIdRef.current = target.id;
+      const ids = catalogIdsFromAddedProduct(target.product);
+      setLastSelectedCategory(ids.categoryId);
+      setLastSelectedSubProduct(ids.subcategoryId);
+    }
+    productSwapArchRef.current = arch;
+    setPendingProductArch(arch);
     setWizardMode("backToProducts");
     setWizardComplete(false);
   };
@@ -227,11 +377,21 @@ export function useCaseWizardSession({
     if (wizardCompletingRef.current) return;
     wizardCompletingRef.current = true;
     try {
+      const addedProductId = Number(result.material) || undefined;
+      const details = addedProductId
+        ? await fetchProductDetails(addedProductId, completedLab?.id)
+        : null;
+
+      if (hasPendingDemographics(details, completedGender, completedAge)) {
+        setPendingDemographicDetails(details);
+        setPendingInlineAdd(result);
+        setDemographicModalOpen(true);
+        return;
+      }
+
       if (result.category) setLastSelectedCategory(Number(result.category) || null);
       if (result.product) setLastSelectedSubProduct(Number(result.product) || null);
 
-      const addedProductId = Number(result.material) || undefined;
-      const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
       const categoryName = details?.category_name || result.categoryName || "";
       const arch = result.arch;
       setAddedProducts((prev) => {
@@ -257,6 +417,71 @@ export function useCaseWizardSession({
     } finally {
       wizardCompletingRef.current = false;
     }
+  };
+
+  const commitPendingInlineAdd = async (
+    result: NonNullable<typeof pendingInlineAdd>,
+    demographics: { gender: string; age: string },
+  ) => {
+    setCompletedGender(demographics.gender);
+    setCompletedAge(demographics.age);
+    const addedProductId = Number(result.material) || undefined;
+    const details = addedProductId
+      ? await fetchProductDetails(addedProductId, completedLab?.id)
+      : null;
+    if (result.category) setLastSelectedCategory(Number(result.category) || null);
+    if (result.product) setLastSelectedSubProduct(Number(result.product) || null);
+    const categoryName = details?.category_name || result.categoryName || "";
+    setAddedProducts((prev) => {
+      const newProduct: AddedProduct = {
+        id: nextAddedProductCardId(prev),
+        productId: addedProductId,
+        product: buildAddedProductStub(details, {
+          name: result.materialName || "Untitled Product",
+          categoryName,
+          subcategoryName: details?.subcategory_name,
+          subcategoryId: Number(result.product) || undefined,
+          imageUrl: details?.image_url ?? undefined,
+        }),
+        arch: result.arch,
+        expanded: true,
+      };
+      return [newProduct, ...prev.map((product) => ({ ...product, expanded: false }))];
+    });
+    setInlineAddProductArch(null);
+  };
+
+  const handleDemographicConfirm = async (values: { gender: string; age: string }) => {
+    setDemographicModalOpen(false);
+    setCompletedGender(values.gender);
+    setCompletedAge(values.age);
+
+    const inline = pendingInlineAdd;
+    const wizardResult = pendingWizardResult;
+    setPendingInlineAdd(null);
+    setPendingWizardResult(null);
+    setPendingDemographicDetails(null);
+
+    if (inline) {
+      await commitPendingInlineAdd(inline, values);
+      return;
+    }
+
+    if (wizardResult) {
+      wizardCompletingRef.current = true;
+      try {
+        await applyWizardComplete({ ...wizardResult, gender: values.gender, age: values.age });
+      } finally {
+        wizardCompletingRef.current = false;
+      }
+    }
+  };
+
+  const handleDemographicCancel = () => {
+    setDemographicModalOpen(false);
+    setPendingInlineAdd(null);
+    setPendingWizardResult(null);
+    setPendingDemographicDetails(null);
   };
 
   const cancelInlineAddProduct = () => {
@@ -290,8 +515,12 @@ export function useCaseWizardSession({
     setWizardComplete(true);
   };
 
+  // Change-product always opens on the subcategory step (not products). A single-product
+  // subcategory would otherwise auto-select and bounce the user back to the same product.
   const wizardStartStep = wizardMode === "backToProducts"
-    ? 6
+    ? lastSelectedCategory
+      ? 5
+      : 4
     : wizardMode === "addProduct"
       ? 4
       : labEditMode
@@ -300,6 +529,8 @@ export function useCaseWizardSession({
 
   return {
     wizardComplete,
+    isPreloadedSession: Boolean(bootstrap),
+    officeId: sessionOfficeId,
     completedDoctor,
     completedLab,
     completedPatientName,
@@ -317,6 +548,7 @@ export function useCaseWizardSession({
     lastSelectedCategory,
     lastSelectedSubProduct,
     addedProducts,
+    hasSwappedProduct,
     caseDesignMounted,
     labEditMode,
     doctorEditModalOpen,
@@ -325,6 +557,7 @@ export function useCaseWizardSession({
     doctorsError,
     wizardStartStep,
     setCompletedLab,
+    setCompletedDoctor,
     setCompletedPatientName,
     setCompletedGender,
     setCompletedAge,
@@ -334,6 +567,7 @@ export function useCaseWizardSession({
     completeInlineAddProduct,
     cancelInlineAddProduct,
     handleBackToProducts,
+    handleEditProductCard,
     handleBackToCategories,
     handleTopBarEditLab,
     handleEditDoctor,
@@ -341,5 +575,9 @@ export function useCaseWizardSession({
     handleDoctorEditSelect,
     handleEditDone,
     canEditDoctor,
+    demographicModalOpen,
+    pendingDemographicDetails,
+    handleDemographicConfirm,
+    handleDemographicCancel,
   };
 }

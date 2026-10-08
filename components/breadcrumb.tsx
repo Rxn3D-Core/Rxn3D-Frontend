@@ -77,7 +77,9 @@ export function Breadcrumb() {
       // Lab billing area: Home > Lab Admin > Billing & Subscriptions > …
       if (
         paths[0] === "billing" &&
-        (userRoles.includes("lab_admin") || userRoles.includes("lab_user"))
+        (userRoles.includes("lab_admin") ||
+          userRoles.includes("lab_user") ||
+          userRoles.includes("lab_driver"))
       ) {
         breadcrumbs.push({
           name: t("breadcrumb.labAdmin", { defaultValue: "Lab Admin" }),

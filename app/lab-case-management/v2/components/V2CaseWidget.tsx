@@ -14,7 +14,8 @@ type Props = V2CaseControlsMenuProps & V2CaseTableProps & {
   onPageChange: (page: number) => void
   bulkCanPrintStatement: boolean
   onBulkPrintDriverLabels: () => void
-  onBulkPrintPaperSlips: () => void
+  // Multiple paper slip print disabled from listing
+  onBulkPrintPaperSlips?: () => void
   onBulkPrintStatement: () => void
   onBulkArchive: () => void
 }
@@ -31,7 +32,8 @@ export function V2CaseWidget(props: Props) {
         canPrintStatement={props.bulkCanPrintStatement}
         onArchive={props.onBulkArchive}
         onPrintDriverLabels={props.onBulkPrintDriverLabels}
-        onPrintPaperSlips={props.onBulkPrintPaperSlips}
+        // Multiple paper slip print disabled from listing
+        // onPrintPaperSlips={props.onBulkPrintPaperSlips}
         onPrintStatement={props.onBulkPrintStatement}
         selectedCount={props.selected.length}
       />

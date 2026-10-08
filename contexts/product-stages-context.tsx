@@ -241,7 +241,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [])
 
   const fetchStages = useCallback(
-    async (page = 1, perPage = 10) => {
+    async (page?: number, perPage?: number) => {
       if (!authToken) {
         setError("Authentication required to fetch stages.")
         setStages([])
@@ -255,10 +255,11 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIsLoading(true)
       setError(null)
 
-      const params = new URLSearchParams({
-        page: page.toString(),
-        per_page: perPage.toString(),
-      })
+      // Omit page and per_page to load every stage (product add/edit).
+      // Stages library screens pass both and stay paginated.
+      const params = new URLSearchParams()
+      if (page != null) params.append("page", page.toString())
+      if (perPage != null) params.append("per_page", perPage.toString())
       if (searchQuery) params.append("q", searchQuery)
       if (statusFilter) params.append("status", statusFilter)
       if (sortColumn && sortDirection) {
@@ -277,9 +278,20 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const errData = await response.json().catch(() => ({ message: "Failed to fetch stages" }))
           throw new Error(errData.message || `HTTP error ${response.status}`)
         }
-        const result: StagesListResponse = await response.json()
-        setStages(result.data.data || [])
-        setPagination(result.data.pagination || defaultPagination)
+        const result = await response.json()
+        const payload = result?.data
+        const list: Stage[] = Array.isArray(payload) ? payload : payload?.data || []
+        setStages(list)
+        if (Array.isArray(payload)) {
+          setPagination({
+            total: list.length,
+            per_page: list.length || defaultPagination.per_page,
+            current_page: 1,
+            last_page: 1,
+          })
+        } else {
+          setPagination(payload?.pagination || defaultPagination)
+        }
       } catch (err: any) {
         console.error("Error fetching stages:", err)
         setError(err.message)

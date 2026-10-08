@@ -18,7 +18,12 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { useCustomer } from "@/contexts/customer-context"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
-import { TOP_BAR_RECOMMENDED_LOGO_SIZES } from "@/components/case-design-center/components/TopBar"
+import { TOP_BAR_LOGO_UPLOAD_HINT } from "@/components/case-design-center/components/TopBar"
+import {
+  formatNotificationEmails,
+  parseNotificationEmails,
+  validateNotificationEmailsInput,
+} from "@/lib/notification-emails"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -45,6 +50,7 @@ interface OverviewTabProps {
     id: string
     number: string
     email: string
+    notification_emails?: string[]
     address: string
     website: string
     contactName: string
@@ -58,6 +64,8 @@ interface OverviewTabProps {
     countryName?: string
     countryId?: number | null
     release_casepan?: string
+    unique_code?: string
+    code?: string
   }
   onLogoUpdate?: (logoUrl: string) => void
   onProfileUpdate?: () => void
@@ -124,6 +132,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
     return {
       name: labData.name,
       email: labData.email,
+      notification_emails: parseNotificationEmails(labData.notification_emails).join(", "),
       website: labData.website || "",
       address: parsed.address,
       city: parsed.city,
@@ -133,6 +142,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       state: labData.stateName || "",
       state_id: labData.stateId ?? null,
       release_casepan: labData.release_casepan || "",
+      code: labData.code || "",
     }
   })
 
@@ -142,6 +152,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
     setFormData({
       name: labData.name,
       email: labData.email,
+      notification_emails: parseNotificationEmails(labData.notification_emails).join(", "),
       website: labData.website || "",
       address: parsed.address,
       city: parsed.city,
@@ -151,6 +162,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       state: labData.stateName || "",
       state_id: labData.stateId ?? null,
       release_casepan: labData.release_casepan || "",
+      code: labData.code || "",
     })
   }, [labData])
 
@@ -368,6 +380,9 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       const fetchedFormData = {
         name: customerData.name || "",
         email: customerData.email || "",
+        notification_emails: parseNotificationEmails(
+          customerData.notification_emails
+        ).join(", "),
         website: customerData.website || "",
         address: customerData.address || "",
         city: customerData.city || "",
@@ -377,6 +392,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
         state: customerData.state?.name || "",
         state_id: customerData.state?.id ?? null,
         release_casepan: customerData.release_casepan || "",
+        code: customerData.code || "",
       }
       
       setFormData(fetchedFormData)
@@ -405,6 +421,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
     const initialFormData = {
       name: labData.name,
       email: labData.email,
+      notification_emails: parseNotificationEmails(labData.notification_emails).join(", "),
       website: labData.website || "",
       address: parsed.address,
       city: parsed.city,
@@ -414,6 +431,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       state: labData.stateName || "",
       state_id: labData.stateId ?? null,
       release_casepan: labData.release_casepan || "",
+      code: labData.code || "",
     }
     
     setFormData(initialFormData)
@@ -470,79 +488,92 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
   }
 
   const handleSave = async () => {
-    setIsSaving(true)
-    try {
-      if (!originalFormData) {
+    const name = formData.name.trim()
+    const email = formData.email.trim()
+    const website = formData.website.trim()
+    const code = formData.code.trim()
+    const address = formData.address.trim()
+    const city = formData.city.trim()
+    const postalCode = formData.postal_code.trim()
+
+    const requiredChecks: Array<[boolean, string]> = [
+      [!name, "Lab name is required."],
+      [!email, "Email is required."],
+      [!code, "Lab code is required."],
+      [!website, "Website is required."],
+      [!address, "Street address is required."],
+      [!city, "City is required."],
+      [!postalCode, "Postal code is required."],
+      [!formData.country_id, "Country is required."],
+      [!formData.state_id, "State / Province is required."],
+    ]
+
+    for (const [failed, message] of requiredChecks) {
+      if (failed) {
         toast({
-          title: "Error",
-          description: "Original data not found. Please try again.",
+          title: "Validation failed",
+          description: message,
           variant: "destructive",
         })
-        setIsSaving(false)
         return
       }
+    }
 
-      const updateData: any = {}
+    if (website.length > 255) {
+      toast({
+        title: "Validation failed",
+        description: "Website must not exceed 255 characters.",
+        variant: "destructive",
+      })
+      return
+    }
 
-      // Only include fields that have changed
-      if (formData.name !== originalFormData.name) {
-        updateData.name = formData.name
+    if (
+      formData.release_casepan &&
+      !["After Stage", "After Product"].includes(formData.release_casepan)
+    ) {
+      toast({
+        title: "Validation failed",
+        description: 'Release casepan must be "After Stage" or "After Product".',
+        variant: "destructive",
+      })
+      return
+    }
+
+    const notificationEmailsError = validateNotificationEmailsInput(
+      formData.notification_emails
+    )
+    if (notificationEmailsError) {
+      toast({
+        title: "Validation failed",
+        description: notificationEmailsError,
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const updateData: Record<string, unknown> = {
+        name,
+        email,
+        website,
+        address,
+        city,
+        postal_code: postalCode,
+        country_id: formData.country_id,
+        state_id: formData.state_id,
+        code,
+        notification_emails: parseNotificationEmails(formData.notification_emails),
+      }
+      if (formData.release_casepan) {
+        updateData.release_casepan = formData.release_casepan
       }
 
-      if (formData.email !== originalFormData.email) {
-        updateData.email = formData.email
-      }
+      const result = await updateCustomerProfile(Number(labData.id), updateData as any)
 
-      if (formData.website !== originalFormData.website) {
-        updateData.website = formData.website
-      }
-
-      if (formData.address !== originalFormData.address) {
-        updateData.address = formData.address
-      }
-
-      if (formData.city !== originalFormData.city) {
-        updateData.city = formData.city
-      }
-
-      if (formData.postal_code !== originalFormData.postal_code) {
-        updateData.postal_code = formData.postal_code
-      }
-
-      // Compare country_id
-      if (formData.country_id !== originalFormData.country_id) {
-        updateData.country_id = formData.country_id
-      }
-
-      // Compare state_id
-      if (formData.state_id !== originalFormData.state_id) {
-        updateData.state_id = formData.state_id
-      }
-
-      // Compare release_casepan
-      if (formData.release_casepan !== originalFormData.release_casepan) {
-        // Only include if it has a value
-        if (formData.release_casepan && formData.release_casepan !== "") {
-          updateData.release_casepan = formData.release_casepan
-        }
-      }
-
-      // If no fields have changed, show a message and return
-      if (Object.keys(updateData).length === 0) {
-        toast({
-          title: "No changes",
-          description: "No fields have been modified.",
-        })
-        setIsSaving(false)
-        return
-      }
-
-      console.log("Update payload (only changed fields):", JSON.stringify(updateData, null, 2)) // Debug log
-
-      const result = await updateCustomerProfile(Number(labData.id), updateData)
-      
       if (result) {
-        setOriginalFormData(null) // Reset original data
+        setOriginalFormData(null)
         setIsEditModalOpen(false)
         if (onProfileUpdate) {
           onProfileUpdate()
@@ -556,7 +587,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
   }
 
   return (
-    <div className="p-6">
+    <div className="px-6 py-4">
       <Card className="">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -622,7 +653,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Recommended: {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.width} × {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.height} px (displays in header center).
+                  {TOP_BAR_LOGO_UPLOAD_HINT}
                 </p>
               </div>
             </div>
@@ -646,6 +677,13 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
               <div className="grid grid-cols-2 gap-4">
                 <label className="text-sm text-gray-500">Lab email:</label>
                 <p className="font-medium text-sm">{labData.email}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="text-sm text-gray-500">Notification emails:</label>
+                <p className="font-medium text-sm">
+                  {formatNotificationEmails(labData.notification_emails)}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -696,6 +734,11 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
               <div className="grid grid-cols-2 gap-4">
                 <label className="text-sm text-gray-500">Release Casepan:</label>
                 <p className="font-medium text-sm">{labData.release_casepan || "—"}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="text-sm text-gray-500">Lab Code:</label>
+                <p className="font-medium text-sm">{labData.code || "—"}</p>
               </div>
             </div>
           </div>
@@ -754,12 +797,31 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                 </div>
               </div>
 
+            <div className="mt-4">
+              <Label htmlFor="notification-emails">Notification emails</Label>
+              <Input
+                id="notification-emails"
+                type="text"
+                value={formData.notification_emails}
+                onChange={(e) =>
+                  setFormData({ ...formData, notification_emails: e.target.value })
+                }
+                placeholder="ops@example.com, billing@example.com"
+                disabled={isLoadingProfile}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Separate from the primary contact email. Used for case and billing
+                notifications. Enter up to 10 emails, separated by commas. Leave blank
+                to use the primary organization email.
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="website">Website</Label>
                 <Input
                   id="website"
-                  type="url"
+                  type="text"
                   value={formData.website}
                   onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                   placeholder="https://example.com"
@@ -782,6 +844,18 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                     <SelectItem value="After Product">After Product</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="lab-code">Lab Code</Label>
+                <Input
+                  id="lab-code"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  placeholder="Enter lab code"
+                />
               </div>
             </div>
 
@@ -894,7 +968,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || isLoadingProfile || !formData.name || !formData.email}
+                disabled={isSaving || isLoadingProfile}
                 className="bg-blue-600 text-white hover:bg-blue-700"
               >
                 {isSaving ? (

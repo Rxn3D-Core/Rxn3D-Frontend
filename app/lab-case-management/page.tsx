@@ -3,14 +3,15 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { X } from "lucide-react"
 import { format } from "date-fns"
+import type { DateRange } from "react-day-picker"
+import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
+import { X } from "lucide-react"
 import { useSlipContext } from "./SlipContext"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
 import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog"
@@ -21,6 +22,7 @@ import { useSignatureRequirementSettings } from "@/hooks/use-signature-requireme
 import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
 import { virtualSlipRushSlotsShareProduct } from "@/lib/virtual-slip-rush-slots"
+import { parseSlipListingDueDate } from "@/lib/slip-listing-due-date"
 import { getBusinessSettings, type CaseSchedule, type BusinessHour } from "@/lib/api-business-settings"
 import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state"
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
@@ -31,28 +33,51 @@ import type { DriverLabelSlip } from "@/lib/driver-labels/generate-driver-label-
 import CaseActionModal from "@/components/CaseActionModal"
 import RushRequestModal from "@/components/rush-request-modal"
 import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal"
+import { UndoLocationConfirmModal } from "@/components/undo-location-confirm-modal"
+import { postSlipUndoLocation } from "@/lib/api/slip-undo-location"
+import {
+  buildSlipUndoLocationPreview,
+  slipCanSendBackToOffice,
+  slipCanHold,
+  SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
+} from "@/lib/slip-location"
+import {
+  canUndoSlipLocation,
+  canToggleSlipPan,
+  getStoredSlipUserRole,
+} from "@/lib/slip-user-role"
+import { formatPanAssigneeName } from "@/lib/slip-pan-color"
+import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
+import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities"
 import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import {
-  LAB_SLIP_STATUS_OPTIONS,
   SLIP_LISTING_DEFAULT_PER_PAGE,
-  SLIP_LOCATION_FILTER_OPTIONS,
   parseLocationFilterFromUrl,
 } from "@/app/lab-case-management/lab-slip-listing-constants"
 import {
-  SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS,
   SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS,
 } from "@/lib/slip-listing-filter-select"
-import { slipCanSendBackToOffice, slipCanHold, SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE } from "@/lib/slip-location"
 import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPauseIcon"
-import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+import { useConnectedOffices } from "@/hooks/use-connected-offices"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
-import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
-import { LoadingOverlay } from "@/components/ui/loading-overlay"
+import {
+  loadSlipListingLocationFilters,
+  loadSlipListingStatusFilters,
+  saveSlipListingLocationFilters,
+  saveSlipListingStatusFilters,
+} from "@/lib/slip-listing-preferences"
+import { printPaperSlipV6ForSlip } from "@/lib/print-paper-slip-v6-from-slip"
+// Multiple paper slip print disabled from listing
+// import { printPaperSlipV6ForSlips } from "@/lib/print-paper-slip-v6-from-slip"
+import {
+  resolveListingPaperSlipId,
+  // resolveListingPaperSlipJobs,
+} from "@/lib/paper-slip-listing-print-ids"
 import { useDebounce } from "@/lib/performance-utils"
 import { V3CaseWidget } from "./components/V3CaseWidget"
 import type { SortDirection } from "./components/V3CaseTable"
@@ -60,7 +85,14 @@ import type { ColumnKey } from "./components/V3FilterBar"
 import type { V2CaseRowData } from "@/app/lab-case-management/v2/case-table-types"
 
 function formatYmd(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  // Use local calendar date — toISOString() shifts the day back in timezones ahead of UTC.
+  return format(d, "yyyy-MM-dd")
+}
+
+function formatDueDateRangeLabel(range: { start?: Date; end?: Date }): string {
+  if (!range.start) return "Due date range"
+  if (!range.end) return format(range.start, "MMM d, yyyy")
+  return `${format(range.start, "MMM d, yyyy")} – ${format(range.end, "MMM d, yyyy")}`
 }
 
 function getLabCustomerId(): number | null {
@@ -93,10 +125,12 @@ function getSortValue(row: V2CaseRowData, key: ColumnKey): string | number {
       return (row.caseNumber || "").toLowerCase()
     case "timestamp":
       return new Date(row.createdAt).getTime() || 0
+    case "attachments":
+      return (row.digitalImpressions?.[0]?.code || row.digitalImpressions?.[0]?.name || "").toLowerCase()
     case "dueDate": {
       if (!row.dueDate) return Number.POSITIVE_INFINITY
-      const time = new Date(row.dueDate).getTime()
-      return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
+      const due = parseSlipListingDueDate(row.dueDate)
+      return due ? due.getTime() : Number.POSITIVE_INFINITY
     }
     default:
       return ""
@@ -139,18 +173,27 @@ function normalizeStatusFilterValue(status: string): string {
   const value = status.trim().toLowerCase()
   if (value === "on hold" || value === "on-hold") return "on hold"
   if (value === "cancelled" || value === "canceled") return "cancelled"
+  if (value === "deleted") return "deleted"
   return value
 }
 
 export default function LabSlipV3Page() {
   const { toast } = useToast()
+  const { user } = useAuth()
   const searchParams = useSearchParams()
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2()
   const initialLocation = parseLocationFilterFromUrl(searchParams.get("location"))
+  const urlLocationParam = searchParams.get("location")
 
   const [search, setSearch] = useState("")
-  const [selectedLocations, setSelectedLocations] = useState<string[]>(() => initialLocation === "All" ? ["3"] : [initialLocation])
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["In Progress"])
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(() => {
+    if (urlLocationParam) {
+      return initialLocation === "All" ? [] : [initialLocation]
+    }
+    return loadSlipListingLocationFilters("lab") ?? (initialLocation === "All" ? ["3"] : [initialLocation])
+  })
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(
+    () => loadSlipListingStatusFilters("lab") ?? ["In Progress"],
+  )
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [selected, setSelected] = useState<number[]>([])
@@ -159,12 +202,11 @@ export default function LabSlipV3Page() {
   const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false)
   const [dateRange, setDateRange] = useState<{ start?: Date; end?: Date }>({})
+  const [dateRangeOpen, setDateRangeOpen] = useState(false)
   const [officeFilter, setOfficeFilter] = useState("All")
   const [productType, setProductType] = useState("All")
   const [doctorFilter, setDoctorFilter] = useState("All")
   const [stageFilter, setStageFilter] = useState("All")
-  const [officeLabFilter, setOfficeLabFilter] = useState("All")
-  const [userFilter, setUserFilter] = useState("All")
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [sortKey, setSortKey] = useState<ColumnKey | null>("dueDate")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -200,18 +242,42 @@ export default function LabSlipV3Page() {
   const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<V2CaseRowData | null>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
+  const [deleteSlipModalOpen, setDeleteSlipModalOpen] = useState(false)
+  const [selectedSlipForDelete, setSelectedSlipForDelete] = useState<V2CaseRowData | null>(null)
+  const [deleteSlipSubmitting, setDeleteSlipSubmitting] = useState(false)
+  const [restoreSlipModalOpen, setRestoreSlipModalOpen] = useState(false)
+  const [selectedSlipForRestore, setSelectedSlipForRestore] = useState<V2CaseRowData | null>(null)
+  const [restoreSlipSubmitting, setRestoreSlipSubmitting] = useState(false)
   const [holdSlipModalOpen, setHoldSlipModalOpen] = useState(false)
   const [selectedSlipForHold, setSelectedSlipForHold] = useState<V2CaseRowData | null>(null)
   const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
+  const [undoLocationModalOpen, setUndoLocationModalOpen] = useState(false)
+  const [selectedSlipForUndoLocation, setSelectedSlipForUndoLocation] = useState<V2CaseRowData | null>(null)
+  const [undoLocationSubmitting, setUndoLocationSubmitting] = useState(false)
 
-  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
+  const allowUndoLocation = canUndoSlipLocation(getStoredSlipUserRole())
+  const canOverridePanColor = Boolean(user?.can_override_pan_color)
+  const allowPanToggle =
+    canToggleSlipPan(getStoredSlipUserRole()) &&
+    typeof user?.pan_color === "string" &&
+    /^#[0-9A-Fa-f]{6}$/.test(user.pan_color)
+
+  const {
+    readyToSendRequired,
+    readyToSendPhotoEnabled,
+    readyToSendPhotoRequired,
+  } = useSignatureRequirementSettings(showReadyToSendModal)
+
+  const { officesAsLabs: connectedOffices } = useConnectedOffices({ enabled: showAdvancedFilter })
 
   const {
     slips, loading, fetchLabSlips, fetchDriverPrintData,
     createCustomDeliveryDate, fetchOfficeSlips, fetchCustomDeliveryDates,
     readyToSend, labListingPagination, updateSlipAttachmentState, rushCasePanColor,
+    toggleSlipPan,
   } = useSlipContext()
-  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
+  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, restoreSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
+  const { canCancelCase, canDeleteCase } = usePermissionCapabilities()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
   const router = useRouter()
 
@@ -233,6 +299,14 @@ export default function LabSlipV3Page() {
     [debouncedSearch, selectedLocations, selectedStatuses, officeFilter, productType, dateRangeKey, showWithAttachments]
   )
   const prevFilterSigRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    saveSlipListingLocationFilters("lab", selectedLocations)
+  }, [selectedLocations])
+
+  useEffect(() => {
+    saveSlipListingStatusFilters("lab", selectedStatuses)
+  }, [selectedStatuses])
 
   useEffect(() => {
     const customerId = getLabCustomerId()
@@ -268,54 +342,88 @@ export default function LabSlipV3Page() {
   // dropdown's option list (and possibly its selected value) disappear.
   const seenOfficesRef = useRef<Set<string>>(new Set())
   const seenDoctorsRef = useRef<Set<string>>(new Set())
-  const seenUsersRef = useRef<Set<string>>(new Set())
-  const seenProductTypesRef = useRef<Set<string>>(new Set())
+  const seenProductNamesRef = useRef<Set<string>>(new Set())
   const seenStagesRef = useRef<Set<string>>(new Set())
-  const seenStatusesRef = useRef<Set<string>>(new Set())
 
   useMemo(() => {
     slips.forEach((s) => {
       if (s.officeCode) seenOfficesRef.current.add(s.officeCode)
       seenDoctorsRef.current.add(s.doctor || "Unknown")
-      seenUsersRef.current.add(s.user || "Unknown")
-      seenProductTypesRef.current.add(s.productType || "Unknown")
-      if (s.product) seenStagesRef.current.add(s.product)
-      if (s.status) seenStatusesRef.current.add(s.status)
+      ;(s.productNames || []).forEach((name) => {
+        const normalized = name.trim()
+        if (!normalized) return
+        if (/^(upper|lower)$/i.test(normalized)) return
+        seenProductNamesRef.current.add(normalized)
+      })
+      ;(s.stageNames || []).forEach((name) => {
+        const normalized = name.trim()
+        if (normalized) seenStagesRef.current.add(normalized)
+      })
     })
   }, [slips])
 
-  const allOffices = useMemo(() => Array.from(seenOfficesRef.current), [slips])
-  const allStatuses = useMemo(
-    () => Array.from(new Set([...LAB_SLIP_STATUS_OPTIONS, ...seenStatusesRef.current])),
-    [slips]
-  )
   const allDoctors = useMemo(() => Array.from(seenDoctorsRef.current), [slips])
-  const allUsers = useMemo(() => Array.from(seenUsersRef.current), [slips])
-  const allProductTypes = useMemo(() => Array.from(seenProductTypesRef.current), [slips])
-  const allStages = useMemo(() => Array.from(seenStagesRef.current), [slips])
+  const allProductNames = useMemo(() => Array.from(seenProductNamesRef.current).sort((a, b) => a.localeCompare(b)), [slips])
+  const allStages = useMemo(() => Array.from(seenStagesRef.current).sort((a, b) => a.localeCompare(b)), [slips])
+
+  const officeFilterOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const fromConnections = connectedOffices
+      .map((office) => {
+        const value = (office.code || office.name || "").trim()
+        if (!value || seen.has(value)) return null
+        seen.add(value)
+        const label = office.code && office.name && office.code !== office.name
+          ? `${office.name} (${office.code})`
+          : office.name || office.code || value
+        return { value, label }
+      })
+      .filter((option): option is { value: string; label: string } => Boolean(option))
+
+    const fromSlips = Array.from(seenOfficesRef.current)
+      .filter((code) => code && !seen.has(code))
+      .map((code) => ({ value: code, label: code }))
+
+    return [
+      { value: "All", label: "All Offices" },
+      ...fromConnections,
+      ...fromSlips,
+    ]
+  }, [connectedOffices, slips])
+
+  const doctorFilterOptions = useMemo(
+    () => [
+      { value: "All", label: "All Doctors" },
+      ...allDoctors.filter(Boolean).map((doctor) => ({ value: doctor, label: doctor })),
+    ],
+    [allDoctors]
+  )
+
+  const productFilterOptions = useMemo(
+    () => [
+      { value: "All", label: "All products" },
+      ...allProductNames.map((product) => ({ value: product, label: product })),
+    ],
+    [allProductNames]
+  )
 
   const slipsPage = useMemo(() => {
-    const selectedStatusSet = new Set(selectedStatuses.map(normalizeStatusFilterValue))
+    // Status is server-filtered (slip OR product status). Do not re-filter by
+    // slip.status alone — mixed-arch hold/progress cases would be dropped.
     const filtered = slips.filter((slip) => {
       if (selectedLocations.length > 0 && !selectedLocations.includes(String(slip.locationId ?? ""))) {
-        return false
-      }
-      if (selectedStatusSet.size > 0 && !selectedStatusSet.has(normalizeStatusFilterValue(slip.status || ""))) {
         return false
       }
       if (doctorFilter !== "All" && slip.doctor !== doctorFilter) {
         return false
       }
-      if (userFilter !== "All" && slip.user !== userFilter) {
-        return false
-      }
-      if (stageFilter !== "All" && slip.product !== stageFilter) {
+      if (stageFilter !== "All" && !(slip.stageNames || []).includes(stageFilter)) {
         return false
       }
       return true
     })
     return sortRows(filtered, sortKey, sortDirection, selectedLocations.length === 0)
-  }, [selectedLocations, selectedStatuses, slips, doctorFilter, userFilter, stageFilter, sortKey, sortDirection])
+  }, [selectedLocations, slips, doctorFilter, stageFilter, sortKey, sortDirection])
 
   const handleSortChange = useCallback((key: ColumnKey) => {
     if (sortKey === key) {
@@ -325,7 +433,7 @@ export default function LabSlipV3Page() {
       setSortDirection("asc")
     }
   }, [sortKey])
-  const clientFiltering = doctorFilter !== "All" || userFilter !== "All" || stageFilter !== "All"
+  const clientFiltering = doctorFilter !== "All" || stageFilter !== "All"
   const totalListingCount = clientFiltering ? slipsPage.length : labListingPagination?.total ?? slips.length
   const maxPage = clientFiltering ? 1 : Math.max(1, labListingPagination?.last_page ?? 1)
 
@@ -337,11 +445,18 @@ export default function LabSlipV3Page() {
   }
 
   const handleStatusFilterChange = (status: string) => {
-    setSelectedStatuses((current) => (
-      current.some((item) => normalizeStatusFilterValue(item) === normalizeStatusFilterValue(status))
-        ? current.filter((item) => normalizeStatusFilterValue(item) !== normalizeStatusFilterValue(status))
-        : [...current, status]
-    ))
+    const normalized = normalizeStatusFilterValue(status)
+    setSelectedStatuses((current) => {
+      if (normalized === "deleted") {
+        return current.some((item) => normalizeStatusFilterValue(item) === "deleted")
+          ? []
+          : ["Deleted"]
+      }
+      const withoutDeleted = current.filter((item) => normalizeStatusFilterValue(item) !== "deleted")
+      return withoutDeleted.some((item) => normalizeStatusFilterValue(item) === normalized)
+        ? withoutDeleted.filter((item) => normalizeStatusFilterValue(item) !== normalized)
+        : [...withoutDeleted, status]
+    })
   }
 
   const handleClearQuickFilters = () => {
@@ -351,16 +466,28 @@ export default function LabSlipV3Page() {
 
   const handleClearAdvancedFilters = () => {
     setDateRange({})
-    setSearch("")
+    setDateRangeOpen(false)
     setProductType("All")
     setDoctorFilter("All")
     setStageFilter("All")
-    setOfficeLabFilter("All")
-    setUserFilter("All")
     setOfficeFilter("All")
     setShowWithAttachments(false)
-    setSelectedLocations([])
-    setSelectedStatuses([])
+  }
+
+  const selectedDueDateRange = useMemo<DateRange | undefined>(() => {
+    if (!dateRange.start && !dateRange.end) return undefined
+    return { from: dateRange.start, to: dateRange.end }
+  }, [dateRange.start, dateRange.end])
+
+  const handleDueDateRangeSelect = (range: DateRange | undefined) => {
+    if (!range?.from) {
+      setDateRange({})
+      return
+    }
+    setDateRange({ start: range.from, end: range.to })
+    if (range.to) {
+      setDateRangeOpen(false)
+    }
   }
 
   const allOnPageSelected = slipsPage.length > 0 && slipsPage.every((s) => selected.includes(s.id))
@@ -438,11 +565,11 @@ export default function LabSlipV3Page() {
 
   // --- Row action handlers ---
   const handleOpenReadyToSend = (slip: V2CaseRowData) => { setReadyToSendSlip(slip); setShowReadyToSendModal(true) }
-  const handleConfirmReadyToSend = async (signature?: string) => {
+  const handleConfirmReadyToSend = async (payload: { signature: string; image?: File | null }) => {
     if (!readyToSendSlip) return
     setReadyToSendSubmitting(true)
     try {
-      const res = await readyToSend(readyToSendSlip.id, signature)
+      const res = await readyToSend(readyToSendSlip.id, payload)
       if (res?.success) {
         toast({ title: "Success", description: res.message || "Slip marked as ready to send.", duration: 3000 })
         setShowReadyToSendModal(false); setReadyToSendSlip(null)
@@ -457,15 +584,18 @@ export default function LabSlipV3Page() {
   }
 
   const handlePrintPaperSlip = (slip: V2CaseRowData) => {
-    const customerType = (typeof window !== "undefined" && localStorage.getItem("customerType")) || "lab"
-    const idToSend: number | null = customerType === "office"
-      ? (typeof slip.caseId === "number" && !isNaN(slip.caseId) ? slip.caseId : null)
-      : (typeof slip.id === "number" && !isNaN(slip.id) ? slip.id : null)
+    const idToSend = resolveListingPaperSlipId(slip)
     if (idToSend === null) {
       toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" })
       return
     }
-    printPaperSlip([idToSend], [])
+    return printPaperSlipV6ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
+      toast({
+        title: "Unable to print paper slip",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    })
   }
 
   const handlePrintStatement = (slip: V2CaseRowData) => {
@@ -543,13 +673,66 @@ export default function LabSlipV3Page() {
     if (!selectedSlipForCancel?.id || !reason.trim()) return
     setCancelSlipSubmitting(true)
     try {
-      await cancelSlip(selectedSlipForCancel.id, reason.trim())
-      toast({ title: "Case cancelled", description: "The case was cancelled successfully.", duration: 3000 })
+      const res = await cancelSlip(selectedSlipForCancel.id, reason.trim())
+      toast({ title: "Case cancelled", description: res?.message ?? "The case was cancelled successfully.", duration: 3000 })
       setCancelSlipModalOpen(false); setSelectedSlipForCancel(null); refreshCurrentListing()
     } catch (error) {
-      toast({ title: "Unable to cancel case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+      toast({ title: "Unable to cancel case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
     } finally {
       setCancelSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmDeleteSlip = async (reason: string) => {
+    if (!selectedSlipForDelete?.id || !reason.trim()) return
+    setDeleteSlipSubmitting(true)
+    try {
+      const res = await softDeleteSlip(selectedSlipForDelete.id, reason.trim())
+      toast({ title: "Slip deleted", description: res?.message ?? "The slip was deleted successfully.", duration: 3000 })
+      setDeleteSlipModalOpen(false); setSelectedSlipForDelete(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to delete slip", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
+    } finally {
+      setDeleteSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmRestoreSlip = async (reason: string) => {
+    if (!selectedSlipForRestore?.id) return
+    setRestoreSlipSubmitting(true)
+    try {
+      const res = await restoreSlip(selectedSlipForRestore.id, reason.trim() || undefined)
+      toast({ title: "Slip restored", description: res?.message ?? "The slip was restored to In Progress.", duration: 3000 })
+      setRestoreSlipModalOpen(false); setSelectedSlipForRestore(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to restore slip", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
+    } finally {
+      setRestoreSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmUndoLocation = async () => {
+    if (!selectedSlipForUndoLocation?.id) return
+    setUndoLocationSubmitting(true)
+    try {
+      const res = await postSlipUndoLocation(selectedSlipForUndoLocation.id)
+      toast({
+        title: "Sent to previous location",
+        description: res.message || "The slip was moved back one location step.",
+        duration: 4000,
+      })
+      setUndoLocationModalOpen(false)
+      setSelectedSlipForUndoLocation(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to undo location",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      })
+    } finally {
+      setUndoLocationSubmitting(false)
     }
   }
 
@@ -566,11 +749,11 @@ export default function LabSlipV3Page() {
     if (!selectedSlipForHold?.id || !reason.trim()) return
     setHoldSlipSubmitting(true)
     try {
-      await holdSlip(selectedSlipForHold.id, reason.trim())
-      toast({ title: "Case put on hold", description: "The case has been put on hold successfully.", duration: 3000 })
+      const res = await holdSlip(selectedSlipForHold.id, reason.trim())
+      toast({ title: "Case put on hold", description: res?.message ?? "The case has been put on hold successfully.", duration: 3000 })
       setHoldSlipModalOpen(false); setSelectedSlipForHold(null); refreshCurrentListing()
     } catch (error) {
-      toast({ title: "Unable to put case on hold", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+      toast({ title: "Unable to put case on hold", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
     } finally {
       setHoldSlipSubmitting(false)
     }
@@ -583,6 +766,56 @@ export default function LabSlipV3Page() {
       toast({ title: "Copied", description: value + " copied to clipboard.", duration: 2500 })
     } catch {
       toast({ title: "Copy failed", description: "Could not copy the case identifier.", variant: "destructive" })
+    }
+  }
+
+  const handleTogglePan = async (row: V2CaseRowData) => {
+    const assignment = row.panColorAssignment
+    const assigneeName = formatPanAssigneeName(assignment?.assignedBy)
+    const isOwn =
+      Boolean(assignment) &&
+      Boolean(user?.id) &&
+      assignment!.assignedBy.id === user!.id
+
+    if (assignment && !isOwn && !canOverridePanColor) {
+      toast({ title: `Assigned to ${assigneeName}.`, duration: 3000 })
+      return
+    }
+
+    const previousName = assigneeName
+    const result = await toggleSlipPan(row.id)
+    if (!result) {
+      toast({
+        title: "Unable to update pan color",
+        description: "Please try again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (result.action === "blocked") {
+      toast({
+        title: `Assigned to ${formatPanAssigneeName(result.pan_color?.assignedBy)}.`,
+        duration: 3000,
+      })
+      return
+    }
+
+    if (!result.success) {
+      toast({
+        title: "Unable to update pan color",
+        description: result.message || "Please try again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (result.action === "overridden") {
+      const nextName = formatPanAssigneeName(result.pan_color?.assignedBy)
+      toast({
+        title: `Reassigned: ${formatPanAssigneeName(result.previous_assigned_by) || previousName} → ${nextName}`,
+        duration: 3000,
+      })
     }
   }
 
@@ -610,134 +843,62 @@ export default function LabSlipV3Page() {
     }
   }
 
-  const handleBulkPrintPaperSlip = () => {
-    if (!selected.length) return
-    const selectedRows = slips.filter((slip) => selected.includes(slip.id))
-    const slipIds = selectedRows
-      .map((r) => (typeof r.caseId === "number" && !isNaN(r.caseId) ? r.caseId : (typeof r.id === "number" && !isNaN(r.id) ? r.id : null)))
-      .filter((id): id is number => typeof id === "number" && !isNaN(id))
-    if (!slipIds.length) {
-      toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" })
-      return
-    }
-    printPaperSlip(slipIds, [])
-  }
+  // Multiple paper slip print disabled from listing
+  // const handleBulkPrintPaperSlip = () => {
+  //   if (!selected.length) return
+  //   const selectedRows = slips.filter((slip) => selected.includes(slip.id))
+  //   const jobs = resolveListingPaperSlipJobs(selectedRows)
+  //   if (!jobs.length) {
+  //     toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" })
+  //     return
+  //   }
+  //   void printPaperSlipV6ForSlips(jobs).catch((error: unknown) => {
+  //     toast({
+  //       title: "Unable to print paper slip",
+  //       description: error instanceof Error ? error.message : "Please try again.",
+  //       variant: "destructive",
+  //     })
+  //   })
+  // }
 
 
   const advancedFilterContent = showAdvancedFilter ? (
-    <div className="border-b border-[#e5e7eb] bg-white px-4 py-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="border-b border-[#e5e7eb] bg-white px-4 py-3">
+      <div className="mb-2 flex items-center justify-between">
         <h3 className="text-sm font-medium text-gray-900">Advanced Filters</h3>
         <Button
           variant="ghost"
           size="sm"
-          className="text-blue-600 hover:text-blue-700"
+          className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700"
           onClick={handleClearAdvancedFilters}
         >
           Clear all Filters
         </Button>
       </div>
 
-      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-6">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="group w-full justify-start text-left text-xs font-normal">
-              <SlipListingCalendarIcon className="mr-2" />
-              {dateRange.start ? format(dateRange.start, "PPP") : <span className="text-gray-500">Start Date</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <CalendarComponent
-              mode="single"
-              selected={dateRange.start}
-              onSelect={(date) => setDateRange((prev) => ({ ...prev, start: date }))}
-              disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="group w-full justify-start text-left text-xs font-normal">
-              <SlipListingCalendarIcon className="mr-2" />
-              {dateRange.end ? format(dateRange.end, "PPP") : <span className="text-gray-500">End Date</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <CalendarComponent
-              mode="single"
-              selected={dateRange.end}
-              onSelect={(date) => setDateRange((prev) => ({ ...prev, end: date }))}
-              disabled={(date) =>
-                date > new Date() ||
-                date < new Date("1900-01-01") ||
-                Boolean(dateRange.start && date < dateRange.start)
-              }
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-
-        <Input
-          placeholder="Search patient name, slip #..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="text-xs"
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <SearchableSelect
+          value={officeFilter}
+          onValueChange={(value) => setOfficeFilter(value || "All")}
+          placeholder="All Offices"
+          searchPlaceholder="Search offices..."
+          emptyMessage="No offices found."
+          className={`h-9 ${SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}`}
+          options={officeFilterOptions}
         />
 
-        <Select value={selectedStatuses[0] ?? "All"} onValueChange={(value) => setSelectedStatuses(value === "All" ? [] : [value])}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Status</SelectItem>
-            {allStatuses.filter(Boolean).map((status) => (
-              <SelectItem key={status} value={status}>{status}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={officeFilter} onValueChange={setOfficeFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Offices/Lab" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Offices/Lab</SelectItem>
-            {allOffices.filter(Boolean).map((office) => (
-              <SelectItem key={office} value={office}>{office}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={userFilter} onValueChange={setUserFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All users" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All users</SelectItem>
-            {allUsers.filter(Boolean).map((user) => (
-              <SelectItem key={user} value={user}>{user}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <Select value={productType} onValueChange={setProductType}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <span className="text-sm">{productType === "All" ? "All product type" : productType}</span>
-          </SelectTrigger>
-          <SelectContent className="[&_[data-radix-select-item-indicator]]:hidden [&_[role=option]]:pl-2">
-            <SelectItem value="All">All product type</SelectItem>
-            {allProductTypes.filter((product) => product && product !== "Unknown").map((product) => (
-              <SelectItem key={product} value={product}>{product}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={productType}
+          onValueChange={(value) => setProductType(value || "All")}
+          placeholder="All products"
+          searchPlaceholder="Search products..."
+          emptyMessage="No products found."
+          className={`h-9 ${SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}`}
+          options={productFilterOptions}
+        />
 
         <Select value={stageFilter} onValueChange={setStageFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+          <SelectTrigger className={`h-9 ${SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}`}>
             <SelectValue placeholder="All Stages" />
           </SelectTrigger>
           <SelectContent>
@@ -748,56 +909,52 @@ export default function LabSlipV3Page() {
           </SelectContent>
         </Select>
 
-        <Select value={doctorFilter} onValueChange={setDoctorFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Doctors" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Doctors</SelectItem>
-            {allDoctors.filter(Boolean).map((doctor) => (
-              <SelectItem key={doctor} value={doctor}>{doctor}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={doctorFilter}
+          onValueChange={(value) => setDoctorFilter(value || "All")}
+          placeholder="All Doctors"
+          searchPlaceholder="Search doctors..."
+          emptyMessage="No doctors found."
+          className={`h-9 ${SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}`}
+          options={doctorFilterOptions}
+        />
 
-        <Select value={officeLabFilter} onValueChange={setOfficeLabFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Office & Lab" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Office & Lab</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+        <Popover open={dateRangeOpen} onOpenChange={setDateRangeOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className={`group h-9 justify-start text-left font-normal sm:col-span-2 ${SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}`}
+            >
+              <SlipListingCalendarIcon className="mr-2 shrink-0" />
+              <span className={`truncate ${dateRange.start ? "" : "text-gray-500"}`}>
+                {formatDueDateRangeLabel(dateRange)}
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="range"
+              numberOfMonths={2}
+              defaultMonth={selectedDueDateRange?.from}
+              selected={selectedDueDateRange}
+              onSelect={handleDueDateRangeSelect}
+              disabled={(date) => date < new Date("1900-01-01")}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
 
-      <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
-        <Select
-          value={selectedLocations.length === 1 ? selectedLocations[0] : "All"}
-          onValueChange={(value) => setSelectedLocations(value === "All" ? [] : [value])}
-        >
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Location" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Location</SelectItem>
-            {SLIP_LOCATION_FILTER_OPTIONS.map((loc) => (
-              <SelectItem key={loc.id} value={String(loc.id)}>
-                {loc.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <label className="flex items-center gap-2 text-base">
-          <span className="relative">
+        <label className="flex h-9 items-center gap-2 text-xs text-gray-700 sm:col-span-2">
+          <span className="relative shrink-0">
             <input
               type="checkbox"
               checked={showWithAttachments}
               onChange={(e) => setShowWithAttachments(e.target.checked)}
               className="sr-only"
             />
-            <span className={`block h-6 w-11 rounded-full transition-colors ${showWithAttachments ? "bg-blue-600" : "bg-gray-300"}`}>
-              <span className={`block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${showWithAttachments ? "translate-x-5" : "translate-x-0.5"}`} />
+            <span className={`block h-5 w-9 rounded-full transition-colors ${showWithAttachments ? "bg-blue-600" : "bg-gray-300"}`}>
+              <span className={`block h-4 w-4 translate-y-0.5 rounded-full bg-white shadow transition-transform ${showWithAttachments ? "translate-x-4" : "translate-x-0.5"}`} />
             </span>
           </span>
           Show only cases with attachments
@@ -810,18 +967,26 @@ export default function LabSlipV3Page() {
 
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-2">
-        <HIPAAComplianceBanner variant="default" showDetails={false} />
-      </div>
-
       <main className="w-full px-4 pb-8">
         <V3CaseWidget
+          listingProfile="lab"
           search={search}
           onSearchChange={setSearch}
           onSearchEnter={() => {
-            if (slipsPage.length === 1) router.push(buildVirtualSlipV2Path(slipsPage[0].id))
+            if (slipsPage.length === 1) {
+              router.push(buildVirtualSlipV2Path(slipsPage[0].caseId, slipsPage[0].id))
+            }
           }}
           onAdvancedFilterClick={() => setShowAdvancedFilter((open) => !open)}
+          advancedFilterActive={
+            !!dateRange.start ||
+            !!dateRange.end ||
+            officeFilter !== "All" ||
+            productType !== "All" ||
+            doctorFilter !== "All" ||
+            stageFilter !== "All" ||
+            showWithAttachments
+          }
           advancedFilterContent={advancedFilterContent}
           locations={selectedLocations}
           onLocationChange={handleLocationFilterChange}
@@ -835,7 +1000,7 @@ export default function LabSlipV3Page() {
           onSelectAll={handleSelectAllPage}
           onSelectRow={(id) => setSelected((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id])}
           rowActions={{
-            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.id)),
+            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.caseId, row.id)),
             onPrintPaperSlip: handlePrintPaperSlip,
             onPrintDriverLabel: (slip) => void openDriverLabelModal([slip.id]),
             onPrintStatement: handlePrintStatement,
@@ -846,7 +1011,7 @@ export default function LabSlipV3Page() {
               setShowAttachModal(true)
             },
             onCopy: (row) => void handleCopyCaseIdentifier(row),
-            onEdit: (slip) => router.push(buildVirtualSlipV2Path(slip.id)),
+            onEdit: (slip) => router.push(buildVirtualSlipV2Path(slip.caseId, slip.id)),
             onHold: handleOpenHoldCase,
             onChangeDueDate: (slip) => { setSelectedSlipForDateChange(slip); setShowChangeDateModal(true) },
             onDriverHistory: (slip) => { setSelectedSlipForDriverHistory(slip); setShowDriverHistoryModal(true) },
@@ -855,11 +1020,26 @@ export default function LabSlipV3Page() {
             onSendBack: (slip) => { setSelectedSlipForSendBackToOffice(slip); setShowSendBackToOfficeModal(true) },
             onRush: handleOpenRushCase,
             onCancel: (slip) => { setSelectedSlipForCancel(slip); setCancelSlipModalOpen(true) },
+            onDelete: (slip) => { setSelectedSlipForDelete(slip); setDeleteSlipModalOpen(true) },
+            onRestore: (slip) => { setSelectedSlipForRestore(slip); setRestoreSlipModalOpen(true) },
+            onUndoLocation: allowUndoLocation
+              ? (slip) => { setSelectedSlipForUndoLocation(slip); setUndoLocationModalOpen(true) }
+              : undefined,
+            onTogglePan: allowPanToggle
+              ? (slip) => { void handleTogglePan(slip) }
+              : undefined,
           }}
           canPrintStatement={canPrintStatement}
           canSendBack={canSendBackToOffice}
+          canCancelCase={canCancelCase}
+          canDeleteCase={canDeleteCase}
+          allowUndoLocation={allowUndoLocation}
+          allowPanToggle={allowPanToggle}
+          canOverridePanColor={canOverridePanColor}
+          currentUserId={user?.id ?? null}
           onBulkPrintDriverLabel={() => void openDriverLabelModal(selected)}
-          onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
+          // Multiple paper slip print disabled from listing
+          // onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
           printMenuRow={printDropdownOpen}
           moreMenuRow={menuRow}
           onPrintMenuRowChange={setPrintDropdownOpen}
@@ -887,9 +1067,6 @@ export default function LabSlipV3Page() {
             </div>
           </DialogContent>
         </Dialog>
-
-        {paperSlipPortal}
-        <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
         <SlipAttachmentBrowserDialog
           open={showAttachModal && !!selectedCaseForAttachment}
@@ -928,6 +1105,8 @@ export default function LabSlipV3Page() {
           location={readyToSendSlip?.location}
           title="Ready to send"
           signatureRequired={readyToSendRequired}
+          photoEnabled={readyToSendPhotoEnabled}
+          photoRequired={readyToSendPhotoRequired}
         />
 
         {(() => {
@@ -972,6 +1151,28 @@ export default function LabSlipV3Page() {
           loading={sendBackToOfficeSubmitting}
         />
 
+        <UndoLocationConfirmModal
+          open={undoLocationModalOpen}
+          onClose={() => {
+            if (undoLocationSubmitting) return
+            setUndoLocationModalOpen(false)
+            setSelectedSlipForUndoLocation(null)
+          }}
+          onConfirm={handleConfirmUndoLocation}
+          loading={undoLocationSubmitting}
+          slipNumber={selectedSlipForUndoLocation?.slipNumber}
+          patientName={selectedSlipForUndoLocation?.patient}
+          preview={
+            selectedSlipForUndoLocation
+              ? buildSlipUndoLocationPreview({
+                  locationId: selectedSlipForUndoLocation.locationId,
+                  location: selectedSlipForUndoLocation.location,
+                  status: selectedSlipForUndoLocation.status,
+                })
+              : null
+          }
+        />
+
         <CaseActionModal
           open={cancelSlipModalOpen}
           onClose={() => { if (cancelSlipSubmitting) return; setCancelSlipModalOpen(false); setSelectedSlipForCancel(null) }}
@@ -986,6 +1187,41 @@ export default function LabSlipV3Page() {
           buttonColor="error"
           reasonPlaceholder="Please provide a reason for case cancellation."
           warning="This action cannot be undone and will archive the case."
+          officeName={selectedSlipForCancel?.officeCode}
+          patientName={selectedSlipForCancel?.patient}
+        />
+
+        <CaseActionModal
+          open={deleteSlipModalOpen}
+          onClose={() => { if (deleteSlipSubmitting) return; setDeleteSlipModalOpen(false); setSelectedSlipForDelete(null) }}
+          onSubmit={handleConfirmDeleteSlip}
+          actionType="delete"
+          title="Delete Slip"
+          description="You are soft-deleting this slip. It will be hidden from active listings and can be viewed with the Deleted filter."
+          icon={<X />}
+          iconBgColor="#f3f4f6"
+          iconColor="#374151"
+          buttonText={deleteSlipSubmitting ? "Deleting..." : "Delete Slip"}
+          buttonColor="error"
+          reasonPlaceholder="Please provide a reason for deleting this slip."
+          warning="Soft-deleted slips stay recoverable via the Deleted filter."
+          officeName={selectedSlipForDelete?.officeCode}
+          patientName={selectedSlipForDelete?.patient}
+        />
+
+        <CaseActionModal
+          open={restoreSlipModalOpen}
+          onClose={() => { if (restoreSlipSubmitting) return; setRestoreSlipModalOpen(false); setSelectedSlipForRestore(null) }}
+          onSubmit={handleConfirmRestoreSlip}
+          actionType="restore"
+          title="Restore Slip"
+          description="You are restoring this deleted slip back to In Progress."
+          icon={<X />}
+          iconBgColor="#E8F5E9"
+          iconColor="#43A047"
+          buttonText={restoreSlipSubmitting ? "Restoring..." : "Restore to In Progress"}
+          buttonColor="success"
+          reasonPlaceholder="Optional reason for restoring this slip."
         />
 
         <CaseActionModal
@@ -994,13 +1230,15 @@ export default function LabSlipV3Page() {
           onSubmit={handleConfirmHoldCase}
           actionType="hold"
           title="Put Case On Hold"
-          description="You are putting this case on hold. The delivery date will be recalculated when the case is resumed."
+          description="You are putting this case on hold. The delivery date will be paused and adjusted when the case is resumed based on remaining days."
           icon={<VirtualSlipPauseIcon className="h-7 w-7" />}
           iconBgColor="#FFF3DF"
           iconColor="#FFB400"
           buttonText={holdSlipSubmitting ? "Saving…" : "Put case on hold"}
           buttonColor="warning"
           reasonPlaceholder="Please provide a reason for putting case on hold."
+          officeName={selectedSlipForHold?.officeCode}
+          patientName={selectedSlipForHold?.patient}
         />
 
         <DriverHistoryModal

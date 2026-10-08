@@ -131,3 +131,80 @@ export async function updateMe(payload: UpdateMeProfileInput): Promise<MeProfile
   }
   return updateMeJson(payload)
 }
+
+async function parseJsonError(response: Response): Promise<never> {
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      clearSessionStorage()
+      window.location.href = "/login"
+    }
+    throw new Error("Unauthorized")
+  }
+
+  const body = await response.json().catch(() => null)
+  const message =
+    (body && typeof body === "object" && "message" in body && String(body.message)) ||
+    (body &&
+      typeof body === "object" &&
+      "data" in body &&
+      body.data &&
+      typeof body.data === "object" &&
+      "email" in (body.data as object) &&
+      Array.isArray((body.data as { email?: unknown }).email) &&
+      String((body.data as { email: string[] }).email[0])) ||
+    `HTTP error! status: ${response.status}`
+  throw new Error(message)
+}
+
+/** POST /me/email/send-otp — send OTP to the proposed new email */
+export async function sendEmailChangeOtp(email: string): Promise<void> {
+  const response = await fetch(ensureAbsoluteUrl("/me/email/send-otp"), {
+    method: "POST",
+    headers: {
+      ...getBearerHeaders(),
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  })
+
+  if (!response.ok) {
+    await parseJsonError(response)
+  }
+}
+
+/** POST /me/email/confirm — verify OTP and update account email */
+export async function confirmEmailChange(email: string, otp: string): Promise<MeProfile> {
+  const response = await fetch(ensureAbsoluteUrl("/me/email/confirm"), {
+    method: "POST",
+    headers: {
+      ...getBearerHeaders(),
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ email: email.trim().toLowerCase(), otp }),
+  })
+
+  if (!response.ok) {
+    await parseJsonError(response)
+  }
+
+  return parseMeResponse(response)
+}
+
+/** DELETE /me/customers/{customerId} — leave / soft-offboard from an organization */
+export async function leaveCustomer(customerId: number): Promise<MeProfile> {
+  const response = await fetch(ensureAbsoluteUrl(`/me/customers/${customerId}`), {
+    method: "DELETE",
+    headers: {
+      ...getBearerHeaders(),
+      Accept: "application/json",
+    },
+  })
+
+  if (!response.ok) {
+    await parseJsonError(response)
+  }
+
+  return parseMeResponse(response)
+}

@@ -7,6 +7,7 @@ import Image from "next/image"
 import AddSlipHeader from "./add-slip-header" // Corrected import
 import { DeliveryDateModal } from "./delivery-date-modal"
 import { useRouter } from "next/navigation"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 
 interface CaseHeaderDisplayProps {
   onClose: () => void
@@ -69,7 +70,7 @@ export default function CaseHeaderDisplay({ onClose }: CaseHeaderDisplayProps) {
           variant="ghost"
           size="icon"
           onClick={() => {
-            router.push("/dashboard")
+            router.push(getActiveLandingPath())
           }}
         >
           <XIcon className="h-6 w-6" />

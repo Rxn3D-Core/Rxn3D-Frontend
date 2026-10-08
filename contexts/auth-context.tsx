@@ -4,8 +4,9 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, ty
 import { redirect, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { clearSessionStorage } from "@/lib/clear-session-storage"
+import { clearDriverQrLocalSession } from "@/lib/driver-qr-scan"
 import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
-import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
+import { getActiveLandingPath, getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
 import { appendCustomerIdQuery, getActiveCustomerId } from "@/lib/customer-scope"
 import { reloadAppAfterProfileSwitch } from "@/lib/profile-switch"
 import {
@@ -20,14 +21,35 @@ import {
   type AvailablePermissionsPayload,
 } from "@/lib/permissions"
 import { formatUserStatusForApi } from "@/lib/user-status"
+import { getTokenExpiresAt } from "@/lib/auth-storage"
+import { refreshAccessToken } from "@/lib/token-refresh"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+
+const PROACTIVE_REFRESH_BEFORE_MS = 5 * 60 * 1000
+const PROACTIVE_REFRESH_CHECK_MS = 60 * 1000
 
 const setCookie = (name: string, value: string, days = 30) => {
   const date = new Date()
   date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000)
   const expires = `; expires=${date.toUTCString()}`
   document.cookie = `${name}=${value}${expires}; path=/; samesite=lax`
+}
+
+const persistAccessTokenExpiry = (accessToken: string, expiresInSeconds?: number) => {
+  if (typeof window === "undefined") return
+  if (typeof expiresInSeconds === "number" && Number.isFinite(expiresInSeconds)) {
+    localStorage.setItem("tokenExpiresAt", String(Date.now() + expiresInSeconds * 1000))
+    return
+  }
+  try {
+    const payload = JSON.parse(atob(accessToken.split(".")[1] ?? ""))
+    if (payload?.exp) {
+      localStorage.setItem("tokenExpiresAt", String(payload.exp * 1000))
+    }
+  } catch {
+    // ignore
+  }
 }
 
 type User = {
@@ -43,6 +65,10 @@ type User = {
   image?: string
   avatar?: string
   status: string
+  /** Lab listing shared pan-row color (HEX). */
+  pan_color?: string | null
+  /** Allow replacing another user's pan color on the lab listing. */
+  can_override_pan_color?: boolean
   username?: string
   description?: string
   department_id?: number
@@ -135,12 +161,25 @@ type AuthContextType = {
   updateUser: (userId: number, data: {
     first_name?: string
     last_name?: string
+    email?: string
     phone?: string
     work_number?: string
     status?: string
     department_ids?: number[]
     customer_id?: number
+    role?: string
+    is_doctor?: boolean
+    license_number?: string
+    signature?: File | null
+    pan_color?: string | null
+    can_override_pan_color?: boolean
   }) => Promise<any>
+  /** Per-organization membership status only — does not change global users.status */
+  updateMembershipStatus: (
+    userId: number,
+    customerId: number,
+    status: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded",
+  ) => Promise<any>
   createUser: (userData: FormData | {
     first_name: string;
     last_name: string;
@@ -157,10 +196,17 @@ type AuthContextType = {
   updateUserDetails: (userId: number, userData: {
     first_name: string;
     last_name: string;
+    email?: string;
     phone: string;
     work_number?: string;
     status: string;
     department_ids?: number[];
+    role?: string;
+    is_doctor?: boolean;
+    license_number?: string;
+    signature?: File | null;
+    pan_color?: string | null;
+    can_override_pan_color?: boolean;
   }) => Promise<any>
   deleteUser: (userId: number) => Promise<any>
   fetchUserById: (userId: number, customerId?: string) => Promise<any>
@@ -206,7 +252,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const MAX_SESSION_HISTORY = 3
 
 // Roles that should see the multi-location screen
-const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "office_admin", "office_user"]
+const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "lab_driver", "office_admin", "office_user"]
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -327,6 +373,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setIsLoading(false)
   }, [])
+
+  // Keep React token state in sync when the global interceptor refreshes silently
+  useEffect(() => {
+    const onRefreshed = (event: Event) => {
+      const detail = (event as CustomEvent<{ accessToken?: string }>).detail
+      if (detail?.accessToken) {
+        setToken(detail.accessToken)
+      }
+    }
+    window.addEventListener("auth-token-refreshed", onRefreshed)
+    return () => window.removeEventListener("auth-token-refreshed", onRefreshed)
+  }, [])
+
+  // Proactive refresh for active tabs before access-token expiry
+  useEffect(() => {
+    if (!token || typeof window === "undefined") return
+
+    let cancelled = false
+
+    const maybeRefresh = async () => {
+      if (cancelled) return
+      if (document.visibilityState === "hidden") return
+      const expiresAt = getTokenExpiresAt()
+      if (!expiresAt) return
+      if (expiresAt - Date.now() > PROACTIVE_REFRESH_BEFORE_MS) return
+      const newToken = await refreshAccessToken()
+      if (!cancelled && newToken) {
+        setToken(newToken)
+      }
+    }
+
+    const onVisible = () => {
+      void maybeRefresh()
+    }
+
+    void maybeRefresh()
+    const intervalId = window.setInterval(() => {
+      void maybeRefresh()
+    }, PROACTIVE_REFRESH_CHECK_MS)
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("focus", onVisible)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("focus", onVisible)
+    }
+  }, [token])
 
   // Sync localStorage when user object changes (e.g., after onboarding completion)
   useEffect(() => {
@@ -478,6 +573,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Apply AuthData to app state, localStorage and navigate accordingly
   const setAuthFromData = (authData: AuthData, identifier?: string): boolean => {
     try {
+      // Fresh login/session — never continue a previous user's driver QR trip.
+      clearDriverQrLocalSession()
+
       setToken(authData.access_token)
       // Navigation is no longer blocked for unverified emails to support auto-login flows.
       // Verification status can be handled via UI banners if needed.
@@ -514,7 +612,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       localStorage.setItem("token", authData.access_token)
+      setCookie("token", authData.access_token)
       setCookie("auth_token", authData.access_token)
+      persistAccessTokenExpiry(authData.access_token, authData.expires_in)
 
       const avatarUrl =
         (authData.user as User & { avatar?: string }).avatar ?? authData.user.image
@@ -616,6 +716,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (response.ok) {
               const result = await response.json()
               localStorage.setItem("token", result.token)
+              persistAccessTokenExpiry(result.token)
+              setCookie("token", result.token)
+              setCookie("auth_token", result.token)
               localStorage.setItem("customerId", singleCustomer.id.toString())
               localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
               setToken(result.token)
@@ -650,14 +753,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (shouldSeeMultiLocation && hasMultipleLocations) {
             router.replace("/multiple-location")
           } else {
-            // Single location or no multi-location role - go directly to dashboard
+            // Single location or no multi-location role - go directly to landing page
             if (shouldSeeMultiLocation && customers.length === 1) {
               // Set the single location automatically via API
               handleSingleLocation(customers[0]).then(() => {
-                router.replace("/dashboard")
+                router.replace(getPostLoginLandingPath(userRoles))
               })
             } else {
-              router.replace("/dashboard")
+              router.replace(getPostLoginLandingPath(userRoles))
             }
           }
           return true
@@ -690,10 +793,9 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
             return true
           }
         } else {
-          // No customer associated - redirect to onboarding as fallback
-          // Don't redirect to dashboard if we can't verify onboarding status
-          console.log('No primary customer found, redirecting to onboarding')
-          router.replace("/onboarding/business-hours")
+          // No customer associated — personal users go to get-started
+          console.log('No primary customer found, redirecting to get-started')
+          router.replace("/get-started")
           return true
         }
       } catch (navError) {
@@ -883,7 +985,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     setIsActingAsLabAdmin(false)
     setSelectedCustomerId(null)
     setProfileRole(null)
-    window.location.href = "/dashboard"
+    window.location.href = getActiveLandingPath()
   }
 
   const forgotPassword = async (email: string): Promise<boolean> => {
@@ -974,19 +1076,41 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
   const updateUser = useCallback(async (userId: number, data: {
     first_name?: string
     last_name?: string
+    email?: string
     phone?: string
     work_number?: string
     status?: string
     department_ids?: number[]
     customer_id?: number
+    role?: string
+    is_doctor?: boolean
+    license_number?: string
+    signature?: File | null
+    pan_color?: string | null
+    can_override_pan_color?: boolean
   }): Promise<any> => {
     try {
       const customerId = data.customer_id ?? (localStorage.getItem("customerId") ? Number(localStorage.getItem("customerId")) : undefined)
+
+      let signaturePayload: string | undefined
+      if (data.signature instanceof File) {
+        signaturePayload = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result || ""))
+          reader.onerror = () => reject(new Error("Failed to read signature file"))
+          reader.readAsDataURL(data.signature as File)
+        })
+      }
+
+      const { signature: _signature, ...rest } = data
       const payload = {
-        ...data,
+        ...rest,
         ...(data.status !== undefined ? { status: formatUserStatusForApi(data.status) } : {}),
         ...(customerId !== undefined ? { customer_id: customerId } : {}),
+        ...(signaturePayload ? { signature: signaturePayload } : {}),
       }
+
+      // Always PUT — api.rxn3d.com only allows PUT on /users/{id} (POST returns 405)
       const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
         method: "PUT",
         headers: {
@@ -1003,7 +1127,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || "Failed to update user")
+        throw new Error(errorData.message || errorData.error_description || "Failed to update user")
       }
 
       return await response.json()
@@ -1011,6 +1135,40 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
       throw error
     }
   }, [handleUnauthorized]);
+
+  const updateMembershipStatus = useCallback(async (
+    userId: number,
+    customerId: number,
+    status: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded",
+  ): Promise<any> => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/users/${userId}/customers/${customerId}/membership-status`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({ status }),
+        },
+      )
+
+      if (response.status === 401) {
+        handleUnauthorized()
+        throw new Error("Unauthorized")
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to update membership status")
+      }
+
+      return await response.json()
+    } catch (error) {
+      throw error
+    }
+  }, [handleUnauthorized])
 
   const deleteUser = useCallback(async (userId: number): Promise<any> => {
     try {
@@ -1256,41 +1414,21 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
   const updateUserDetails = useCallback(async (userId: number, userData: {
     first_name: string;
     last_name: string;
+    email?: string;
     phone: string;
     work_number?: string;
     status: string;
     department_ids?: number[];
+    role?: string;
+    is_doctor?: boolean;
+    license_number?: string;
+    signature?: File | null;
+    pan_color?: string | null;
+    can_override_pan_color?: boolean;
   }): Promise<any> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({
-          ...userData,
-          status: formatUserStatusForApi(userData.status),
-        }),
-      });
-
-      if (response.status === 401) {
-        handleUnauthorized()
-        throw new Error("Unauthorized")
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || "Failed to update user");
-      }
-
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      console.error("Update user details error:", error);
-      throw error;
-    }
-  }, [handleUnauthorized]);
+    // Delegate to updateUser so customer_id / FormData signature uploads stay consistent
+    return updateUser(userId, userData)
+  }, [updateUser]);
 
   const setCustomerId = useCallback(
     async (
@@ -1334,6 +1472,9 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
 
           const result = await response.json()
           localStorage.setItem("token", result.token)
+          persistAccessTokenExpiry(result.token)
+          setCookie("token", result.token)
+          setCookie("auth_token", result.token)
           localStorage.setItem("customerId", String(customerId))
           setSelectedCustomerId(customerId)
           setToken(result.token)
@@ -1383,7 +1524,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
           }
 
           if (shouldReload) {
-            reloadAppAfterProfileSwitch(options?.redirectTo ?? "/dashboard")
+            reloadAppAfterProfileSwitch(options?.redirectTo ?? getActiveLandingPath())
           }
 
           return true
@@ -1453,8 +1594,10 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         variant: "default",
       })
 
-      // Navigate to dashboard to see user's perspective
-      router.push("/dashboard")
+      // Navigate to the user's landing page to see their perspective
+      const impersonatedRoles =
+        impersonatedUser.roles || (impersonatedUser.role ? [impersonatedUser.role] : [])
+      router.push(getPostLoginLandingPath(impersonatedRoles))
 
       return true
     } catch (error: any) {
@@ -1569,6 +1712,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         setupAccount,
         fetchUsers,
         updateUser,
+        updateMembershipStatus,
         createUser,
         updateUserDetails,
         deleteUser,

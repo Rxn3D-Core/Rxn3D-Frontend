@@ -56,7 +56,7 @@ export function GlobalRetentionOptionToothImagesPanel({
 
   const validateAndReadFile = useCallback(
     (file: File): Promise<string | null> => {
-      const allowed = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+      const allowed = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
       if (!allowed.includes(file.type)) {
         toast({
           title: "Invalid file type",
@@ -217,7 +217,7 @@ export function GlobalRetentionOptionToothImagesPanel({
       <input
         ref={pickInputRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"
         className="hidden"
         onChange={handlePickInputChange}
       />

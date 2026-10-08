@@ -310,6 +310,51 @@ export function getDefaultShadeGuideFromProduct(
   return defaultShade?.brand?.system_name ?? null;
 }
 
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
+/** Brand row for a shade guide system_name (from product.teeth_shades). */
+export function getBrandForSelectedGuide(
+  product: ProductApiData | null | undefined,
+  selectedGuideSystemName: string
+): { name: string; system_name: string; brand_color?: string | null } | null {
+  const teethShades = product?.teeth_shades;
+  if (!teethShades?.length || !selectedGuideSystemName) return null;
+
+  const targetGuide = normalizeGuideName(selectedGuideSystemName);
+  for (const raw of teethShades as Array<Record<string, unknown>>) {
+    const brand = raw.brand as
+      | { name?: string; system_name?: string; brand_color?: string | null }
+      | undefined;
+    const brandSystemName = brand?.system_name ?? (raw.system_name as string | undefined);
+    if (normalizeGuideName(brandSystemName) !== targetGuide) continue;
+
+    const system_name = String(brandSystemName ?? "").trim();
+    if (!system_name) continue;
+
+    return {
+      name: String(brand?.name ?? "").trim(),
+      system_name,
+      brand_color:
+        (typeof brand?.brand_color === "string" ? brand.brand_color : null) ??
+        (typeof raw.brand_color === "string" ? raw.brand_color : null),
+    };
+  }
+  return null;
+}
+
+/** Brand color for the selected shade guide system (used on the guide rack footer). */
+export function getBrandColorForSelectedGuide(
+  product: ProductApiData | null | undefined,
+  selectedGuideSystemName: string
+): string | null {
+  const brand = getBrandForSelectedGuide(product, selectedGuideSystemName);
+  const color = brand?.brand_color;
+  if (color && HEX_COLOR_PATTERN.test(color.trim())) {
+    return color.trim().toUpperCase();
+  }
+  return null;
+}
+
 /** Resolve product API data for fixed_p_{id}, fixed_{tooth}, or prep_{tooth} shade storage ids. */
 export function resolveProductForShadeStorageId(
   productId: string,

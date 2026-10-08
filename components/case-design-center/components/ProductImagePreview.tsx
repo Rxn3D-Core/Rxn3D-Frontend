@@ -17,9 +17,14 @@ interface ProductImagePreviewProps {
 export const productAccordionThumbnailContainerClass =
   "w-[50px] h-[50px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden";
 
-/** Large product image in removable/fixed accordion headers (130×130). */
+/** Large product image in removable/fixed accordion headers (130×130).
+ *  Matches product-name fieldset: 6px radius + light gray border, flush image. */
 export const productAccordionLargeImageContainerClass =
-  "w-[130px] h-[130px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden";
+  "w-[130px] h-[130px] rounded-[6px] border border-[rgb(217,217,217)] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden p-0";
+
+/** Flush large accordion product image (no container padding). */
+export const productAccordionLargeImageImgClass =
+  "w-full h-full object-cover block";
 
 /**
  * Wraps a product thumbnail so that hovering shows a larger preview popover.
@@ -28,7 +33,7 @@ export function ProductImagePreview({
   imageUrl,
   altText,
   containerClassName = productAccordionThumbnailContainerClass,
-  imgClassName = "w-[50px] h-[50px] object-contain",
+  imgClassName = "w-[50px] h-[50px] object-cover",
   fallback,
 }: ProductImagePreviewProps) {
   const defaultFallback = (
@@ -57,7 +62,7 @@ export function ProductImagePreview({
         <img
           src={imageUrl}
           alt={altText}
-          className="max-w-full max-h-full object-contain"
+          className="max-w-full max-h-full object-cover"
         />
       </HoverCardContent>
     </HoverCard>

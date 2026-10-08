@@ -4,6 +4,14 @@ import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { useAuth } from "./auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { categorizeConnectionsForUser } from "@/lib/connection-utils"
+import {
+  fetchConnectionsApi,
+  DEFAULT_CONNECTIONS_PER_PAGE,
+  normalizeConnectionsPagination,
+  type ConnectionsPagination,
+  type ConnectionsQueryParams,
+} from "@/lib/connection-api"
 
 // Define types for the connection data
 export interface Partner {
@@ -22,6 +30,7 @@ export interface Connection {
   status: string
   type?: string
   invited_by?: number
+  connected_since?: string
   created_at?: string
   updated_at?: string
   partner: Partner
@@ -30,6 +39,7 @@ export interface Connection {
 export interface ConnectionsResponse {
   data: Connection[]
   total_connections: number
+  pagination?: ConnectionsPagination
 }
 
 interface ConnectionContextType {
@@ -37,9 +47,10 @@ interface ConnectionContextType {
   practices: Connection[]
   labs: Connection[]
   totalConnections: number
+  pagination: ConnectionsPagination | null
   isLoading: boolean
   error: string | null
-  fetchConnections: () => Promise<void>
+  fetchConnections: (options?: ConnectionsQueryParams) => Promise<void>
   filterConnections: (status: string) => Connection[]
 }
 
@@ -58,26 +69,16 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [practices, setPractices] = useState<Connection[]>([])
   const [labs, setLabs] = useState<Connection[]>([])
   const [totalConnections, setTotalConnections] = useState<number>(0)
+  const [pagination, setPagination] = useState<ConnectionsPagination | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const { user, token: authToken } = useAuth()
   const { toast } = useToast()
 
-  // Helper function to determine if a connection is a practice or lab
-  const categorizePracticesAndLabs = useCallback((connections: Connection[]) => {
-    const practices: Connection[] = []
-    const labs: Connection[] = []
-
-    connections.forEach((connection) => {
-      if (connection.partner.name) {
-        labs.push(connection)
-      } else {
-        practices.push(connection)
-      }
-    })
-
-    return { practices, labs }
-  }, [])
+  const categorizePracticesAndLabs = useCallback(
+    (connections: Connection[]) => categorizeConnectionsForUser(connections, user),
+    [user],
+  )
 
   const redirectToLogin = () => {
     localStorage.removeItem("user")
@@ -85,7 +86,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     window.location.href = "/login"
   }
 
-  const fetchConnections = useCallback(async () => {
+  const fetchConnections = useCallback(async (options: ConnectionsQueryParams = {}) => {
     if (!user) return
 
     // Check token presence/expiry before fetching
@@ -101,42 +102,23 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setError(null)
 
     try {
-      // Get token from localStorage
-      const token = localStorage.getItem("token")
+      const data: ConnectionsResponse = await fetchConnectionsApi({
+        userId: user.id,
+        page: options.page ?? 1,
+        perPage: options.perPage ?? DEFAULT_CONNECTIONS_PER_PAGE,
+        search: options.search,
+        sortBy: options.sortBy,
+        sortOrder: options.sortOrder,
+      })
 
-      // Prepare query parameters if needed
-      const params = new URLSearchParams()
-      if (user.id) {
-        params.append("user_id", user.id.toString())
-      }
+      const page = options.page ?? 1
+      const perPage = options.perPage ?? DEFAULT_CONNECTIONS_PER_PAGE
+      const pagination = normalizeConnectionsPagination(data, page, perPage)
 
-      // Use the correct API endpoint path - use relative path for local API
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
-      const response = await fetch(
-          `${API_BASE_URL}/connections`,
-          {
-            method: "GET",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-      if (response.status === 401) {
-        redirectToLogin()
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch connections: ${response.status}`)
-      }
-
-      const data: ConnectionsResponse = await response.json()
       setConnections(data.data || [])
-      setTotalConnections(data.total_connections || 0)
+      setTotalConnections(pagination?.total ?? data.total_connections ?? 0)
+      setPagination(pagination)
 
-      // Categorize connections into practices and labs
       const { practices, labs } = categorizePracticesAndLabs(data.data || [])
       setPractices(practices)
       setLabs(labs)
@@ -168,6 +150,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         practices,
         labs,
         totalConnections,
+        pagination,
         isLoading,
         error,
         fetchConnections,

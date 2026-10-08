@@ -8,19 +8,14 @@ type BillingPeriodOption = "monthly" | "annual"
 type BillingPeriodDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  monthlyPrice?: number | null
+  annualPrice?: number | null
+  nextBillingDate?: string
 }
 
-const monthlyPlan = {
-  label: "Monthly",
-  displayPrice: "$99.00/month",
-  subtitle: "Billed monthly on the 25th",
-}
-
-const annualPlan = {
-  label: "Annual",
-  displayPrice: "$990.00/year",
-  monthlyEquivalent: "$82.50/month",
-  subtitle: "Billed once annually",
+function formatUsd(value?: number | null): string {
+  if (value == null || Number.isNaN(value)) return "—"
+  return `$${value.toFixed(2)}`
 }
 
 function OptionCard({
@@ -80,14 +75,22 @@ function OptionCard({
   )
 }
 
-export function BillingPeriodDialog({ open, onOpenChange }: BillingPeriodDialogProps) {
+export function BillingPeriodDialog({
+  open,
+  onOpenChange,
+  monthlyPrice = null,
+  annualPrice = null,
+  nextBillingDate = "—",
+}: BillingPeriodDialogProps) {
   const [step, setStep] = useState<"select" | "confirm">("select")
   const [selectedPeriod, setSelectedPeriod] = useState<BillingPeriodOption>("monthly")
 
-  const effectiveDate = "Aug 25, 2025"
-  const annualSavings = "$198.00/year"
-
-  const confirmDisabled = selectedPeriod === "monthly"
+  const monthlyLabel = monthlyPrice == null ? "Not available" : `${formatUsd(monthlyPrice)}/month`
+  const annualLabel = annualPrice == null ? "Not available" : `${formatUsd(annualPrice)}/year`
+  const monthlyEquivalent = annualPrice == null ? "Not available" : `${formatUsd(annualPrice / 12)}/month`
+  const annualSavings =
+    monthlyPrice != null && annualPrice != null ? formatUsd(Math.max(monthlyPrice * 12 - annualPrice, 0)) : "—"
+  const confirmDisabled = selectedPeriod === "monthly" || annualPrice == null
 
   const nextButtonLabel = useMemo(() => {
     if (selectedPeriod === "annual") return "Switch to Annual"
@@ -122,9 +125,9 @@ export function BillingPeriodDialog({ open, onOpenChange }: BillingPeriodDialogP
               <div className="space-y-5">
                 <OptionCard
                   selected={selectedPeriod === "monthly"}
-                  title={monthlyPlan.label}
-                  primary={monthlyPlan.displayPrice}
-                  secondary={monthlyPlan.subtitle}
+                  title="Monthly"
+                  primary={monthlyLabel}
+                  secondary="Billed monthly"
                   badge="CURRENT"
                   current
                   onClick={() => setSelectedPeriod("monthly")}
@@ -132,16 +135,15 @@ export function BillingPeriodDialog({ open, onOpenChange }: BillingPeriodDialogP
 
                 <OptionCard
                   selected={selectedPeriod === "annual"}
-                  title={annualPlan.label}
-                  primary={annualPlan.displayPrice}
-                  secondary={`${annualPlan.monthlyEquivalent} · ${annualPlan.subtitle}`}
-                  badge="SAVE 17%"
+                  title="Annual"
+                  primary={annualLabel}
+                  secondary={`${monthlyEquivalent} · Billed once annually`}
                   onClick={() => setSelectedPeriod("annual")}
                 />
               </div>
 
               <p className="mt-4 text-[12px] leading-[15px] text-[#666666]">
-                Switching to annual takes effect at your next billing cycle ({effectiveDate}).
+                Switching to annual takes effect at your next billing cycle ({nextBillingDate}).
               </p>
 
               <div className="mt-9 flex items-center justify-between gap-4">
@@ -173,22 +175,22 @@ export function BillingPeriodDialog({ open, onOpenChange }: BillingPeriodDialogP
             <div className="px-6 py-5 sm:px-8 sm:py-7">
               <div className="rounded-[10px] border border-[#DCE2EE] px-5 py-5">
                 <div className="flex flex-col gap-2 text-[13px] leading-4 text-[#666666] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                  <span>Monthly $99/month</span>
+                  <span>Monthly {monthlyLabel}</span>
                   <span className="text-[#1567B8]">→</span>
-                  <span className="font-semibold text-black">Annual $990/year</span>
+                  <span className="font-semibold text-black">Annual {annualLabel}</span>
                 </div>
               </div>
 
               <div className="mt-5 border-b border-[#E6EAF2] pb-3">
                 <div className="flex items-center justify-between gap-4 text-[13px] leading-4 text-[#666666]">
                   <span>Effective date</span>
-                  <span className="text-black">{effectiveDate}</span>
+                  <span className="text-black">{nextBillingDate}</span>
                 </div>
               </div>
 
               <div className="mt-3 flex items-center justify-between gap-4 text-[13px] leading-4">
-                <span className="font-semibold text-[#6A6F76]">Annual charge on Aug 25</span>
-                <span className="text-[16px] font-bold leading-[19px] text-black">$990.00</span>
+                <span className="font-semibold text-[#6A6F76]">Annual charge on {nextBillingDate}</span>
+                <span className="text-[16px] font-bold leading-[19px] text-black">{formatUsd(annualPrice)}</span>
               </div>
 
               <div className="mt-4 flex items-center justify-between gap-4 text-[13px] leading-4">

@@ -1,3 +1,5 @@
+import { registerInMemoryCacheClearer } from "@/lib/cache/frontend-list-cache";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 const getToken = (): string | null =>
@@ -53,6 +55,7 @@ export interface AbutmentOption {
   image_url: string | null;
   status: string;
   is_default: string;
+  category_ids?: string | null;
   price: string | null;
   sequence: number;
 }
@@ -67,11 +70,27 @@ export interface ProductAbutment {
   sequence: number;
   customer_id: number;
   options: AbutmentOption[];
+  addons?: Array<{
+    id: number;
+    name: string;
+    code?: string;
+    price?: number | string | null;
+    status?: string;
+    sequence?: number;
+    category_ids?: string | null;
+  }>;
 }
 
 // Module-level cache to avoid duplicate API calls per product+customer combo
 const _implantsCache = new Map<string, ProductImplant[]>();
 const _implantsInflight = new Map<string, Promise<ProductImplant[]>>();
+
+export function clearProductImplantsCache() {
+  _implantsCache.clear();
+  _implantsInflight.clear();
+}
+
+registerInMemoryCacheClearer(clearProductImplantsCache);
 
 export async function fetchProductImplants(
   productId: number,

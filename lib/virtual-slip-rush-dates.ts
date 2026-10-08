@@ -11,7 +11,7 @@ export interface SlipDeliveryDates {
   standardDueDate: string;
   /** Rush due date when rushed, display MM/DD/YY. */
   rushDueDate: string;
-  /** Primary header due date: rush when rushed, else standard. */
+  /** Primary header due date: `delivery.final_date` when present, else rush when rushed, else standard. */
   dueDate: string;
   /** `yyyy-MM-dd` for rush modal "standard delivery" column. */
   standardDateIso: string;
@@ -58,9 +58,11 @@ function productIsRushed(product: any): boolean {
 /**
  * Derive rush vs standard due dates from slip details payload.
  * Tries several backend field names for the pre-rush (standard) date when `is_rush` is true.
+ * Header `dueDate` prefers API `delivery.final_date` (the computed final delivery date).
  */
 export function resolveSlipDeliveryDates(safe: any, products: any[] = []): SlipDeliveryDates {
   const root = safe ?? {};
+  const finalIso = firstIso(root.delivery?.final_date, root.delivery_date?.final_date);
   const deliveryIso = firstIso(root.delivery?.delivery_date);
   const standardIso = firstIso(
     root.delivery?.standard_delivery_date,
@@ -104,7 +106,8 @@ export function resolveSlipDeliveryDates(safe: any, products: any[] = []): SlipD
 
   const standardDueDate = formatDateFromIso(resolvedStandardIso);
   const rushDueDate = formatDateFromIso(resolvedRushIso);
-  const dueDate = isRush && rushDueDate ? rushDueDate : standardDueDate;
+  const dueDate =
+    formatDateFromIso(finalIso) || (isRush && rushDueDate ? rushDueDate : standardDueDate);
 
   return {
     isRush,

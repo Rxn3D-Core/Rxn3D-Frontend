@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Eye, Search, Plus, ChevronDown, Edit, Trash2 } from "lucide-react"
+import { useState, useEffect, type MouseEvent as ReactMouseEvent } from "react"
+import { Eye, Search, Plus, ChevronDown, Edit, Trash2, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -13,13 +13,24 @@ import { useToast } from "@/hooks/use-toast"
 import { Avatar } from "@/components/ui/avatar"
 import ReactDOM from "react-dom"
 import { CreateUserModal } from "@/components/office-administrator/create-user-modal"
+import { SearchInviteUserModal } from "@/components/office-administrator/search-invite-user-modal"
 import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
+import { ResetUserPasswordModal } from "@/components/office-administrator/reset-user-password-modal"
 import {
   USER_STATUSES,
   formatUserStatusForApi,
   normalizeUserStatus,
   type UserStatus,
 } from "@/lib/user-status"
+import {
+  getAddUserButtonLabel,
+  resolveLockedRole,
+} from "@/lib/user-role-labels"
+import {
+  buildUserCustomerRoleDisplay,
+  type UserCustomerRoleLink,
+} from "@/lib/user-customer-roles"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 const USER_STATUS_OPTIONS: Array<{ value: UserStatus; dotClass: string }> = [
   { value: "Active", dotClass: "bg-green-500" },
@@ -38,15 +49,11 @@ interface StaffUser {
   customerId?: number
   phone: string
   userType: string
-  customerRoles?: Array<{
-    customerId: number
-    customerName: string
-    roleName: string
-    departments: string[]
-  }>
+  customerRoles?: UserCustomerRoleLink[]
   customerNamesList?: string[]
   roleNamesList?: string[]
   departmentsList?: string[]
+  associationHoverLines?: string[]
   joinDate: string
   status: UserStatus
   avatar?: string
@@ -56,6 +63,7 @@ interface StaffUser {
 interface CustomerOption {
   value: string
   label: string
+  type?: string
 }
 
 const avatarColors = [
@@ -70,21 +78,24 @@ const avatarColors = [
 const SORTABLE_COLUMNS = new Set(["first_name", "email", "created_at", "status"])
 
 export default function AllUsers() {
-  const { fetchUsers, updateUser, deleteUser, fetchUserById, hasPermission } = useAuth()
+  const { fetchUsers, updateUser, updateMembershipStatus, deleteUser, fetchUserById, hasPermission } = useAuth()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null)
+  const [showSearchInvite, setShowSearchInvite] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
+  const [createPrefill, setCreatePrefill] = useState<{ first_name?: string; last_name?: string; email?: string }>({})
   const [showUpdateUser, setShowUpdateUser] = useState(false)
   const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
   const [allSelected, setAllSelected] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [users, setUsers] = useState<StaffUser[]>([])
   const [showStatusDropdown, setShowStatusDropdown] = useState<number | null>(null)
-  const [statusDropdownCustomerId, setStatusDropdownCustomerId] = useState<number | null>(null)
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
   const [sortColumn, setSortColumn] = useState("created_at")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
@@ -97,6 +108,8 @@ export default function AllUsers() {
   const canCreateUser = hasPermission("create_user")
   const canEditUser = hasPermission("edit_user")
   const hasActiveFilters = statusFilter !== "all" || roleFilter !== "all" || !!departmentFilter || !!customerFilter
+  const lockedRole = resolveLockedRole(roleFilter)
+  const addButtonLabel = getAddUserButtonLabel(lockedRole)
 
   const customerNameById = customerOptions.reduce<Record<string, string>>((acc, option) => {
     acc[option.value] = option.label
@@ -109,47 +122,27 @@ export default function AllUsers() {
     return `${items[0]} +${items.length - 1}`
   }
 
-  const buildCustomerScopedRoleData = (userData: any, selectedCustomerId?: number) => {
-    const customerUsers = Array.isArray(userData?.customer_users) ? userData.customer_users : []
-    const mapped = customerUsers.map((cu: any) => ({
-      customerId: cu?.customer_id || cu?.customer?.id,
-      customerName: cu?.customer?.name || customerNameById[String(cu?.customer_id || cu?.customer?.id || "")] || "",
-      roleName: cu?.role?.name || "",
-      departments: Array.isArray(cu?.departments) ? cu.departments.map((d: any) => d?.name).filter(Boolean) : [],
-    })).filter((item: any) => item.customerId && item.roleName)
-
-    const scoped = selectedCustomerId ? mapped.filter((item: any) => item.customerId === selectedCustomerId) : mapped
-    const source = scoped.length > 0 ? scoped : mapped
-
-    const customerNames: string[] = Array.from(
-      new Set(
-        source
-          .map((item: any) => item.customerName)
-          .filter((name: unknown): name is string => typeof name === "string" && name.trim().length > 0)
-      )
-    )
-    const roleNames: string[] = Array.from(
-      new Set(
-        source
-          .map((item: any) => item.roleName)
-          .filter((name: unknown): name is string => typeof name === "string" && name.trim().length > 0)
-      )
-    )
-    const departmentNames: string[] = Array.from(
-      new Set(
-        source
-          .flatMap((item: any) => (Array.isArray(item.departments) ? item.departments : []))
-          .filter((name: unknown): name is string => typeof name === "string" && name.trim().length > 0)
-      )
-    )
-
+  const mapApiUserToStaffUser = (user: any, index: number, selectedCustomerId?: number): StaffUser => {
+    const scopedRoleData = buildUserCustomerRoleDisplay(user, {
+      selectedCustomerId,
+      customerNameById,
+    })
     return {
-      customerNameDisplay: formatFirstPlusCount(customerNames),
-      roleDisplay: formatFirstPlusCount(roleNames),
-      customerNamesList: customerNames,
-      roleNamesList: roleNames,
-      departmentsList: departmentNames,
-      customerRoles: mapped,
+      id: user.id,
+      name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
+      email: user.email,
+      customerName: scopedRoleData.customerNameDisplay,
+      customerId: selectedCustomerId,
+      phone: user.phone || user.work_number || "N/A",
+      userType: scopedRoleData.roleDisplay,
+      customerRoles: scopedRoleData.customerRoles,
+      customerNamesList: scopedRoleData.customerNamesList,
+      roleNamesList: scopedRoleData.roleNamesList,
+      departmentsList: scopedRoleData.departmentsList,
+      associationHoverLines: scopedRoleData.associationHoverLines,
+      joinDate: user.created_at ? new Date(user.created_at).toISOString().split("T")[0] : "",
+      status: normalizeUserStatus(user.status),
+      avatarColor: avatarColors[index % avatarColors.length],
     }
   }
 
@@ -196,6 +189,7 @@ export default function AllUsers() {
           uniqueById.set(customer.id, {
             value: String(customer.id),
             label: customer.name,
+            type: customer.type,
           })
         }
       })
@@ -223,25 +217,7 @@ export default function AllUsers() {
       if (!Array.isArray(usersData)) throw new Error("Invalid response format")
 
       const selectedCustomerId = customerFilter.trim() ? Number(customerFilter.trim()) : undefined
-      setUsers(usersData.map((user: any, index: number) => {
-        const scopedRoleData = buildCustomerScopedRoleData(user, selectedCustomerId)
-        return {
-          id: user.id,
-          name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
-          email: user.email,
-          customerName: scopedRoleData.customerNameDisplay,
-          customerId: selectedCustomerId,
-          phone: user.phone || user.work_number || "N/A",
-          userType: scopedRoleData.roleDisplay,
-          customerRoles: scopedRoleData.customerRoles,
-          customerNamesList: scopedRoleData.customerNamesList,
-          roleNamesList: scopedRoleData.roleNamesList,
-          departmentsList: scopedRoleData.departmentsList,
-          joinDate: user.created_at ? new Date(user.created_at).toISOString().split("T")[0] : "",
-          status: normalizeUserStatus(user.status),
-          avatarColor: avatarColors[index % avatarColors.length],
-        }
-      }))
+      setUsers(usersData.map((user: any, index: number) => mapApiUserToStaffUser(user, index, selectedCustomerId)))
       setPagination({
         total: response?.total || response?.pagination?.total || usersData.length,
         per_page: response?.per_page || response?.pagination?.per_page || Number(entriesPerPage),
@@ -286,24 +262,12 @@ export default function AllUsers() {
       const result = await fetchUserById(user.id, customerFilter.trim() || undefined)
       const details = result?.data || result
       const selectedCustomerId = customerFilter.trim() ? Number(customerFilter.trim()) : undefined
-      const scopedRoleData = buildCustomerScopedRoleData(details, selectedCustomerId)
-      const mapped: StaffUser = {
-        id: details.id,
-        name: `${details.first_name || ""} ${details.last_name || ""}`.trim(),
-        email: details.email || "",
-        customerName: scopedRoleData.customerNameDisplay,
+      const mapped = mapApiUserToStaffUser(details, 0, selectedCustomerId)
+      setSelectedUser({
+        ...mapped,
         customerId: selectedCustomerId || user.customerId,
-        phone: details.phone || details.work_number || "N/A",
-        userType: scopedRoleData.roleDisplay,
-        customerRoles: scopedRoleData.customerRoles,
-        customerNamesList: scopedRoleData.customerNamesList,
-        roleNamesList: scopedRoleData.roleNamesList,
-        departmentsList: scopedRoleData.departmentsList,
-        joinDate: details.created_at ? new Date(details.created_at).toISOString().split("T")[0] : "",
-        status: normalizeUserStatus(details.status),
         avatarColor: user.avatarColor,
-      }
-      setSelectedUser(mapped)
+      })
     } catch (error: any) {
       toast({
         title: "Error",
@@ -315,7 +279,7 @@ export default function AllUsers() {
 
   const handleAddUser = () => {
     if (!canCreateUser) return
-    setShowAddUser(true)
+    setShowSearchInvite(true)
     setSelectedUser(null)
   }
 
@@ -323,6 +287,12 @@ export default function AllUsers() {
     if (!canEditUser) return
     setUserToUpdate(user)
     setShowUpdateUser(true)
+  }
+
+  const handleResetPassword = (user: StaffUser) => {
+    if (!canEditUser) return
+    setUserToResetPassword(user)
+    setShowResetPassword(true)
   }
 
   const handleDeleteUser = async (userId: number) => {
@@ -339,6 +309,7 @@ export default function AllUsers() {
   // Handle back to list
   const handleBackToList = () => {
     setSelectedUser(null)
+    setShowSearchInvite(false)
     setShowAddUser(false)
   }
 
@@ -362,18 +333,16 @@ export default function AllUsers() {
     }
   }
 
+  const getMembershipStatusBadgeClass = (status?: string) => {
+    const value = String(status || "Active").toLowerCase()
+    if (value === "active") return "bg-[#c3f2cf] text-[#119933]"
+    if (value === "inactive") return "bg-[#eeeeee] text-[#a19d9d]"
+    if (value === "suspended") return "bg-[#fff3e1] text-[#ff9500]"
+    if (value === "archived" || value === "offboarded") return "bg-[#f8dddd] text-[#eb0303]"
+    return "bg-[#eeeeee] text-[#a19d9d]"
+  }
+
   // Get avatar fallback from name
-  const resolveCustomerIdForUserAction = (user: StaffUser): number | undefined => {
-    if (customerFilter.trim()) return Number(customerFilter.trim())
-    if (user.customerRoles?.length === 1) return user.customerRoles[0].customerId
-    return undefined
-  }
-
-  const userNeedsCustomerPickForStatus = (user: StaffUser) => {
-    if (customerFilter.trim()) return false
-    return (user.customerRoles?.length ?? 0) > 1
-  }
-
   const getAvatarFallback = (name: string) => {
     const initials = name
       .split(' ')
@@ -387,27 +356,16 @@ export default function AllUsers() {
 
   const handleStatusChange = async (userId: number, newStatus: UserStatus) => {
     if (!canEditUser) return
-    const user = users.find((entry) => entry.id === userId)
-    const customerId = statusDropdownCustomerId ?? (user ? resolveCustomerIdForUserAction(user) : undefined)
-
-    if (!customerId) {
-      toast({
-        title: "Customer required",
-        description: "Select which lab or office this status change applies to.",
-        variant: "destructive",
-      })
-      return
-    }
 
     try {
+      // Global users.status — no customer context required (superadmin / manage_users)
       await updateUser(userId, {
         status: formatUserStatusForApi(newStatus),
-        customer_id: customerId,
       })
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u)))
       toast({
         title: "Status Updated",
-        description: `User status changed to ${newStatus}.`,
+        description: `Global account status changed to ${newStatus}.`,
       })
     } catch (error: any) {
       toast({
@@ -417,7 +375,32 @@ export default function AllUsers() {
       })
     } finally {
       setShowStatusDropdown(null)
-      setStatusDropdownCustomerId(null)
+      setDropdownPosition(null)
+    }
+  }
+
+  const handleMembershipStatusChange = async (
+    userId: number,
+    customerId: number,
+    newStatus: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded",
+  ) => {
+    if (!canEditUser) return
+
+    try {
+      await updateMembershipStatus(userId, customerId, newStatus)
+      toast({
+        title: "Membership updated",
+        description: `Organization membership set to ${newStatus}.`,
+      })
+      loadUsers()
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error?.message || "Could not update membership status.",
+        variant: "destructive",
+      })
+    } finally {
+      setShowStatusDropdown(null)
       setDropdownPosition(null)
     }
   }
@@ -440,15 +423,13 @@ export default function AllUsers() {
   }
 
   // Handle status dropdown open/close and position
-  const handleStatusDropdown = (user: StaffUser, event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleStatusDropdown = (user: StaffUser, event: ReactMouseEvent<HTMLButtonElement>) => {
     if (showStatusDropdown === user.id) {
       setShowStatusDropdown(null)
-      setStatusDropdownCustomerId(null)
       setDropdownPosition(null)
     } else {
       const rect = (event.target as HTMLElement).getBoundingClientRect()
       setShowStatusDropdown(user.id)
-      setStatusDropdownCustomerId(resolveCustomerIdForUserAction(user) ?? null)
       setDropdownPosition({
         top: rect.bottom + window.scrollY,
         left: rect.left + window.scrollX,
@@ -460,11 +441,10 @@ export default function AllUsers() {
   // Click-away handler for dropdown
   useEffect(() => {
     if (showStatusDropdown !== null) {
-      const handleClick = (e: MouseEvent) => {
+      const handleClick = (e: globalThis.MouseEvent) => {
         const dropdown = document.getElementById("status-dropdown-portal")
         if (dropdown && !dropdown.contains(e.target as Node)) {
           setShowStatusDropdown(null)
-          setStatusDropdownCustomerId(null)
           setDropdownPosition(null)
         }
       }
@@ -539,6 +519,7 @@ export default function AllUsers() {
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="lab_admin">Lab Admin</SelectItem>
                   <SelectItem value="lab_user">Lab User</SelectItem>
+                  <SelectItem value="lab_driver">Lab Driver</SelectItem>
                   <SelectItem value="office_admin">Office Admin</SelectItem>
                   <SelectItem value="office_user">Office User</SelectItem>
                   <SelectItem value="doctor">Doctor</SelectItem>
@@ -557,7 +538,7 @@ export default function AllUsers() {
               )}
               <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm" onClick={handleAddUser} disabled={!canCreateUser}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add User
+                {addButtonLabel}
               </Button>
             </div>
             <div className="relative w-full md:w-auto">
@@ -657,18 +638,76 @@ export default function AllUsers() {
                         </div>
                     </td>
                     <td className="px-4 py-4 text-gray-700">{user.email}</td>
-                    <td className="px-4 py-4 text-gray-700" title={user.customerNamesList?.join(", ") || user.customerName}>
-                      {user.customerName}
+                    <td className="px-4 py-4 text-gray-700">
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex flex-col gap-1 cursor-default">
+                              <span className="border-b border-dotted border-gray-400 w-fit">
+                                {user.customerName}
+                              </span>
+                              {user.customerRoles && user.customerRoles.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {user.customerRoles.slice(0, 3).map((link) => (
+                                    <span
+                                      key={`${link.customerId}-${link.status || "Active"}`}
+                                      className={`${getMembershipStatusBadgeClass(link.status)} px-2 py-0.5 rounded text-[10px] font-medium`}
+                                      title={`${link.customerName} (${link.customerType || "customer"}) — ${link.status || "Active"}`}
+                                    >
+                                      {(link.customerType || "org").toString()} · {link.status || "Active"}
+                                    </span>
+                                  ))}
+                                  {user.customerRoles.length > 3 ? (
+                                    <span className="text-[10px] text-gray-500">
+                                      +{user.customerRoles.length - 3}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-sm">
+                            {user.associationHoverLines && user.associationHoverLines.length > 0 ? (
+                              <ul className="space-y-1 text-xs">
+                                {user.associationHoverLines.map((line) => (
+                                  <li key={line}>{line}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <span className="text-xs">No customer associations</span>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </td>
-                    <td className="px-4 py-4 text-gray-700" title={user.roleNamesList?.join(", ") || user.userType}>
-                      <div className="flex flex-col">
-                        <span>{user.userType}</span>
-                        {user.departmentsList && user.departmentsList.length > 0 && (
-                          <span className="text-xs text-gray-500" title={user.departmentsList.join(", ")}>
-                            Dept: {formatFirstPlusCount(user.departmentsList)}
-                          </span>
-                        )}
-                      </div>
+                    <td className="px-4 py-4 text-gray-700">
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex flex-col cursor-default">
+                              <span className="border-b border-dotted border-gray-400 w-fit">
+                                {user.userType}
+                              </span>
+                              {user.departmentsList && user.departmentsList.length > 0 && (
+                                <span className="text-xs text-gray-500">
+                                  Dept: {formatFirstPlusCount(user.departmentsList)}
+                                </span>
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            {user.associationHoverLines && user.associationHoverLines.length > 0 ? (
+                              <ul className="space-y-1 text-xs">
+                                {user.associationHoverLines.map((line) => (
+                                  <li key={line}>{line}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <span className="text-xs">No roles</span>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </td>
                     <td className="px-4 py-4 relative">
                       <div className="relative">
@@ -693,41 +732,59 @@ export default function AllUsers() {
                               }}
                             >
                               <div className="py-1">
-                                {userNeedsCustomerPickForStatus(user) && !statusDropdownCustomerId ? (
+                                <div className="px-4 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">
+                                  Global account status
+                                </div>
+                                {USER_STATUS_OPTIONS.map((option) => (
+                                  <button
+                                    key={option.value}
+                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
+                                    onClick={() => handleStatusChange(user.id, option.value)}
+                                  >
+                                    <span className={`w-2 h-2 rounded-full mr-2 ${option.dotClass}`}></span>
+                                    {option.value}
+                                  </button>
+                                ))}
+                                {(user.customerRoles?.length ?? 0) > 0 ? (
                                   <>
-                                    <div className="px-4 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">
-                                      Select customer
+                                    <div className="px-4 py-2 text-xs font-medium text-gray-500 border-t border-b border-gray-100 mt-1">
+                                      Offboard from organization
                                     </div>
                                     {user.customerRoles?.map((customerRole) => (
                                       <button
-                                        key={customerRole.customerId}
+                                        key={`offboard-${customerRole.customerId}`}
+                                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 text-red-700"
+                                        onClick={() =>
+                                          void handleMembershipStatusChange(
+                                            user.id,
+                                            customerRole.customerId,
+                                            "Offboarded",
+                                          )
+                                        }
+                                      >
+                                        {customerRole.customerName || `Customer #${customerRole.customerId}`}
+                                      </button>
+                                    ))}
+                                    <div className="px-4 py-2 text-xs font-medium text-gray-500 border-t border-b border-gray-100 mt-1">
+                                      Set org membership inactive
+                                    </div>
+                                    {user.customerRoles?.map((customerRole) => (
+                                      <button
+                                        key={`inactive-${customerRole.customerId}`}
                                         className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                                        onClick={() => setStatusDropdownCustomerId(customerRole.customerId)}
+                                        onClick={() =>
+                                          void handleMembershipStatusChange(
+                                            user.id,
+                                            customerRole.customerId,
+                                            "Inactive",
+                                          )
+                                        }
                                       >
                                         {customerRole.customerName || `Customer #${customerRole.customerId}`}
                                       </button>
                                     ))}
                                   </>
-                                ) : (
-                                  <>
-                                    {statusDropdownCustomerId && user.customerRoles && user.customerRoles.length > 1 && (
-                                      <div className="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
-                                        {user.customerRoles.find((role) => role.customerId === statusDropdownCustomerId)?.customerName
-                                          || `Customer #${statusDropdownCustomerId}`}
-                                      </div>
-                                    )}
-                                    {USER_STATUS_OPTIONS.map((option) => (
-                                      <button
-                                        key={option.value}
-                                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
-                                        onClick={() => handleStatusChange(user.id, option.value)}
-                                      >
-                                        <span className={`w-2 h-2 rounded-full mr-2 ${option.dotClass}`}></span>
-                                        {option.value}
-                                      </button>
-                                    ))}
-                                  </>
-                                )}
+                                ) : null}
                               </div>
                             </div>,
                             document.body
@@ -738,7 +795,8 @@ export default function AllUsers() {
                     <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <Button variant="ghost" size="sm" onClick={() => handleViewUser(user)} className="text-blue-600 hover:text-blue-800"><Eye className="h-5 w-5" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)} className="text-green-600 hover:text-green-800" disabled={!canEditUser}><Edit className="h-5 w-5" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)} className="text-green-600 hover:text-green-800" disabled={!canEditUser} title="Edit user"><Edit className="h-5 w-5" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleResetPassword(user)} className="text-amber-600 hover:text-amber-800" disabled={!canEditUser} title="Set password"><Lock className="h-5 w-5" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(user.id)} className="text-red-600 hover:text-red-800" disabled={!canEditUser}><Trash2 className="h-5 w-5" /></Button>
                       </div>
                     </td>
@@ -762,13 +820,38 @@ export default function AllUsers() {
         </div>
       </div>
 
-      <CreateUserModal
-        isOpen={showAddUser}
-        onClose={() => setShowAddUser(false)}
-        onSuccess={() => {
-          setShowAddUser(false)
+      <SearchInviteUserModal
+        isOpen={showSearchInvite}
+        onClose={() => setShowSearchInvite(false)}
+        onInviteSuccess={() => {
+          setShowSearchInvite(false)
           loadUsers()
         }}
+        onCreateNew={(prefill) => {
+          setCreatePrefill(prefill || {})
+          setShowSearchInvite(false)
+          setShowAddUser(true)
+        }}
+        lockedRole={lockedRole}
+        requireCustomerSelection
+        customerOptions={customerOptions}
+      />
+
+      <CreateUserModal
+        isOpen={showAddUser}
+        onClose={() => {
+          setShowAddUser(false)
+          setCreatePrefill({})
+        }}
+        onSuccess={() => {
+          setShowAddUser(false)
+          setCreatePrefill({})
+          loadUsers()
+        }}
+        lockedRole={lockedRole}
+        requireCustomerSelection
+        customerOptions={customerOptions}
+        initialPrefill={createPrefill}
       />
 
       <UpdateUserModal
@@ -783,6 +866,25 @@ export default function AllUsers() {
           loadUsers()
         }}
         user={userToUpdate}
+        manageCustomerLinks
+        customerOptions={customerOptions}
+      />
+
+      <ResetUserPasswordModal
+        isOpen={showResetPassword}
+        onClose={() => {
+          setShowResetPassword(false)
+          setUserToResetPassword(null)
+        }}
+        user={
+          userToResetPassword
+            ? {
+                id: userToResetPassword.id,
+                name: userToResetPassword.name,
+                customerId: userToResetPassword.customerId,
+              }
+            : null
+        }
       />
     </div>
   )

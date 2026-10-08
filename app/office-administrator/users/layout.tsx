@@ -13,7 +13,7 @@ export default function UsersLayout({
                     <div className="flex-1 flex flex-col">
                       <Header />
                       <div className="flex-1 flex">
-                        <main className="flex-1 p-6">
+                        <main className="flex-1 px-6 py-4">
                           {children}
                         </main>
                       </div>

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
+import { FRESH_LIST_QUERY_OPTIONS } from "@/lib/cache/frontend-list-cache"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -16,6 +17,9 @@ export interface ConnectedOfficeApiOffice {
   address: string
   website: string | null
   postal_code: string
+  /** Office unique code used by slip listing `office_code` filter */
+  unique_code?: string | null
+  code?: string | null
 }
 
 export interface ConnectedOfficeApiItem {
@@ -50,6 +54,8 @@ export interface ConnectedOfficeLabShape {
   name: string
   logo: string | null
   location: string
+  /** Prefer `unique_code` for lab→office slip listing filters */
+  code?: string | null
 }
 
 export const connectedOfficesQueryKey = ["connected-offices"] as const
@@ -128,6 +134,7 @@ async function fetchConnectedLabs(): Promise<ConnectedOfficeLabShape[]> {
       name: (lab.name ?? item.name ?? "") as string,
       logo: (lab.logo_url ?? lab.logo ?? item.logo ?? lab.image ?? item.image ?? null) as string | null,
       location,
+      code: (lab.unique_code ?? lab.code ?? item.unique_code ?? item.code ?? null) as string | null,
     }
   })
 }
@@ -140,6 +147,7 @@ function mapToLabShape(item: ConnectedOfficeApiItem): ConnectedOfficeLabShape {
     name: office.name,
     logo: office.logo_url || null,
     location,
+    code: office.unique_code ?? office.code ?? null,
   }
 }
 
@@ -160,10 +168,8 @@ export function useConnectedOffices(options?: { enabled?: boolean }) {
     queryKey: connectedOfficesQueryKey,
     queryFn: fetchConnectedOffices,
     enabled,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
     retry: 1,
-    refetchOnWindowFocus: false,
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 
   const officesAsLabs: ConnectedOfficeLabShape[] =
@@ -197,10 +203,8 @@ export function useConnectedOfficesOrLabs(role: string | null, options?: { enabl
       return fetchConnectedLabs()
     },
     enabled,
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 10,
     retry: 1,
-    refetchOnWindowFocus: false,
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 
   const officesAsLabs: ConnectedOfficeLabShape[] = query.data ?? []

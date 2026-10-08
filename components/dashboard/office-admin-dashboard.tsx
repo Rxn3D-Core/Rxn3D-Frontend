@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { useConnection } from "@/contexts/connection-context"
+import { useConnections } from "@/hooks/use-connections"
 import { Skeleton } from "@/components/ui/skeleton"
 import { InvitationForm } from "@/components/invitation-form"
 import { CustomerSearchBox } from "@/components/CustomerSearchBox"
@@ -25,6 +25,14 @@ import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { getPrimaryRole } from "@/lib/get-primary-role"
 import { DashboardLabInviteModal } from "@/components/dashboard/dashboard-lab-invite-modal"
 import { DashboardDoctorInviteModal } from "@/components/dashboard/dashboard-doctor-invite-modal"
+import { INVITE_ONBOARDING_MODALS_ENABLED } from "@/lib/invite-onboarding-modals"
+import {
+  getConnectionPartnerEmail,
+  getConnectionPartnerLocation,
+  getConnectionPartnerName,
+} from "@/lib/connection-utils"
+import { DASHBOARD_CONNECTIONS_PER_PAGE } from "@/lib/connection-api"
+import { ConnectionListPagination } from "./connection-list-pagination"
 interface StatusCardProps {
   title: string
   count: number
@@ -50,7 +58,21 @@ function StatusCard({ title, count, color }: StatusCardProps) {
 export function OfficeAdminDashboard() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const { labs, isLoading, error, fetchConnections } = useConnection()
+  const [labsPage, setLabsPage] = useState(1)
+  const { data: connectionsData, isLoading: isLoadingConnections, error: connectionsError } = useConnections(user?.id, {
+    page: labsPage,
+    perPage: DASHBOARD_CONNECTIONS_PER_PAGE,
+  })
+  const labs = connectionsData?.labs || []
+  const connectionsPagination = connectionsData?.pagination
+  const connectedLabsTotal = connectionsPagination?.total ?? connectionsData?.total_connections ?? 0
+  const isLoading = isLoadingConnections
+  const error =
+    connectionsError instanceof Error
+      ? connectionsError.message
+      : connectionsError
+        ? String(connectionsError)
+        : null
   const userRole = getPrimaryRole(user) || "office_admin"
   const userId = user?.id
   const dashboardCustomerId = getCustomerId(user)
@@ -75,6 +97,9 @@ export function OfficeAdminDashboard() {
   const [activeTabLabs, setActiveTabLabs] = useState("connected")
   const [showUserForm, setShowUserForm] = useState(false)
   const [hasCheckedInvitePopup, setHasCheckedInvitePopup] = useState(false)
+  // Connections/invitations start empty with isLoading=false, so the invite popup must wait
+  // for the initial fetch to resolve before deciding the office has no labs.
+  const [hasLoadedLabData, setHasLoadedLabData] = useState(false)
   const [isLabInviteModalOpen, setIsLabInviteModalOpen] = useState(false)
   const [isDoctorInviteModalOpen, setIsDoctorInviteModalOpen] = useState(false)
 
@@ -102,11 +127,14 @@ export function OfficeAdminDashboard() {
 
   useEffect(() => {
     if (invitedBy && !hasFetchedRef.current) {
-      fetchConnections()
-      fetchAllInvitations(invitedBy)
       hasFetchedRef.current = true
+      fetchAllInvitations(invitedBy).finally(() => setHasLoadedLabData(true))
     }
-  }, [invitedBy, fetchConnections, fetchAllInvitations])
+  }, [invitedBy, fetchAllInvitations])
+
+  useEffect(() => {
+    setLabsPage(1)
+  }, [labsTab])
 
   // Transform API user data to match UI format
   const transformUsers = useCallback((): Array<{ id: number; name: string; role: string; status: string; email: string }> => {
@@ -148,28 +176,49 @@ export function OfficeAdminDashboard() {
 
   const users = useMemo(() => transformUsers(), [transformUsers])
 
+  // Any existing lab connection (regardless of status) or lab invitation in either
+  // direction means the office is already linked up and needs no onboarding prompt.
+  const labConnectionsCount = connectedLabsTotal
+  const labInvitationsCount = useMemo(
+    () =>
+      [...(sent?.data || []), ...(received?.data || [])].filter((l) => l.type === "Lab").length,
+    [sent, received],
+  )
+
   // Check for invite popups
   useEffect(() => {
-    if (!isLoading && !isLoadingUsers && !isLoadingInvitations && !hasCheckedInvitePopup) {
-      const activeLabsCount = labs.filter(l => l.status?.toLowerCase() === "active").length
-      const sentLabInvitationsCount = (sent?.data || []).filter(l => l.type === "Lab").length
-      
-      const doctorsCount = users.filter(u => 
+    if (
+      hasLoadedLabData &&
+      !isLoading &&
+      !isLoadingUsers &&
+      !isLoadingInvitations &&
+      !hasCheckedInvitePopup
+    ) {
+      const doctorsCount = users.filter(u =>
         u.role?.toLowerCase().includes("doctor")
       ).length
       
       // Check for doctors first as they are critical for office operations
-      if (doctorsCount === 0) {
+      if (INVITE_ONBOARDING_MODALS_ENABLED && doctorsCount === 0) {
         setIsDoctorInviteModalOpen(true)
       } 
       // Then check for labs if no doctors needed
-      else if (activeLabsCount === 0 && sentLabInvitationsCount === 0) {
+      else if (INVITE_ONBOARDING_MODALS_ENABLED && labConnectionsCount === 0 && labInvitationsCount === 0) {
         setIsLabInviteModalOpen(true)
       }
       
       setHasCheckedInvitePopup(true)
     }
-  }, [isLoading, isLoadingUsers, isLoadingInvitations, hasCheckedInvitePopup, labs, sent, users])
+  }, [
+    hasLoadedLabData,
+    isLoading,
+    isLoadingUsers,
+    isLoadingInvitations,
+    hasCheckedInvitePopup,
+    labConnectionsCount,
+    labInvitationsCount,
+    users,
+  ])
 
   // Note: We don't need a query cache subscription here since we're already
   // invalidating queries in the onSuccess callback of the invitation form
@@ -183,7 +232,7 @@ export function OfficeAdminDashboard() {
   // Filter labs based on tab
   const filteredLabs =
     labsTab === "connected"
-      ? labs.filter((l) => l.status?.toLowerCase() === "active")
+      ? labs
       : labsTab === "sent"
         ? (sent?.data || []).filter((l) => l.type === "Lab")
         : received?.data || [];
@@ -342,25 +391,27 @@ export function OfficeAdminDashboard() {
           <p className="text-sm sm:text-base text-gray-600">Manage your practice operations and lab connections</p>
         </div>
 
+        {/* Analytics cards hidden for office profiles until the numbers are backed by real data.
+            Kept here so they can be switched back on later. */}
         {/* KPI Cards */}
-        {isEnabled(WIDGET_IDS.KPI_CARDS) && (
+        {/* {isEnabled(WIDGET_IDS.KPI_CARDS) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
-          <KpiCard title="Total Case Spend" value="$64,587.70" change="40.3%" isPositive={true} icon="dollar" />
-          <KpiCard title="Outstanding Balance" value="$11,567.44" change="20.3%" isPositive={true} icon="document" />
-          <KpiCard title="Total Cases" value="2657" change="2.3%" isPositive={false} icon="dollar" />
-          <KpiCard title="Case approval rate" value="97.50%" change="40.3%" isPositive={true} icon="dollar" />
+          <KpiCard title="Total Case Spend" value="$0.00" change="0%" isPositive={true} icon="dollar" />
+          <KpiCard title="Outstanding Balance" value="$0.00" change="0%" isPositive={true} icon="document" />
+          <KpiCard title="Total Cases" value="0" change="0%" isPositive={true} icon="dollar" />
+          <KpiCard title="Case approval rate" value="0%" change="0%" isPositive={true} icon="dollar" />
         </div>
-        )}
+        )} */}
 
-        {/* Status Cards — New Stage notes hidden for office profiles while case notes work is in progress */}
-        {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
+        {/* Status Cards */}
+        {/* {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-          <StatusCard title="Rush Cases" count={15} color="text-red-500" />
-          <StatusCard title="On Hold Cases" count={135} color="text-red-500" />
-          <StatusCard title="Due Today" count={15} color="text-green-500" />
-          <StatusCard title="Late Cases" count={10} color="text-black" />
+          <StatusCard title="Rush Cases" count={0} color="text-red-500" />
+          <StatusCard title="On Hold Cases" count={0} color="text-red-500" />
+          <StatusCard title="Due Today" count={0} color="text-green-500" />
+          <StatusCard title="Late Cases" count={0} color="text-black" />
         </div>
-        )}
+        )} */}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
@@ -420,7 +471,7 @@ export function OfficeAdminDashboard() {
                 >
                   <span className="hidden sm:inline">Connected Labs</span>
                   <span className="sm:hidden">Connected</span>
-                  <span className="block sm:inline">({labs.filter(l => l.status?.toLowerCase() === "active").length})</span>
+                  <span className="block sm:inline">({connectedLabsTotal})</span>
                   {labsTab === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
@@ -483,10 +534,10 @@ export function OfficeAdminDashboard() {
                         >
                           <div className="flex-1">
                             <div className="text-[#1162a8] font-semibold text-base sm:text-lg group-hover:text-blue-700 transition-colors">
-                              {'partner' in lab ? lab.partner.name : lab.name}
+                              {getConnectionPartnerName(lab)}
                             </div>
                             <div className="text-xs sm:text-sm text-[#a19d9d] mt-1">
-                              {'partner' in lab ? `${lab.partner.city}, ${lab.partner.state}` : lab.email}
+                              {getConnectionPartnerLocation(lab) || getConnectionPartnerEmail(lab)}
                             </div>
                           </div>
                           <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
@@ -618,6 +669,14 @@ export function OfficeAdminDashboard() {
                 </div>
               )}
             </div>
+
+            {labsTab === "connected" && connectionsPagination && connectionsPagination.last_page > 0 && (
+              <ConnectionListPagination
+                pagination={connectionsPagination}
+                onPageChange={setLabsPage}
+                itemLabel="labs"
+              />
+            )}
           </div>
           )}
 
@@ -927,8 +986,8 @@ export function OfficeAdminDashboard() {
 
       {/* Lab Invite Modal */}
       <DashboardLabInviteModal
-        labsCount={labs.filter(l => l.status?.toLowerCase() === "active").length}
-        invitationsCount={(sent?.data || []).filter(l => l.type === "Lab").length}
+        labsCount={labConnectionsCount}
+        invitationsCount={labInvitationsCount}
         isOpen={isLabInviteModalOpen}
         onClose={() => setIsLabInviteModalOpen(false)}
       />

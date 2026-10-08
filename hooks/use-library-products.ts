@@ -1,4 +1,5 @@
 import { useQuery, useQueries } from "@tanstack/react-query"
+import { FRESH_LIST_QUERY_OPTIONS } from "@/lib/cache/frontend-list-cache"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -278,10 +279,8 @@ export function useLibraryProducts(options: {
     queryFn: () =>
       fetchLibraryProducts(customerId!, subcategoryId!, page, perPage),
     enabled: effectiveEnabled,
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 10,
     retry: 1,
-    refetchOnWindowFocus: false,
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 
   const productsAsWizard: WizardProductShape[] =
@@ -344,10 +343,8 @@ export function useLibraryProductSearch(options: {
     queryFn: () =>
       fetchLibraryProductsSearch(customerId!, trimmedSearch, page, perPage),
     enabled: effectiveEnabled,
-    staleTime: 1000 * 60 * 2,
-    gcTime: 1000 * 60 * 5,
     retry: 1,
-    refetchOnWindowFocus: false,
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 
   const products: LibraryProductApi[] = (query.data?.data?.data ?? []).filter(
@@ -378,10 +375,8 @@ export function useSubcategoryProductCounts(options: {
       queryKey: libraryProductsQueryKey(customerId, subcategoryId, 1),
       queryFn: () => fetchLibraryProducts(customerId!, subcategoryId, 1, 50),
       enabled: enabled && typeof customerId === "number",
-      staleTime: 1000 * 60 * 5,
-      gcTime: 1000 * 60 * 10,
       retry: 1,
-      refetchOnWindowFocus: false,
+      ...FRESH_LIST_QUERY_OPTIONS,
     })),
   })
 
@@ -397,7 +392,10 @@ export function useSubcategoryProductCounts(options: {
       return
     }
     const data = raw.filter((p) => String(p.status ?? "Active").trim() === "Active")
-    counts[id] = pagination ? pagination.total : data.length
+    // Prefer pagination.total only when the page is entirely Active (status filter honored).
+    // If inactive rows leaked into the page, use filtered length so empty subcategories stay at 0.
+    counts[id] =
+      pagination && data.length === raw.length ? pagination.total : data.length
     products[id] = data
   })
   return { counts, products }

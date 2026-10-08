@@ -1,3 +1,6 @@
+import { clearPersistedQueryCache } from "@/lib/cache/frontend-list-cache"
+import { clearDriverQrLocalSession } from "@/lib/driver-qr-scan"
+
 /**
  * Utility function to clear all session-related localStorage items
  * This should be called when user logs out or is redirected to login
@@ -18,7 +21,6 @@ export function clearSessionStorage(): void {
     "selectedLocation",
     "selectedLabId",
     "role",
-    "sessionHistory",
     "labAdminHistory",
     "originalUser", // for impersonation
     "originalToken", // for impersonation
@@ -32,6 +34,9 @@ export function clearSessionStorage(): void {
     localStorage.removeItem(key)
   })
 
+  // Driver QR pickup/drop-off trip (localStorage + sessionStorage batch)
+  clearDriverQrLocalSession()
+
   // Clear all customer logo caches (customerLogo_*)
   try {
     const keys = Object.keys(localStorage)
@@ -44,10 +49,13 @@ export function clearSessionStorage(): void {
     console.error("Error clearing customer logo caches:", error)
   }
 
-  // Clear auth cookie
+  // Clear auth cookies (legacy names)
   try {
     document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; samesite=lax"
+    document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; samesite=lax"
   } catch (error) {
     console.error("Error clearing auth cookie:", error)
   }
+
+  clearPersistedQueryCache()
 }

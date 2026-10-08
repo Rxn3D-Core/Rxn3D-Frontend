@@ -46,7 +46,7 @@ export default function BillingSystemPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="px-6 py-4 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">Slip Credits</h1>

@@ -1,9 +1,22 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 import { LabBillingPageHeader } from "@/components/billing/lab-billing-page-header"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import {
+  CHARGE_MANAGEMENT_DEFAULT_SORT_BY,
+  CHARGE_MANAGEMENT_DEFAULT_SORT_DIRECTION,
+  CHARGE_MANAGEMENT_PER_PAGE,
+  CHARGE_MANAGEMENT_PER_PAGE_OPTIONS,
+  defaultChargeManagementFilters,
+  loadChargeManagementFilters,
+  saveChargeManagementFilters,
+  takeChargeManagementScroll,
+  type ChargeManagementFiltersPrefs,
+  type ChargeManagementPerPage,
+  type ChargeManagementSortBy,
+  type ChargeManagementSortDirection,
+} from "@/lib/charge-management-preferences"
 import {
   Filter,
   Search,
@@ -21,6 +34,9 @@ import {
   ExternalLink,
   FileText,
   Check,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -121,6 +137,8 @@ type ChargeRow = {
   billingInvoiceId: number
   /** `slips.id` — for `POST /slip/{slipId}/regenerate-invoice` */
   slipId: number
+  /** `cases.id` when present on the invoice slip payload */
+  caseId?: number | null
   billingProductId: number | null
   officeCode: string
   /** Full office name for PDF filename */
@@ -209,13 +227,6 @@ function formatShortDate(iso: string | null | undefined): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return "—"
   return d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" })
-}
-
-function officeShortCode(name: string | null | undefined): string {
-  if (!name?.trim()) return "—"
-  const alpha = name.replace(/[^a-zA-Z]/g, "")
-  if (alpha.length >= 3) return alpha.slice(0, 3).toUpperCase()
-  return name.slice(0, 3).toUpperCase()
 }
 
 function mapProductType(ul: string | null | undefined): string {
@@ -367,14 +378,59 @@ function resolveAdvancedDateRangeValue(preset: string): AdvancedBillingSearchBod
   }
 }
 
+function ChargeSortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  direction,
+  onSort,
+  title,
+}: {
+  label: string
+  sortKey: ChargeManagementSortBy
+  activeKey: ChargeManagementSortBy
+  direction: ChargeManagementSortDirection
+  onSort: (key: ChargeManagementSortBy) => void
+  title?: string
+}) {
+  const isActive = activeKey === sortKey
+  return (
+    <TableHead
+      className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap"
+      title={title}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex w-full items-center justify-center gap-1 hover:text-[#1162a8]"
+      >
+        {label}
+        {isActive ? (
+          direction === "asc" ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </button>
+    </TableHead>
+  )
+}
+
 function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
   const patient = inv.slip?.case?.patient_name ?? "—"
   const officeName = inv.office?.name
   const officeNameLabel = officeName?.trim() || "—"
   const invoiceNumber = inv.invoice_number?.trim() || `INV-${inv.id}`
-  const oc = officeShortCode(officeName ?? undefined)
+  const oc = inv.office?.code?.trim() || "—"
   const due = formatShortDate(inv.created_at ?? inv.slip?.case?.created_at)
   const invStatus = mapInvoiceStatusToLabel(inv.status)
+  const caseId =
+    typeof inv.slip?.case?.id === "number" && inv.slip.case.id > 0
+      ? inv.slip.case.id
+      : null
 
   const products = inv.products?.length ? inv.products : []
 
@@ -384,6 +440,7 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
         id: `${inv.id}-summary`,
         billingInvoiceId: inv.id,
         slipId: inv.slip_id,
+        caseId,
         billingProductId: null,
         officeCode: oc,
         officeName: officeNameLabel,
@@ -409,18 +466,31 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
     // Show each add-on as "Name xQty" (e.g. "Crown x2"); the per-add-on total
     // is shown, aligned line-for-line, in the Sub Total column.
     const addons = p.addons?.length
-      ? p.addons
-          .map((a) => {
+      ? (() => {
+          const byName = new Map<string, { name: string; qty: number; total: number }>()
+          for (const a of p.addons) {
             const name = (a.addon_name ?? "").trim()
-            if (!name) return ""
+            if (!name) continue
             const qtyNum = a.quantity != null && String(a.quantity) !== "" ? Number(a.quantity) : NaN
             const qty = Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : 1
-            return `${name} x${qty}`
-          })
-          .filter(Boolean)
-          .join("\n") || "—"
-      : "—"
-    const addonSub = p.addons?.map((a) => formatMoney(a.total)).join("\n") || "—"
+            const totalNum = a.total != null && String(a.total) !== "" ? Number(a.total) : 0
+            const key = name.replace(/\s+/g, " ").toLowerCase()
+            const current = byName.get(key)
+            byName.set(key, {
+              name: current?.name ?? name,
+              qty: (current?.qty ?? 0) + qty,
+              total: (current?.total ?? 0) + (Number.isFinite(totalNum) ? totalNum : 0),
+            })
+          }
+          const rows = Array.from(byName.values())
+          if (rows.length === 0) return { label: "—", sub: "—" }
+          return {
+            label: rows.map((r) => `${r.name} x${r.qty}`).join("\n"),
+            sub: rows.map((r) => formatMoney(r.total)).join("\n"),
+          }
+        })()
+      : { label: "—", sub: "—" }
+    const addonSub = addons.sub
     const rush =
       p.rush_percentage != null && p.rush_percentage !== ""
         ? `${Number(p.rush_percentage)}%`
@@ -432,6 +502,7 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
       id: `${inv.id}-p-${p.id}-${idx}`,
       billingInvoiceId: inv.id,
       slipId: inv.slip_id,
+      caseId,
       billingProductId: p.id,
       officeCode: oc,
       officeName: officeNameLabel,
@@ -443,7 +514,7 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
       grade: p.grade_name ?? "—",
       stage: p.stage_name ?? "—",
       baseTotal: formatMoney(p.base_price),
-      addOn: addons || "—",
+      addOn: addons.label,
       subTotal: addonSub,
       rPercent: rush,
       gross: formatMoney(p.total_price),
@@ -453,10 +524,18 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
   })
 }
 
+/** The page scrolls inside the billing layout's overflow container, not the window. */
+function findScrollParent(el: HTMLElement | null): HTMLElement | null {
+  for (let node = el?.parentElement ?? null; node; node = node.parentElement) {
+    const { overflowY } = window.getComputedStyle(node)
+    if (overflowY === "auto" || overflowY === "scroll") return node
+  }
+  return null
+}
+
 export default function ChargeManagementPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
-  const router = useRouter()
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const { user } = useAuth()
   const { fetchCustomerProfile, customerProfile } = useCustomer()
@@ -467,6 +546,12 @@ export default function ChargeManagementPage() {
   const [dateTo, setDateTo] = useState("")
   const [officeFilter, setOfficeFilter] = useState<string>("all")
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState<ChargeManagementPerPage>(CHARGE_MANAGEMENT_PER_PAGE)
+  const [sortBy, setSortBy] = useState<ChargeManagementSortBy>(CHARGE_MANAGEMENT_DEFAULT_SORT_BY)
+  const [sortDirection, setSortDirection] = useState<ChargeManagementSortDirection>(
+    CHARGE_MANAGEMENT_DEFAULT_SORT_DIRECTION,
+  )
+  const [filtersReady, setFiltersReady] = useState(false)
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [activeSource, setActiveSource] = useState<"list" | "advanced">("list")
@@ -478,7 +563,7 @@ export default function ChargeManagementPage() {
   const [advSubcategoryId, setAdvSubcategoryId] = useState<number | null>(null)
   const [advProductId, setAdvProductId] = useState<number | null>(null)
   const [advStageId, setAdvStageId] = useState<number | null>(null)
-  const [advItemStatus, setAdvItemStatus] = useState<string>("all")
+  const [advItemStatus, setAdvItemStatus] = useState<string>("unbilled")
   const [advAttachment, setAdvAttachment] = useState<"all" | "yes" | "no">("all")
   const [showCasesWithAddon, setShowCasesWithAddon] = useState(false)
   const [showOnlyChecked, setShowOnlyChecked] = useState(false)
@@ -526,6 +611,9 @@ export default function ChargeManagementPage() {
   const pdfViewerBlobUrlRef = useRef<string | null>(null)
   const statementPreviewCacheRef = useRef<Map<number, StatementRecord>>(new Map())
   const pdfIframeRef = useRef<HTMLIFrameElement | null>(null)
+  const pageRootRef = useRef<HTMLDivElement | null>(null)
+  const pendingScrollRestoreRef = useRef<number | null>(null)
+  const advancedSearchSeqRef = useRef(0)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 400)
@@ -574,6 +662,89 @@ export default function ChargeManagementPage() {
   }, [user])
 
   useEffect(() => {
+    if (!customerId) {
+      setFiltersReady(false)
+      return
+    }
+    setFiltersReady(false)
+    const prefs = loadChargeManagementFilters(customerId) ?? defaultChargeManagementFilters()
+    setSearchInput(prefs.searchInput)
+    setDebouncedSearch(prefs.searchInput.trim())
+    setDateFrom(prefs.dateFrom)
+    setDateTo(prefs.dateTo)
+    setOfficeFilter(prefs.officeFilter)
+    setPage(prefs.page)
+    setPerPage(prefs.perPage)
+    setSortBy(prefs.sortBy)
+    setSortDirection(prefs.sortDirection)
+    setAdvDateRange(prefs.advDateRange)
+    setAdvItemStatus(prefs.advItemStatus)
+    setShowAdvancedFilters(prefs.showAdvancedFilters)
+    setActiveSource(prefs.activeSource)
+    setAdvCategoryId(prefs.advCategoryId)
+    setAdvSubcategoryId(prefs.advSubcategoryId)
+    setAdvProductId(prefs.advProductId)
+    setAdvStageId(prefs.advStageId)
+    setAdvAttachment(prefs.advAttachment)
+    setShowCasesWithAddon(prefs.showCasesWithAddon)
+    setShowOnlyChecked(prefs.showOnlyChecked)
+    setAdvancedResult(null)
+    setAdvancedBody(null)
+    setAdvancedPage(1)
+    const savedScroll = takeChargeManagementScroll(customerId)
+    if (savedScroll != null) pendingScrollRestoreRef.current = savedScroll
+    setFiltersReady(true)
+  }, [customerId])
+
+  useEffect(() => {
+    if (!customerId || !filtersReady) return
+    const prefs: ChargeManagementFiltersPrefs = {
+      searchInput,
+      dateFrom,
+      dateTo,
+      officeFilter,
+      page,
+      perPage,
+      sortBy,
+      sortDirection,
+      advDateRange,
+      advItemStatus,
+      showAdvancedFilters,
+      activeSource,
+      advCategoryId,
+      advSubcategoryId,
+      advProductId,
+      advStageId,
+      advAttachment,
+      showCasesWithAddon,
+      showOnlyChecked,
+    }
+    saveChargeManagementFilters(customerId, prefs)
+  }, [
+    customerId,
+    filtersReady,
+    searchInput,
+    dateFrom,
+    dateTo,
+    officeFilter,
+    page,
+    perPage,
+    sortBy,
+    sortDirection,
+    advDateRange,
+    advItemStatus,
+    showAdvancedFilters,
+    activeSource,
+    advCategoryId,
+    advSubcategoryId,
+    advProductId,
+    advStageId,
+    advAttachment,
+    showCasesWithAddon,
+    showOnlyChecked,
+  ])
+
+  useEffect(() => {
     if (customerId && !customerProfile) {
       fetchCustomerProfile(customerId)
     }
@@ -583,7 +754,7 @@ export default function ChargeManagementPage() {
     if (!customerId) return {}
     const roles = user?.roles?.length ? user.roles : user?.role ? [user.role] : []
     const r = roles[0] ?? ""
-    if (r === "lab_admin" || r === "lab_user") return { lab_id: customerId }
+    if (r === "lab_admin" || r === "lab_user" || r === "lab_driver") return { lab_id: customerId }
     if (r === "office_admin" || r === "office_user") return { office_id: customerId }
     if (customerProfile?.type === "lab") return { lab_id: customerId }
     if (customerProfile?.type === "office") return { office_id: customerId }
@@ -610,9 +781,9 @@ export default function ChargeManagementPage() {
     const params: BillingListParams = {
       ...scopeFilter,
       page,
-      per_page: 15,
-      sort_by: "created_at",
-      sort_direction: "desc",
+      per_page: perPage,
+      sort_by: sortBy,
+      sort_direction: sortDirection,
     }
     if (debouncedSearch) {
       params.patient_name = debouncedSearch
@@ -627,16 +798,60 @@ export default function ChargeManagementPage() {
       const oid = parseInt(officeFilter, 10)
       if (!Number.isNaN(oid)) params.office_id = oid
     }
+    if (showOnlyChecked) {
+      params.status = "checked"
+    } else if (advItemStatus !== "all") {
+      params.status = advItemStatus
+    }
     return params
   }, [
     scopeFilter,
     page,
+    perPage,
+    sortBy,
+    sortDirection,
     debouncedSearch,
     dateFrom,
     dateTo,
     advDateRange,
     officeFilter,
     isLabScope,
+    showOnlyChecked,
+    advItemStatus,
+  ])
+
+  /** Summary cards follow the same filters as the list (no pagination). */
+  const statsParams = useMemo((): BillingListParams => {
+    const params: BillingListParams = { ...scopeFilter }
+    if (debouncedSearch) {
+      params.patient_name = debouncedSearch
+    } else {
+      params.date_range = advDateRange as BillingListParams["date_range"]
+      if (advDateRange === "custom") {
+        if (dateFrom) params.date_from = dateFrom
+        if (dateTo) params.date_to = dateTo
+      }
+    }
+    if (isLabScope && officeFilter !== "all") {
+      const oid = parseInt(officeFilter, 10)
+      if (!Number.isNaN(oid)) params.office_id = oid
+    }
+    if (showOnlyChecked) {
+      params.status = "checked"
+    } else if (advItemStatus !== "all") {
+      params.status = advItemStatus
+    }
+    return params
+  }, [
+    scopeFilter,
+    debouncedSearch,
+    dateFrom,
+    dateTo,
+    advDateRange,
+    officeFilter,
+    isLabScope,
+    showOnlyChecked,
+    advItemStatus,
   ])
 
   const {
@@ -646,10 +861,16 @@ export default function ChargeManagementPage() {
     isError: listError,
     error: listErr,
     refetch: refetchList,
-  } = useListBillingInvoicesQuery(listParams, { skip: !customerId || activeSource === "advanced" })
+  } = useListBillingInvoicesQuery(listParams, {
+    skip: !customerId || !filtersReady || activeSource === "advanced",
+    refetchOnFocus: false,
+    refetchOnReconnect: false,
+  })
 
-  const { data: stats, isFetching: statsFetching } = useGetBillingStatisticsQuery(undefined, {
-    skip: !customerId,
+  const { data: stats, isFetching: statsFetching } = useGetBillingStatisticsQuery(statsParams, {
+    skip: !customerId || !filtersReady,
+    refetchOnFocus: false,
+    refetchOnReconnect: false,
   })
 
   const [advancedSearch, { isLoading: advancedLoading }] = useAdvancedBillingSearchMutation()
@@ -732,20 +953,15 @@ export default function ChargeManagementPage() {
   const isError = activeSource === "advanced" ? false : listError
   const error = listErr
 
-  // Billed items clutter the default view, so hide them unless the user is
-  // actively searching or has explicitly asked to see billed items.
-  const isSearchingOrFilteringBilled =
-    debouncedSearch.trim().length > 0 || advItemStatus === "billed"
-
+  // Status filter is applied by the API (list `status` / advanced `item_status`).
+  // "Any" (`all`) omits that filter so every status — including billed — is shown.
   const charges: ChargeRow[] = useMemo(() => {
     if (!displayResult?.data?.length) return []
-    const rows = displayResult.data
+    return displayResult.data
       .filter((inv) => !isDeletedLikeStatus(inv.status))
       .flatMap((inv) => billingInvoiceToRows(inv))
       .filter((row) => !isDeletedLikeStatus(row.status))
-    if (isSearchingOrFilteringBilled) return rows
-    return rows.filter((row) => row.status !== "Billed")
-  }, [displayResult, isSearchingOrFilteringBilled])
+  }, [displayResult])
   const sendToOfficeCharge = useMemo(
     () => charges.find((charge) => charge.billingInvoiceId === sendToOfficeBillingId) ?? null,
     [charges, sendToOfficeBillingId],
@@ -754,6 +970,32 @@ export default function ChargeManagementPage() {
     sendToOfficeEmail.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sendToOfficeEmail.trim())
 
   const pagination = displayResult?.pagination
+
+  /**
+   * When the full filtered set fits on the current page, derive Total / Average
+   * from the same rows the table shows (Gross column). Backend /statistics can
+   * diverge when invoice.total_amount is stale vs product line totals, or when
+   * advanced search filters aren't mirrored on the stats request.
+   */
+  const displayedSummary = useMemo(() => {
+    const invoices = displayResult?.data ?? []
+    if (!pagination || pagination.total <= 0 || invoices.length < pagination.total) {
+      return null
+    }
+
+    const total = charges.reduce((sum, charge) => sum + statementSignedAmount(charge), 0)
+    const invoiceCount =
+      new Set(charges.map((charge) => charge.billingInvoiceId)).size || invoices.length
+    return {
+      total_amount: total,
+      average_invoice_amount: invoiceCount > 0 ? Math.round((total / invoiceCount) * 100) / 100 : 0,
+    }
+  }, [displayResult, pagination, charges])
+
+  const summaryTotalAmount = displayedSummary?.total_amount ?? stats?.total_amount
+  const summaryAverageAmount =
+    displayedSummary?.average_invoice_amount ?? stats?.average_invoice_amount
+  const summaryFetching = displayedSummary == null && statsFetching
 
   const selectedBillingIds = useMemo(() => {
     const set = new Set<number>()
@@ -967,23 +1209,27 @@ export default function ChargeManagementPage() {
 
   const runAdvancedSearch = useCallback(
     async (body: AdvancedBillingSearchBody) => {
+      const seq = ++advancedSearchSeqRef.current
       try {
         const merged: AdvancedBillingSearchBody = {
           ...body,
-          per_page: 15,
-          sort_by: body.sort_by ?? "created_at",
-          sort_direction: body.sort_direction ?? "desc",
+          per_page: perPage,
+          sort_by: sortBy,
+          sort_direction: sortDirection,
         }
         if (customerProfile?.type === "lab" && customerProfile.name) {
           merged.lab_name = merged.lab_name ?? customerProfile.name
         }
         const result = await advancedSearch(merged).unwrap()
+        // Overlapping searches (e.g. on mount) can resolve out of order; keep only the latest.
+        if (seq !== advancedSearchSeqRef.current) return
         setAdvancedResult(result)
         setAdvancedBody(merged)
         setActiveSource("advanced")
         setAdvancedPage(merged.page ?? 1)
         setPage(1)
       } catch (e: unknown) {
+        if (seq !== advancedSearchSeqRef.current) return
         toast({
           title: "Search failed",
           description: e instanceof Error ? e.message : "Request failed",
@@ -991,23 +1237,51 @@ export default function ChargeManagementPage() {
         })
       }
     },
-    [advancedSearch, customerProfile, toast],
+    [advancedSearch, customerProfile, perPage, sortBy, sortDirection, toast],
   )
 
   useEffect(() => {
-    if (!customerId || activeSource !== "advanced") return
+    if (!customerId || !filtersReady || activeSource !== "advanced") return
+    // office_name is resolved from the connected-offices list; searching before it loads drops the office filter.
+    if (isLabScope && officeFilter !== "all" && officesLoading) return
     const timer = setTimeout(() => {
       void runAdvancedSearch(advancedSearchRequestBody)
     }, 350)
     return () => clearTimeout(timer)
-  }, [customerId, activeSource, advancedSearchRequestBody, runAdvancedSearch])
+  }, [
+    customerId,
+    filtersReady,
+    activeSource,
+    isLabScope,
+    officeFilter,
+    officesLoading,
+    advancedSearchRequestBody,
+    runAdvancedSearch,
+  ])
+
+  useEffect(() => {
+    const target = pendingScrollRestoreRef.current
+    if (target == null || isLoading || charges.length === 0) return
+    const container = findScrollParent(pageRootRef.current)
+    if (container) container.scrollTop = target
+  }, [isLoading, charges])
+
+  useEffect(() => {
+    // Later searches on mount can re-render the rows; keep re-applying the saved offset until the user takes over.
+    const cancel = () => {
+      pendingScrollRestoreRef.current = null
+    }
+    const events = ["wheel", "touchstart", "keydown", "mousedown"] as const
+    events.forEach((name) => window.addEventListener(name, cancel, { passive: true }))
+    return () => events.forEach((name) => window.removeEventListener(name, cancel))
+  }, [])
 
   const clearAllAdvancedFilters = useCallback(() => {
     setAdvCategoryId(null)
     setAdvSubcategoryId(null)
     setAdvProductId(null)
     setAdvStageId(null)
-    setAdvItemStatus("all")
+    setAdvItemStatus("unbilled")
     setAdvAttachment("all")
     setShowCasesWithAddon(false)
     setShowOnlyChecked(false)
@@ -1180,9 +1454,8 @@ export default function ChargeManagementPage() {
     await refetchList()
   }, [activeSource, advancedBody, advancedPage, advancedSearch, refetchList, toast])
 
-  // ponytail: this only flips local intent — auto_mark_billed is carried
-  // through generate and only applied server-side once the statement is
-  // actually sent, so flipping the switch never mutates data on its own.
+  // Local UI intent only until Generate / Generate & send; the API then
+  // marks SlipBilling rows billed when auto_mark_billed is true.
   const handleStatementAutoMarkBilledToggle = useCallback(() => {
     setStatementAutoMarkBilled((value) => !value)
   }, [])
@@ -1857,12 +2130,26 @@ export default function ChargeManagementPage() {
     }
   }
 
+  const handleSort = useCallback(
+    (key: ChargeManagementSortBy) => {
+      if (sortBy === key) {
+        setSortDirection((dir) => (dir === "asc" ? "desc" : "asc"))
+      } else {
+        setSortBy(key)
+        setSortDirection(key === "due_date" ? "desc" : "asc")
+      }
+      setPage(1)
+      setAdvancedPage(1)
+    },
+    [sortBy],
+  )
+
   const filterBarDisabled = !customerId
   const actionDisabled = !customerId || bulkLoading || sendEmailLoading || generatingStatements
 
   return (
-    <div className="w-full min-h-full bg-white">
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+    <div ref={pageRootRef} className="w-full min-h-full bg-white">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
         <LabBillingPageHeader />
 
         {!customerId && (
@@ -1876,7 +2163,7 @@ export default function ChargeManagementPage() {
         {customerId && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             {/* Total invoices card hidden for now — restore this card and set grid back to sm:grid-cols-3 to bring it back:
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsTotalInvoices", { defaultValue: "Total invoices" })}
               </p>
@@ -1884,20 +2171,20 @@ export default function ChargeManagementPage() {
                 {statsFetching ? "—" : stats?.total_invoices ?? "—"}
               </p>
             </div> */}
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsTotalAmount", { defaultValue: "Total amount" })}
               </p>
               <p className="text-2xl font-bold text-gray-900 tabular-nums">
-                {statsFetching ? "—" : formatMoney(stats?.total_amount as number | string | undefined)}
+                {summaryFetching ? "—" : formatMoney(summaryTotalAmount as number | string | undefined)}
               </p>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsAverage", { defaultValue: "Average invoice" })}
               </p>
               <p className="text-2xl font-bold text-gray-900 tabular-nums">
-                {statsFetching ? "—" : formatMoney(stats?.average_invoice_amount as number | string | undefined)}
+                {summaryFetching ? "—" : formatMoney(summaryAverageAmount as number | string | undefined)}
               </p>
             </div>
           </div>
@@ -2018,7 +2305,7 @@ export default function ChargeManagementPage() {
 
               {isLabScope && (
                 <SearchableSelect
-                  className="w-[200px] shrink-0 h-10 text-sm bg-white font-normal"
+                  className="w-[240px] shrink-0 h-10 text-sm bg-white focus:ring-0 focus:ring-offset-0 focus:border-input"
                   value={officeFilter}
                   onValueChange={(v) => {
                     setOfficeFilter(v === "" ? "all" : v)
@@ -2205,12 +2492,42 @@ export default function ChargeManagementPage() {
                     disabled={charges.length === 0}
                   />
                 </TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Office Code</TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Patient</TableHead>
+                <ChargeSortableHeader
+                  label="Office Code"
+                  sortKey="office_code"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
+                <ChargeSortableHeader
+                  label="Patient"
+                  sortKey="patient_name"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">U/L</TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Product</TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Grade</TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Stage</TableHead>
+                <ChargeSortableHeader
+                  label="Product"
+                  sortKey="product_name"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
+                <ChargeSortableHeader
+                  label="Grade"
+                  sortKey="grade_name"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
+                <ChargeSortableHeader
+                  label="Stage"
+                  sortKey="stage_name"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Add-on(s) with quantity (e.g. Crown x2).">Add-on</TableHead>
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
@@ -2221,7 +2538,13 @@ export default function ChargeManagementPage() {
                     <div className="mt-0.5 text-[11px] font-bold text-black tabular-nums">{formatMoney(selectedGrossTotal)}</div>
                   )}
                 </TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Due Date</TableHead>
+                <ChargeSortableHeader
+                  label="Due Date"
+                  sortKey="due_date"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Status</TableHead>
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Actions</TableHead>
               </TableRow>
@@ -2262,8 +2585,8 @@ export default function ChargeManagementPage() {
                     <TableCell className="px-1.5 py-1.5 text-xs font-medium text-gray-900 whitespace-nowrap">{charge.officeCode}</TableCell>
                     <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.patient}</TableCell>
                     <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 text-center whitespace-nowrap">{charge.ul}</TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 max-w-[9rem]">
-                      <div className="leading-snug">{charge.product}</div>
+                    <TableCell className="px-1.5 py-1.5 text-xs leading-snug text-gray-900 max-w-[9rem]">
+                      {charge.product}
                       {charge.variation && charge.variation !== "—" && (
                         <div className="text-[10px] leading-snug text-gray-500">{charge.variation}</div>
                       )}
@@ -2271,15 +2594,11 @@ export default function ChargeManagementPage() {
                     <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.grade}</TableCell>
                     <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.stage}</TableCell>
                     <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 tabular-nums whitespace-nowrap">{charge.baseTotal}</TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 max-w-[7rem]">
-                      {charge.addOn.split("\n").map((line, i) => (
-                        <div key={i} className="leading-snug">{line}</div>
-                      ))}
+                    <TableCell className="px-1.5 py-1.5 text-xs leading-snug whitespace-pre-line text-gray-900 max-w-[7rem]">
+                      {charge.addOn}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 tabular-nums whitespace-nowrap">
-                      {charge.subTotal.split("\n").map((line, i) => (
-                        <div key={i}>{line}</div>
-                      ))}
+                    <TableCell className="px-1.5 py-1.5 text-xs tabular-nums whitespace-pre-line text-gray-900">
+                      {charge.subTotal}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 text-center whitespace-nowrap">{charge.rPercent}</TableCell>
                     <TableCell className="px-1.5 py-1.5 text-xs font-medium text-gray-900 tabular-nums whitespace-nowrap">{charge.gross}</TableCell>
@@ -2352,7 +2671,13 @@ export default function ChargeManagementPage() {
                           type="button"
                           disabled={!charge.slipId}
                           title={t("chargeManagement.viewVirtualSlip", { defaultValue: "View virtual slip" })}
-                          onClick={() => router.push(buildVirtualSlipV2Path(charge.slipId))}
+                          onClick={() => {
+                            window.open(
+                              buildVirtualSlipV2Path(charge.caseId, charge.slipId),
+                              "_blank",
+                              "noopener,noreferrer",
+                            )
+                          }}
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
@@ -2397,11 +2722,38 @@ export default function ChargeManagementPage() {
           </Table>
         </div>
 
-        {pagination && pagination.last_page > 1 && (
-          <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
-            <span>
-              Showing {pagination.from ?? 0}–{pagination.to ?? 0} of {pagination.total}
-            </span>
+        {pagination && pagination.total > 0 && (
+          <div className="mt-4 flex flex-col gap-3 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <span>
+                Showing {pagination.from ?? 0}–{pagination.to ?? 0} of {pagination.total}
+              </span>
+              <div className="flex items-center gap-2">
+                <span>Show</span>
+                <Select
+                  value={String(perPage)}
+                  onValueChange={(value) => {
+                    const next = Number(value) as ChargeManagementPerPage
+                    if (!CHARGE_MANAGEMENT_PER_PAGE_OPTIONS.includes(next)) return
+                    setPerPage(next)
+                    setPage(1)
+                    setAdvancedPage(1)
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[88px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHARGE_MANAGEMENT_PER_PAGE_OPTIONS.map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span>entries</span>
+              </div>
+            </div>
             <div className="flex gap-2">
               <Button
                 variant="outline"

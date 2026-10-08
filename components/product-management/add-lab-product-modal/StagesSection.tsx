@@ -281,14 +281,18 @@ export function StagesSection({
     // Handle toggling releasing stage status
     const handleToggleReleasingStage = (stageId: string | number, checked: boolean) => {
         if (checked) {
-            // Add to releasing stages if not already present
             if (!safeReleasingStageIds.some(id => id.toString() === stageId.toString())) {
                 safeSetReleasingStageIds([...safeReleasingStageIds, stageId])
             }
         } else {
-            // Remove from releasing stages
             safeSetReleasingStageIds(safeReleasingStageIds.filter(id => id.toString() !== stageId.toString()))
         }
+        const updated = watchedStages.map((s) =>
+            s.stage_id?.toString() === stageId.toString()
+                ? { ...s, is_releasing_stage: checked ? ("Yes" as const) : ("No" as const) }
+                : s,
+        )
+        setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
     }
 
     // Handle adding/removing stages
@@ -324,6 +328,7 @@ export function StagesSection({
                 status: "Active",
                 grade_prices: {},
                 is_default: isFirstStage ? "Yes" : "No",
+                is_releasing_stage: stage.is_releasing_stage === "Yes" ? "Yes" : "No",
             }
             // Add the new stage and ensure sequences are properly ordered
             const updated = [...watchedStages, newStage]

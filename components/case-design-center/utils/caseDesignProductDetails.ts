@@ -1,9 +1,17 @@
 import { resolveLibraryCustomerId } from "./libraryCustomerId";
+import { registerInMemoryCacheClearer } from "@/lib/cache/frontend-list-cache";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 const productCache = new Map<string, any>();
 const productInflight = new Map<string, Promise<any>>();
+
+export function clearCaseDesignProductDetailsCache() {
+  productCache.clear();
+  productInflight.clear();
+}
+
+registerInMemoryCacheClearer(clearCaseDesignProductDetailsCache);
 
 export interface CaseDesignProductDetails {
   id?: number;
@@ -12,11 +20,16 @@ export interface CaseDesignProductDetails {
   image_url: string | null;
   category_name: string;
   subcategory_name: string;
+  gender_required?: string | boolean | null;
+  age_required?: string | boolean | null;
   retention_options?: unknown[];
   extractions?: unknown[];
   has_retention?: string | boolean | null;
   has_variation?: string | boolean | null;
   variations?: unknown[];
+  /** When "Yes", slip tooth-chart prompt uses `custom_label`. */
+  enable_custom_label?: "Yes" | "No" | string | null;
+  custom_label?: string | null;
 }
 
 /** Fetch basic product info for the accordion (name/image/category). */
@@ -73,10 +86,14 @@ function mapProductDetails(data: any): CaseDesignProductDetails | null {
     image_url: data.image_url || null,
     category_name: data.subcategory?.category?.name || "",
     subcategory_name: data.subcategory?.name || "",
+    gender_required: data.gender_required ?? "No",
+    age_required: data.age_required ?? "No",
     retention_options: data.retention_options,
     extractions: data.extractions,
     has_retention: data.has_retention,
     has_variation: data.has_variation,
     variations: data.variations,
+    enable_custom_label: data.enable_custom_label ?? "No",
+    custom_label: typeof data.custom_label === "string" ? data.custom_label : "",
   } : null;
 }

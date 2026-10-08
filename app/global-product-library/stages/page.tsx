@@ -16,6 +16,7 @@ import { LinkProductsModal } from "@/components/product-management/link-products
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 const mockStageGroups = [
   { id: 1, name: "Default Stage Group" },
@@ -352,14 +353,16 @@ export default function StagesPage() {
                         />
                       </TableCell>
                       <TableCell className="font-medium text-gray-900">
-                        <div className="flex flex-col">
-                          <span className="font-semibold">{stage.name}</span>
-                          {stage.description && (
-                            <span className="text-xs text-gray-500 mt-1 truncate max-w-xs">
-                              {stage.description}
-                            </span>
-                          )}
-                        </div>
+                        <TableNameWithImage src={stage.image_url} alt={stage.name}>
+                          <div className="flex flex-col">
+                            <span className="font-semibold">{stage.name}</span>
+                            {stage.description && (
+                              <span className="text-xs text-gray-500 mt-1 truncate max-w-xs">
+                                {stage.description}
+                              </span>
+                            )}
+                          </div>
+                        </TableNameWithImage>
                       </TableCell>
                       <TableCell>
                         <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-800">

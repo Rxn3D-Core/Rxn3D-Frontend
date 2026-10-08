@@ -9,6 +9,13 @@ export interface V2CaseRowData {
   slipNumber?: string
   pan: string
   panColorStyle?: CSSProperties
+  /** Shared pan-row color assignment (lab listing). */
+  panColorAssignment?: {
+    color: string
+    assignedBy: { id: number; first_name: string; last_name: string }
+  }
+  /** @deprecated Prefer panColorAssignment */
+  panToggled?: boolean
   officeCode: string
   patient: string
   product: string
@@ -18,10 +25,16 @@ export interface V2CaseRowData {
   locationId?: number
   newStageEligible?: boolean
   attachment: boolean
+  /** Digital impressions connected to the slip (listing Attachments column). */
+  digitalImpressions?: Array<{ id: number; name: string; code?: string; url?: string | null }>
   dueDate: string
   doctor?: string
   user?: string
   productType?: string
+  /** Distinct catalog product names on the slip (for advanced product filter). */
+  productNames?: string[]
+  /** Distinct stage names on the slip (for advanced stage filter). */
+  stageNames?: string[]
 }
 
 export interface V2VisibleColumns {
@@ -79,4 +92,8 @@ export interface V2RowActions {
   onSendBack: (row: V2CaseRowData) => void
   onRush: (row: V2CaseRowData) => void
   onCancel: (row: V2CaseRowData) => void
+  onDelete: (row: V2CaseRowData) => void
+  onRestore: (row: V2CaseRowData) => void
+  onUndoLocation?: (row: V2CaseRowData) => void
+  onTogglePan?: (row: V2CaseRowData) => void
 }

@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
+import { useEntitlements } from "@/contexts/entitlement-context"
 import {
   createAddOnCheckoutSession,
   deleteCustomerAddOn,
@@ -104,6 +105,8 @@ function getAddOnDescription(addOn: CatalogAddOn) {
 
 export function SubscriptionAddOnsContent() {
   const { user } = useAuth()
+  const { payload: entitlements } = useEntitlements()
+  const canPurchaseAddons = Boolean(entitlements?.can_purchase_addons)
   const [selectedAddOn, setSelectedAddOn] = useState<AddOn | null>(null)
   const [removeAddOn, setRemoveAddOn] = useState<AddOn | null>(null)
   const [catalogAddOns, setCatalogAddOns] = useState<CatalogAddOn[]>([])
@@ -463,6 +466,11 @@ export function SubscriptionAddOnsContent() {
         <p className="mb-4 text-[15px] text-[#767C83]">
           Expand your plan with on-demand monthly add-ons. Billed monthly, cancel anytime.
         </p>
+        {!canPurchaseAddons ? (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+            Capacity add-ons are available on paid Growth and Business Max plans only. Freemium and trial labs cannot purchase them.
+          </div>
+        ) : null}
 
         <p className="mb-4 text-[14px] font-semibold uppercase tracking-[0.12em] text-[#6D7278]">Active Add-ons</p>
 

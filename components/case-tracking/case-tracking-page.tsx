@@ -20,6 +20,17 @@ import { useCaseTracking } from "@/contexts/case-tracking-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useCasePanTrackingLabelStore } from "@/stores/case-pan-tracking-label-store"
 import { CaseTrackingSkeleton } from "./case-tracking-skeleton"
+import { convertTo12Hour } from "@/lib/api-business-settings"
+import { DEFAULT_PICKUP_TIME_12, parseBusinessHourTime } from "@/utils/time-utils"
+
+function formatCasePanCutoffTime(raw?: string | null): string | null {
+  if (!raw) return null
+  return (
+    parseBusinessHourTime(raw, DEFAULT_PICKUP_TIME_12) ||
+    convertTo12Hour(raw) ||
+    null
+  )
+}
 
 // Lazy load modals for better performance
 const AddCasePanTrackingModal = lazy(() => 
@@ -218,6 +229,10 @@ export function CaseTrackingPage() {
           case "quantity":
             aValue = a.quantity || 0
             bValue = b.quantity || 0
+            break
+          case "pickupCutoff":
+            aValue = a.pickup_cutoff_time || a.lab_case_pan?.pickup_cutoff_time || ""
+            bValue = b.pickup_cutoff_time || b.lab_case_pan?.pickup_cutoff_time || ""
             break
           case "status":
             aValue = a.status || ""
@@ -605,7 +620,9 @@ export function CaseTrackingPage() {
                     onClick={() => handleSort("code")}
                   >
                     <div className="flex items-center">
-                      {t("caseTracking.code", "Code")}
+                      {enableColorCoding
+                        ? t("caseTracking.codeAndColor", "Code / Color")
+                        : t("caseTracking.code", "Code")}
                       {renderSortIcon("code")}
                     </div>
                   </th>
@@ -618,11 +635,15 @@ export function CaseTrackingPage() {
                       {renderSortIcon("quantity")}
                     </div>
                   </th>
-                  {enableColorCoding && (
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      {t("caseTracking.color", "Color")}
-                    </th>
-                  )}
+                  <th
+                    className="px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 select-none"
+                    onClick={() => handleSort("pickupCutoff")}
+                  >
+                    <div className="flex items-center">
+                      {t("caseTracking.pickupCutoffTime", "Pick up cut off")}
+                      {renderSortIcon("pickupCutoff")}
+                    </div>
+                  </th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
                     {t("caseTracking.linkedCategoryProducts", "Linked Category / Products")}
                   </th>
@@ -654,12 +675,16 @@ export function CaseTrackingPage() {
               <tbody>
                 {displayedCasePans.length === 0 ? (
                   <tr>
-                    <td colSpan={isSuperAdmin ? (enableColorCoding ? 8 : 7) : (enableColorCoding ? 9 : 8)} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={isSuperAdmin ? 8 : 9} className="px-4 py-8 text-center text-gray-500">
                       {t("caseTracking.noCasePans", "No case pans found")}
                     </td>
                   </tr>
                 ) : (
-                  displayedCasePans.map((casePan, index) => (
+                  displayedCasePans.map((casePan, index) => {
+                  const cutoffDisplay = formatCasePanCutoffTime(
+                    casePan.pickup_cutoff_time ?? casePan.lab_case_pan?.pickup_cutoff_time
+                  )
+                  return (
                   <tr
                     key={casePan.id}
                     className={`border-b hover:bg-gray-50 ${index % 2 === 0 ? "bg-white" : "bg-gray-50"} ${
@@ -681,21 +706,29 @@ export function CaseTrackingPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant="outline" className="font-mono">
-                        {casePan.code}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">{casePan.quantity || 0}</td>
-                    {enableColorCoding && (
-                      <td className="px-4 py-3">
-                        {casePan.color_code && (
+                      <div className="flex items-center gap-2">
+                        {enableColorCoding && casePan.color_code && (
                           <div
-                            className="w-12 h-8 rounded border"
+                            className="w-5 h-5 rounded border flex-shrink-0"
                             style={{ backgroundColor: casePan.color_code }}
+                            title={casePan.color_code}
                           />
                         )}
-                      </td>
-                    )}
+                        <Badge variant="outline" className="font-mono">
+                          {casePan.code}
+                        </Badge>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">{casePan.quantity || 0}</td>
+                    <td className="px-4 py-3">
+                      {cutoffDisplay ? (
+                        <span className="text-sm font-medium text-gray-900">{cutoffDisplay}</span>
+                      ) : (
+                        <span className="text-sm text-gray-400">
+                          {t("caseTracking.usingLabDefaultCutoff", "Lab default")}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 flex-wrap">
                         {casePan.connected_items && casePan.connected_items.length > 0 ? (
@@ -819,7 +852,8 @@ export function CaseTrackingPage() {
                       </div>
                     </td>
                   </tr>
-                  ))
+                  )
+                  })
                 )}
               </tbody>
             </table>

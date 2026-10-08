@@ -2,11 +2,12 @@
 
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import type { CaseDesignProps } from "../types";
+import type { Arch } from "../types";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
 import { IMPRESSION_STEP_NAMES, getRetentionFieldChain } from "../hooks/useToothFieldProgress";
 import {
-  isImplantDetailFilled,
+  isImplantDetailFormComplete,
   resolveGroupStageToothNumber,
 } from "../utils/implantDetailHelpers";
 import { MaxillaryPanel } from "./MaxillaryPanel";
@@ -17,7 +18,6 @@ import { ModalOrchestrator } from "./ModalOrchestrator";
 import { mockImpressions } from "../constants";
 import { hasRetentionOptions, isNonRetentionCategory, serializeStageFieldValue, serializeStageSelectionFromProduct } from "../utils/categoryHelpers";
 import { resolveProductForStageField } from "../utils/gradeHelpers";
-import { hasAdvanceField } from "./FixedRestorationFields";
 import {
   getCardRepresentativeTooth,
   getPrimaryCardRepresentativeTooth,
@@ -27,7 +27,10 @@ import { BackToProductsControl, CaseDesignHeaderActions } from "./CaseDesignHead
 import { ChangeProductConfirmModal } from "./ChangeProductConfirmModal";
 import { CaseDesignSummarySection } from "./CaseDesignSummarySection";
 import { useSlipProductCollector } from "../hooks/useSlipProductCollector";
-import { getFirstMissingShadeGuideField, getShadeGuideAdvanceFields } from "../utils/shadeGuideAdvanceFields";
+import {
+  getMissingFixedShadeFieldLabel,
+  isStoredShadeValuePresent,
+} from "../utils/fixedShadeCompleteness";
 import {
   getOpposingImpressionRequirement,
   isOppositeImpressionEnabled,
@@ -45,7 +48,7 @@ import {
   getRepToothForRemovableCard,
   listRemovableCardIdsOnArch,
 } from "../utils/archSharedRemovable";
-import { canShowAddProductButton } from "../utils/archAddProductReadiness";
+import { canShowAddProductButton, archHasSingleDefaultOnlyProduct } from "../utils/archAddProductReadiness";
 import { computeSlipValidationComplete } from "../utils/caseSummaryVisibility";
 import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
@@ -53,6 +56,7 @@ import { buildRushArchSlots } from "../utils/rushModalContext";
 import { useRushSlotDeliveryDates } from "../hooks/useRushSlotDeliveryDates";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 import { canSkipExtractionToothSelection, getDefaultExtractionStrict } from "../utils/extractionHelpers";
+import { hasUserSelectedCard0TeethOnArch } from "../utils/card0ProductPanelVisibility";
 import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
 import { getExtractionTypeColor } from "@/lib/extraction-type-colors";
 import {
@@ -104,7 +108,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     Object.fromEntries(
       Object.entries(initialMaxillaryImplants).map(([tooth, detail]) => [
         Number(tooth),
-        isImplantDetailFilled(detail),
+        isImplantDetailFormComplete(detail) || !!detail?.labRecommendationRequested,
       ])
     )
   );
@@ -114,7 +118,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     Object.fromEntries(
       Object.entries(initialMandibularImplants).map(([tooth, detail]) => [
         Number(tooth),
-        isImplantDetailFilled(detail),
+        isImplantDetailFormComplete(detail) || !!detail?.labRecommendationRequested,
       ])
     )
   );
@@ -123,26 +127,29 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const [showSelectTeethToReplaceMaxillary, setShowSelectTeethToReplaceMaxillary] = useState(false);
   const [showSelectTeethToReplaceMandibular, setShowSelectTeethToReplaceMandibular] = useState(false);
   const getMissingFixedShadeField = useCallback(
-    (product: any, shadeProductId: string, arch: "maxillary" | "mandibular") => {
-      const missingNamedField = getFirstMissingShadeGuideField(
-        product?.advance_fields,
+    (
+      product: any,
+      shadeProductId: string,
+      arch: "maxillary" | "mandibular",
+      toothNumbers: number[] = []
+    ) => {
+      const toothCandidates =
+        toothNumbers.length > 0 ? toothNumbers : [Number(shadeProductId.replace(/\D/g, "")) || 0];
+      const toothShadeFieldDone = toothCandidates.some((tn) =>
+        isStoredShadeValuePresent(state.getFieldValue(arch, tn, "fixed_shade_trio"))
+      );
+      const stumpShadeFieldDone = toothCandidates.some((tn) =>
+        isStoredShadeValuePresent(state.getFieldValue(arch, tn, "fixed_stump_shade"))
+      );
+      return getMissingFixedShadeFieldLabel(
+        product,
         shadeProductId,
         arch,
-        state.getSelectedShade
+        state.getSelectedShade,
+        { toothShadeFieldDone, stumpShadeFieldDone }
       );
-      if (missingNamedField) return missingNamedField.name;
-
-      const shadeGuideFields = getShadeGuideAdvanceFields(product?.advance_fields);
-      if (shadeGuideFields.length > 0) return null;
-      if (hasAdvanceField("fixed_stump_shade", product?.advance_fields) && !state.getSelectedShade(shadeProductId, arch, "stump_shade")) {
-        return "Stump Shade";
-      }
-      if (hasAdvanceField("fixed_shade_trio", product?.advance_fields) && !state.getSelectedShade(shadeProductId, arch, "tooth_shade")) {
-        return "Tooth Shade";
-      }
-      return null;
     },
-    [state.getSelectedShade]
+    [state.getSelectedShade, state.getFieldValue]
   );
 
   const isAnyModalOpen =
@@ -150,6 +157,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     state.isStageModalOpen ||
     state.showAddOnsModal ||
     state.showRushModal ||
+    state.showAttachModal ||
     toothOwnershipWarning !== null;
   const onAnyModalOpenChangeRef = useRef(props.onAnyModalOpenChange);
   onAnyModalOpenChangeRef.current = props.onAnyModalOpenChange;
@@ -157,21 +165,69 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     onAnyModalOpenChangeRef.current?.(isAnyModalOpen);
   }, [isAnyModalOpen]);
 
+  const isAddStageImpressionCompleteForArch = useCallback(
+    (arch: Arch) => {
+      if ((state.selectedImpressions[arch]?.length ?? 0) > 0) return true;
+      const retentionTypes =
+        arch === "maxillary"
+          ? state.maxillaryRetentionTypes
+          : state.mandibularRetentionTypes ?? {};
+      for (const tn of Object.keys(retentionTypes).map(Number)) {
+        if (
+          state.isFieldCompleted(arch, tn, "fixed_impression") ||
+          state.isFieldCompleted(arch, tn, "impression")
+        ) {
+          return true;
+        }
+      }
+      const archTeeth = arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth;
+      for (const tn of archTeeth) {
+        if (
+          state.isFieldCompleted(arch, tn, "fixed_impression") ||
+          state.isFieldCompleted(arch, tn, "impression")
+        ) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [
+      state.selectedImpressions,
+      state.maxillaryRetentionTypes,
+      state.mandibularRetentionTypes,
+      state.maxillaryTeeth,
+      state.mandibularTeeth,
+      state.isFieldCompleted,
+    ]
+  );
+
   useAddStageStagePrompt({
     enabled: Boolean(
-      props.preloadInitialSlipState && props.addStageContext?.promptStagesOnLoad
+      props.preloadInitialSlipState &&
+        (props.addStageContext?.promptStagesOnLoad ||
+          props.addStageContext?.promptImpressionChoice)
     ),
+    promptStages: Boolean(props.addStageContext?.promptStagesOnLoad),
+    promptImpressions: Boolean(props.addStageContext?.promptImpressionChoice),
     addedProducts: props.addedProducts ?? [],
     maxillaryTeeth: state.maxillaryTeeth,
     mandibularTeeth: state.mandibularTeeth,
     focusAccordion: state.focusAccordion,
     handleOpenStageModal: state.handleOpenStageModal,
+    handleOpenImpressionModal: state.handleOpenImpressionModal,
     isStageModalOpen: state.isStageModalOpen,
+    showImpressionModal: state.showImpressionModal,
+    isImpressionCompleteForArch: isAddStageImpressionCompleteForArch,
     getToothProduct: state.getToothProduct,
   });
 
   const addStageStageHistoryForModal =
     props.addStageContext?.historyByArch?.[state.currentStageArch] ?? undefined;
+
+  const [card0RemovedArches, setCard0RemovedArches] = useState<{
+    maxillary?: boolean;
+    mandibular?: boolean;
+  }>({});
 
   // Unified setter used by both CenterNavigation and MandibularPanel so the override state stays in sync.
   const handleSetShowMandibular = useCallback((v: boolean) => {
@@ -245,8 +301,24 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // Show accordion when card 0 initial product is Fixed Restoration AND teeth have been selected
   const activeProductIsFixed = hasRetentionOptions(state.initialProductDetails);
   const activeProductIsRemovable = initialProductIsNonFixed;
+  const card0ReplacedOnMaxillary = (props.addedProducts ?? []).some(
+    (ap) => ap.replacesInitialProduct && ap.arch === "maxillary"
+  );
+  const card0ReplacedOnMandibular = (props.addedProducts ?? []).some(
+    (ap) => ap.replacesInitialProduct && ap.arch === "mandibular"
+  );
+  // Deleting card 0 on an arch must not re-seed its sentinel tooth (which would keep a
+  // phantom card-0 product in notes); card 0 still returns if the user re-selects teeth for it.
+  const markCard0Removed = useCallback(
+    (arch: "maxillary" | "mandibular") => {
+      setCard0RemovedArches((prev) => (prev[arch] ? prev : { ...prev, [arch]: true }));
+      state.endGuidedBothArchFlow();
+    },
+    [state.endGuidedBothArchFlow]
+  );
   const maxillaryHasFixedCard0 =
     activeProductIsFixed &&
+    !card0ReplacedOnMaxillary &&
     ((card0DefaultToothChartEnabled &&
       !!props.selectedProductId &&
       (props.initialArch === "maxillary" || props.initialArch === "both")) ||
@@ -255,12 +327,21 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       ));
   const mandibularHasFixedCard0 =
     activeProductIsFixed &&
+    !card0ReplacedOnMandibular &&
     ((card0DefaultToothChartEnabled &&
       !!props.selectedProductId &&
       (props.initialArch === "mandibular" || props.initialArch === "both")) ||
       Object.keys(state.mandibularRetentionTypes || {}).some(
         (tn) => state.getToothProductCard("mandibular", Number(tn)) === 0,
       ));
+
+  // Card-0 fixed fields: only reveal the product accordion after the user picks teeth on the chart.
+  const maxillaryFixedCard0HasTeeth = Object.keys(state.maxillaryRetentionTypes).some(
+    (tn) => state.getToothProductCard("maxillary", Number(tn)) === 0,
+  );
+  const mandibularFixedCard0HasTeeth = Object.keys(state.mandibularRetentionTypes || {}).some(
+    (tn) => state.getToothProductCard("mandibular", Number(tn)) === 0,
+  );
   // Both-arch slip creation: guided upper-first flow (one active chart at a time).
   // Disabled for preloaded states (add-new-stage / edit-slip) where teeth and fields are
   // already configured — both panels must be visible and interactive from the start.
@@ -284,22 +365,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // when the initial arch is single-sided and the other arch has its own added-product removable.
   const maxillaryHasRemovablesCard0 =
     activeProductIsRemovable &&
+    !card0ReplacedOnMaxillary &&
     !!props.selectedProductId &&
     (props.initialArch === "maxillary" || props.initialArch === "both");
   const mandibularHasRemovablesCard0 =
     activeProductIsRemovable &&
+    !card0ReplacedOnMandibular &&
     !!props.selectedProductId &&
     (props.initialArch === "mandibular" || props.initialArch === "both");
-
-  const maxillaryHasRemovablesTeeth =
-    maxillaryHasRemovables &&
-    (state.maxillaryTeeth.length > 0 ||
-      (maxillaryHasRemovablesCard0 && card0ExtractionSelectionOptional));
-
-  const mandibularHasRemovablesTeeth =
-    mandibularHasRemovables &&
-    (state.mandibularTeeth.length > 0 ||
-      (mandibularHasRemovablesCard0 && card0ExtractionSelectionOptional));
 
   // Count teeth with real extraction codes (not TIM) — mirrors the red-label condition in the panels.
   // Used to disable the + Product buttons when the user hasn't selected any teeth yet.
@@ -311,6 +384,18 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const mandibularRemovableTeethSelected = mandibularHasRemovablesCard0
     ? MANDIBULAR_ALL_TEETH_CDC.filter(tn => { const code = state.mandibularToothExtractionMap[tn]; return code && code !== "TIM"; }).length
     : 0;
+
+  const maxillaryHasRemovablesTeeth =
+    maxillaryHasRemovables &&
+    (state.maxillaryTeeth.length > 0 ||
+      maxillaryRemovableTeethSelected > 0 ||
+      (maxillaryHasRemovablesCard0 && card0ExtractionSelectionOptional));
+
+  const mandibularHasRemovablesTeeth =
+    mandibularHasRemovables &&
+    (state.mandibularTeeth.length > 0 ||
+      mandibularRemovableTeethSelected > 0 ||
+      (mandibularHasRemovablesCard0 && card0ExtractionSelectionOptional));
 
   // Check removable teeth impression completion.
   // For Removables, fields (grade, stage, shade, impression) are stored under the representative
@@ -964,12 +1049,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const hasMandibularProducts =
     Object.keys(state.mandibularRetentionTypes || {}).length > 0 || mandibularHasRemovablesTeeth;
 
+  // Include confirmed "No Impression" (field completed, no cards) so validation
+  // accepts either New Impression cards or an explicit No Impression choice.
   const hasMaxillaryArchImpressionSelected =
-    (state.selectedImpressions.maxillary?.length ?? 0) > 0;
+    isAddStageImpressionCompleteForArch("maxillary");
   const hasMandibularArchImpressionSelected =
-    (state.selectedImpressions.mandibular?.length ?? 0) > 0;
+    isAddStageImpressionCompleteForArch("mandibular");
+
+  const getImpressionDisplayText = useCallback(
+    (productId: string, arch: "maxillary" | "mandibular", toothNumber?: number) => {
+      return state.getImpressionDisplayText(productId, arch, toothNumber)?.trim() || "";
+    },
+    [state.getImpressionDisplayText]
+  );
 
   // Main-side validation only: opposing impressions are optional and never blocking.
+  // Add-stage still requires an explicit New Impression or No Impression choice.
   const requireMaxillaryImpression =
     hasMaxillaryProducts &&
     (props.initialArch === "maxillary" || props.initialArch === "both");
@@ -981,11 +1076,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     hasAnyTooth &&
     (!requireMaxillaryImpression || hasMaxillaryArchImpressionSelected) &&
     (!requireMandibularImpression || hasMandibularArchImpressionSelected);
-
-  // Impression incomplete check is driven by common arch impression model.
-  const hasIncompleteAccordion =
-    (requireMaxillaryImpression && !hasMaxillaryArchImpressionSelected) ||
-    (requireMandibularImpression && !hasMandibularArchImpressionSelected);
 
   // Build unique products list for add-ons/rush modal tabs
   const caseProducts = useMemo(() => {
@@ -1103,7 +1193,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         const shadeProductId = product?.id
           ? `fixed_p_${product.id}`
           : `fixed_${Math.min(...teethInGroup)}`;
-        const missingShadeField = getMissingFixedShadeField(product, shadeProductId, arch);
+        const missingShadeField = getMissingFixedShadeField(
+          product,
+          shadeProductId,
+          arch,
+          teethInGroup
+        );
         if (missingShadeField) return missingShadeField;
       }
 
@@ -1133,14 +1228,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         const productKey = String(product?.id ?? n);
         if (!processedShadeGroups.has(productKey)) {
           processedShadeGroups.add(productKey);
+          const groupTeeth = maxillaryTeeth.filter(
+            (t) => String(state.getToothProduct("maxillary", t)?.id ?? t) === productKey
+          );
           const shadeId = product?.id
             ? `fixed_p_${product.id}`
-            : `fixed_${Math.min(
-                ...maxillaryTeeth.filter(
-                  (t) => String(state.getToothProduct("maxillary", t)?.id ?? t) === productKey
-                )
-              )}`;
-          if (getMissingFixedShadeField(product, shadeId, "maxillary")) return true;
+            : `fixed_${Math.min(...groupTeeth)}`;
+          if (getMissingFixedShadeField(product, shadeId, "maxillary", groupTeeth)) return true;
         }
       }
       // Fixed restoration products use fixed_impression field step (not arch-level selectedImpressions)
@@ -1158,14 +1252,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         const productKey = String(product?.id ?? n);
         if (!processedShadeGroups.has(productKey)) {
           processedShadeGroups.add(productKey);
+          const groupTeeth = mandibularTeeth.filter(
+            (t) => String(state.getToothProduct("mandibular", t)?.id ?? t) === productKey
+          );
           const shadeId = product?.id
             ? `fixed_p_${product.id}`
-            : `fixed_${Math.min(
-                ...mandibularTeeth.filter(
-                  (t) => String(state.getToothProduct("mandibular", t)?.id ?? t) === productKey
-                )
-              )}`;
-          if (getMissingFixedShadeField(product, shadeId, "mandibular")) return true;
+            : `fixed_${Math.min(...groupTeeth)}`;
+          if (getMissingFixedShadeField(product, shadeId, "mandibular", groupTeeth)) return true;
         }
       }
       // Fixed restoration products use fixed_impression field step (not arch-level selectedImpressions)
@@ -1224,12 +1317,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   );
 
   useEffect(() => {
-    if (maxillaryHasRemovablesCard0) assignCard0Sentinel("maxillary", MAXILLARY_SENTINEL);
-  }, [maxillaryHasRemovablesCard0, assignCard0Sentinel]);
+    if (maxillaryHasRemovablesCard0 && !card0RemovedArches.maxillary) {
+      assignCard0Sentinel("maxillary", MAXILLARY_SENTINEL);
+    }
+  }, [maxillaryHasRemovablesCard0, card0RemovedArches.maxillary, assignCard0Sentinel]);
 
   useEffect(() => {
-    if (mandibularHasRemovablesCard0) assignCard0Sentinel("mandibular", MANDIBULAR_SENTINEL);
-  }, [mandibularHasRemovablesCard0, assignCard0Sentinel]);
+    if (mandibularHasRemovablesCard0 && !card0RemovedArches.mandibular) {
+      assignCard0Sentinel("mandibular", MANDIBULAR_SENTINEL);
+    }
+  }, [mandibularHasRemovablesCard0, card0RemovedArches.mandibular, assignCard0Sentinel]);
 
   // ── Catch-up: assign product to card 0 teeth that have retention types but no product ──
   // This handles cases where teeth were clicked before the product was ready, or rapid clicks
@@ -1257,15 +1354,49 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     props.onIncompleteFieldChange?.(incompleteFieldLabel);
   }, [incompleteFieldLabel]);
 
+  const card0PanelBypass =
+    !!props.caseSubmitted || !!props.preloadInitialSlipState;
+
+  const maxillaryCard0ProductPanelVisible = hasUserSelectedCard0TeethOnArch({
+    arch: "maxillary",
+    allArchTeeth: MAXILLARY_ALL_TEETH_CDC,
+    selectedTeeth: state.maxillaryTeeth,
+    extractionMap: state.maxillaryToothExtractionMap,
+    retentionTypesByTooth: state.maxillaryRetentionTypes,
+    getToothProductCard: state.getToothProductCard,
+    claspTeeth: state.maxillaryClaspTeeth ?? [],
+    bypassGate: card0PanelBypass,
+  });
+
+  const mandibularCard0ProductPanelVisible = hasUserSelectedCard0TeethOnArch({
+    arch: "mandibular",
+    allArchTeeth: MANDIBULAR_ALL_TEETH_CDC,
+    selectedTeeth: state.mandibularTeeth ?? [],
+    extractionMap: state.mandibularToothExtractionMap ?? {},
+    retentionTypesByTooth: state.mandibularRetentionTypes ?? {},
+    getToothProductCard: state.getToothProductCard,
+    claspTeeth: state.mandibularClaspTeeth ?? [],
+    bypassGate: card0PanelBypass,
+  });
+
+  // Product accordions stay hidden until the user picks at least one tooth for card 0.
+  // Sentinel tooth assignment alone does not count as a user selection.
+  // Removable added products must reveal fields even when card 0 has no teeth
+  // (preloaded slips, or card 0 deleted on its arch during slip creation).
+  const hasAddedRemovables =
+    hasSelectionOnlyProductForArch("maxillary") ||
+    hasSelectionOnlyProductForArch("mandibular");
+
   const productFieldsVisible =
     maxillaryHasImpression ||
     mandibularHasImpression ||
-    maxillaryHasRemovables ||
-    mandibularHasRemovables ||
+    ((maxillaryHasRemovablesCard0 || maxillaryHasFixedCard0) &&
+      maxillaryCard0ProductPanelVisible) ||
+    ((mandibularHasRemovablesCard0 || mandibularHasFixedCard0) &&
+      mandibularCard0ProductPanelVisible) ||
     maxillaryHasFixedAdded ||
     mandibularHasFixedAdded ||
-    maxillaryHasFixedCard0 ||
-    mandibularHasFixedCard0 ||
+    hasAddedRemovables ||
     (initialProductHasOppositeSection &&
       props.initialArch === "mandibular" &&
       mandibularTeethSelected) ||
@@ -1343,6 +1474,21 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     addedProducts: props.addedProducts,
   });
 
+  const maxillaryHasSingleDefaultOnlyProduct = archHasSingleDefaultOnlyProduct("maxillary", {
+    initialArch: props.initialArch,
+    initialProductDetails: state.initialProductDetails,
+    selectedProductId: props.selectedProductId,
+    addedProducts: props.addedProducts,
+    card0Removed: card0RemovedArches.maxillary,
+  });
+  const mandibularHasSingleDefaultOnlyProduct = archHasSingleDefaultOnlyProduct("mandibular", {
+    initialArch: props.initialArch,
+    initialProductDetails: state.initialProductDetails,
+    selectedProductId: props.selectedProductId,
+    addedProducts: props.addedProducts,
+    card0Removed: card0RemovedArches.mandibular,
+  });
+
   const showMaxillaryProductButton = canShowAddProductButton({
     arch: "maxillary",
     initialArch: props.initialArch,
@@ -1355,6 +1501,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     inlineAddProductArch: props.inlineAddProductArch ?? null,
     caseSubmitted: props.caseSubmitted,
     atProductLimit: maxillaryAtProductLimit,
+    hasSingleDefaultOnlyProduct: maxillaryHasSingleDefaultOnlyProduct,
   });
 
   const showMandibularProductButton = canShowAddProductButton({
@@ -1369,6 +1516,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     inlineAddProductArch: props.inlineAddProductArch ?? null,
     caseSubmitted: props.caseSubmitted,
     atProductLimit: mandibularAtProductLimit,
+    hasSingleDefaultOnlyProduct: mandibularHasSingleDefaultOnlyProduct,
   });
 
   const maxillaryExcludedProductIds = useMemo(() => {
@@ -1450,22 +1598,45 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const isAddingMaxillaryProduct = inlineAddProductArch === "maxillary";
   const isAddingMandibularProduct = inlineAddProductArch === "mandibular";
   const [showChangeProductConfirm, setShowChangeProductConfirm] = useState(false);
+  const [changeProductCard, setChangeProductCard] = useState<{
+    cardId: number;
+    arch: "maxillary" | "mandibular";
+  } | null>(null);
   const onBackToProducts = props.onBackToProducts;
+  const onEditProductCard = props.onEditProductCard;
+  const editProductCardForArch = (arch: "maxillary" | "mandibular") =>
+    !props.caseSubmitted && onEditProductCard
+      ? (cardId: number) => {
+          setChangeProductCard({ cardId, arch });
+          setShowChangeProductConfirm(true);
+        }
+      : undefined;
   return (
     <>
     <ChangeProductConfirmModal
       open={showChangeProductConfirm}
-      onCancel={() => setShowChangeProductConfirm(false)}
+      preserveFields={!!props.preloadInitialSlipState || changeProductCard != null}
+      onCancel={() => {
+        setShowChangeProductConfirm(false);
+        setChangeProductCard(null);
+      }}
       onConfirm={() => {
         setShowChangeProductConfirm(false);
-        onBackToProducts?.();
+        if (changeProductCard) {
+          onEditProductCard?.(changeProductCard.cardId, changeProductCard.arch);
+        } else {
+          onBackToProducts?.(state.activeProductCardId);
+        }
+        setChangeProductCard(null);
       }}
     />
     <div className="relative">
       {!props.caseSubmitted && props.onBackToProducts && (
         <BackToProductsControl
-          onBackToProducts={() => setShowChangeProductConfirm(true)}
-          hasIncompleteAccordion={hasIncompleteAccordion}
+          onBackToProducts={() => {
+            setChangeProductCard(null);
+            setShowChangeProductConfirm(true);
+          }}
           className="absolute left-0 top-0 z-30"
         />
       )}
@@ -1484,7 +1655,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
         {/* Main two-panel layout - responsive */}
         <div className="relative">
-        <AutoOpenSuppressionContext.Provider value={Boolean(props.suppressFieldAutoOpen)}>
+        <AutoOpenSuppressionContext.Provider
+          value={
+            Boolean(props.suppressFieldAutoOpen) ||
+            Boolean(
+              props.addStageContext?.promptStagesOnLoad ||
+                props.addStageContext?.promptImpressionChoice
+            )
+          }
+        >
         <div className="flex flex-col lg:flex-row">
           {/* LEFT PANEL - MAXILLARY */}
         <MaxillaryPanel
@@ -1509,8 +1688,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             }
             setShowMaxillary={state.setShowMaxillary}
             showDetails={showProductDetails}
+          card0ProductPanelVisible={maxillaryCard0ProductPanelVisible}
           caseSubmitted={props.caseSubmitted}
           preloadInitialSlipState={props.preloadInitialSlipState}
+          onEditProductCard={editProductCardForArch("maxillary")}
+          onCard0Removed={() => markCard0Removed("maxillary")}
           disabled={!props.caseSubmitted && isAddingMandibularProduct}
           // Tooth selection
           maxillaryTeeth={state.maxillaryTeeth}
@@ -1554,7 +1736,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           handleOpenRushModal={state.handleOpenRushModal}
           handleOpenStageModal={state.handleOpenStageModal}
           setShowAttachModal={state.setShowAttachModal}
-          getImpressionDisplayText={state.getImpressionDisplayText}
+          getImpressionDisplayText={getImpressionDisplayText}
           selectedStages={state.selectedStages}
           // Added products
           addedProducts={state.addedProducts}
@@ -1635,6 +1817,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onInlineAddProductCancel={props.onInlineAddProductCancel}
           onShowSelectTeethToReplaceChange={setShowSelectTeethToReplaceMaxillary}
           selectedAddonsByTooth={state.selectedAddonsByTooth}
+          setSelectedAddonsByTooth={state.setSelectedAddonsByTooth}
         />
 
         {/* CENTER NAVIGATION — default-extraction badge between arch panels */}
@@ -1668,7 +1851,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }
           setShowMandibular={handleSetShowMandibular}
           showDetails={showProductDetails}
+          card0ProductPanelVisible={mandibularCard0ProductPanelVisible}
           preloadInitialSlipState={props.preloadInitialSlipState}
+          onEditProductCard={editProductCardForArch("mandibular")}
+          onCard0Removed={() => markCard0Removed("mandibular")}
           caseSubmitted={props.caseSubmitted}
           disabled={
             props.caseSubmitted
@@ -1711,7 +1897,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           rushedProducts={state.rushedProducts}
           // Modals
           handleOpenImpressionModal={state.handleOpenImpressionModal}
-          getImpressionDisplayText={state.getImpressionDisplayText}
+          getImpressionDisplayText={getImpressionDisplayText}
           handleOpenAddOnsModal={state.handleOpenAddOnsModal}
           selectedStages={state.selectedStages}
           handleOpenRushModal={state.handleOpenRushModal}
@@ -1802,6 +1988,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onInlineAddProductCancel={props.onInlineAddProductCancel}
           onShowSelectTeethToReplaceChange={setShowSelectTeethToReplaceMandibular}
           selectedAddonsByTooth={state.selectedAddonsByTooth}
+          setSelectedAddonsByTooth={state.setSelectedAddonsByTooth}
         />
       </div>
         </AutoOpenSuppressionContext.Provider>
@@ -1821,7 +2008,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         mandibularImplantDetailByTooth={mandibularImplantDetailPeer}
         rushArchSlots={rushArchSlotsWithDelivery}
         caseHasAddons={caseHasAddons}
+        lockedCaseSummaryNotes={props.lockedCaseSummaryNotes}
         onCaseSummaryNotesChange={(text) => {
+          if (props.lockedCaseSummaryNotes !== undefined) return;
           if (props.caseSummaryNotesRef) {
             props.caseSummaryNotesRef.current = text;
           }
@@ -1932,6 +2121,21 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             ? "mandibular"
             : "maxillary"
         }
+        requireImpressionChoice={Boolean(
+          props.addStageContext?.promptImpressionChoice
+        )}
+        onNoImpression={() => {
+          const toothNum = state.currentImpressionToothNumber;
+          const arch = state.currentImpressionArch;
+          const productId = state.currentImpressionProductId;
+          if (toothNum !== null) {
+            const key = `${productId}_${arch}_${toothNum}`;
+            state.setNoOpposingNeeded((prev: Record<string, boolean>) => ({
+              ...prev,
+              [key]: true,
+            }));
+          }
+        }}
         showAddOnsModal={state.showAddOnsModal}
         setShowAddOnsModal={state.setShowAddOnsModal}
         currentAddOnsArch={state.currentAddOnsArch}
@@ -2026,6 +2230,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         attachmentPatientName={props.attachmentPatientName}
         attachmentCaseId={props.attachmentCaseId}
         attachmentSlipId={props.attachmentSlipId}
+        attachmentLabId={props.attachmentLabId}
         showRushModal={state.showRushModal}
         setShowRushModal={state.setShowRushModal}
         currentRushArch={state.currentRushArch}

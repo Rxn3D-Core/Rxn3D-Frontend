@@ -114,6 +114,7 @@ export interface AbutmentPlatform {
   image_url?: string | null
   status: 'Active' | 'Inactive'
   is_default: 'Yes' | 'No'
+  category_ids?: string | null
   price?: number | null
   sequence: number
 }
@@ -130,6 +131,15 @@ export interface Abutment {
   options?: AbutmentPlatform[]
   // Backward-compatible alias for older payloads.
   platforms?: AbutmentPlatform[]
+  addons?: Array<{
+    id?: number
+    name: string
+    code?: string
+    price?: number | null
+    status: 'Active' | 'Inactive'
+    sequence: number
+    category_ids?: string | number[] | null
+  }>
   customer_id?: number | null
   is_custom?: 'Yes' | 'No'
   created_at: string
@@ -769,8 +779,16 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         name: string
         image?: string
         is_default?: 'Yes' | 'No'
+        category_ids?: string | null
         price?: number
         sequence?: number
+      }>
+      addons?: Array<{
+        name: string
+        price?: number | null
+        status?: 'Active' | 'Inactive'
+        sequence?: number
+        category_ids?: string | number[] | null
       }>
     }>({
       query: (data) => ({
@@ -795,8 +813,17 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         name?: string
         image?: string
         is_default?: 'Yes' | 'No'
+        category_ids?: string | null
         price?: number | null
         sequence?: number
+      }>
+      addons?: Array<{
+        id?: number
+        name?: string
+        price?: number | null
+        status?: 'Active' | 'Inactive'
+        sequence?: number
+        category_ids?: string | number[] | null
       }>
     }>({
       query: ({ id, ...data }) => ({

@@ -1,18 +1,22 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useCustomer } from "@/contexts/customer-context"
 import { useAuth } from "@/contexts/auth-context"
 import OverviewTab from "@/components/office-administrator/office-profile-overview"
-import { OperatingHoursTab } from "@/components/office-administrator/office-profile-operating-hours"
-import ActivityLogTab from "@/components/lab-administrator/lab-profile-activity-log"
+import { OperatingHoursTab } from "@/components/lab-administrator/lab-profile-operating-hours"
 import { OfficeProfileSidebar } from "@/components/office-administrator/office-profile-sidebar"
 import OfficeProfileTabs from "@/components/office-administrator/office-profile-tabs"
+import {
+  DEFAULT_CLOSE_TIME_12,
+  DEFAULT_OPEN_TIME_12,
+  parseBusinessHourTime,
+  resolveDisplayTimezone,
+} from "@/utils/time-utils"
 
 const tabs = [
   { id: "overview", label: "Overview" },
   { id: "operating-hours", label: "Operating Hours" },
-  { id: "activity-log", label: "Activity Log" },
 ]
 
 export default function OfficeProfile() {
@@ -27,34 +31,29 @@ export default function OfficeProfile() {
     return <div className="flex items-center justify-center h-64 text-red-500">Context not available</div>
   }
 
-  useEffect(() => {
-    // Check if fetchCustomerProfile is available
-    if (typeof fetchCustomerProfile !== 'function') {
-      console.error("fetchCustomerProfile is not a function")
-      return
+  const getCustomerId = useCallback((): number | null => {
+    if (typeof window === "undefined") return null
+
+    const storedCustomerId = localStorage.getItem("customerId")
+    if (storedCustomerId) {
+      return parseInt(storedCustomerId, 10)
     }
 
-    // Get customer ID from various sources
-    const getCustomerId = (): number | null => {
-      if (typeof window === "undefined") return null
-      
-      // First try to get from localStorage (set during login)
-      const storedCustomerId = localStorage.getItem("customerId")
-      if (storedCustomerId) {
-        return parseInt(storedCustomerId, 10)
-      }
+    if (user?.customers && user.customers.length > 0) {
+      return user.customers[0].id
+    }
 
-      // Then try to get from user's customers array
-      if (user?.customers && user.customers.length > 0) {
-        return user.customers[0].id
-      }
+    if (user?.customer_id) {
+      return user.customer_id
+    }
 
-      // If user has a customer_id property
-      if (user?.customer_id) {
-        return user.customer_id
-      }
+    return null
+  }, [user?.customer_id, user?.customers])
 
-      return null
+  useEffect(() => {
+    if (typeof fetchCustomerProfile !== "function") {
+      console.error("fetchCustomerProfile is not a function")
+      return
     }
 
     const customerId = getCustomerId()
@@ -64,14 +63,26 @@ export default function OfficeProfile() {
     } else {
       console.warn("No customer ID found for profile fetching")
     }
-  }, [fetchCustomerProfile, user?.customer_id, user?.customers])
+  }, [fetchCustomerProfile, getCustomerId])
+
+  const refreshProfile = useCallback(() => {
+    const customerId = getCustomerId()
+    if (customerId) {
+      fetchCustomerProfile(customerId)
+    }
+  }, [fetchCustomerProfile, getCustomerId])
 
   // Transform customer profile data to match expected format
   const transformedOfficeData = customerProfile ? {
     name: customerProfile.name,
     type: customerProfile.type === "office" ? "Dental Office" : "Office",
     email: customerProfile.email,
-    address: `${customerProfile.address}, ${customerProfile.city}, ${customerProfile.country?.name || ''} ${customerProfile.postal_code}`,
+    notification_emails: customerProfile.notification_emails || [],
+    // Full formatted address for display; street kept separate for the edit modal
+    address: [customerProfile.address, customerProfile.city, customerProfile.country?.name, customerProfile.postal_code]
+      .filter(Boolean)
+      .join(", "),
+    streetAddress: customerProfile.address || "",
     phone: customerProfile.default_admin?.phone || "",
     id: customerProfile.id.toString(),
     number: customerProfile.default_admin?.work_number || "",
@@ -87,34 +98,36 @@ export default function OfficeProfile() {
     }),
     position: customerProfile.users?.[0]?.role?.name?.replace('_', ' ') || "Office Admin",
     logo_url: customerProfile.logo_url || "",
+    unique_code: customerProfile.unique_code || "",
+    code: customerProfile.code || "",
+    city: customerProfile.city || "",
+    postal_code: customerProfile.postal_code || "",
+    stateName: customerProfile.state?.name || "",
+    stateId: customerProfile.state?.id ?? null,
+    countryName: customerProfile.country?.name || "",
+    countryId: customerProfile.country?.id ?? null,
   } : null
 
   // Transform business hours data
-  const transformedHoursData = customerProfile?.business_settings?.business_hours ? {
-    workingDays: customerProfile.business_settings.business_hours.map(hour => ({
+  const transformedHoursData = {
+    workingDays: customerProfile?.business_settings?.business_hours?.map(hour => ({
       day: hour.day.charAt(0).toUpperCase() + hour.day.slice(1),
       enabled: hour.is_open,
-      startTime: hour.open_time ? new Date(hour.open_time).toLocaleTimeString("en-US", { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      }) : "",
-      endTime: hour.close_time ? new Date(hour.close_time).toLocaleTimeString("en-US", { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      }) : "",
-    })),
-    timezone: customerProfile.state?.name || "Unknown Timezone",
+      startTime: parseBusinessHourTime(hour.open_time, hour.is_open ? DEFAULT_OPEN_TIME_12 : ""),
+      endTime: parseBusinessHourTime(hour.close_time, hour.is_open ? DEFAULT_CLOSE_TIME_12 : ""),
+    })) || [],
+    timezone: resolveDisplayTimezone(customerProfile?.state?.name),
     holidays: "All Federal Holidays",
-  } : null
+  }
 
   const renderTabContent = () => {
-    if (isProfileLoading) {
+    // Only block the tab UI on the initial load. Refetches (edit modal open/save)
+    // must not unmount the overview modal or hours editor.
+    if (isProfileLoading && !customerProfile) {
       return <div className="flex justify-center items-center h-64">Loading...</div>
     }
 
-    if (profileError) {
+    if (profileError && !customerProfile) {
       return <div className="flex justify-center items-center h-64 text-red-500">Error: {profileError}</div>
     }
 
@@ -127,25 +140,18 @@ export default function OfficeProfile() {
         return (
           <OverviewTab 
             officeData={transformedOfficeData}
-            onProfileUpdate={() => {
-              // Refresh customer profile after update
-              const storedCustomerId = localStorage.getItem("customerId")
-              const customerId = storedCustomerId ? parseInt(storedCustomerId, 10) : 
-                (user?.customers?.[0]?.id || user?.customer_id || null)
-              if (customerId) {
-                fetchCustomerProfile(customerId)
-              }
-            }}
+            onProfileUpdate={refreshProfile}
           />
         )
       case "operating-hours":
-        return <OperatingHoursTab hoursData={transformedHoursData || {
-          workingDays: [],
-          timezone: "Unknown Timezone",
-          holidays: "All Federal Holidays"
-        }} />
-      case "activity-log":
-        return <ActivityLogTab customerId={customerProfile.id} />
+        return (
+          <OperatingHoursTab
+            hoursData={transformedHoursData}
+            customerId={customerProfile.id}
+            customerType="office"
+            onUpdate={refreshProfile}
+          />
+        )
       default:
         return <OverviewTab officeData={transformedOfficeData} />
     }

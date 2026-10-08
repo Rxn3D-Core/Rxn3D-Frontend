@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import {
   useGetUserInvitation,
   acceptUserInvitation,
@@ -120,7 +121,6 @@ export default function UserInvitationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSuccess, setIsSuccess] = useState(false)
-  const [acceptedAsExisting, setAcceptedAsExisting] = useState(false)
 
   const isExpired = useMemo(() => {
     if (!invitation) return false
@@ -146,9 +146,9 @@ export default function UserInvitationPage() {
   const handleSignatureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
     if (!allowedTypes.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Upload a JPG, PNG, GIF, or WEBP image.", variant: "destructive" })
+      toast({ title: "Invalid file type", description: "Upload a JPG, PNG, GIF, WEBP, or SVG image.", variant: "destructive" })
       return
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -177,15 +177,12 @@ export default function UserInvitationPage() {
     setIsSubmitting(true)
     try {
       const response = await acceptUserInvitation(token, {}, authToken)
-      if (tryAutoLoginFromAccept(response)) {
-        toast({
-          title: "Invitation accepted",
-          description: `You now have access to ${invitation?.customer?.name || "your organization"}.`,
-        })
-        return
-      }
-      setAcceptedAsExisting(true)
-      setIsSuccess(true)
+      toast({
+        title: "Invitation accepted",
+        description: `You now have access to ${invitation?.customer?.name || "your organization"}.`,
+      })
+      tryAutoLoginFromAccept(response)
+      router.replace(getActiveLandingPath())
     } catch (err: any) {
       setError(err?.message || "Failed to accept the invitation. Please try again.")
     } finally {
@@ -232,9 +229,9 @@ export default function UserInvitationPage() {
           title: "Account created",
           description: `Welcome! You're signed in to ${invitation?.customer?.name || "your organization"}.`,
         })
+        router.replace(getActiveLandingPath())
         return
       }
-      setAcceptedAsExisting(false)
       setIsSuccess(true)
     } catch (err: any) {
       setError(err?.message || "Failed to accept the invitation. Please try again.")
@@ -274,23 +271,21 @@ export default function UserInvitationPage() {
     )
   }
 
-  // Fallback only when accept succeeded but auth payload was missing
+  // Fallback only when registration succeeded but auth payload was missing
   if (isSuccess) {
     return (
       <Shell>
         <div className="text-center">
           <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-[#119933]" />
-          <h1 className="mb-2 text-xl font-bold text-gray-900">Invitation accepted!</h1>
+          <h1 className="mb-2 text-xl font-bold text-gray-900">Account created</h1>
           <p className="mb-6 text-sm text-gray-600">
-            {acceptedAsExisting
-              ? `You now have access to ${invitation.customer?.name}.`
-              : `Your account is ready. Please log in to access ${invitation.customer?.name}.`}
+            Your account is ready. Please log in to access {invitation.customer?.name}.
           </p>
           <Button
             className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
-            onClick={() => router.push(acceptedAsExisting ? "/dashboard" : "/login")}
+            onClick={() => router.push("/login")}
           >
-            {acceptedAsExisting ? "Go to dashboard" : "Go to login"}
+            Go to login
           </Button>
         </div>
       </Shell>
@@ -549,7 +544,7 @@ export default function UserInvitationPage() {
               <label className="mb-1 block text-xs font-medium text-gray-700">Signature *</label>
               <input
                 type="file"
-                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"
                 onChange={handleSignatureUpload}
                 disabled={isSubmitting}
                 className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-[#1162a8] file:px-3 file:py-1.5 file:text-white"

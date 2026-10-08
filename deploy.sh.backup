@@ -1,0 +1,19 @@
+#!/bin/bash
+set -e
+
+cd /var/www/rxn3d/frontend
+
+echo "[1/4] Pulling latest code..."
+git pull origin main
+
+echo "[2/4] Installing dependencies..."
+npm ci --silent
+
+echo "[3/4] Building..."
+npm run build
+
+echo "[4/4] Restarting PM2 process..."
+pm2 restart rxn3d-frontend
+pm2 save
+
+echo "Done. app.rxn3d.com is live."

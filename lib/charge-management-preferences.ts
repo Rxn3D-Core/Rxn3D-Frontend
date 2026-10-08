@@ -1,0 +1,231 @@
+/** Persisted Charge Management search/filter preferences (per lab/office customer). */
+
+export const CHARGE_MANAGEMENT_PER_PAGE = 100
+
+/** Allowed page sizes for Charge Management list / advanced search. */
+export const CHARGE_MANAGEMENT_PER_PAGE_OPTIONS = [100, 200, 300, 500, 1000] as const
+
+export type ChargeManagementPerPage = (typeof CHARGE_MANAGEMENT_PER_PAGE_OPTIONS)[number]
+
+/** Sortable columns on the Charge Management table (API `sort_by` values). */
+export const CHARGE_MANAGEMENT_SORT_OPTIONS = [
+  "office_code",
+  "patient_name",
+  "product_name",
+  "grade_name",
+  "stage_name",
+  "due_date",
+] as const
+
+export type ChargeManagementSortBy = (typeof CHARGE_MANAGEMENT_SORT_OPTIONS)[number]
+
+export type ChargeManagementSortDirection = "asc" | "desc"
+
+export const CHARGE_MANAGEMENT_DEFAULT_SORT_BY: ChargeManagementSortBy = "due_date"
+export const CHARGE_MANAGEMENT_DEFAULT_SORT_DIRECTION: ChargeManagementSortDirection = "desc"
+
+const STORAGE_PREFIX = "rxn3d.charge-management.filters"
+
+export type ChargeManagementDateRange =
+  | "today"
+  | "yesterday"
+  | "this_week"
+  | "last_week"
+  | "this_month"
+  | "last_month"
+  | "this_year"
+  | "last_year"
+  | "custom"
+
+export interface ChargeManagementFiltersPrefs {
+  searchInput: string
+  dateFrom: string
+  dateTo: string
+  officeFilter: string
+  page: number
+  perPage: ChargeManagementPerPage
+  sortBy: ChargeManagementSortBy
+  sortDirection: ChargeManagementSortDirection
+  advDateRange: ChargeManagementDateRange | string
+  advItemStatus: string
+  showAdvancedFilters: boolean
+  activeSource: "list" | "advanced"
+  advCategoryId: number | null
+  advSubcategoryId: number | null
+  advProductId: number | null
+  advStageId: number | null
+  advAttachment: "all" | "yes" | "no"
+  showCasesWithAddon: boolean
+  showOnlyChecked: boolean
+}
+
+const DATE_RANGES = new Set<string>([
+  "today",
+  "yesterday",
+  "this_week",
+  "last_week",
+  "this_month",
+  "last_month",
+  "this_year",
+  "last_year",
+  "custom",
+])
+
+const PER_PAGE_SET = new Set<number>(CHARGE_MANAGEMENT_PER_PAGE_OPTIONS)
+const SORT_BY_SET = new Set<string>(CHARGE_MANAGEMENT_SORT_OPTIONS)
+
+function storageKey(customerId: number): string {
+  return `${STORAGE_PREFIX}.${customerId}`
+}
+
+function readJson(key: string): unknown {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function writeJson(key: string, value: unknown): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Ignore quota / private-mode errors.
+  }
+}
+
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback
+}
+
+function asNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null
+  const n = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function asPositiveInt(value: unknown, fallback: number): number {
+  const n = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : fallback
+}
+
+function asPerPage(value: unknown): ChargeManagementPerPage {
+  const n = typeof value === "number" ? value : Number(value)
+  if (PER_PAGE_SET.has(n)) return n as ChargeManagementPerPage
+  return CHARGE_MANAGEMENT_PER_PAGE
+}
+
+function asSortBy(value: unknown): ChargeManagementSortBy {
+  const s = typeof value === "string" ? value : ""
+  if (SORT_BY_SET.has(s)) return s as ChargeManagementSortBy
+  // Legacy: list previously sorted by created_at (same column as Due Date in the UI).
+  if (s === "created_at") return "due_date"
+  return CHARGE_MANAGEMENT_DEFAULT_SORT_BY
+}
+
+function asSortDirection(value: unknown): ChargeManagementSortDirection {
+  return value === "asc" ? "asc" : "desc"
+}
+
+/** Default filters for first visit (no saved prefs). */
+export function defaultChargeManagementFilters(): ChargeManagementFiltersPrefs {
+  return {
+    searchInput: "",
+    dateFrom: "",
+    dateTo: "",
+    officeFilter: "all",
+    page: 1,
+    perPage: CHARGE_MANAGEMENT_PER_PAGE,
+    sortBy: CHARGE_MANAGEMENT_DEFAULT_SORT_BY,
+    sortDirection: CHARGE_MANAGEMENT_DEFAULT_SORT_DIRECTION,
+    advDateRange: "today",
+    // Default to work queue (unbilled); "all" / Any shows every status including billed.
+    advItemStatus: "unbilled",
+    showAdvancedFilters: false,
+    activeSource: "list",
+    advCategoryId: null,
+    advSubcategoryId: null,
+    advProductId: null,
+    advStageId: null,
+    advAttachment: "all",
+    showCasesWithAddon: false,
+    showOnlyChecked: false,
+  }
+}
+
+export function loadChargeManagementFilters(
+  customerId: number | null | undefined,
+): ChargeManagementFiltersPrefs | null {
+  if (customerId == null || !Number.isFinite(customerId)) return null
+  const raw = readJson(storageKey(customerId))
+  if (!raw || typeof raw !== "object") return null
+  const o = raw as Record<string, unknown>
+  const defaults = defaultChargeManagementFilters()
+  const advDateRange = asString(o.advDateRange, defaults.advDateRange)
+  const advAttachment = asString(o.advAttachment, defaults.advAttachment)
+  const activeSource = asString(o.activeSource, defaults.activeSource)
+
+  return {
+    searchInput: asString(o.searchInput),
+    dateFrom: asString(o.dateFrom),
+    dateTo: asString(o.dateTo),
+    officeFilter: asString(o.officeFilter, "all") || "all",
+    page: asPositiveInt(o.page, 1),
+    perPage: asPerPage(o.perPage),
+    sortBy: asSortBy(o.sortBy),
+    sortDirection: asSortDirection(o.sortDirection),
+    advDateRange: DATE_RANGES.has(advDateRange) ? advDateRange : defaults.advDateRange,
+    advItemStatus: asString(o.advItemStatus, defaults.advItemStatus) || defaults.advItemStatus,
+    showAdvancedFilters: Boolean(o.showAdvancedFilters),
+    activeSource: activeSource === "advanced" ? "advanced" : "list",
+    advCategoryId: asNullableNumber(o.advCategoryId),
+    advSubcategoryId: asNullableNumber(o.advSubcategoryId),
+    advProductId: asNullableNumber(o.advProductId),
+    advStageId: asNullableNumber(o.advStageId),
+    advAttachment:
+      advAttachment === "yes" || advAttachment === "no" ? advAttachment : "all",
+    showCasesWithAddon: Boolean(o.showCasesWithAddon),
+    showOnlyChecked: Boolean(o.showOnlyChecked),
+  }
+}
+
+export function saveChargeManagementFilters(
+  customerId: number | null | undefined,
+  prefs: ChargeManagementFiltersPrefs,
+): void {
+  if (customerId == null || !Number.isFinite(customerId)) return
+  writeJson(storageKey(customerId), prefs)
+}
+
+const SCROLL_STORAGE_PREFIX = "rxn3d.charge-management.scroll"
+
+/** Remembers the list scroll offset (per tab) so returning via browser Back can restore it. */
+export function saveChargeManagementScroll(
+  customerId: number | null | undefined,
+  scrollTop: number,
+): void {
+  if (typeof window === "undefined" || customerId == null || !Number.isFinite(customerId)) return
+  try {
+    sessionStorage.setItem(`${SCROLL_STORAGE_PREFIX}.${customerId}`, String(Math.max(0, Math.round(scrollTop))))
+  } catch {
+    // Ignore quota / private-mode errors.
+  }
+}
+
+/** Reads and clears the saved scroll offset; null when nothing was saved. */
+export function takeChargeManagementScroll(customerId: number | null | undefined): number | null {
+  if (typeof window === "undefined" || customerId == null || !Number.isFinite(customerId)) return null
+  try {
+    const key = `${SCROLL_STORAGE_PREFIX}.${customerId}`
+    const raw = sessionStorage.getItem(key)
+    sessionStorage.removeItem(key)
+    const n = raw == null ? NaN : Number(raw)
+    return Number.isFinite(n) && n > 0 ? n : null
+  } catch {
+    return null
+  }
+}

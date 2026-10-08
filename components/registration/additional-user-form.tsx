@@ -39,6 +39,7 @@ export function AdditionalUserForm({
     const roleMap: Record<string, string> = {
       lab_admin: "Admin",
       lab_user: "User",
+      lab_driver: "Driver",
       office_admin: "Admin",
       doctor: "Doctor",
       office_user: "User",

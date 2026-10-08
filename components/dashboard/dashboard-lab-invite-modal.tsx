@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { InvitationForm } from "@/components/invitation-form"
 import { CustomerSearchBox } from "@/components/CustomerSearchBox"
 import { Microscope, Search, PlusCircle } from "lucide-react"
+import { INVITE_ONBOARDING_MODALS_ENABLED } from "@/lib/invite-onboarding-modals"
 
 interface DashboardLabInviteModalProps {
   labsCount: number
@@ -22,9 +23,24 @@ export function DashboardLabInviteModal({
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
+    if (!INVITE_ONBOARDING_MODALS_ENABLED && isOpen) {
+      onClose()
+    }
+  }, [isOpen, onClose])
+
+  useEffect(() => {
+    if (!INVITE_ONBOARDING_MODALS_ENABLED) {
+      return
+    }
+
+    const hasExistingLabs = labsCount > 0 || invitationsCount > 0
+    if (hasExistingLabs) {
+      setShowModal(false)
+      return
+    }
     if (isOpen) {
       const hasSeen = localStorage.getItem("has_seen_lab_invite_modal")
-      if (!hasSeen && labsCount === 0 && invitationsCount === 0) {
+      if (!hasSeen) {
         setShowModal(true)
       }
     }
@@ -44,6 +60,10 @@ export function DashboardLabInviteModal({
 
   const handleCustomerSelect = (customer: any) => {
     // Selection handled by CustomerSearchBox
+  }
+
+  if (!INVITE_ONBOARDING_MODALS_ENABLED) {
+    return null
   }
 
   return (

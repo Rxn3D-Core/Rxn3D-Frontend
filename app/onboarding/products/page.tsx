@@ -13,6 +13,7 @@ import { AuthHeader } from "@/components/auth-header"
 import { useLibraryItems } from "@/contexts/product-library-items-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { useAuth } from "@/contexts/auth-context"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 
 export default function ProductsAndServicesPage() {
   const router = useRouter()
@@ -68,7 +69,7 @@ export default function ProductsAndServicesPage() {
     if (!onboardingLoading && user && isOnboardingComplete) {
       const isSuperAdmin = user.roles?.includes("superadmin")
       if (!isSuperAdmin) {
-        router.replace("/dashboard")
+        router.replace(getActiveLandingPath(user))
       }
     }
   }, [onboardingLoading, user, isOnboardingComplete, router])
@@ -132,7 +133,7 @@ export default function ProductsAndServicesPage() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 px-6 py-4">
         <div className="max-w-3xl mx-auto">
           {error && (
             <Alert className="mb-6 border-red-200 bg-red-50">

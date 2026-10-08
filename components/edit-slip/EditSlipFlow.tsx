@@ -11,6 +11,7 @@ import {
   buildAddedProducts,
   buildWizardSeedFromSlipDetails,
   resolveLabIdFromSlipDetails,
+  resolveOfficeIdFromSlipDetails,
 } from "@/lib/add-stage/preload-state";
 import {
   SLIP_EDIT_REQUIRES_IN_LAB_MESSAGE,
@@ -43,12 +44,58 @@ import {
 import { caseDesignInter } from "@/components/case-design-center/case-design-inter-font";
 import { Button } from "@/components/ui/button";
 import NewCaseWizard from "@/components/new-case-wizard";
+import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
+import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
 
 type FlowStep = "loading" | "ineligible" | "design";
 
 type Props = {
   slipId: number;
 };
+
+function editAddedAProduct(
+  originalProducts: unknown[],
+  payloadProducts: Array<{ id?: number }> | undefined
+): boolean {
+  if (!payloadProducts?.length) return false;
+  const originalIds = new Set(
+    (Array.isArray(originalProducts) ? originalProducts : [])
+      .map((row) => Number((row as { id?: number })?.id ?? 0))
+      .filter((id) => id > 0)
+  );
+  return payloadProducts.some((product) => {
+    const id = Number(product.id ?? 0);
+    return id <= 0 || !originalIds.has(id);
+  });
+}
+
+function noteText(entry: unknown): string {
+  if (typeof entry === "string") return entry.trim();
+  if (!entry || typeof entry !== "object") return "";
+  const row = entry as { note?: unknown; type?: unknown; action_type?: unknown };
+  const type = String(row.type ?? "stage").toLowerCase();
+  if (type !== "stage") return "";
+  if (row.action_type != null && String(row.action_type).trim() !== "") return "";
+  return String(row.note ?? "").trim();
+}
+
+/** Stage notes already stored on the slip. Edit must keep these as selected. */
+function selectedStageNotesText(details: unknown, products: unknown[]): string {
+  const notes = (details as { notes?: unknown } | null)?.notes;
+  if (Array.isArray(notes)) {
+    const lines = notes.map(noteText).filter(Boolean);
+    if (lines.length > 0) return lines.join("\n");
+  }
+
+  return products
+    .map((row) => {
+      const productNotes = (row as { notes?: unknown } | null)?.notes;
+      return typeof productNotes === "string" ? productNotes.trim() : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
 
 function isSlipEditBlocked(details: unknown): { blocked: boolean; reason?: string } {
   const status = String((details as { status?: string } | null)?.status ?? "").toLowerCase();
@@ -89,7 +136,6 @@ export function EditSlipFlow({ slipId }: Props) {
   );
 
   const slipCollectorRef = useRef<(() => SlipProductSnapshot[]) | null>(null);
-  const caseSummaryNotesRef = useRef("");
   // Edit slip warms up: once the design center mounts, hold a short overlay so the
   // preloaded selections (shades, stages, grade, impression) hydrate onto the fields
   // before the user sees them — fields load first, then appear already selected.
@@ -116,6 +162,11 @@ export function EditSlipFlow({ slipId }: Props) {
   const apiProducts = useMemo(
     () => extractVirtualSlipProducts(virtualSlipDetails),
     [virtualSlipDetails]
+  );
+
+  const lockedCaseSummaryNotes = useMemo(
+    () => selectedStageNotesText(virtualSlipDetails, apiProducts),
+    [apiProducts, virtualSlipDetails]
   );
 
   const locationId = useMemo(() => {
@@ -155,9 +206,14 @@ export function EditSlipFlow({ slipId }: Props) {
     bootstrap,
   });
 
+  const caseId = useMemo(
+    () => resolveVirtualSlipCaseId(virtualSlipDetails),
+    [virtualSlipDetails]
+  );
+
   const goBackToVirtualSlip = useCallback(() => {
-    router.push(`/virtual-slip-v2/${slipId}`);
-  }, [router, slipId]);
+    router.push(buildVirtualSlipPath(caseId, slipId));
+  }, [caseId, router, slipId]);
 
   useEffect(() => {
     setStep("loading");
@@ -196,6 +252,7 @@ export function EditSlipFlow({ slipId }: Props) {
         ? { id: seed.doctor.id, name: seed.doctor.name, img: seed.doctor.img }
         : null,
       lab: seed.lab ? { id: seed.lab.id, name: seed.lab.name, logo: seed.lab.logo } : null,
+      officeId: resolveOfficeIdFromSlipDetails(virtualSlipDetails),
       addedProducts: buildAddedProducts(apiProducts),
       initialArch: determineInitialArch(apiProducts),
     });
@@ -240,7 +297,6 @@ export function EditSlipFlow({ slipId }: Props) {
         casepanId: casepanMeta.id,
         casepanNumber: casepanMeta.number ?? undefined,
         labCustomerId: labCustomerId ?? undefined,
-        caseSummaryNotes: caseSummaryNotesRef.current,
         patientName: wizard.completedPatientName,
         gender: wizard.completedGender,
         age: wizard.completedAge,
@@ -251,12 +307,16 @@ export function EditSlipFlow({ slipId }: Props) {
         throw new Error(res.message || "Could not update slip.");
       }
 
+      if (editAddedAProduct(apiProducts, payload.products)) {
+        markSlipForAutoPrint(slipId);
+      }
+
       setSubmissionState("success-transition");
       toast({
         title: "Slip updated",
         description: res.message || "The slip was updated successfully.",
       });
-      setTimeout(() => router.push(`/virtual-slip-v2/${slipId}`), 2000);
+      setTimeout(() => router.push(buildVirtualSlipPath(caseId, slipId)), 2000);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not update slip.";
       setSubmitError(message);
@@ -293,6 +353,7 @@ export function EditSlipFlow({ slipId }: Props) {
             key={wizard.wizardKey}
             onComplete={wizard.handleWizardComplete}
             onLabSelect={(lab) => wizard.setCompletedLab(lab)}
+            onDoctorSelect={(doctor) => wizard.setCompletedDoctor(doctor)}
             startStep={wizard.wizardStartStep}
             mode={
               wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"
@@ -300,29 +361,38 @@ export function EditSlipFlow({ slipId }: Props) {
                 : wizard.wizardMode
             }
             initialLabId={
-              (wizard.wizardMode === "backToProducts" ||
+              (wizard.labEditMode ||
+                wizard.wizardMode === "backToProducts" ||
                 wizard.wizardMode === "addProduct") &&
               wizard.completedLab
                 ? wizard.completedLab.id
                 : null
             }
+            officeId={wizard.officeId}
             initialPatientName={
-              wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"
+              wizard.labEditMode ||
+              wizard.wizardMode === "backToProducts" ||
+              wizard.wizardMode === "addProduct"
                 ? wizard.completedPatientName
                 : ""
             }
             initialGender={
-              wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"
+              wizard.labEditMode ||
+              wizard.wizardMode === "backToProducts" ||
+              wizard.wizardMode === "addProduct"
                 ? wizard.completedGender
                 : ""
             }
             initialAge={
-              wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"
+              wizard.labEditMode ||
+              wizard.wizardMode === "backToProducts" ||
+              wizard.wizardMode === "addProduct"
                 ? wizard.completedAge
                 : ""
             }
             initialDoctor={
-              (wizard.wizardMode === "backToProducts" ||
+              (wizard.labEditMode ||
+                wizard.wizardMode === "backToProducts" ||
                 wizard.wizardMode === "addProduct") &&
               wizard.completedDoctor
                 ? wizard.completedDoctor
@@ -334,7 +404,12 @@ export function EditSlipFlow({ slipId }: Props) {
             initialSubProduct={
               wizard.wizardMode === "backToProducts" ? wizard.lastSelectedSubProduct : null
             }
-            forceArch={wizard.wizardMode === "addProduct" ? wizard.pendingProductArch : undefined}
+            forceArch={
+              wizard.wizardMode === "addProduct" ||
+              (wizard.wizardMode === "backToProducts" && wizard.isPreloadedSession)
+                ? wizard.pendingProductArch
+                : undefined
+            }
             editTarget={wizard.labEditMode ? "lab" : undefined}
             onEditDone={wizard.handleEditDone}
           />
@@ -377,6 +452,7 @@ export function EditSlipFlow({ slipId }: Props) {
                 onInlineAddProductCancel={wizard.cancelInlineAddProduct}
                 labCustomerId={labCustomerId}
                 onBackToProducts={wizard.handleBackToProducts}
+                onEditProductCard={wizard.handleEditProductCard}
                 onBackToCategories={wizard.handleBackToCategories}
                 selectedProductId={wizard.selectedProductId}
                 selectedProductName={wizard.selectedProductName}
@@ -390,14 +466,18 @@ export function EditSlipFlow({ slipId }: Props) {
                 initialArch={wizard.initialArch}
                 initialSlipState={initialSlipState}
                 preloadInitialSlipState
-                suppressFieldAutoOpen
+                suppressFieldAutoOpen={!wizard.hasSwappedProduct}
                 slipCollectorRef={slipCollectorRef}
-                caseSummaryNotesRef={caseSummaryNotesRef}
+                lockedCaseSummaryNotes={lockedCaseSummaryNotes}
                 confirmDetailsChecked={confirmDetailsChecked}
                 onAnyModalOpenChange={setIsAnyModalOpen}
                 rushCasesEnabled={rushCasesEnabled}
                 rushCaseSchedule={rushCaseSchedule}
                 labBusinessHours={labBusinessHours}
+                attachmentSlipId={slipId}
+                attachmentCaseId={caseId ?? undefined}
+                attachmentDoctorName={wizard.completedDoctor?.name}
+                attachmentPatientName={wizard.completedPatientName || undefined}
               />
             )}
             <div style={{ height: "80px" }} />

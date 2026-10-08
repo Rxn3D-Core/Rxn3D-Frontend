@@ -53,6 +53,13 @@ interface ModalOrchestratorProps {
   impressionModalHeading?: string;
   /** Dual impression modal: main product arch row first, opposing row second */
   dualImpressionPrimaryArch?: "maxillary" | "mandibular";
+  /**
+   * Add-new-stage: require New Impression / No Impression choice in the impression modal.
+   * Cards start unselected; prior-stage impressions are not reused.
+   */
+  requireImpressionChoice?: boolean;
+  /** Completes the impression step with no selections (add-new-stage "No Impression"). */
+  onNoImpression?: () => void;
   // Add-ons
   showAddOnsModal: boolean;
   setShowAddOnsModal: (v: boolean) => void;
@@ -80,6 +87,7 @@ interface ModalOrchestratorProps {
   /** Case/slip context for the attachment browser */
   attachmentCaseId?: number;
   attachmentSlipId?: number;
+  attachmentLabId?: number;
   attachmentDoctorName?: string;
   attachmentPatientName?: string;
   // Rush
@@ -201,6 +209,8 @@ export function ModalOrchestrator({
   hideSkipOpposing,
   impressionModalHeading,
   dualImpressionPrimaryArch,
+  requireImpressionChoice = false,
+  onNoImpression,
   // Add-ons
   showAddOnsModal,
   setShowAddOnsModal,
@@ -218,6 +228,7 @@ export function ModalOrchestrator({
   onAttachFileCountsChange,
   attachmentCaseId,
   attachmentSlipId,
+  attachmentLabId,
   attachmentDoctorName,
   attachmentPatientName,
   // Rush
@@ -388,6 +399,20 @@ export function ModalOrchestrator({
         hideSkipOpposing={hideSkipOpposing}
         modalHeading={impressionModalHeading}
         dualImpressionPrimaryArch={dualImpressionPrimaryArch}
+        requireImpressionChoice={requireImpressionChoice}
+        onNoImpression={() => {
+          if (impressionCloseInFlightRef.current) return;
+          impressionCloseInFlightRef.current = true;
+          const arches = getDualModalArches(
+            currentImpressionOppositeImpression,
+            currentImpressionArch
+          );
+          for (const archToProcess of arches) {
+            onImpressionConfirm("No Impression", archToProcess);
+          }
+          onNoImpression?.();
+          setShowImpressionModal(false);
+        }}
       />
 
       {/* Add-Ons Modal */}
@@ -433,6 +458,11 @@ export function ModalOrchestrator({
                   : "Lower"
                 : undefined
             }
+            productName={
+              disableStageAutoSelect
+                ? currentStageProduct?.name?.trim() || undefined
+                : undefined
+            }
             lastCompletedStageId={(() => {
               if (!disableStageAutoSelect || !stageHistory?.length) return undefined;
               return stageHistory.reduce((best, h) =>
@@ -472,6 +502,7 @@ export function ModalOrchestrator({
         onClose={() => setShowAttachModal(false)}
         caseId={attachmentCaseId}
         slipId={attachmentSlipId}
+        labId={attachmentLabId}
         doctorName={attachmentDoctorName}
         patientName={attachmentPatientName}
         isCaseSubmitted={false}

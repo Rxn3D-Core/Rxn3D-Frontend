@@ -23,6 +23,8 @@ interface CaseDesignSummarySectionProps {
   /** When false, hide the summary Add Addons action (no product in the case supports add-ons). */
   caseHasAddons?: boolean;
   onCaseSummaryNotesChange?: (text: string) => void;
+  /** Existing stage notes to show unchanged (edit slip). */
+  lockedCaseSummaryNotes?: string;
 }
 
 export function CaseDesignSummarySection({
@@ -37,6 +39,7 @@ export function CaseDesignSummarySection({
   rushArchSlots = [],
   caseHasAddons = false,
   onCaseSummaryNotesChange,
+  lockedCaseSummaryNotes,
 }: CaseDesignSummarySectionProps) {
   const showCaseSummaryNotes = shouldShowCaseSummaryNotes({
     caseSubmitted,
@@ -145,6 +148,7 @@ export function CaseDesignSummarySection({
         maxillaryImplantDetailByTooth={maxillaryImplantDetailByTooth}
         mandibularImplantDetailByTooth={mandibularImplantDetailByTooth}
         onNotesChange={onCaseSummaryNotesChange}
+        lockedNotes={lockedCaseSummaryNotes}
         selectedShadeGuide={state.selectedShadeGuide}
       />
     </div>

@@ -37,7 +37,7 @@ export function UnifiedDashboard() {
     content = primaryRole === "doctor" ? <DoctorDashboard /> : <OfficeAdminDashboard />
   } else {
     content = (
-      <div className="p-6">
+      <div className="px-6 py-4">
         <h1 className="text-2xl font-bold mb-6 capitalize">
           {primaryRole.replaceAll("_", " ")} Dashboard
         </h1>

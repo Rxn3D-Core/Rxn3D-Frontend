@@ -185,7 +185,7 @@ export default function BillingSettingsPage() {
       <div className="space-y-1">
         <BreadcrumbBar
           items={[
-            { label: "Billing & Subscription", href: "/billing-subscription" },
+            { label: "Billing & Subscription", href: "/billing-subscription/billing-configuration" },
             { label: "Settings" },
           ]}
         />

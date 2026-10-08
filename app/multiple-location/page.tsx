@@ -6,6 +6,7 @@ import MultipleLocation from "@/components/multiple-location-form"
 import { useAuth } from "@/contexts/auth-context"
 import { ProtectedRoute } from "@/components/protected-route"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
+import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
 
 export default function MultipleLocationPage() {
   const { user, isLoading, setCustomerId } = useAuth()
@@ -40,7 +41,10 @@ export default function MultipleLocationPage() {
     if (customers.length === 1) {
       hasHandledSingleLocationRef.current = true
       const singleLocation = customers[0]
-      
+      // Land on the role's default page (office/lab users go to their case list).
+      const userRoles = user.roles || (user.role ? [user.role] : [])
+      const landingPath = getPostLoginLandingPath(userRoles)
+
       // Set customer ID and redirect
       setCustomerId(singleLocation.id).then(() => {
         localStorage.setItem("selectedLocation", JSON.stringify(singleLocation))
@@ -50,7 +54,7 @@ export default function MultipleLocationPage() {
           !onboardingApiError &&
           isOnboardingComplete
         ) {
-          router.replace("/dashboard")
+          router.replace(landingPath)
         } else {
           router.replace("/onboarding/business-hours")
         }
@@ -64,7 +68,7 @@ export default function MultipleLocationPage() {
           !onboardingApiError &&
           isOnboardingComplete
         ) {
-          router.replace("/dashboard")
+          router.replace(landingPath)
         } else {
           router.replace("/onboarding/business-hours")
         }

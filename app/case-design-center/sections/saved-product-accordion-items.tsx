@@ -7,6 +7,7 @@ import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/
 import { useSavedProductSection } from "./saved-product-section-context"
 import { useCaseDesignCenterContext } from "../context/case-design-center-context"
 import type { SavedProduct } from "./types"
+import { resolveVariationDays } from "@/components/case-design-center/utils/variationHelpers"
 
 export interface SavedProductAccordionItemsProps {
   arch: "maxillary" | "mandibular"
@@ -204,7 +205,11 @@ export function SavedProductAccordionItems({ arch }: SavedProductAccordionItemsP
                           whiteSpace: "nowrap",
                         }}
                       >
-                        Est days: {selectedProduct?.estimated_days || 10} work days after submission
+                        Est days:{" "}
+                        {resolveVariationDays(selectedProduct as any, teeth.length) ??
+                          selectedProduct?.estimated_days ??
+                          10}{" "}
+                        work days after submission
                       </span>
                     </div>
                   </div>

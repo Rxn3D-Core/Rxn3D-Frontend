@@ -25,6 +25,22 @@ interface ToothShadeSelectionSVGProps {
   shades?: ShadeGuideDisplayShade[];
   /** Footer label (e.g. selected shade guide system name). */
   guideLabel?: string;
+  /** Brand color for the bottom rack bar (from teeth shade brand). */
+  brandColor?: string | null;
+}
+
+function isValidHexColor(value?: string | null): value is string {
+  return typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value.trim());
+}
+
+/** Pick black/white label text for contrast on the brand-colored rack. */
+function contrastTextForBackground(hex: string): string {
+  const normalized = hex.replace("#", "");
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? "#111111" : "#FFFFFF";
 }
 
 function ShadeStickBlock({
@@ -167,6 +183,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
   showRequired = false,
   shades,
   guideLabel,
+  brandColor,
 }) => {
   const [clickedIndex, setClickedIndex] = useState<number | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -185,6 +202,10 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
     () => getRackLineCount(layout.viewBoxWidth),
     [layout.viewBoxWidth]
   );
+  const rackFill = isValidHexColor(brandColor) ? brandColor.trim() : "#a3a8a4";
+  const guideLabelFill = isValidHexColor(brandColor)
+    ? contrastTextForBackground(brandColor.trim())
+    : "#111";
 
   useEffect(() => {
     setClickedIndex(null);
@@ -282,7 +303,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
 
         <g clipPath="url(#shade-guide-clip-au)">
           <path
-            fill="#a3a8a4"
+            fill={rackFill}
             d={`M${SHADE_LAYOUT.rackLeft} 122.956v53.449c0 8.754 12.565 15.856 28.07 15.856h${layout.rackBarWidth}c15.505 0 28.07-7.102 28.07-15.856v-53.449z`}
           />
           <g id="rack-lines">
@@ -300,7 +321,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
               fontFamily="Inter, Arial, sans-serif"
               fontSize={guideLabelFontSize}
               fontStyle="italic"
-              fill="#111"
+              fill={guideLabelFill}
             >
               {guideLabel}
     </text>

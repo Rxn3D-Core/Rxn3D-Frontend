@@ -6,11 +6,11 @@ import { Check } from "@/components/ui/custom-check";
 import type { Arch, ProductApiData, ProductExtraction, ShadeFieldType } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
-import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
+import { ProductImagePreview, productAccordionLargeImageContainerClass, productAccordionLargeImageImgClass } from "./ProductImagePreview";
 import { ToothStatusBoxes } from "./ToothStatusBoxes";
 import { RushIcon } from "./CenterActionIcons";
 import { parseAddonDisplayItems, productSupportsAddons } from "../utils/addonDisplayHelpers";
-import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
+import { isSingleDefaultOnlyExtractionList, shouldHideReferenceTeethSelection } from "../utils/extractionHelpers";
 import { mapOppositeExtractionsToProductExtractions } from "../utils/opposingExtractionHelpers";
 import {
   caseDesignInter,
@@ -20,6 +20,7 @@ import {
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
 import { resolveVariationDisplay, resolveArchProductImage } from "../utils/variationHelpers";
+import { resolveRemovableEstDaysText } from "../utils/removableEstDays";
 import { GradeHoverSelector } from "./RemovableRestorationFields";
 import { isSingleStageNoStages, shouldSkipStageSelection, parseStageDisplayName } from "../utils/categoryHelpers";
 import {
@@ -28,6 +29,13 @@ import {
   parseGradeDisplayName,
   isGradeStepCompleteForDisplay,
 } from "../utils/gradeHelpers";
+import {
+  findShadeCatalogMatch,
+  formatRemovableShadeFieldLabel,
+  getShadePreviewCode,
+  SHADE_FIELD_LABEL_CLASS,
+} from "../utils/shadeFieldDisplay";
+import { TeethShadePreviewIcon } from "./TeethShadePreviewIcon";
 import {
   archHasOpposingImpressionSelections,
   resolveOpposingImpressionProductId,
@@ -247,12 +255,11 @@ export function OpposingRemovableAccordion({
   const hasRushed = !!rushedProducts[productKey];
   const stageVal = selectedStages[productKey] || getFieldValue(fieldArch, fieldRepTn, "stage");
   const stageDisplayName = parseStageDisplayName(stageVal);
-  const remStageObj = opposingProductData.stages?.find((s) => s.name === stageDisplayName);
-  const remDays = remStageObj?.days_to_process;
-  const estDays =
-    remDays != null
-      ? `${remDays} work day${remDays === 1 ? "" : "s"} after submission`
-      : "10 work days after submission";
+  const estDays = resolveRemovableEstDaysText(
+    opposingProductData,
+    stageDisplayName,
+    displayTeeth.length
+  );
 
   const advFields = opposingProductData.advance_fields;
   const isF = (step: string) =>
@@ -279,12 +286,16 @@ export function OpposingRemovableAccordion({
   );
   const impressionComplete =
     isFComplete("impression") ||
+    impressionDisplay === "No Impression" ||
     (!!impressionDisplay && hasOpposingImpressionSelected);
 
   const hasOpposingExtractionsConfigured = (opposingProductData.opposite_extractions?.length ?? 0) > 0;
   const hasOpposingImpressionConfigured = opposingProductData.opposite_impression === "Yes";
   const showOpposingExtractions =
-    hasOpposingExtractionsConfigured && opposingExtractions.length > 0 && !opposingIsSingleDefaultOnly;
+    hasOpposingExtractionsConfigured &&
+    opposingExtractions.length > 0 &&
+    !opposingIsSingleDefaultOnly &&
+    !shouldHideReferenceTeethSelection(opposingProductData as Record<string, unknown>);
   const showOpposingImpressionField =
     hasOpposingImpressionConfigured && (opposingOnlyLayout ? true : isF("impression"));
 
@@ -310,7 +321,7 @@ export function OpposingRemovableAccordion({
                 imageUrl={productImage}
                 altText={productName}
                 containerClassName={productAccordionLargeImageContainerClass}
-                imgClassName="w-full h-full object-contain"
+                imgClassName={productAccordionLargeImageImgClass}
                 fallback={
                   <PanelDiv className="w-full h-full flex items-center justify-center">
                     <span className="text-[10px] text-gray-400">No img</span>
@@ -593,7 +604,7 @@ export function OpposingRemovableAccordion({
                   <PanelDiv className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {isF("teeth_shade") && isFComplete("teeth_shade") && (
                       <fieldset
-                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                         onClick={() =>
                           handleShadeFieldClick(fieldArch, "tooth_shade", `prep_${fieldRepTn}`)
                         }
@@ -603,26 +614,31 @@ export function OpposingRemovableAccordion({
                         >
                           Teeth shade
                         </legend>
-                        <PanelDiv className="flex items-center gap-2 w-full">
-                          <span className="text-[14px] sm:text-lg text-[#000000]">
-                            {(() => {
-                              const r = fVal("teeth_shade");
-                              try {
-                                return JSON.parse(r).name ?? r;
-                              } catch {
-                                return r;
-                              }
-                            })()}
+                        <PanelDiv className="flex items-center gap-2 w-full min-w-0">
+                          <span
+                            className={SHADE_FIELD_LABEL_CLASS}
+                            title={formatRemovableShadeFieldLabel(
+                              fVal("teeth_shade"),
+                              opposingProductData.teeth_shades
+                            ) || undefined}
+                          >
+                            {formatRemovableShadeFieldLabel(
+                              fVal("teeth_shade"),
+                              opposingProductData.teeth_shades
+                            )}
                           </span>
+                          {getShadePreviewCode(fVal("teeth_shade")) && (
+                            <TeethShadePreviewIcon shadeCode={getShadePreviewCode(fVal("teeth_shade"))} />
+                          )}
                           {isFComplete("teeth_shade") && !caseSubmitted && (
-                            <Check size={16} className="text-[#34a853] ml-auto" />
+                            <Check size={16} className="text-[#34a853] flex-shrink-0" />
                           )}
                         </PanelDiv>
                       </fieldset>
                     )}
                     {isF("gum_shade") && isFComplete("teeth_shade") && (
                       <fieldset
-                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                         onClick={() => {
                           if (!caseSubmitted) {
                             const currentGumShade = fVal("gum_shade");
@@ -647,25 +663,22 @@ export function OpposingRemovableAccordion({
                         >
                           Gum Shade
                         </legend>
-                        <PanelDiv className="flex items-center gap-2 w-full">
+                        <PanelDiv className="flex items-center gap-2 w-full min-w-0">
                           {isFComplete("gum_shade") ? (
                             (() => {
                               const raw = fVal("gum_shade");
-                              let displayName = raw;
-                              let color: string | null = null;
-                              try {
-                                const p = JSON.parse(raw);
-                                displayName = p.name ?? raw;
-                              } catch {
-                                /* plain */
-                              }
-                              const matchedShade = opposingProductData.gum_shades?.find(
-                                (s) => s.name === displayName
+                              const matchedShade = findShadeCatalogMatch(
+                                raw,
+                                opposingProductData.gum_shades
                               );
-                              if (matchedShade) color = matchedShade.color_code_middle;
+                              const color = matchedShade?.color_code_middle ?? null;
+                              const displayName = formatRemovableShadeFieldLabel(
+                                raw,
+                                opposingProductData.gum_shades
+                              );
                               return (
                                 <>
-                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
+                                  <span className={SHADE_FIELD_LABEL_CLASS} title={displayName || undefined}>{displayName}</span>
                                   {color && (
                                     <svg
                                       width="29"
@@ -673,7 +686,7 @@ export function OpposingRemovableAccordion({
                                       viewBox="0 0 29 29"
                                       fill="none"
                                       xmlns="http://www.w3.org/2000/svg"
-                                      className="flex-shrink-0 ml-auto"
+                                      className="flex-shrink-0"
                                     >
                                       <rect width="28.0391" height="28.0391" rx="6" fill={color} />
                                     </svg>

@@ -3,6 +3,7 @@ import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes";
 import { cn } from "@/lib/utils";
 
 type SlipListingVirtualSlipLinkProps = {
+  caseId?: number | null;
   slipId: number;
   children: React.ReactNode;
   className?: string;
@@ -13,6 +14,7 @@ type SlipListingVirtualSlipLinkProps = {
 };
 
 export function SlipListingVirtualSlipLink({
+  caseId,
   slipId,
   children,
   className,
@@ -21,7 +23,7 @@ export function SlipListingVirtualSlipLink({
 }: SlipListingVirtualSlipLinkProps) {
   return (
     <Link
-      href={buildVirtualSlipV2Path(slipId)}
+      href={buildVirtualSlipV2Path(caseId, slipId)}
       className={cn(
         variant === "cell" &&
           "relative z-[1] block text-gray-900 hover:text-[#1162A8] hover:underline",

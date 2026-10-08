@@ -103,7 +103,7 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="px-6 py-4">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-4">
           <Select defaultValue="bliss">

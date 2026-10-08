@@ -254,7 +254,16 @@ function StatementPreviewContent({
     >
       <div className="grid gap-6 sm:grid-cols-[1fr_200px] sm:items-start">
         <div className="min-w-0">
-          <img src="/images/hmc.svg" alt="RXN3D logo" className="mb-3 h-auto w-[120px] object-contain" />
+          {statement.lab?.logo_url ? (
+            <img
+              src={statement.lab.logo_url}
+              alt={`${statement.lab.name || "Lab"} logo`}
+              className="mb-3 h-auto w-[120px] object-contain"
+            />
+          ) : null}
+          <h3 className="mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-2xl font-bold leading-tight text-black">
+            {statement.lab?.name || "Lab"}
+          </h3>
           <div className="space-y-0.5 text-[13px] leading-5 text-slate-800">
             <p className="whitespace-pre-line">{formatStatementPartyAddress(statement.lab)}</p>
             <p>
@@ -400,7 +409,12 @@ function StatementPreviewContent({
                   >
                     <td className="break-words px-2 py-2.5 align-middle text-[12px] leading-4 text-black">{item.patient_name || "—"}</td>
                     <td className="px-1.5 py-2.5 align-middle text-[12px] leading-4 text-black">{item.product_type || "—"}</td>
-                    <td className="break-words px-1.5 py-2.5 align-middle text-[12px] leading-4 text-black">{item.product_name || "—"}</td>
+                    <td className="break-words px-1.5 py-2.5 align-middle text-[12px] leading-4 text-black">
+                      {item.product_name || "—"}
+                      {item.variation_name?.trim() ? (
+                        <div className="text-[10px] leading-snug text-slate-500">{item.variation_name.trim()}</div>
+                      ) : null}
+                    </td>
                     <td className="break-words px-1.5 py-2.5 align-middle text-[12px] leading-4 text-black">{item.grade_name || "—"}</td>
                     <td className="break-words px-1.5 py-2.5 align-middle text-[12px] leading-4 text-black">{item.stage_name || "—"}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{formatMoney(item.base_total)}</td>
@@ -460,6 +474,9 @@ function StatementPreviewContent({
                   <div className="min-w-0">
                     <p className="truncate text-base font-bold text-black">{item.patient_name || "—"}</p>
                     <p className="truncate text-sm text-slate-700">{item.product_name || "—"}</p>
+                    {item.variation_name?.trim() ? (
+                      <p className="truncate text-xs text-slate-500">{item.variation_name.trim()}</p>
+                    ) : null}
                   </div>
                   {isEditMode ? (
                     <div className="flex shrink-0 items-center">

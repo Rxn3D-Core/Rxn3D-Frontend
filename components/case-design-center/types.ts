@@ -102,7 +102,9 @@ export interface CaseDesignProps {
   onInlineAddProductCancel?: () => void;
   /** Lab customer id for library API calls in the inline add-product picker. */
   labCustomerId?: number | null;
-  onBackToProducts?: () => void;
+  onBackToProducts?: (productCardId?: number) => void;
+  /** Swap the product on one added product card (keeps field values the new product shares). */
+  onEditProductCard?: (productCardId: number, arch: "maxillary" | "mandibular") => void;
   /**
    * Navigate back to the category-selection step of the new-case wizard.
    * Invoked when a Fixed Restoration accordion is deleted so the user can pick
@@ -142,6 +144,11 @@ export interface CaseDesignProps {
    * content here so submit flows can send WYSIWYG notes to the API.
    */
   caseSummaryNotesRef?: React.MutableRefObject<string>;
+  /**
+   * Edit slip: show these notes and do not regenerate them from the current design.
+   * An empty string still locks the field so a new summary is not generated.
+   */
+  lockedCaseSummaryNotes?: string;
   /**
    * Pre-built state from the virtual slip API response.
    * When provided alongside caseSubmitted=true, hydrates all panels on first mount
@@ -183,6 +190,8 @@ export interface CaseDesignProps {
   /** Case/slip IDs for the attachment browser (available after submission) */
   attachmentCaseId?: number;
   attachmentSlipId?: number;
+  /** Lab id used to upload attachments before the slip exists. */
+  attachmentLabId?: number;
 }
 
 export interface AddedProduct {
@@ -192,6 +201,8 @@ export interface AddedProduct {
   product: any;
   arch: string;
   expanded: boolean;
+  /** Create-slip edit: this card took over the initial (card 0) product's teeth on its arch. */
+  replacesInitialProduct?: boolean;
 }
 
 /**
@@ -263,6 +274,11 @@ export interface VirtualSlipInitialState {
   /** Saved edit-slip implant and abutment selections keyed by tooth number. */
   maxillaryImplantDetailsByTooth: Record<number, ImplantDetailData>;
   mandibularImplantDetailsByTooth: Record<number, ImplantDetailData>;
+  /**
+   * Active teeth shade guide system_name from the slip (e.g. "IPS Shade System").
+   * Hydrated so edit-slip labels/picker match the originally selected brand guide.
+   */
+  selectedShadeGuide?: string;
 }
 
 export interface NotesProps {
@@ -297,6 +313,11 @@ export interface NotesProps {
   getImpressionDisplayText: (productId: string, arch: Arch, toothNumber?: number) => string;
   /** Fired when the displayed case summary text changes (auto-generated or user-edited). */
   onNotesChange?: (text: string) => void;
+  /**
+   * When set (including ""), show this text and do not rebuild notes from the design.
+   * Used on edit slip so the originally selected stage notes stay put.
+   */
+  lockedNotes?: string;
   /** Implant inclusions for right1 and right2 */
   right1Inclusion: string;
   right2Inclusion: string;
@@ -449,7 +470,7 @@ export interface ProductGumShade {
     status: string;
     sequence: number;
     default?: string;
-  };
+  } | null;
   color_code_top: string;
   color_code_middle: string;
   color_code_bottom: string;
@@ -505,6 +526,7 @@ export interface ProductGrade {
   is_default: string;
   status: string;
   price: string;
+  color?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -683,6 +705,8 @@ export interface ProductApiData {
   allow_select_only_implant?: "Yes" | "No" | null;
   /** When "Yes", `custom_label` overrides the default tooth-chart selection prompt on the slip. */
   enable_custom_label?: "Yes" | "No" | null;
+  /** When "Yes", slip creation hides reference teeth / tooth status boxes for this product. */
+  hide_reference_teeth_selection?: "Yes" | "No" | null;
   custom_label?: string | null;
   default_tooth_chart?: Array<{
     tooth_number: number
@@ -697,6 +721,7 @@ export interface ProductApiData {
     image_url?: string | null;
     teeth_spec?: string | null;
     name_template?: string | null;
+    days?: number | null;
   }>;
 }
 

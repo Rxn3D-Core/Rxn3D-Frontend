@@ -34,9 +34,29 @@ import {
   resolveProductGradesForDisplay,
   parseGradeDisplayName,
   isGradeStepCompleteForDisplay,
+  findOppositeArchSelectedGrade,
+  findOppositeArchGradesDonor,
 } from "../utils/gradeHelpers";
-import { buildRemovableAddonFieldContext } from "../utils/addonDisplayHelpers";
+import { buildRemovableAddonFieldContext, parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import type { StoredAddonEntry } from "../utils/addonDisplayHelpers";
+import {
+  mergeProductAndAbutmentAddonEntries,
+} from "../utils/abutmentAddonSync";
+import { useCaseDesignStore } from "@/stores/caseDesignStore";
+import { getProductAdvanceFieldsForSlip } from "../utils/advanceFieldStepHelpers";
+import type { SlipImpressionSelections } from "../utils/impressionStorage";
+import {
+  ARCH_IMPRESSION_PRODUCT_ID,
+  archHasActiveImpressionSelections,
+} from "../utils/impressionFieldSync";
+import {
+  findShadeCatalogMatch,
+  formatRemovableShadeFieldLabel,
+  getShadePreviewCode,
+  SHADE_FIELD_LABEL_CLASS,
+} from "../utils/shadeFieldDisplay";
+import { TeethShadePreviewIcon } from "./TeethShadePreviewIcon";
+import { useAutoOpenSuppressed } from "./auto-open-suppression";
 
 /* ------------------------------------------------------------------ */
 /*  Diamond SVG icons (Grade field)                                    */
@@ -61,6 +81,55 @@ const GRADE_LEVEL_PALETTES: GradeDiamondPalette[] = [
 export function gradeLevelPalette(level: number): GradeDiamondPalette {
   if (level <= 0) return GRADE_LEVEL_PALETTES[0];
   return GRADE_LEVEL_PALETTES[Math.min(level, GRADE_LEVEL_PALETTES.length) - 1];
+}
+
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const match = HEX_COLOR_PATTERN.exec(hex.trim());
+  if (!match) return null;
+  const n = parseInt(hex.trim().slice(1), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return (
+    "#" +
+    [r, g, b]
+      .map((c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase()
+  );
+}
+
+function shadeHex(hex: string, amount: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const adjust = (c: number) => (amount >= 0 ? c + (255 - c) * amount : c * (1 + amount));
+  return rgbToHex(adjust(rgb.r), adjust(rgb.g), adjust(rgb.b));
+}
+
+/** Build a 4-stop diamond palette from a single hex grade color. */
+export function paletteFromHex(hex: string): GradeDiamondPalette {
+  const normalized = hex.trim().toUpperCase();
+  return {
+    a: normalized,
+    b: shadeHex(normalized, -0.15),
+    c: shadeHex(normalized, 0.25),
+    d: shadeHex(normalized, -0.3),
+  };
+}
+
+/** Use grade.color when set; otherwise fall back to level-based defaults. */
+export function resolveGradePalette(
+  grade?: Pick<ProductGrade, "color"> | null,
+  level = 1
+): GradeDiamondPalette {
+  const hex = grade?.color?.trim();
+  if (hex && HEX_COLOR_PATTERN.test(hex)) {
+    return paletteFromHex(hex);
+  }
+  return gradeLevelPalette(level);
 }
 
 function Diamond({ filled, palette }: { filled: boolean; palette?: GradeDiamondPalette }) {
@@ -161,7 +230,7 @@ export function GradeSelectionModal({
             const level = idx + 1;
             const isSelected =
               grade.name === selectedGradeName || grade.code === selectedGradeName;
-            const palette = gradeLevelPalette(level);
+            const palette = resolveGradePalette(grade, level);
             return (
               <button
                 key={grade.grade_id ?? grade.name}
@@ -232,11 +301,14 @@ export function GradeHoverSelector({
   currentGradeName,
   onSelect,
   disabled,
+  preferredGradeName,
 }: {
   grades: ProductGrade[];
   currentGradeName: string;
   onSelect: (grade: ProductGrade) => void;
   disabled?: boolean;
+  /** Opposite-arch grade to copy when it exists in this product's list. */
+  preferredGradeName?: string;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   // Sort by sequence so diamond count maps to grade level. Grade `sequence` values can
@@ -247,7 +319,8 @@ export function GradeHoverSelector({
     (g) => g.name === currentGradeName || g.code === currentGradeName
   );
   const currentCount = currentIndex >= 0 ? currentIndex + 1 : getGradeDiamondCount(currentGradeName, grades);
-  const palette = gradeLevelPalette(currentCount);
+  const selectedGrade = currentIndex >= 0 ? sortedGrades[currentIndex] : undefined;
+  const palette = resolveGradePalette(selectedGrade, currentCount);
 
   // Single grade → auto-select it; don't ask the user to pick.
   const autoSelectSigRef = useRef<string | null>(null);
@@ -260,6 +333,22 @@ export function GradeHoverSelector({
     }
   }, [disabled, currentIndex, gradesSignature, onSelect, sortedGrades]);
 
+  // Same product on the other arch already has a grade — copy it instead of asking.
+  const preferredAppliedRef = useRef(false);
+  const preferredMatch = preferredGradeName
+    ? sortedGrades.find(
+        (g) => g.name === preferredGradeName || g.code === preferredGradeName
+      )
+    : undefined;
+  useEffect(() => {
+    if (disabled) return;
+    if (preferredAppliedRef.current) return;
+    if (currentIndex !== -1) return;
+    if (!preferredMatch) return;
+    preferredAppliedRef.current = true;
+    onSelect(preferredMatch);
+  }, [disabled, currentIndex, preferredMatch, onSelect]);
+
   // Auto-open the picker the first time a multi-grade field is shown without a
   // selection, so the user picks a grade without having to click the field first.
   // Mirrors the stage modal's auto-open. Opens once per mount; cancelling won't re-open.
@@ -270,12 +359,13 @@ export function GradeHoverSelector({
     if (autoOpenedRef.current) return;
     if (sortedGrades.length <= 1) return; // single grade auto-selects instead
     if (currentIndex !== -1) return; // already has a selection
+    if (preferredMatch) return; // opposite-arch grade will be copied
     if (gradeAutoOpenActive) return; // another grade field is already auto-opening
     autoOpenedRef.current = true;
     gradeAutoOpenActive = true;
     ownsAutoOpenLockRef.current = true;
     setModalOpen(true);
-  }, [disabled, sortedGrades.length, currentIndex]);
+  }, [disabled, sortedGrades.length, currentIndex, preferredMatch]);
 
   // Release the auto-open lock if this field unmounts while still holding it.
   useEffect(() => {
@@ -342,19 +432,23 @@ export function GradeHoverSelector({
 /* ------------------------------------------------------------------ */
 
 export function AutoOpenShade({ hasValue, onOpen }: { hasValue: boolean; onOpen: () => void }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const opened = useRef(false);
   useEffect(() => {
+    if (autoOpenSuppressed) return;
     if (!hasValue && !opened.current) {
       opened.current = true;
       onOpen();
     }
-  }, [hasValue, onOpen]);
+  }, [autoOpenSuppressed, hasValue, onOpen]);
   return null;
 }
 
 export function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boolean; hasValue: boolean; onOpen: () => void }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const opened = useRef(false);
   useEffect(() => {
+    if (autoOpenSuppressed) return;
     if (visible && !hasValue && !opened.current) {
       opened.current = true;
       onOpen();
@@ -362,7 +456,7 @@ export function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boole
     if (!visible || hasValue) {
       opened.current = false;
     }
-  }, [visible, hasValue, onOpen]);
+  }, [autoOpenSuppressed, visible, hasValue, onOpen]);
   return null;
 }
 
@@ -386,10 +480,11 @@ export function AutoOpenImpressionIfEmpty({
   /** When true (e.g. impression modal already open), skip auto-open */
   blockAutoOpen?: boolean;
 }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const hasAutoOpenedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (blockAutoOpen) {
+    if (autoOpenSuppressed || blockAutoOpen) {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
@@ -414,7 +509,7 @@ export function AutoOpenImpressionIfEmpty({
       timerRef.current = null;
       onOpenImpressionModal(arch, productId, toothNumber);
     }, 350);
-  }, [isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber, blockAutoOpen]);
+  }, [autoOpenSuppressed, isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber, blockAutoOpen]);
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -485,6 +580,8 @@ interface RemovableRestorationFieldsProps {
   handleOpenStageModal: (productId: string, arch?: Arch, toothNumber?: number) => void;
   handleShadeFieldClick: (arch: Arch, fieldType: ShadeFieldType, productId: string) => void;
   handleOpenImpressionModal: (arch: Arch, productId: string, toothNumber?: number) => void;
+  getImpressionDisplayText?: (productId: string, arch: Arch) => string;
+  selectedImpressions?: SlipImpressionSelections;
   handleOpenAddOnsModal: (arch: Arch, productId: string, toothNumber?: number) => void;
   setPanelGumShadePicker: (state: { toothNumber: number; gumShades: any[]; selectedName?: string | null }) => void;
   /** Product+arch combos where user chose "Submit, no opposing needed" */
@@ -502,10 +599,16 @@ interface RemovableRestorationFieldsProps {
   productAddOns?: Record<string, { maxillary?: StoredAddonEntry[]; mandibular?: StoredAddonEntry[] }>;
   /** Structured add-on selections keyed as `${arch}_${toothNumber}` */
   selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
+  setSelectedAddonsByTooth?: React.Dispatch<
+    React.SetStateAction<Record<string, Array<{ addon_id: number; qty: number }>>>
+  >;
   /** Product card id (0 = initial card). Used to resolve virtual-slot add-on values. */
   productCardId?: number;
   /** Lab customer id owning the product catalog (office flows select the lab in the wizard). */
   labCustomerId?: number | null;
+  /** Active shade-guide system_name fallback when product shade rows lack brand.system_name. */
+  selectedShadeGuide?: string | null;
+  getToothProduct?: (arch: Arch, toothNumber: number) => ProductApiData | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -532,6 +635,8 @@ export function SelectionProductFields({
   handleOpenStageModal,
   handleShadeFieldClick,
   handleOpenImpressionModal,
+  getImpressionDisplayText,
+  selectedImpressions = { maxillary: [], mandibular: [] },
   handleOpenAddOnsModal,
   setPanelGumShadePicker,
   noOpposingNeeded = {},
@@ -542,8 +647,11 @@ export function SelectionProductFields({
   onExpandedImplantToothChange,
   productAddOns = {},
   selectedAddonsByTooth = {},
+  setSelectedAddonsByTooth,
   productCardId = 0,
   labCustomerId,
+  selectedShadeGuide,
+  getToothProduct,
 }: RemovableRestorationFieldsProps) {
   const removableChain = getSelectionFieldChain(selectedProduct);
   const implantTeeth = useMemo(
@@ -563,6 +671,62 @@ export function SelectionProductFields({
     caseSubmitted,
   });
 
+  const preferredGradeName = useMemo(() => {
+    if (!getToothProduct || selectedProduct?.id == null) return "";
+    return parseGradeDisplayName(
+      findOppositeArchSelectedGrade(
+        arch,
+        selectedProduct.id,
+        getToothProduct,
+        getFieldValueFn
+      )
+    );
+  }, [arch, selectedProduct?.id, getToothProduct, getFieldValueFn]);
+
+  const impressionDisplay =
+    getImpressionDisplayText?.(ARCH_IMPRESSION_PRODUCT_ID, arch) ||
+    getFieldValueFn(arch, firstToothNumber, "impression");
+  const impressionComplete =
+    isFieldCompletedFn(arch, firstToothNumber, "impression") ||
+    impressionDisplay === "No Impression" ||
+    (!!impressionDisplay &&
+      archHasActiveImpressionSelections(
+        selectedImpressions,
+        ARCH_IMPRESSION_PRODUCT_ID,
+        arch
+      ));
+
+  // When the other arch already has opposing impressions, mark this product's
+  // impression step complete instead of re-asking after Done.
+  useEffect(() => {
+    if (!showProgressiveFields || caseSubmitted) return;
+    if (isFieldCompletedFn(arch, firstToothNumber, "impression")) return;
+    if (
+      !archHasActiveImpressionSelections(
+        selectedImpressions,
+        ARCH_IMPRESSION_PRODUCT_ID,
+        arch
+      )
+    ) {
+      return;
+    }
+    const text =
+      getImpressionDisplayText?.(ARCH_IMPRESSION_PRODUCT_ID, arch) || impressionDisplay;
+    if (text) {
+      completeFieldStepFn(arch, firstToothNumber, "impression", text);
+    }
+  }, [
+    showProgressiveFields,
+    caseSubmitted,
+    arch,
+    firstToothNumber,
+    selectedImpressions,
+    impressionDisplay,
+    isFieldCompletedFn,
+    completeFieldStepFn,
+    getImpressionDisplayText,
+  ]);
+
   if (!showProgressiveFields) return null;
 
   const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
@@ -577,7 +741,7 @@ export function SelectionProductFields({
       <AutoOpenImpressionIfEmpty
         isExpanded={isExpanded}
         isImpressionVisible={isVisible("impression") && implantDetailReady}
-        isImpressionEmpty={!isFieldCompletedFn(arch, firstToothNumber, "impression")}
+        isImpressionEmpty={!impressionComplete}
         onOpenImpressionModal={(a, productId, toothNum) => {
           handleOpenImpressionModal(a, productId, toothNum);
         }}
@@ -596,9 +760,66 @@ export function SelectionProductFields({
         implantDetailCompleteByTooth={implantDetailCompleteByTooth}
         setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
         caseSubmitted={caseSubmitted}
-        advanceFields={selectedProduct?.advance_fields}
+        advanceFields={getProductAdvanceFieldsForSlip(selectedProduct)}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
+        categoryId={selectedProduct?.subcategory?.category_id ?? selectedProduct?.subcategory?.category?.id}
+        onAbutmentAddonsChange={(entries) => {
+          const display = entries.map((e) => `${e.qty}x ${e.name}`).join(", ");
+          if (display) {
+            completeFieldStepFn(arch, firstToothNumber, "addons", display);
+          }
+          if (entries.length === 0) return;
+
+          const addonKey = `${arch}_${firstToothNumber}`;
+          const existingStructured = selectedAddonsByTooth[addonKey] ?? [];
+          const existingNamed = existingStructured.map((e) => {
+            const fromStore = productAddOns?.[String(selectedProduct?.id ?? "")]?.[arch]?.find(
+              (s) => s.addon_id === e.addon_id
+            );
+            return {
+              addon_id: e.addon_id,
+              qty: e.qty,
+              name: fromStore?.name ?? fromStore?.addOn ?? fromStore?.label,
+            };
+          });
+          const merged = mergeProductAndAbutmentAddonEntries(existingNamed, entries);
+          const structured = merged.map((e) => ({ addon_id: e.addon_id, qty: e.qty }));
+
+          setSelectedAddonsByTooth?.((prev) => {
+            const next = { ...prev };
+            const teethToWrite = [
+              firstToothNumber,
+              productCardId === 0 ? -0 : -productCardId,
+              ...toothNumbers,
+            ];
+            for (const tn of teethToWrite) {
+              next[`${arch}_${tn}`] = structured;
+            }
+            return next;
+          });
+
+          const productId = selectedProduct?.id;
+          if (productId) {
+            const storeState = useCaseDesignStore.getState();
+            const existingStore =
+              storeState.productAddOns[String(productId)] || {
+                maxillary: [],
+                mandibular: [],
+              };
+            storeState.setProductAddOns(String(productId), {
+              ...existingStore,
+              [arch]: merged.map((e) => ({
+                addon_id: e.addon_id,
+                qty: e.qty,
+                quantity: e.qty,
+                name: e.name,
+                addOn: e.name,
+                label: e.name,
+              })),
+            });
+          }
+        }}
         labCustomerId={labCustomerId}
         expandedImplantTooth={expandedImplantTooth}
         onExpandedImplantToothChange={onExpandedImplantToothChange}
@@ -619,7 +840,19 @@ export function SelectionProductFields({
           selectedProduct
         );
         const showGradeGreen = isGradeComplete && !caseSubmitted;
-        const productGrades = resolveProductGradesForDisplay(selectedProduct);
+        const oppositeTeeth =
+          arch === "maxillary"
+            ? [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]
+            : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        const gradesDonor = getToothProduct
+          ? findOppositeArchGradesDonor(
+              arch,
+              selectedProduct?.id,
+              getToothProduct,
+              oppositeTeeth
+            )
+          : null;
+        const productGrades = resolveProductGradesForDisplay(selectedProduct, gradesDonor);
         // Hide grade if stage_configurations.grade === "No"
         const gradeAllowedByStage = !stageCfg || stageCfg.grade !== "No";
         const hasGrades =
@@ -652,6 +885,7 @@ export function SelectionProductFields({
             <GradeHoverSelector
               grades={productGrades}
               currentGradeName={gradeVal}
+              preferredGradeName={preferredGradeName}
               disabled={caseSubmitted}
               onSelect={(g) => completeFieldStepFn(arch, firstToothNumber, "grade", JSON.stringify({ grade_id: g.grade_id, name: g.name }))}
             />
@@ -718,7 +952,7 @@ export function SelectionProductFields({
         />
         <div className={`grid grid-cols-1 ${showGumShade ? "sm:grid-cols-2" : ""} gap-3 mt-3`}>
           <fieldset
-            className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+            className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${
               isFieldCompletedFn(arch, firstToothNumber, "teeth_shade") && !caseSubmitted
                 ? "border-[#34a853]"
                 : isFieldCompletedFn(arch, firstToothNumber, "teeth_shade")
@@ -744,19 +978,33 @@ export function SelectionProductFields({
             >
               Teeth shade
             </legend>
-            <div className="flex items-center gap-2 w-full">
-              <span className="text-[14px] sm:text-lg text-[#000000]">
-                {(() => { const r = getFieldValueFn(arch, firstToothNumber, "teeth_shade"); try { return JSON.parse(r).name ?? r; } catch { return r; } })()}
-              </span>
+            <div className="flex items-center gap-2 w-full min-w-0">
+              {(() => {
+                const teethShadeRaw = getFieldValueFn(arch, firstToothNumber, "teeth_shade");
+                const teethShadeLabel = formatRemovableShadeFieldLabel(
+                  teethShadeRaw,
+                  selectedProduct?.teeth_shades,
+                  selectedShadeGuide
+                );
+                const teethShadeCode = getShadePreviewCode(teethShadeRaw);
+                return (
+                  <>
+                    <span className={SHADE_FIELD_LABEL_CLASS} title={teethShadeLabel || undefined}>
+                      {teethShadeLabel}
+                    </span>
+                    {teethShadeCode && <TeethShadePreviewIcon shadeCode={teethShadeCode} />}
+                  </>
+                );
+              })()}
               {isFieldCompletedFn(arch, firstToothNumber, "teeth_shade") && !caseSubmitted && (
-                <Check size={16} className="text-[#34a853] ml-auto" />
+                <Check size={16} className="text-[#34a853] flex-shrink-0" />
               )}
             </div>
           </fieldset>
 
           {isVisible("gum_shade") ? (
             <fieldset
-              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${
                 isFieldCompletedFn(arch, firstToothNumber, "gum_shade") && !caseSubmitted
                   ? "border-[#34a853]"
                   : isFieldCompletedFn(arch, firstToothNumber, "gum_shade")
@@ -783,19 +1031,17 @@ export function SelectionProductFields({
               >
                 Gum Shade
               </legend>
-              <div className="flex items-center gap-2 w-full">
+              <div className="flex items-center gap-2 w-full min-w-0">
                 {(() => {
                   const raw = getFieldValueFn(arch, firstToothNumber, "gum_shade");
-                  let displayName = raw;
-                  let color: string | null = null;
-                  try { const p = JSON.parse(raw); displayName = p.name ?? raw; } catch {}
-                  const matchedShade = selectedProduct?.gum_shades?.find((s) => s.name === displayName);
-                  if (matchedShade) color = matchedShade.color_code_middle;
+                  const matchedShade = findShadeCatalogMatch(raw, selectedProduct?.gum_shades);
+                  const color = matchedShade?.color_code_middle ?? null;
+                  const displayName = formatRemovableShadeFieldLabel(raw, selectedProduct?.gum_shades);
                   return (
                     <>
-                      <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
+                      <span className={SHADE_FIELD_LABEL_CLASS} title={displayName || undefined}>{displayName}</span>
                       {color && (
-                        <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
+                        <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                           <rect width="28.0391" height="28.0391" rx="6" fill={color} />
                         </svg>
                       )}
@@ -831,9 +1077,9 @@ export function SelectionProductFields({
         <div className="flex flex-col gap-3 mt-3">
           <fieldset
             className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors w-full ${
-              isFieldCompletedFn(arch, firstToothNumber, "impression") && !caseSubmitted
+              impressionComplete && !caseSubmitted
                 ? "border-[#34a853]"
-                : isFieldCompletedFn(arch, firstToothNumber, "impression")
+                : impressionComplete
                   ? "border-[#b4b0b0]"
                   : "border-[#CF0202]"
             }`}
@@ -843,9 +1089,9 @@ export function SelectionProductFields({
           >
             <legend
               className={`text-sm px-1 leading-none ${
-                isFieldCompletedFn(arch, firstToothNumber, "impression") && !caseSubmitted
+                impressionComplete && !caseSubmitted
                   ? "text-[#34a853]"
-                  : isFieldCompletedFn(arch, firstToothNumber, "impression")
+                  : impressionComplete
                     ? "text-[#7f7f7f]"
                     : "text-[#CF0202]"
               }`}
@@ -854,43 +1100,48 @@ export function SelectionProductFields({
             </legend>
             <div className="flex items-center gap-2 w-full">
               <span className="text-[14px] sm:text-lg text-[#000000] break-words">
-                {getFieldValueFn(arch, firstToothNumber, "impression")}
+                {impressionDisplay}
               </span>
-              {isFieldCompletedFn(arch, firstToothNumber, "impression") && !caseSubmitted && (
+              {impressionComplete && !caseSubmitted && (
                 <Check size={16} className="text-[#34a853] ml-auto" />
               )}
             </div>
           </fieldset>
 
           {showAddonField ? (
-            <fieldset
-              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-                isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
-                  ? "border-[#34a853]"
-                  : "border-[#b4b0b0]"
-              }`}
-              onClick={() => {
-                handleOpenAddOnsModal(arch, selectedProduct?.id?.toString() || `prep_${firstToothNumber}`, firstToothNumber);
-              }}
-            >
-              <legend
-                className={`text-sm px-1 leading-none ${
-                  isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
-                    ? "text-[#34a853]"
-                    : "text-[#7f7f7f]"
-                }`}
-              >
-                Add ons
-              </legend>
-              <div className="flex items-center gap-2 w-full">
-                <span className="text-[14px] sm:text-lg text-[#000000] truncate">
-                  {addonCtx.display}
-                </span>
-                {isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted && (
-                  <Check size={16} className="text-[#34a853] ml-auto" />
-                )}
-              </div>
-            </fieldset>
+            <div className="flex flex-wrap gap-3">
+              {parseAddonDisplayItems(addonCtx.display).map((item, idx, items) => (
+                <fieldset
+                  key={`${item}-${idx}`}
+                  className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[220px] ${
+                    isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
+                      ? "border-[#34a853]"
+                      : "border-[#b4b0b0]"
+                  }`}
+                  onClick={() => {
+                    handleOpenAddOnsModal(arch, selectedProduct?.id?.toString() || `prep_${firstToothNumber}`, firstToothNumber);
+                  }}
+                >
+                  <legend
+                    className={`text-sm px-1 leading-none ${
+                      isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
+                        ? "text-[#34a853]"
+                        : "text-[#7f7f7f]"
+                    }`}
+                  >
+                    Add on
+                  </legend>
+                  <div className="flex items-center gap-2 w-full min-w-0">
+                    <span className="text-[14px] sm:text-lg text-[#000000] break-words">
+                      {item}
+                    </span>
+                    {isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted && idx === items.length - 1 && (
+                      <Check size={16} className="text-[#34a853] ml-auto flex-shrink-0" />
+                    )}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
           ) : null}
         </div>
         );

@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { FRESH_LIST_QUERY_OPTIONS } from "@/lib/cache/frontend-list-cache"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -54,7 +55,7 @@ export interface WizardSubcategoryShape {
 }
 
 export const libraryCategoriesQueryKey = (customerId: number | undefined, lang: string) =>
-  ["library-categories", customerId, lang, "Active"] as const
+  ["library-categories", customerId, lang, "Active", "only_with_active_products"] as const
 
 const CATEGORY_IMG_FALLBACK = "/placeholder.svg"
 const SUBCATEGORY_IMG_FALLBACK = "/placeholder.svg"
@@ -145,6 +146,8 @@ async function fetchLibraryCategories(
   url.searchParams.set("lang", lang)
   url.searchParams.set("customer_id", String(customerId))
   url.searchParams.set("status", "Active")
+  // Slip creation: hide subcategories (and categories) with no Active products
+  url.searchParams.set("only_with_active_products", "1")
 
   const res = await fetch(url.toString(), {
     method: "GET",
@@ -186,10 +189,8 @@ export function useLibraryCategories(options: {
     queryKey: libraryCategoriesQueryKey(customerId, lang),
     queryFn: () => fetchLibraryCategories(customerId!, lang),
     enabled: effectiveEnabled,
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 10,
     retry: 1,
-    refetchOnWindowFocus: false,
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 
   const categoriesAsWizard: WizardCategoryShape[] = useMemo(

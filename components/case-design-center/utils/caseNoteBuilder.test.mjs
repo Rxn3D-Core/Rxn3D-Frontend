@@ -2,10 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildCaseSummaryText,
+  buildFixedProductNote,
   buildRemovableProductNote,
   formatFieldValueForNote,
   formatTeethNumbers,
+  isFullArchTeeth,
+  mergeFabricateNotes,
 } from "./caseNoteBuilder.ts";
+
+const MAXILLARY_ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+const MANDIBULAR_ALL = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
 
 test("formatTeethNumbers lists teeth separately up to 8 in a run", () => {
   assert.equal(formatTeethNumbers([3, 4]), "#3, #4");
@@ -34,6 +41,14 @@ test("formatTeethNumbers handles non-consecutive teeth and duplicates", () => {
   assert.equal(formatTeethNumbers([6, 7, 8, 9, 10, 12]), "#6, #7, #8, #9, #10, #12");
   assert.equal(formatTeethNumbers([8, 8, 10]), "#8, #10");
   assert.equal(formatTeethNumbers([]), "");
+});
+
+test("isFullArchTeeth detects complete maxillary and mandibular arches", () => {
+  assert.equal(isFullArchTeeth(MAXILLARY_ALL), true);
+  assert.equal(isFullArchTeeth(MANDIBULAR_ALL), true);
+  assert.equal(isFullArchTeeth([...MAXILLARY_ALL].reverse()), true);
+  assert.equal(isFullArchTeeth([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]), false);
+  assert.equal(isFullArchTeeth([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]), false);
 });
 
 test("formatFieldValueForNote expands contact icon JSON with field names", () => {
@@ -104,4 +119,118 @@ test("buildRemovableProductNote omits teeth clause when empty", () => {
   assert.equal(note, "Please fabricate Flipper.");
   assert.ok(!note.includes("#19"));
   assert.ok(!note.includes("#22"));
+});
+
+test("buildRemovableProductNote omits tooth numbers for full maxillary arch", () => {
+  const note = buildRemovableProductNote({
+    arch: "maxillary",
+    teeth: MAXILLARY_ALL,
+    allCardTeeth: MAXILLARY_ALL,
+    product: { id: 3, name: "Immediate Full Denture" },
+    repTooth: 1,
+    getFieldValue: () => null,
+    getSelectedShade: () => null,
+  });
+  assert.equal(note, "Please fabricate Immediate Full Denture.");
+  assert.ok(!note.includes("#1"));
+  assert.ok(!note.includes("#16"));
+});
+
+test("buildRemovableProductNote omits tooth numbers for full mandibular arch", () => {
+  const note = buildRemovableProductNote({
+    arch: "mandibular",
+    teeth: MANDIBULAR_ALL,
+    allCardTeeth: MANDIBULAR_ALL,
+    product: { id: 4, name: "Immediate Full Denture" },
+    repTooth: 17,
+    getFieldValue: () => null,
+    getSelectedShade: () => null,
+  });
+  assert.equal(note, "Please fabricate Immediate Full Denture.");
+  assert.ok(!note.includes("#17"));
+  assert.ok(!note.includes("#32"));
+});
+
+test("buildFixedProductNote omits tooth numbers for full arch", () => {
+  const note = buildFixedProductNote({
+    arch: "maxillary",
+    teeth: MAXILLARY_ALL,
+    product: { id: 5, name: "Full Arch Bridge" },
+    repTooth: 1,
+    getFieldValue: () => null,
+    getSelectedShade: () => null,
+  });
+  assert.equal(note, "Please fabricate Full Arch Bridge.");
+  assert.ok(!note.includes("#1"));
+  assert.ok(!note.includes("#16"));
+});
+
+test("mergeFabricateNotes combines products that share stage and shade", () => {
+  const merged = mergeFabricateNotes([
+    "Please fabricate Premium Full Denture Acrylic for Finish, shade IPS Shade System A1.",
+    "Please fabricate Premium Acrylic Partial for #32 for Finish, shade IPS Shade System A1.",
+  ]);
+  assert.equal(
+    merged,
+    "Please fabricate Premium Full Denture Acrylic and Premium Acrylic Partial for #32 for Finish, shade IPS Shade System A1.",
+  );
+});
+
+test("mergeFabricateNotes handles bare shade without comma", () => {
+  const merged = mergeFabricateNotes([
+    "Please fabricate Premium Full Denture Acrylic for Finish shade IPS Shade System A1.",
+    "Please fabricate Premium Acrylic Partial for #32 for Finish shade IPS Shade System A1.",
+  ]);
+  assert.equal(
+    merged,
+    "Please fabricate Premium Full Denture Acrylic and Premium Acrylic Partial for #32 for Finish, shade IPS Shade System A1.",
+  );
+});
+
+test("mergeFabricateNotes keeps separate notes when suffixes differ", () => {
+  const merged = mergeFabricateNotes([
+    "Please fabricate Crown for #8 for Finish, shade A1.",
+    "Please fabricate Bridge for #9–#11 for Try in, shade B1.",
+  ]);
+  assert.equal(
+    merged,
+    "Please fabricate Crown for #8 for Finish, shade A1.\nPlease fabricate Bridge for #9–#11 for Try in, shade B1.",
+  );
+});
+
+test("mergeFabricateNotes joins three products with shared suffix", () => {
+  const merged = mergeFabricateNotes([
+    "Please fabricate Crown for #8 for Finish, shade A1.",
+    "Please fabricate Inlay for #14 for Finish, shade A1.",
+    "Please fabricate Onlay for #19 for Finish, shade A1.",
+  ]);
+  assert.equal(
+    merged,
+    "Please fabricate Crown for #8, Inlay for #14, and Onlay for #19 for Finish, shade A1.",
+  );
+});
+
+test("buildCaseSummaryText merges across arches when suffix matches", () => {
+  const text = buildCaseSummaryText([
+    {
+      arch: "maxillary",
+      category: "Removable",
+      cardId: 1,
+      productName: "Premium Full Denture Acrylic",
+      teeth: MAXILLARY_ALL,
+      note: "Please fabricate Premium Full Denture Acrylic for Finish, shade IPS Shade System A1.",
+    },
+    {
+      arch: "mandibular",
+      category: "Removable",
+      cardId: 2,
+      productName: "Premium Acrylic Partial",
+      teeth: [32],
+      note: "Please fabricate Premium Acrylic Partial for #32 for Finish, shade IPS Shade System A1.",
+    },
+  ]);
+  assert.equal(
+    text,
+    "Please fabricate Premium Full Denture Acrylic and Premium Acrylic Partial for #32 for Finish, shade IPS Shade System A1.",
+  );
 });

@@ -56,11 +56,9 @@ import {
   hydrateRetentionOptionsFromProduct,
   serializeRetentionOptionsForApi,
   serializeRetentionsForProductApi,
+  type ProductRetentionOptionLinkFormRow,
 } from "@/lib/product-retention-links-form"
-import {
-  applyDefaultToothChartToPayload,
-  hydrateDefaultToothChartFromProduct,
-} from "@/lib/product-default-tooth-chart"
+import { applyReleasingStageFlagsToStages } from "@/lib/product-releasing-stages"
 import { useAdvanceFields, ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE } from "@/lib/api/advance-mode-query"
 import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
 import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
@@ -68,6 +66,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import {
   retentionOptionsCatalogQueryKey,
   useRetentionOptionsCatalogForProductModal,
+  useSyncProductFormRetentionOptionsToCatalog,
 } from "@/hooks/use-retention-options-catalog"
 import { CreateRetentionOptionModal } from "@/components/product-management/create-retention-option-modal"
 import { ExtractionsApi } from "@/lib/api-service"
@@ -497,6 +496,8 @@ export function AddLabProductModal({
     auto_billing_days: 31,
     is_single_stage: "No",
     is_splinted: "No",
+    gender_required: "No",
+    age_required: "No",
     link_all_addons: "No",
     apply_retention_mechanism: "Yes",
     has_implant: "No",
@@ -533,6 +534,7 @@ export function AddLabProductModal({
     enable_default_tooth_chart: "No",
     allow_select_only_implant: "No",
     enable_custom_label: "No",
+    hide_reference_teeth_selection: "No",
     custom_label: "",
     default_tooth_chart: [],
   }), [officeCustomers, stages])
@@ -553,6 +555,19 @@ export function AddLabProductModal({
     mode: "onChange",
     reValidateMode: "onChange",
     shouldFocusError: false,
+  })
+
+  const handleRetentionOptionsCatalogSynced = useCallback((rows: ProductRetentionOptionLinkFormRow[]) => {
+    setInitialFormValues((prev) => (prev ? { ...prev, retention_options: rows } : prev))
+  }, [])
+
+  useSyncProductFormRetentionOptionsToCatalog({
+    enabled: isOpen,
+    productKey: editingProduct?.id ?? null,
+    catalog: retentionOptionsCatalog,
+    control,
+    setValue,
+    onSynced: handleRetentionOptionsCatalogSynced,
   })
 
   // Watch required fields for current step
@@ -1644,6 +1659,8 @@ export function AddLabProductModal({
         auto_billing_days: editingProduct.auto_billing_days || 31,
         is_single_stage: editingProduct.is_single_stage || "No",
         is_splinted: editingProduct.is_splinted || "No",
+        gender_required: editingProduct.gender_required || "No",
+        age_required: editingProduct.age_required || "No",
         link_all_addons: editingProduct.link_all_addons || "No",
         apply_retention_mechanism: editingProduct.apply_retention_mechanism || "No",
         retention_type: editingProduct.retention_type,
@@ -1658,7 +1675,12 @@ export function AddLabProductModal({
         office_grade_pricing: editingProduct.office_grade_pricing || [],
         office_stage_pricing: editingProduct.office_stage_pricing || [],
         office_stage_grade_pricing: editingProduct.office_stage_grade_pricing || [],
-        is_teeth_based_price: editingProduct.is_teeth_based_price || "No",
+        is_teeth_based_price:
+          editingProduct.is_teeth_based_price === "Yes" ||
+          editingProduct.is_teeth_based_price === true ||
+          editingProduct.is_teeth_based_price === "yes"
+            ? "Yes"
+            : "No",
         show_jaw_photo: productHasAnyJawPhotoUrls(editingProduct)
           ? "Yes"
           : (editingProduct.show_jaw_photo || "No"),
@@ -1680,6 +1702,8 @@ export function AddLabProductModal({
           editingProduct.allow_select_only_implant === "Yes" ? "Yes" : "No",
         enable_custom_label:
           editingProduct.enable_custom_label === "Yes" ? "Yes" : "No",
+        hide_reference_teeth_selection:
+          editingProduct.hide_reference_teeth_selection === "Yes" ? "Yes" : "No",
         custom_label:
           typeof editingProduct.custom_label === "string" ? editingProduct.custom_label : "",
         default_tooth_chart: hydrateDefaultToothChartFromProduct(
@@ -2172,8 +2196,17 @@ export function AddLabProductModal({
       payload,
     )
     
-    // Ensure is_teeth_based_price is always set to "Yes" or "No"
-    payload.is_teeth_based_price = data.is_teeth_based_price === "Yes" ? "Yes" : "No"
+    // Preserve persisted Yes if form value was lost (undefined) during another-tab save
+    const teethFromForm = data.is_teeth_based_price
+    const teethFromProduct = editingProduct?.is_teeth_based_price
+    const teethOn =
+      teethFromForm === "Yes" ||
+      teethFromForm === true ||
+      teethFromForm === "yes" ||
+      ((teethFromForm === undefined || teethFromForm === null || teethFromForm === "") &&
+        (teethFromProduct === "Yes" || teethFromProduct === true || teethFromProduct === "yes"))
+    payload.is_teeth_based_price = teethOn ? "Yes" : "No"
+    data.is_teeth_based_price = payload.is_teeth_based_price
 
     // show_jaw_photo
     payload.show_jaw_photo = (data as any).show_jaw_photo === "Yes" ? "Yes" : "No"
@@ -2321,6 +2354,7 @@ export function AddLabProductModal({
     if (!sections.extractions) {
       payload.extractions = []
       payload.opposite_extractions = []
+      payload.hide_reference_teeth_selection = "No"
     }
     if (!sections.grades) payload.grades = []
     if (!sections.stages) payload.stages = []
@@ -2330,7 +2364,10 @@ export function AddLabProductModal({
     if (!sections.material) payload.materials = []
     if (!sections.addOns) payload.addons = []
     payload.retentions = serializeRetentionsForProductApi(data.retentions ?? [])
-    payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
+    payload.retention_options = serializeRetentionOptionsForApi(
+      data.retention_options ?? [],
+      retentionOptionsCatalog.items,
+    )
 
     const allocationError = validateStageAllocationPercents(payload.stages ?? data.stages, {
       isTeethBased: data.is_teeth_based_price === "Yes",
@@ -2349,6 +2386,9 @@ export function AddLabProductModal({
       variation: sections.variation,
     })
     applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
+    if (Array.isArray(payload.stages)) {
+      payload.stages = applyReleasingStageFlagsToStages(payload.stages, releasingStageIds)
+    }
 
     let saveResult: ProductSaveResult = { success: false }
     try {
@@ -2484,7 +2524,7 @@ export function AddLabProductModal({
   // Map tab IDs to their corresponding form fields
   const getSectionFields = (tabId: string): string[] => {
     const fieldMap: Record<string, string[]> = {
-      details: ["name", "code", "subcategory_id", "base_price", "type", "status", "sequence", "description", "is_single_stage", "is_splinted", "min_days_to_process", "max_days_to_process", "enable_auto_billing", "auto_billing_days"],
+      details: ["name", "code", "subcategory_id", "base_price", "type", "status", "sequence", "description", "is_single_stage", "is_splinted", "gender_required", "age_required", "min_days_to_process", "max_days_to_process", "enable_auto_billing", "auto_billing_days", "is_teeth_based_price", "teeth_pricing_type", "teeth_price_per_tooth", "teeth_first_tooth_price", "teeth_additional_tooth_price", "teeth_custom_prices"],
       variation: ["enable_tooth_count_variation", "tooth_count_variations"],
       grades: ["grades", "has_grade_based_pricing", "default_grade_id"],
       stages: ["stages"],
@@ -2504,12 +2544,13 @@ export function AddLabProductModal({
         "enable_default_tooth_chart",
         "allow_select_only_implant",
         "enable_custom_label",
+        "hide_reference_teeth_selection",
         "custom_label",
         "default_tooth_chart",
       ],
       retention: ["retentions", "retention_options", "apply_retention_mechanism", "retention_type"],
       advanceFields: ["advance_fields"],
-      extractions: ["extractions", "opposite_extractions", "apply_same_status_to_opposing"],
+      extractions: ["extractions", "opposite_extractions", "apply_same_status_to_opposing", "hide_reference_teeth_selection"],
       visibility: ["show_to_all_lab", "office_visibilities"],
     }
     return fieldMap[tabId] || []
@@ -2923,7 +2964,17 @@ export function AddLabProductModal({
       const payload: any = { ...formData }
       delete payload.category_id
 
-      payload.is_teeth_based_price = formData.is_teeth_based_price === "Yes" ? "Yes" : "No"
+      // Preserve persisted Yes if form value was lost (undefined) during another-tab save
+      const teethFromForm = formData.is_teeth_based_price
+      const teethFromProduct = editingProduct?.is_teeth_based_price
+      const teethOn =
+        teethFromForm === "Yes" ||
+        teethFromForm === true ||
+        teethFromForm === "yes" ||
+        ((teethFromForm === undefined || teethFromForm === null || teethFromForm === "") &&
+          (teethFromProduct === "Yes" || teethFromProduct === true || teethFromProduct === "yes"))
+      payload.is_teeth_based_price = teethOn ? "Yes" : "No"
+      formData.is_teeth_based_price = payload.is_teeth_based_price
       payload.show_jaw_photo = (formData as any).show_jaw_photo === "Yes" ? "Yes" : "No"
       payload.opposite_impression = formData.request_opposing_extraction ? "Yes" : "No"
 
@@ -3119,6 +3170,7 @@ export function AddLabProductModal({
       if (!sections.extractions) {
         payload.extractions = []
         payload.opposite_extractions = []
+        payload.hide_reference_teeth_selection = "No"
       }
       if (!sections.grades) payload.grades = []
       if (!sections.impressions) payload.impressions = []
@@ -3127,7 +3179,13 @@ export function AddLabProductModal({
       if (!sections.material) payload.materials = []
       if (!sections.addOns) payload.addons = []
       payload.retentions = serializeRetentionsForProductApi(formData.retentions ?? [])
-      payload.retention_options = serializeRetentionOptionsForApi(formData.retention_options ?? [])
+      payload.retention_options = serializeRetentionOptionsForApi(
+        formData.retention_options ?? [],
+        retentionOptionsCatalog.items,
+      )
+      if (Array.isArray(payload.stages)) {
+        payload.stages = applyReleasingStageFlagsToStages(payload.stages, releasingIds)
+      }
 
       // Use the updateProduct prop function
       try {

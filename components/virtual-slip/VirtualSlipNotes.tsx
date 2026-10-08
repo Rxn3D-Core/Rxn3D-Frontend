@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, Paperclip } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
 import {
   buildCaseNoteStageTabs,
+  CASE_NOTE_GENERAL_STAGE_ID,
   filterCaseNotesForTab,
   formatSlipNoteTimestamp,
   resolveDefaultCaseNoteStageTabKey,
+  type CaseNoteStageTab,
   slipNoteAuthorName,
   slipNoteStatusColor,
   slipNoteStatusLabel,
@@ -16,6 +19,7 @@ import {
   type SlipNoteDetail,
 } from "@/lib/api/slip-notes";
 import { formatCaseSummaryNotesForDisplay } from "@/lib/format-case-summary-notes";
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
 
 interface VirtualSlipNotesProps {
   caseId?: number | null;
@@ -75,6 +79,7 @@ export function VirtualSlipNotes({
   notesRefreshKey = 0,
   onOpenNotesModal,
 }: VirtualSlipNotesProps) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [selectedTabKey, setSelectedTabKey] = useState<string | null>(null);
 
@@ -97,10 +102,31 @@ export function VirtualSlipNotes({
       setSelectedTabKey(null);
       return;
     }
-    setSelectedTabKey((prev) =>
-      prev && stageTabs.some((tab) => tab.key === prev) ? prev : defaultTabKey
-    );
-  }, [stageTabs, defaultTabKey]);
+    // Keep slip-linked stage pills aligned with the loaded virtual slip.
+    // Preserve an explicit "General" selection until the user picks a slip tab
+    // or navigates to another slip.
+    setSelectedTabKey((prev) => {
+      const prevTab = prev ? stageTabs.find((tab) => tab.key === prev) : null;
+      if (
+        prevTab &&
+        prevTab.stageId === CASE_NOTE_GENERAL_STAGE_ID &&
+        prevTab.slipId == null
+      ) {
+        return prev;
+      }
+      return defaultTabKey;
+    });
+  }, [stageTabs, defaultTabKey, slipId]);
+
+  const handleStageTabSelect = useCallback(
+    (tab: CaseNoteStageTab) => {
+      setSelectedTabKey(tab.key);
+      if (tab.slipId != null && tab.slipId !== slipId) {
+        router.push(buildVirtualSlipPath(caseId, tab.slipId));
+      }
+    },
+    [caseId, router, slipId]
+  );
 
   const activeTab =
     stageTabs.find((tab) => tab.key === selectedTabKey) ?? null;
@@ -127,7 +153,7 @@ export function VirtualSlipNotes({
                 <button
                   key={tab.key}
                   type="button"
-                  onClick={() => setSelectedTabKey(tab.key)}
+                  onClick={() => handleStageTabSelect(tab)}
                   className={cn(
                     "rounded-full border px-[10px] py-[2px] font-sans text-[13px] transition-colors",
                     isActive
@@ -192,7 +218,7 @@ export function VirtualSlipNotes({
               </p>
             ) : notes.length === 0 ? (
               <p className="py-6 text-center font-sans text-[15px] italic text-[#9CA3AF]">
-                No stage notes yet
+                No slip notes yet
               </p>
             ) : visibleNotes.length === 0 ? (
               <p className="py-6 text-center font-sans text-[15px] italic text-[#9CA3AF]">

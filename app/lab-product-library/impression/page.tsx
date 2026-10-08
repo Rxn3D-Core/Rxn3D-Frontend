@@ -13,6 +13,7 @@ import { DiscardChangesDialog } from "@/components/product-management/discard-ch
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { Impression, useImpressions } from "@/contexts/product-impression-context"
 import { useLanguage } from "@/contexts/language-context"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 type SortDirection = "asc" | "desc" | null
 
@@ -308,7 +309,7 @@ export default function ImpressionPage() {
                     <span>Code</span>
                     {sortColumn === "code" && renderSortIndicator("code")}
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">Opposing warning</TableHead>
+                  <TableHead className="font-semibold text-gray-900">Digital impression</TableHead>
                   <TableHead className="font-semibold text-gray-900">URL</TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
                     <span>Status</span>
@@ -335,7 +336,11 @@ export default function ImpressionPage() {
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{impression.name}</TableCell>
+                      <TableCell className="font-medium text-gray-900">
+                        <TableNameWithImage src={impression.image_url} alt={impression.name}>
+                          {impression.name}
+                        </TableNameWithImage>
+                      </TableCell>
                       <TableCell className="text-gray-600">{impression.code}</TableCell>
                       <TableCell className="text-gray-600">{impression.is_digital_impression || "No"}</TableCell>
                       <TableCell className="text-gray-600 max-w-[200px] truncate" title={impression.url || ""}>{impression.url || "---"}</TableCell>

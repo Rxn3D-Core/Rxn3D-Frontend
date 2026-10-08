@@ -16,6 +16,10 @@ import {
 } from "../utils/caseCompletionDestination";
 import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
 import {
+  dropLinkedPendingAttachments,
+  pendingAttachmentIdsFromCache,
+} from "@/lib/case-design-attachment-cache";
+import {
   isSlipLimitExceededError,
   LAB_SLIP_LIMIT_MESSAGE,
   OFFICE_LAB_UNAVAILABLE_MESSAGE,
@@ -32,6 +36,7 @@ interface CachedAttachment {
   description?: string;
   remoteId?: unknown;
   generatedPath?: string;
+  source?: string;
 }
 
 /**
@@ -51,7 +56,10 @@ async function uploadCachedAttachmentsToSlip(
 
   const pending = cached.filter(
     (item) =>
-      item.file instanceof File && !item.remoteId && !item.generatedPath,
+      item.file instanceof File &&
+      !item.remoteId &&
+      !item.generatedPath &&
+      item.source !== "attachment",
   );
   if (pending.length === 0) return { uploaded: 0, failed: 0 };
 
@@ -156,6 +164,14 @@ export function useCaseSubmissionFlow({
       caseSummaryNotes: caseSummaryNotesRef?.current,
     });
 
+    const pendingAttachmentIds = pendingAttachmentIdsFromCache();
+    if (pendingAttachmentIds.length > 0 && payload.slips[0]) {
+      payload.slips[0] = {
+        ...payload.slips[0],
+        pending_attachment_ids: pendingAttachmentIds,
+      };
+    }
+
     setSubmissionError(null);
     setSubmissionState("submitting");
     setSlipHeaderLoading(true);
@@ -165,6 +181,9 @@ export function useCaseSubmissionFlow({
         payload,
         multipartFiles.length > 0 ? multipartFiles : undefined
       );
+      if (pendingAttachmentIds.length > 0) {
+        dropLinkedPendingAttachments(pendingAttachmentIds);
+      }
       const result = resolveCaseSubmissionResult(rawResponse);
       const redirectPath = resolveVirtualSlipPath(result);
       const responseData = "data" in (rawResponse ?? {}) ? rawResponse.data ?? null : rawResponse ?? null;

@@ -2,22 +2,19 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { Check } from "@/components/ui/custom-check";
-
-function formatShadeGuideName(raw: string): string {
-  if (!raw) return raw;
-  return raw.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
 import {
   FieldInput,
   ShadeField,
 } from "./fields";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  formatShadeFieldLabel,
+  getGumShadePreviewColor,
+  getShadePreviewCode,
+  SHADE_FIELD_LABEL_CLASS,
+  type ShadeCatalogRow,
+} from "../utils/shadeFieldDisplay";
+import { resolveGumShadesForDisplay } from "../utils/gradeHelpers";
+import { GumShadePreviewSwatch } from "./GumShadePreviewSwatch";
 import type {
   Arch,
   ShadeFieldType,
@@ -28,6 +25,7 @@ import type {
 import { FixedAccordionShadePicker } from "./FixedAccordionShadePicker";
 import { ShadeDetailSection } from "./ShadeDetailSection";
 import { GumShadePicker } from "./GumShadePicker";
+import { TeethShadePreviewIcon } from "./TeethShadePreviewIcon";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import {
   FIXED_RETENTION_MECHANISM_FIELD_STEP,
@@ -44,6 +42,7 @@ import {
   areAllImplantDetailsComplete,
   getImplantTeethInGroup,
   hasPostImplantFixedFieldProgress,
+  isImplantDetailFilled,
   POST_IMPLANT_FIXED_FIELD_STEPS,
 } from "../utils/implantDetailHelpers";
 import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
@@ -56,6 +55,10 @@ import {
 } from "../utils/gradeHelpers";
 import { GradeHoverSelector } from "./RemovableRestorationFields";
 import { parseAddonDisplayItems, productSupportsAddons } from "../utils/addonDisplayHelpers";
+import {
+  mergeProductAndAbutmentAddonEntries,
+} from "../utils/abutmentAddonSync";
+import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import {
   getShadeGuideAdvanceFields,
   getShadeFieldType,
@@ -72,7 +75,12 @@ import {
   ARCH_IMPRESSION_PRODUCT_ID,
   archHasActiveImpressionSelections,
 } from "../utils/impressionFieldSync";
+import { AdvanceFieldStepGrid, parseStepStoredValues } from "./AdvanceFieldStepGrid";
 import { useAutoOpenSuppressed } from "./auto-open-suppression";
+import {
+  getProductAdvanceFieldsForSlip,
+  productSupportsAdvanceFields,
+} from "../utils/advanceFieldStepHelpers";
 
 /** Removaables-style display name from a field value (plain string or JSON `{ name }`). */
 function parseShadeFieldDisplayName(raw: string | undefined | null): string {
@@ -107,6 +115,24 @@ function isRealShadeDisplayValue(raw: string | undefined | null): boolean {
   const name = parseShadeFieldDisplayName(raw);
   if (!name) return false;
   return !SHADE_PLACEHOLDER_VALUES.has(name.trim().toLowerCase());
+}
+
+/** Fixed gum shade may be stored on the group stage tooth or any tooth in the bridge. */
+function resolveFixedGumShadeRaw(
+  arch: Arch,
+  toothNumbers: number[],
+  firstToothNumber: number,
+  groupStageToothNumber: number,
+  getFieldValue: (arch: Arch, toothNumber: number, step: string) => string,
+  getSelectedShade: (productId: string, arch: Arch, shadeType: ShadeFieldType) => string,
+  fixedShadeProductId: string
+): string {
+  const toothCandidates = [...new Set([firstToothNumber, groupStageToothNumber, ...toothNumbers])];
+  for (const tn of toothCandidates) {
+    const raw = getFieldValue(arch, tn, "fixed_stump_shade");
+    if (isRealShadeDisplayValue(raw)) return raw;
+  }
+  return getSelectedShade(fixedShadeProductId, arch, "stump_shade") || "";
 }
 
 /* ------------------------------------------------------------------ */
@@ -153,15 +179,15 @@ function ArticulatorIcon({ arch }: { arch: "mandibular" | "maxillary" }) {
 type ProductShadeFlags = {
   has_teeth_shade?: string | null;
   has_gum_shade?: string | null;
+  has_advance_field?: string | boolean | null;
   advance_fields?: Array<{ name: string; field_type: string }>;
 };
 
 /**
  * Check whether a FIXED_FIELD_STEPS key has a matching advance_field in the product API response.
  * Returns true (show the field) when:
- *  - No advance_fields on the product (show all — no gating)
  *  - The step always shows regardless of advance_fields (stage, impression, addons, notes)
- *  - A matching advance_field name is found
+ *  - A matching advance_field name is found and has_advance_field is not No
  *  - For shade steps: has_teeth_shade or has_gum_shade flag is "Yes" (overrides advance_fields)
  */
 export function hasAdvanceField(
@@ -190,11 +216,20 @@ export function hasAdvanceField(
     if (hasTeethShadeFlag) return true;
   }
 
-  if (!advanceFields || advanceFields.length === 0) {
+  // When product is omitted, trust the caller's advanceFields (already slip-filtered).
+  // When product is passed, honor has_advance_field=No.
+  const effectiveFields =
+    product == null
+      ? advanceFields
+      : productSupportsAdvanceFields(product)
+        ? advanceFields
+        : undefined;
+
+  if (!effectiveFields || effectiveFields.length === 0) {
     return false;
   }
 
-  const names = advanceFields.map((f) => (f.name || "").toLowerCase());
+  const names = effectiveFields.map((f) => (f.name || "").toLowerCase());
 
   switch (step) {
     // Fixed restoration steps
@@ -210,7 +245,14 @@ export function hasAdvanceField(
           n.includes("body shade")
       );
     case "fixed_characterization":
-      return names.some((n) => n.includes("characterization") || n.includes("character"));
+      return names.some(
+        (n) =>
+          n.includes("characterization") ||
+          n.includes("character") ||
+          n.includes("intensity") ||
+          n.includes("surface finish") ||
+          n.includes("surface_finish")
+      );
     case "fixed_contact_icons":
       return names.some(
         (n) =>
@@ -265,101 +307,6 @@ export function getAdvanceFieldsForStep(
   return advanceFields
     .filter((f) => matcher((f.name || "").toLowerCase()))
     .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-}
-
-/* ------------------------------------------------------------------ */
-/*  AdvanceFieldSelect                                                 */
-/* ------------------------------------------------------------------ */
-/** Advance field dropdown that auto-selects default option and auto-opens when no value. */
-function AdvanceFieldSelect({
-  fieldId,
-  fieldName,
-  activeOptions,
-  currentSelection,
-  borderColor,
-  labelColor,
-  onSelect,
-  caseSubmitted,
-}: {
-  fieldId: number;
-  fieldName: string;
-  activeOptions: Array<{ id: number; name: string; is_default?: string; image_url?: string | null; [key: string]: any }>;
-  currentSelection: { name: string; optionId: number } | undefined;
-  borderColor: string;
-  labelColor: string;
-  onSelect: (opt: { id: number; name: string }) => void;
-  caseSubmitted?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const hasAutoSelected = useRef(false);
-
-  // Auto-select the default option on mount if no current selection
-  useEffect(() => {
-    if (!currentSelection && !hasAutoSelected.current) {
-      hasAutoSelected.current = true;
-      const defaultOpt = activeOptions.find((o) => o.is_default === "Yes");
-      if (defaultOpt) {
-        onSelect(defaultOpt);
-      }
-    }
-  }, [currentSelection, activeOptions, onSelect]);
-
-  const hasVal = !!currentSelection;
-  const selectedOption = activeOptions.find((o) => o.id === currentSelection?.optionId);
-  const selectedImageUrl = selectedOption?.image_url ?? null;
-
-  return (
-    <fieldset
-      className="border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 cursor-pointer hover:bg-gray-50 transition-colors"
-      style={{ borderColor }}
-      onClick={() => setOpen(true)}
-    >
-      <legend className="text-sm px-1 leading-none whitespace-nowrap" style={{ color: labelColor }}>
-        {fieldName}
-      </legend>
-      <div className="flex items-center gap-2 w-full min-w-0">
-        <Select
-          open={open}
-          onOpenChange={setOpen}
-          value={currentSelection?.optionId?.toString() || ""}
-          onValueChange={(value) => {
-            const opt = activeOptions.find((o) => o.id?.toString() === value);
-            if (opt) onSelect(opt);
-          }}
-        >
-          <SelectTrigger
-            className="border-0 shadow-none p-0 h-auto focus:ring-0 focus:ring-offset-0 [&>svg]:hidden text-lg font-normal text-[#000000] min-w-0 flex-1 bg-transparent"
-          >
-            <SelectValue>
-              {currentSelection ? currentSelection.name : ''}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {activeOptions.map((option) => (
-              <SelectItem key={option.id} value={option.id.toString()}>
-                <div className="flex items-center gap-2">
-                  {option.image_url && (
-                    <img src={option.image_url} alt={option.name} className="w-6 h-6 object-contain flex-shrink-0" />
-                  )}
-                  {option.name}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Selected option image — shown on the right of the field */}
-        {selectedImageUrl && (
-          <img
-            src={selectedImageUrl}
-            alt={currentSelection?.name ?? ""}
-            className="h-8 w-8 object-contain flex-shrink-0"
-          />
-        )}
-        {hasVal && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
-      </div>
-    </fieldset>
-  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -431,6 +378,13 @@ interface FixedRestorationFieldsProps {
   selectedImpressions?: SlipImpressionSelections;
   /** Lab customer id owning the product catalog (office flows select the lab in the wizard). */
   labCustomerId?: number | null;
+  /** Product card id for file upload storage keys (0 = initial card). */
+  productCardId?: number;
+  /** Structured add-on selections keyed as `${arch}_${toothNumber}` */
+  selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
+  setSelectedAddonsByTooth?: React.Dispatch<
+    React.SetStateAction<Record<string, Array<{ addon_id: number; qty: number }>>>
+  >;
 }
 
 /* ------------------------------------------------------------------ */
@@ -484,6 +438,9 @@ export function RetentionProductFields({
   onExpandedImplantToothChange,
   selectedImpressions = { maxillary: [], mandibular: [] },
   labCustomerId,
+  productCardId = 0,
+  selectedAddonsByTooth = {},
+  setSelectedAddonsByTooth,
 }: FixedRestorationFieldsProps) {
   const implantTeeth = useMemo(
     () => getImplantTeethInGroup(toothNumbers, retentionTypesMap),
@@ -506,9 +463,13 @@ export function RetentionProductFields({
     implantDetailCompleteByTooth,
     implantDetailByTooth
   );
-  const fixedChain = useMemo(
-    () => getRetentionFieldChain(selectedProduct?.advance_fields, selectedProduct),
+  const slipAdvanceFields = useMemo(
+    () => getProductAdvanceFieldsForSlip(selectedProduct),
     [selectedProduct]
+  );
+  const fixedChain = useMemo(
+    () => getRetentionFieldChain(slipAdvanceFields, selectedProduct),
+    [slipAdvanceFields, selectedProduct]
   );
   const hasPostImplantProgress = useMemo(
     () =>
@@ -523,6 +484,14 @@ export function RetentionProductFields({
    */
   const showPostImplantFields =
     implantTeeth.length === 0 || implantDetailReady || hasPostImplantProgress;
+  /** Keep implant boxes mounted after the user has filled them, even while re-editing shade. */
+  const hasImplantSelectionProgress = implantTeeth.some(
+    (tn) =>
+      implantDetailCompleteByTooth[tn] === true ||
+      isImplantDetailFilled(implantDetailByTooth[tn])
+  );
+  const showImplantAndLaterFields =
+    !fixedShadeIncomplete || hasImplantSelectionProgress || hasPostImplantProgress;
   const showImpressionAndAddons = showPostImplantFields;
   const isFixedAfterImplant = useCallback(
     (step: string): boolean => {
@@ -550,7 +519,9 @@ export function RetentionProductFields({
   );
   const impressionModalProductId = ARCH_IMPRESSION_PRODUCT_ID;
   const impressionDisplayText =
-    getImpressionDisplayText(impressionModalProductId, arch)?.trim() ?? "";
+    getImpressionDisplayText(impressionModalProductId, arch)?.trim() ||
+    getFieldValue(arch, firstToothNumber, "fixed_impression")?.trim() ||
+    "";
   const impressionHasArchSelections = archHasActiveImpressionSelections(
     selectedImpressions,
     impressionModalProductId,
@@ -560,7 +531,7 @@ export function RetentionProductFields({
     isFieldCompleted(arch, firstToothNumber, "fixed_impression") ||
     impressionHasArchSelections ||
     !!impressionDisplayText;
-  const impressionEmpty = !impressionDisplayText && !impressionHasArchSelections;
+  const impressionEmpty = !impressionComplete;
   const fixedShadeProductId = resolveFixedShadeProductId(
     selectedProduct?.id,
     groupStageToothNumber
@@ -578,7 +549,7 @@ export function RetentionProductFields({
     arch,
     toothNumbers.join(","),
   ]);
-  const namedShadeGuideFields = getShadeGuideAdvanceFields(selectedProduct?.advance_fields);
+  const namedShadeGuideFields = getShadeGuideAdvanceFields(slipAdvanceFields);
   const namedStumpShadeFields = namedShadeGuideFields.filter((field) => isStumpLikeShadeField(field));
   const namedToothShadeFields = namedShadeGuideFields.filter((field) => !isStumpLikeShadeField(field));
   const isAccordionShadePickerActive =
@@ -612,7 +583,7 @@ export function RetentionProductFields({
   const namedShadesComplete =
     namedShadeGuideFields.length > 0 &&
     areFixedProductShadesComplete(
-      selectedProduct?.advance_fields,
+      slipAdvanceFields,
       fixedShadeProductId,
       arch,
       getSelectedShadeForDisplay,
@@ -637,8 +608,17 @@ export function RetentionProductFields({
     shadeGuideOptions.length > 0
       ? shadeGuideOptions
       : getShadeGuideOptionsFromProduct(selectedProduct);
+  const displayGumShades = resolveGumShadesForDisplay(selectedProduct);
   const showFixedStage =
     !shouldSkipStageSelection(selectedProduct) && isFixed("fixed_stage");
+  const labRecPhotoPending = implantTeeth.some((tn) => {
+    const detail = implantDetailByTooth[tn];
+    return (
+      !!detail?.labRecommendationRequested &&
+      !detail.referencePhoto &&
+      !detail.referencePhotoUrl
+    );
+  });
   const impressionVisible =
     isFixedAfterImplant("fixed_impression") && showImpressionAndAddons;
   const hasAutoOpenedImpressionRef = useRef(false);
@@ -691,21 +671,23 @@ export function RetentionProductFields({
 
     if (hasClassicTeethShadeFlag) {
       const raw = getFieldValue(arch, firstToothNumber, "fixed_shade_trio");
-      const hasReal =
-        isRealShadeDisplayValue(raw) ||
-        !!getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
+      const selected = getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
+      const hasReal = isRealShadeDisplayValue(raw) || !!selected;
       if (!hasReal && isFieldCompleted(arch, firstToothNumber, "fixed_shade_trio")) {
         uncompleteFieldStep(arch, firstToothNumber, "fixed_shade_trio");
+      } else if (hasReal && !isFieldCompleted(arch, firstToothNumber, "fixed_shade_trio")) {
+        completeFieldStep(arch, firstToothNumber, "fixed_shade_trio", raw || selected);
       }
     }
 
     if (hasClassicGumShadeFlag) {
       const raw = getFieldValue(arch, firstToothNumber, "fixed_stump_shade");
-      const hasReal =
-        isRealShadeDisplayValue(raw) ||
-        !!getSelectedShade(fixedShadeProductId, arch, "stump_shade");
+      const selected = getSelectedShade(fixedShadeProductId, arch, "stump_shade");
+      const hasReal = isRealShadeDisplayValue(raw) || !!selected;
       if (!hasReal && isFieldCompleted(arch, firstToothNumber, "fixed_stump_shade")) {
         uncompleteFieldStep(arch, firstToothNumber, "fixed_stump_shade");
+      } else if (hasReal && !isFieldCompleted(arch, firstToothNumber, "fixed_stump_shade")) {
+        completeFieldStep(arch, firstToothNumber, "fixed_stump_shade", raw || selected);
       }
     }
   }, [
@@ -719,6 +701,7 @@ export function RetentionProductFields({
     hasClassicShadeFlags,
     hasClassicTeethShadeFlag,
     isFieldCompleted,
+    completeFieldStep,
     uncompleteFieldStep,
   ]);
 
@@ -756,7 +739,7 @@ export function RetentionProductFields({
   ]);
 
   useEffect(() => {
-    if (caseSubmitted) return;
+    if (caseSubmitted || autoOpenSuppressed) return;
     if (!isExpanded) {
       hasAutoOpenedImpressionRef.current = false;
       if (impressionTimerRef.current) {
@@ -765,8 +748,10 @@ export function RetentionProductFields({
       }
       return;
     }
-    if (!impressionVisible || !impressionEmpty) {
-      hasAutoOpenedImpressionRef.current = false;
+    if (!impressionVisible || !impressionEmpty || labRecPhotoPending) {
+      if (!labRecPhotoPending) {
+        hasAutoOpenedImpressionRef.current = false;
+      }
       if (impressionTimerRef.current) {
         clearTimeout(impressionTimerRef.current);
         impressionTimerRef.current = null;
@@ -783,6 +768,7 @@ export function RetentionProductFields({
     }, 150);
   }, [
     arch,
+    autoOpenSuppressed,
     caseSubmitted,
     firstToothNumber,
     handleOpenImpressionModal,
@@ -790,6 +776,7 @@ export function RetentionProductFields({
     impressionModalProductId,
     impressionVisible,
     isExpanded,
+    labRecPhotoPending,
   ]);
 
   /**
@@ -848,7 +835,7 @@ export function RetentionProductFields({
     const firstMissingNamed =
       !hasClassicShadeFlags && usesNamedShadeGuideFields
         ? getFirstMissingShadeGuideField(
-            selectedProduct?.advance_fields,
+            slipAdvanceFields,
             fixedShadeProductId,
             arch,
             getSelectedShadeForDisplay
@@ -858,7 +845,7 @@ export function RetentionProductFields({
       !hasClassicTeethShadeFlag &&
       !usesNamedShadeGuideFields &&
       isFixed("fixed_shade_trio") &&
-      hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields, selectedProduct) &&
+      hasAdvanceField("fixed_shade_trio", slipAdvanceFields, selectedProduct) &&
       !getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
 
     const target = classicTeethMissing
@@ -936,52 +923,52 @@ export function RetentionProductFields({
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_characterization")) return;
-    if (!hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields)) return;
-    const fields = getAdvanceFieldsForStep("fixed_characterization", selectedProduct?.advance_fields);
+    if (!hasAdvanceField("fixed_characterization", slipAdvanceFields, selectedProduct)) return;
+    const fields = getAdvanceFieldsForStep("fixed_characterization", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_characterization")) {
       completeFieldStep(arch, firstToothNumber, "fixed_characterization", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields, slipAdvanceFields]);
 
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_margin")) return;
-    if (!hasAdvanceField("fixed_margin", selectedProduct?.advance_fields)) return;
-    const fields = getAdvanceFieldsForStep("fixed_margin", selectedProduct?.advance_fields);
+    if (!hasAdvanceField("fixed_margin", slipAdvanceFields, selectedProduct)) return;
+    const fields = getAdvanceFieldsForStep("fixed_margin", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_margin")) {
       completeFieldStep(arch, firstToothNumber, "fixed_margin", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields, slipAdvanceFields]);
 
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_metal")) return;
-    if (!hasAdvanceField("fixed_metal", selectedProduct?.advance_fields)) return;
-    const fields = getAdvanceFieldsForStep("fixed_metal", selectedProduct?.advance_fields);
+    if (!hasAdvanceField("fixed_metal", slipAdvanceFields, selectedProduct)) return;
+    const fields = getAdvanceFieldsForStep("fixed_metal", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_metal")) {
       completeFieldStep(arch, firstToothNumber, "fixed_metal", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields, slipAdvanceFields]);
 
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_contact_icons")) return;
-    if (!hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields)) return;
-    const fields = getAdvanceFieldsForStep("fixed_contact_icons", selectedProduct?.advance_fields);
+    if (!hasAdvanceField("fixed_contact_icons", slipAdvanceFields, selectedProduct)) return;
+    const fields = getAdvanceFieldsForStep("fixed_contact_icons", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_contact_icons")) {
       completeFieldStep(arch, firstToothNumber, "fixed_contact_icons", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields, slipAdvanceFields]);
 
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_proximal_contact")) return;
-    if (!hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields)) return;
-    const fields = getAdvanceFieldsForStep("fixed_proximal_contact", selectedProduct?.advance_fields);
+    if (!hasAdvanceField("fixed_proximal_contact", slipAdvanceFields, selectedProduct)) return;
+    const fields = getAdvanceFieldsForStep("fixed_proximal_contact", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_proximal_contact")) {
       completeFieldStep(arch, firstToothNumber, "fixed_proximal_contact", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields, slipAdvanceFields]);
 
   const toothNumbersKey = useMemo(
     () => [...toothNumbers].sort((a, b) => a - b).join(","),
@@ -1071,6 +1058,32 @@ export function RetentionProductFields({
   const retentionTypeDisplay =
     getFieldValue(arch, firstToothNumber, FIXED_RETENTION_MECHANISM_FIELD_STEP) ||
     serializeRetentionMechanismSelection(availableRetentionMechanismTypes);
+
+  const renderAdvanceFieldStep = (stepKey: FieldStep) => {
+    if (
+      !isFixedAfterImplant(stepKey) ||
+      !hasAdvanceField(stepKey, slipAdvanceFields, selectedProduct)
+    ) {
+      return null;
+    }
+    const stepFields = getAdvanceFieldsForStep(stepKey, slipAdvanceFields);
+    if (stepFields.length === 0) return null;
+    const storedValues = parseStepStoredValues(getFieldValue(arch, firstToothNumber, stepKey));
+    return (
+      <AdvanceFieldStepGrid
+        stepKey={stepKey}
+        fields={stepFields}
+        storedValues={storedValues}
+        arch={arch}
+        cardId={productCardId}
+        firstToothNumber={firstToothNumber}
+        caseSubmitted={caseSubmitted}
+        completeFieldStep={completeFieldStep}
+        storeFieldValue={storeFieldValue}
+        uncompleteFieldStep={uncompleteFieldStep}
+      />
+    );
+  };
 
   return (
     <>
@@ -1177,6 +1190,7 @@ export function RetentionProductFields({
             isAccordionShadePickerActive ? shadeSelectionState?.advanceFieldId ?? null : null
           }
           selectedShadeGuide={selectedShadeGuide}
+          product={selectedProduct}
         />
       )}
 
@@ -1186,7 +1200,7 @@ export function RetentionProductFields({
       {(() => {
         // Stage already renders standalone when named shade guides are present.
         const showStage = showFixedStage && !usesNamedShadeGuideFields;
-        const af = selectedProduct?.advance_fields || [];
+        const af = slipAdvanceFields;
         const hasTeethFlag = hasClassicTeethShadeFlag;
         const hasGumFlag = hasClassicGumShadeFlag;
 
@@ -1275,23 +1289,30 @@ export function RetentionProductFields({
           })()}
           {stumpShadeFields.map(({ label, shadeType, isGumShade }) => {
             if (isGumShade) {
-              const gumShadeValue = getFieldValue(arch, firstToothNumber, "fixed_stump_shade");
-              let gumShadeName: string | null = isRealShadeDisplayValue(gumShadeValue)
-                ? parseShadeFieldDisplayName(gumShadeValue)
-                : null;
-              if (!gumShadeName) {
-                gumShadeName =
-                  getSelectedShade(fixedShadeProductId, arch, "stump_shade") || null;
-              }
-              const matchedGumShade = selectedProduct?.gum_shades?.find((s) => s.name === gumShadeName);
-              const gumShadeColor = matchedGumShade?.color_code_middle ?? null;
+              const gumShadeRaw = resolveFixedGumShadeRaw(
+                arch,
+                toothNumbers,
+                firstToothNumber,
+                groupStageToothNumber,
+                getFieldValue,
+                getSelectedShade,
+                fixedShadeProductId
+              );
+              const gumShadeName = isRealShadeDisplayValue(gumShadeRaw)
+                ? parseShadeFieldDisplayName(gumShadeRaw)
+                : gumShadeRaw.trim() || null;
+              const gumLabelSource = gumShadeRaw;
+              const gumDisplayLabel = gumShadeName
+                ? formatShadeFieldLabel(gumLabelSource, displayGumShades)
+                : "";
+              const gumShadeColor = getGumShadePreviewColor(gumLabelSource, displayGumShades);
               const isGumComplete = !!gumShadeName;
               const borderColor = isGumComplete && !caseSubmitted ? "border-[#34a853]" : isGumComplete ? "border-[#b4b0b0]" : "border-[#CF0202]";
               const legendColor = isGumComplete && !caseSubmitted ? "text-[#34a853]" : isGumComplete ? "text-[#7f7f7f]" : "text-[#CF0202]";
               return (
                 <fieldset
                   key={label}
-                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${borderColor}`}
+                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${borderColor}`}
                   onClick={() => {
                     if (caseSubmitted) return;
                     setShadeSelectionState?.({
@@ -1306,14 +1327,12 @@ export function RetentionProductFields({
                   }}
                 >
                   <legend className={`text-sm px-1 leading-none ${legendColor}`}>{label}</legend>
-                  <div className="flex items-center gap-2 w-full">
-                    <span className="text-[14px] sm:text-lg text-[#000000] truncate">{gumShadeName ?? ""}</span>
-                    {gumShadeColor && (
-                      <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
-                        <rect width="28.0391" height="28.0391" rx="6" fill={gumShadeColor} />
-                      </svg>
-                    )}
-                    {isGumComplete && !caseSubmitted && <Check size={16} className={`text-[#34a853] flex-shrink-0 ${gumShadeColor ? "" : "ml-auto"}`} />}
+                  <div className="flex items-center gap-2 w-full min-w-0">
+                    <span className={SHADE_FIELD_LABEL_CLASS} title={gumDisplayLabel || undefined}>
+                      {gumDisplayLabel}
+                    </span>
+                    {gumShadeColor && <GumShadePreviewSwatch color={gumShadeColor} />}
+                    {isGumComplete && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                   </div>
                 </fieldset>
               );
@@ -1327,6 +1346,15 @@ export function RetentionProductFields({
               teethFromField ||
               getSelectedShade(fixedShadeProductId, arch, shadeType) ||
               "";
+            const teethLabelSource = isRealShadeDisplayValue(teethRaw) ? teethRaw : shadeCode;
+            const teethDisplayLabel = shadeCode
+              ? formatShadeFieldLabel(
+                  teethLabelSource,
+                  selectedProduct?.teeth_shades as ShadeCatalogRow[] | undefined,
+                  selectedShadeGuide
+                )
+              : "";
+            const teethPreviewCode = getShadePreviewCode(teethLabelSource) || shadeCode;
             const isTeethComplete = !!shadeCode;
             const teethBorder =
               isTeethComplete && !caseSubmitted
@@ -1343,7 +1371,7 @@ export function RetentionProductFields({
             return (
               <fieldset
                 key={label}
-                className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${teethBorder}`}
+                className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${teethBorder}`}
                 onClick={() => {
                   if (caseSubmitted) return;
                   setInlineGumPickerOpen(false);
@@ -1353,12 +1381,13 @@ export function RetentionProductFields({
                 }}
               >
                 <legend className={`text-sm px-1 leading-none ${teethLegend}`}>{label}</legend>
-                <div className="flex items-center gap-2 w-full">
-                  <span className="text-[14px] sm:text-lg text-[#000000]">
-                    {shadeCode ? formatShadeGuideName(selectedShadeGuide || shadeCode) : ""}
+                <div className="flex items-center gap-2 w-full min-w-0">
+                  <span className={SHADE_FIELD_LABEL_CLASS} title={teethDisplayLabel || undefined}>
+                    {teethDisplayLabel}
                   </span>
+                  {teethPreviewCode && <TeethShadePreviewIcon shadeCode={teethPreviewCode} />}
                   {isTeethComplete && !caseSubmitted && (
-                    <Check size={16} className="text-[#34a853] ml-auto" />
+                    <Check size={16} className="text-[#34a853] flex-shrink-0" />
                   )}
                 </div>
               </fieldset>
@@ -1383,7 +1412,7 @@ export function RetentionProductFields({
                 "fixed_stump_shade",
                 JSON.stringify({
                   gum_shade_id: shade.gum_shade_id,
-                  brand_id: shade.brand.id,
+                  brand_id: shade.brand?.id,
                   name: shade.name,
                 })
               );
@@ -1393,16 +1422,16 @@ export function RetentionProductFields({
               }));
               setInlineGumPickerOpen(false);
             }}
-            gumShades={selectedProduct?.gum_shades || []}
+            gumShades={displayGumShades}
           />
         </div>
       )}
 
       {/* Step 3: Shade trio fields driven entirely by advance_fields — no static fallback */}
-      {isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields, selectedProduct) && (() => {
+      {isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", slipAdvanceFields, selectedProduct) && (() => {
         if (usesNamedShadeGuideFields) return null;
 
-        const af = selectedProduct?.advance_fields || [];
+        const af = slipAdvanceFields;
         const trioFields = af.filter((f) => {
           const n = (f.name || "").toLowerCase();
           return (
@@ -1416,11 +1445,18 @@ export function RetentionProductFields({
           <div className="grid grid-cols-2 gap-3">
             {trioFields.map(({ name }, idx) => {
               const trioCode = getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
+              const trioLabel = trioCode
+                ? formatShadeFieldLabel(
+                    trioCode,
+                    selectedProduct?.teeth_shades as ShadeCatalogRow[] | undefined,
+                    selectedShadeGuide
+                  )
+                : "";
               return (
               <ShadeField
                 key={name}
                 label={name}
-                value={trioCode ? formatShadeGuideName(selectedShadeGuide || trioCode) : ""}
+                value={trioLabel}
                 shade={trioCode}
                 onClick={() => {
                   handleShadeFieldClick(arch, "tooth_shade", fixedShadeProductId);
@@ -1459,7 +1495,7 @@ export function RetentionProductFields({
         />
       )}
 
-      {!fixedShadeIncomplete && <>
+      {showImplantAndLaterFields && <>
 
       {/* Implant Detail — one box per implant tooth; additional teeth mirror the first */}
       <ImplantDetailBoxes
@@ -1470,439 +1506,79 @@ export function RetentionProductFields({
         implantDetailCompleteByTooth={implantDetailCompleteByTooth}
         setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
         caseSubmitted={caseSubmitted}
-        advanceFields={selectedProduct?.advance_fields}
+        advanceFields={slipAdvanceFields}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
+        categoryId={selectedProduct?.subcategory?.category_id ?? selectedProduct?.subcategory?.category?.id}
+        onAbutmentAddonsChange={(entries) => {
+          const addonKey = `${arch}_${firstToothNumber}`;
+          const display = entries.map((e) => `${e.qty}x ${e.name}`).join(", ");
+          if (display) {
+            completeFieldStep(arch, firstToothNumber, "fixed_addons", display);
+          }
+          if (entries.length === 0) return;
+
+          const existingStructured = selectedAddonsByTooth[addonKey] ?? [];
+          const storeEntries =
+            useCaseDesignStore.getState().productAddOns[String(selectedProduct?.id ?? "")]?.[
+              arch
+            ] ?? [];
+          const existingNamed = existingStructured.map((e) => {
+            const fromStore = storeEntries.find((s) => s.addon_id === e.addon_id);
+            return {
+              addon_id: e.addon_id,
+              qty: e.qty,
+              name: fromStore?.name ?? fromStore?.addOn ?? fromStore?.label,
+            };
+          });
+          const merged = mergeProductAndAbutmentAddonEntries(existingNamed, entries);
+          const structured = merged.map((e) => ({ addon_id: e.addon_id, qty: e.qty }));
+
+          setSelectedAddonsByTooth?.((prev) => {
+            const next = { ...prev };
+            const teethToWrite = [
+              firstToothNumber,
+              productCardId === 0 ? -0 : -productCardId,
+              ...toothNumbers,
+            ];
+            for (const tn of teethToWrite) {
+              next[`${arch}_${tn}`] = structured;
+            }
+            return next;
+          });
+
+          const productId = selectedProduct?.id;
+          if (productId) {
+            const storeState = useCaseDesignStore.getState();
+            const existingStore =
+              storeState.productAddOns[String(productId)] || {
+                maxillary: [],
+                mandibular: [],
+              };
+            storeState.setProductAddOns(String(productId), {
+              ...existingStore,
+              [arch]: merged.map((e) => ({
+                addon_id: e.addon_id,
+                qty: e.qty,
+                quantity: e.qty,
+                name: e.name,
+                addOn: e.name,
+                label: e.name,
+              })),
+            });
+          }
+        }}
         labCustomerId={labCustomerId}
         expandedImplantTooth={expandedImplantTooth}
         onExpandedImplantToothChange={onExpandedImplantToothChange}
       />
 
-      {/* Step 4: Dynamic characterization advance fields */}
-      {isFixedAfterImplant("fixed_characterization") && hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields) && (() => {
-        const charFields = getAdvanceFieldsForStep("fixed_characterization", selectedProduct?.advance_fields);
-        if (charFields.length === 0) return null;
-        const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_characterization");
-        let storedValues: Record<string, { name: string; optionId: number }> = {};
-        try { if (fieldVal && fieldVal.startsWith("{")) storedValues = JSON.parse(fieldVal); } catch {}
-
-        const fieldsWithOptions = charFields.filter((f) => {
-          const opts = (f.options || []).filter((o: any) => o.status === "Active" || o.status === undefined);
-          return opts.length > 0;
-        });
-        const isSubFieldVisible = (index: number) => {
-          for (let i = 0; i < index; i++) {
-            if (!storedValues[fieldsWithOptions[i].id]) return false;
-          }
-          return true;
-        };
-
-        const visibleFields = charFields.filter((field) => {
-          const activeOptions = (field.options || [])
-            .filter((opt: any) => opt.status === "Active" || opt.status === undefined);
-          if (activeOptions.length === 0) return true;
-          const fieldIdx = fieldsWithOptions.findIndex((f) => f.id === field.id);
-          return fieldIdx >= 0 && isSubFieldVisible(fieldIdx);
-        });
-        const colCount = Math.min(visibleFields.length, 4);
-
-        return (
-          <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
-            {visibleFields.map((field) => {
-              const activeOptions = (field.options || [])
-                .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0));
-              const currentSelection = storedValues[field.id];
-              const hasFieldOptions = activeOptions.length > 0;
-              const hasVal = !!currentSelection;
-              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-
-              if (!hasFieldOptions) {
-                const stepCompleted = isFieldCompleted(arch, firstToothNumber, "fixed_characterization");
-                return (
-                  <fieldset
-                    key={field.id}
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
-                      stepCompleted && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-                    }`}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${stepCompleted && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                      {field.name}
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000]"></span>
-                  </fieldset>
-                );
-              }
-
-              return (
-                <AdvanceFieldSelect
-                  key={field.id}
-                  fieldId={field.id}
-                  fieldName={field.name}
-                  activeOptions={activeOptions}
-                  currentSelection={currentSelection}
-                  borderColor={borderColor}
-                  labelColor={labelColor}
-                  caseSubmitted={caseSubmitted}
-                  onSelect={(opt) => {
-                    const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
-                    const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
-                    if (allFilled) {
-                      completeFieldStep(arch, firstToothNumber, "fixed_characterization", JSON.stringify(updated));
-                    } else {
-                      storeFieldValue(arch, firstToothNumber, "fixed_characterization", JSON.stringify(updated));
-                      uncompleteFieldStep(arch, firstToothNumber, "fixed_characterization");
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* Step 5: Dynamic advance fields — progressive: show one by one, auto-open dropdown */}
-      {isFixedAfterImplant("fixed_contact_icons") && hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields) && (() => {
-        const contactFields = getAdvanceFieldsForStep("fixed_contact_icons", selectedProduct?.advance_fields);
-        if (contactFields.length === 0) {
-          // No matching fields — auto-complete handled in useEffect above
-          return null;
-        }
-        const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_contact_icons");
-        let storedValues: Record<string, { name: string; optionId: number }> = {};
-        try { if (fieldVal && fieldVal.startsWith("{")) storedValues = JSON.parse(fieldVal); } catch {}
-
-        const fieldsWithOptions = contactFields.filter((f) => {
-          const opts = (f.options || []).filter((o: any) => o.status === "Active" || o.status === undefined);
-          return opts.length > 0;
-        });
-        const isSubFieldVisible = (index: number) => {
-          for (let i = 0; i < index; i++) {
-            if (!storedValues[fieldsWithOptions[i].id]) return false;
-          }
-          return true;
-        };
-
-        const visibleFields = contactFields.filter((field) => {
-          const activeOptions = (field.options || [])
-            .filter((opt: any) => opt.status === "Active" || opt.status === undefined);
-          if (activeOptions.length === 0) return true;
-          const fieldIdx = fieldsWithOptions.findIndex((f) => f.id === field.id);
-          return fieldIdx >= 0 && isSubFieldVisible(fieldIdx);
-        });
-        const colCount = Math.min(visibleFields.length, 4);
-
-        return (
-          <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
-            {visibleFields.map((field) => {
-              const activeOptions = (field.options || [])
-                .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0));
-              const currentSelection = storedValues[field.id];
-              const hasFieldOptions = activeOptions.length > 0;
-              const hasVal = !!currentSelection;
-              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-
-              if (!hasFieldOptions) {
-                const stepCompleted = isFieldCompleted(arch, firstToothNumber, "fixed_contact_icons");
-                return (
-                  <fieldset
-                    key={field.id}
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
-                      stepCompleted && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-                    }`}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${stepCompleted && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                      {field.name}
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000]"></span>
-                  </fieldset>
-                );
-              }
-
-              return (
-                <AdvanceFieldSelect
-                  key={field.id}
-                  fieldId={field.id}
-                  fieldName={field.name}
-                  activeOptions={activeOptions}
-                  currentSelection={currentSelection}
-                  borderColor={borderColor}
-                  labelColor={labelColor}
-                  caseSubmitted={caseSubmitted}
-                  onSelect={(opt) => {
-                    const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
-                    const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
-                    if (allFilled) {
-                      completeFieldStep(arch, firstToothNumber, "fixed_contact_icons", JSON.stringify(updated));
-                    } else {
-                      storeFieldValue(arch, firstToothNumber, "fixed_contact_icons", JSON.stringify(updated));
-                      uncompleteFieldStep(arch, firstToothNumber, "fixed_contact_icons");
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* Step 6: Dynamic margin advance fields */}
-      {isFixedAfterImplant("fixed_margin") && hasAdvanceField("fixed_margin", selectedProduct?.advance_fields) && (() => {
-        const marginFields = getAdvanceFieldsForStep("fixed_margin", selectedProduct?.advance_fields);
-        if (marginFields.length === 0) return null;
-        const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_margin");
-        let storedValues: Record<string, { name: string; optionId: number }> = {};
-        try { if (fieldVal && fieldVal.startsWith("{")) storedValues = JSON.parse(fieldVal); } catch {}
-
-        const fieldsWithOptions = marginFields.filter((f) => {
-          const opts = (f.options || []).filter((o: any) => o.status === "Active" || o.status === undefined);
-          return opts.length > 0;
-        });
-        const isSubFieldVisible = (index: number) => {
-          for (let i = 0; i < index; i++) {
-            if (!storedValues[fieldsWithOptions[i].id]) return false;
-          }
-          return true;
-        };
-
-        const visibleFields = marginFields.filter((field) => {
-          const activeOptions = (field.options || [])
-            .filter((opt: any) => opt.status === "Active" || opt.status === undefined);
-          if (activeOptions.length === 0) return true;
-          const fieldIdx = fieldsWithOptions.findIndex((f) => f.id === field.id);
-          return fieldIdx >= 0 && isSubFieldVisible(fieldIdx);
-        });
-        const colCount = Math.min(visibleFields.length, 4);
-
-        return (
-          <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
-            {visibleFields.map((field) => {
-              const activeOptions = (field.options || [])
-                .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0));
-              const currentSelection = storedValues[field.id];
-              const hasFieldOptions = activeOptions.length > 0;
-              const hasVal = !!currentSelection;
-              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-
-              if (!hasFieldOptions) {
-                const stepCompleted = isFieldCompleted(arch, firstToothNumber, "fixed_margin");
-                return (
-                  <fieldset
-                    key={field.id}
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
-                      stepCompleted && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-                    }`}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${stepCompleted && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                      {field.name}
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000]"></span>
-                  </fieldset>
-                );
-              }
-
-              return (
-                <AdvanceFieldSelect
-                  key={field.id}
-                  fieldId={field.id}
-                  fieldName={field.name}
-                  activeOptions={activeOptions}
-                  currentSelection={currentSelection}
-                  borderColor={borderColor}
-                  labelColor={labelColor}
-                  caseSubmitted={caseSubmitted}
-                  onSelect={(opt) => {
-                    const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
-                    const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
-                    if (allFilled) {
-                      completeFieldStep(arch, firstToothNumber, "fixed_margin", JSON.stringify(updated));
-                    } else {
-                      storeFieldValue(arch, firstToothNumber, "fixed_margin", JSON.stringify(updated));
-                      uncompleteFieldStep(arch, firstToothNumber, "fixed_margin");
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* Step 7: Dynamic metal advance fields */}
-      {isFixedAfterImplant("fixed_metal") && hasAdvanceField("fixed_metal", selectedProduct?.advance_fields) && (() => {
-        const metalFields = getAdvanceFieldsForStep("fixed_metal", selectedProduct?.advance_fields);
-        if (metalFields.length === 0) return null;
-        const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_metal");
-        let storedValues: Record<string, { name: string; optionId: number }> = {};
-        try { if (fieldVal && fieldVal.startsWith("{")) storedValues = JSON.parse(fieldVal); } catch {}
-
-        const fieldsWithOptions = metalFields.filter((f) => {
-          const opts = (f.options || []).filter((o: any) => o.status === "Active" || o.status === undefined);
-          return opts.length > 0;
-        });
-        const isSubFieldVisible = (index: number) => {
-          for (let i = 0; i < index; i++) {
-            if (!storedValues[fieldsWithOptions[i].id]) return false;
-          }
-          return true;
-        };
-
-        const visibleFields = metalFields.filter((field) => {
-          const activeOptions = (field.options || [])
-            .filter((opt: any) => opt.status === "Active" || opt.status === undefined);
-          if (activeOptions.length === 0) return true;
-          const fieldIdx = fieldsWithOptions.findIndex((f) => f.id === field.id);
-          return fieldIdx >= 0 && isSubFieldVisible(fieldIdx);
-        });
-        const colCount = Math.min(visibleFields.length, 4);
-
-        return (
-          <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
-            {visibleFields.map((field) => {
-              const activeOptions = (field.options || [])
-                .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0));
-              const currentSelection = storedValues[field.id];
-              const hasFieldOptions = activeOptions.length > 0;
-              const hasVal = !!currentSelection;
-              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-
-              if (!hasFieldOptions) {
-                const stepCompleted = isFieldCompleted(arch, firstToothNumber, "fixed_metal");
-                return (
-                  <fieldset
-                    key={field.id}
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
-                      stepCompleted && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-                    }`}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${stepCompleted && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                      {field.name}
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000]"></span>
-                  </fieldset>
-                );
-              }
-
-              return (
-                <AdvanceFieldSelect
-                  key={field.id}
-                  fieldId={field.id}
-                  fieldName={field.name}
-                  activeOptions={activeOptions}
-                  currentSelection={currentSelection}
-                  borderColor={borderColor}
-                  labelColor={labelColor}
-                  caseSubmitted={caseSubmitted}
-                  onSelect={(opt) => {
-                    const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
-                    const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
-                    if (allFilled) {
-                      completeFieldStep(arch, firstToothNumber, "fixed_metal", JSON.stringify(updated));
-                    } else {
-                      storeFieldValue(arch, firstToothNumber, "fixed_metal", JSON.stringify(updated));
-                      uncompleteFieldStep(arch, firstToothNumber, "fixed_metal");
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* Step 8: Dynamic advance fields — progressive: show one by one, auto-open dropdown */}
-      {isFixedAfterImplant("fixed_proximal_contact") && hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields) && (() => {
-        const proximalFields = getAdvanceFieldsForStep("fixed_proximal_contact", selectedProduct?.advance_fields);
-        if (proximalFields.length === 0) {
-          // No matching fields — auto-complete handled in useEffect above
-          return null;
-        }
-        const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_proximal_contact");
-        let storedValues: Record<string, { name: string; optionId: number }> = {};
-        try { if (fieldVal && fieldVal.startsWith("{")) storedValues = JSON.parse(fieldVal); } catch {}
-
-        const fieldsWithOptions = proximalFields.filter((f) => {
-          const opts = (f.options || []).filter((o: any) => o.status === "Active" || o.status === undefined);
-          return opts.length > 0;
-        });
-        const isSubFieldVisible = (index: number) => {
-          for (let i = 0; i < index; i++) {
-            if (!storedValues[fieldsWithOptions[i].id]) return false;
-          }
-          return true;
-        };
-
-        const visibleFields = proximalFields.filter((field) => {
-          const activeOptions = (field.options || [])
-            .filter((opt: any) => opt.status === "Active" || opt.status === undefined);
-          if (activeOptions.length === 0) return true;
-          const fieldIdx = fieldsWithOptions.findIndex((f) => f.id === field.id);
-          return fieldIdx >= 0 && isSubFieldVisible(fieldIdx);
-        });
-        const colCount = Math.min(visibleFields.length, 4);
-
-        return (
-          <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
-            {visibleFields.map((field) => {
-              const activeOptions = (field.options || [])
-                .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0));
-              const currentSelection = storedValues[field.id];
-              const hasFieldOptions = activeOptions.length > 0;
-              const hasVal = !!currentSelection;
-              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-
-              if (!hasFieldOptions) {
-                const stepCompleted = isFieldCompleted(arch, firstToothNumber, "fixed_proximal_contact");
-                return (
-                  <fieldset
-                    key={field.id}
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
-                      stepCompleted && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-                    }`}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${stepCompleted && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                      {field.name}
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000]"></span>
-                  </fieldset>
-                );
-              }
-
-              return (
-                <AdvanceFieldSelect
-                  key={field.id}
-                  fieldId={field.id}
-                  fieldName={field.name}
-                  activeOptions={activeOptions}
-                  currentSelection={currentSelection}
-                  borderColor={borderColor}
-                  labelColor={labelColor}
-                  caseSubmitted={caseSubmitted}
-                  onSelect={(opt) => {
-                    const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
-                    const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
-                    if (allFilled) {
-                      completeFieldStep(arch, firstToothNumber, "fixed_proximal_contact", JSON.stringify(updated));
-                    } else {
-                      storeFieldValue(arch, firstToothNumber, "fixed_proximal_contact", JSON.stringify(updated));
-                      uncompleteFieldStep(arch, firstToothNumber, "fixed_proximal_contact");
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
+      {/* Dynamic advance field steps — field_type drives control (dropdown / checkbox / radio / text / file / …) */}
+      {renderAdvanceFieldStep("fixed_characterization")}
+      {renderAdvanceFieldStep("fixed_contact_icons")}
+      {renderAdvanceFieldStep("fixed_margin")}
+      {renderAdvanceFieldStep("fixed_metal")}
+      {renderAdvanceFieldStep("fixed_proximal_contact")}
 
       {/* Step 9: Impression / Add ons */}
       {isFixedAfterImplant("fixed_impression") && showImpressionAndAddons && (() => {
@@ -1936,9 +1612,9 @@ export function RetentionProductFields({
 
             {isFixedAfterImplant("fixed_addons") && addonItems.length > 0 &&
                 addonItems.map((item: string, idx: number) => (
-                  <fieldset key={idx} className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[200px] ${borderClass}`} onClick={onClickAddon}>
+                  <fieldset key={idx} className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[220px] ${borderClass}`} onClick={onClickAddon}>
                     <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
+                    <span className="text-[14px] sm:text-lg text-[#000000] break-words">{item}</span>
                     {!caseSubmitted && isFieldCompleted(arch, firstToothNumber, "fixed_addons") && idx === addonItems.length - 1 && (
                       <Check size={14} className="text-[#34a853] ml-2 flex-shrink-0" />
                     )}

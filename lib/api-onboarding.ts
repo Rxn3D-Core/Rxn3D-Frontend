@@ -9,6 +9,14 @@ export interface OnboardingStatus {
   onboarding_completed: boolean
   onboarding_completed_at: string | null
   onboarding_completed_by: number | null
+  product_library_clone_completed: boolean
+  product_library_clone_status?: string
+  product_library_clone_started_at?: string | null
+  product_library_clone_completed_at: string | null
+  product_library_clone_completed_by: number | null
+  product_library_clone_failed_at?: string | null
+  product_library_clone_error?: string | null
+  defer_product_library_clone: boolean
   business_hours_setup_completed: boolean
   business_hours_setup_completed_at: string | null
   business_hours_setup_completed_by: number | null

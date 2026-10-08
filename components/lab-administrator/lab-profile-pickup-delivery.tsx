@@ -1,15 +1,32 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Edit, Save, X } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { Save } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
-import { updateBusinessSettings, convertTo24Hour } from "@/lib/api-business-settings"
+import { updateBusinessSettings, convertTo24Hour, convertTo12Hour } from "@/lib/api-business-settings"
 import { useAuth } from "@/contexts/auth-context"
+import { TimePicker } from "@/components/onboarding/time-picker"
+import { getActiveCustomerId } from "@/lib/customer-scope"
+import {
+  DEFAULT_DELIVERY_TIME_12,
+  DEFAULT_PICKUP_TIME_12,
+  parseBusinessHourTime,
+} from "@/utils/time-utils"
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+
+interface CasePanCutoffRow {
+  id: number
+  name: string
+  code: string
+  /** 12-hour display; empty string = use lab default */
+  cutoffDisplay: string
+}
 
 interface PickupDeliveryTabProps {
   pickupData: {
@@ -48,10 +65,14 @@ export function PickupDeliveryTab({
   const [turnaroundDays, setTurnaroundDays] = useState(rushSettings.fixed_turnaround_days?.toString() || "3")
   const [rushFeePercent, setRushFeePercent] = useState(rushSettings.fixed_rush_fee_percentage || "25")
   
-  const [isEditingPickup, setIsEditingPickup] = useState(false)
-  const [isEditingDelivery, setIsEditingDelivery] = useState(false)
-  const [editPickupTime, setEditPickupTime] = useState("")
-  const [editDeliveryTime, setEditDeliveryTime] = useState("")
+  const [pickupTime, setPickupTime] = useState(() =>
+    parseBusinessHourTime(pickupData.cutOffTime, DEFAULT_PICKUP_TIME_12) || DEFAULT_PICKUP_TIME_12
+  )
+  const [deliveryTime, setDeliveryTime] = useState(() =>
+    parseBusinessHourTime(deliveryData.defaultTime, DEFAULT_DELIVERY_TIME_12) || DEFAULT_DELIVERY_TIME_12
+  )
+  const [casePanCutoffs, setCasePanCutoffs] = useState<CasePanCutoffRow[]>([])
+  const [isLoadingCasePans, setIsLoadingCasePans] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   
   const { toast } = useToast()
@@ -69,40 +90,95 @@ export function PickupDeliveryTab({
     }
   }, [rushSettings])
 
-  // Get customer ID if not provided
-  const getCustomerId = (): number | null => {
-    if (customerId) return customerId
-    
-    if (typeof window !== "undefined") {
-      const storedCustomerId = localStorage.getItem("customerId")
-      if (storedCustomerId) {
-        return parseInt(storedCustomerId, 10)
-      }
-    }
+  useEffect(() => {
+    setPickupTime(parseBusinessHourTime(pickupData.cutOffTime, DEFAULT_PICKUP_TIME_12) || DEFAULT_PICKUP_TIME_12)
+  }, [pickupData.cutOffTime])
 
+  useEffect(() => {
+    setDeliveryTime(parseBusinessHourTime(deliveryData.defaultTime, DEFAULT_DELIVERY_TIME_12) || DEFAULT_DELIVERY_TIME_12)
+  }, [deliveryData.defaultTime])
+
+  const resolveCustomerId = useCallback((): number | null => {
+    if (customerId) return customerId
+    const stored = getActiveCustomerId()
+    if (stored) {
+      const parsed = parseInt(stored, 10)
+      if (Number.isFinite(parsed)) return parsed
+    }
     if (user?.customers && user.customers.length > 0) {
       return user.customers[0].id
     }
-
     if (user?.customer_id) {
       return user.customer_id
     }
-
     return null
+  }, [customerId, user])
+
+  const fetchCasePanCutoffs = useCallback(async () => {
+    const cId = resolveCustomerId()
+    if (!cId) return
+
+    setIsLoadingCasePans(true)
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+      if (!token) return
+
+      const response = await fetch(
+        `${API_BASE_URL}/library/case-pans?customer_id=${cId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      )
+      if (!response.ok) {
+        throw new Error("Failed to load case pans")
+      }
+      const data = await response.json()
+      const pans = (data.data?.data || data.data || []) as Array<{
+        id: number
+        name: string
+        code: string
+        pickup_cutoff_time?: string | null
+        lab_case_pan?: { pickup_cutoff_time?: string | null }
+      }>
+
+      setCasePanCutoffs(
+        pans.map((pan) => {
+          const raw = pan.pickup_cutoff_time ?? pan.lab_case_pan?.pickup_cutoff_time ?? null
+          return {
+            id: pan.id,
+            name: pan.name,
+            code: pan.code,
+            cutoffDisplay: raw
+              ? parseBusinessHourTime(raw, DEFAULT_PICKUP_TIME_12) || convertTo12Hour(raw) || ""
+              : "",
+          }
+        })
+      )
+    } catch (error) {
+      console.error("Error loading case pan cutoffs:", error)
+    } finally {
+      setIsLoadingCasePans(false)
+    }
+  }, [resolveCustomerId])
+
+  useEffect(() => {
+    fetchCasePanCutoffs()
+  }, [fetchCasePanCutoffs])
+
+  const normalizeTime = (value: string, fallback: string) => {
+    const next = value.trim() ? convertTo12Hour(convertTo24Hour(value) || fallback) : fallback
+    return next || fallback
   }
 
-  const handleEditPickup = () => {
-    setIsEditingPickup(true)
-    setEditPickupTime(convertTo24Hour(pickupData.cutOffTime))
-  }
-
-  const handleEditDelivery = () => {
-    setIsEditingDelivery(true)
-    setEditDeliveryTime(convertTo24Hour(deliveryData.defaultTime))
-  }
-
-  const handleSavePickup = async () => {
-    const cId = getCustomerId()
+  const saveScheduleTime = async (
+    field: "default_pickup_time" | "default_delivery_time",
+    displayTime: string,
+    successMessage: string
+  ) => {
+    const cId = resolveCustomerId()
     if (!cId) {
       toast({
         title: "Error",
@@ -114,29 +190,25 @@ export function PickupDeliveryTab({
 
     setIsSaving(true)
     try {
-      // Only update the pickup time, other fields will be merged from current settings
       await updateBusinessSettings({
         customer_id: cId,
         customer_type: "lab",
         case_schedule: {
-          default_pickup_time: convertTo24Hour(editPickupTime),
+          [field]: convertTo24Hour(displayTime),
         },
       })
 
       toast({
         title: "Success",
-        description: "Pickup time updated successfully",
+        description: successMessage,
       })
 
-      setIsEditingPickup(false)
-      if (onUpdate) {
-        onUpdate()
-      }
-    } catch (error: any) {
-      console.error("Error updating pickup time:", error)
+      onUpdate?.()
+    } catch (error: unknown) {
+      console.error("Error updating schedule time:", error)
       toast({
         title: "Error",
-        description: error.message || "Failed to update pickup time",
+        description: error instanceof Error ? error.message : "Failed to update time",
         variant: "destructive",
       })
     } finally {
@@ -144,8 +216,20 @@ export function PickupDeliveryTab({
     }
   }
 
-  const handleSaveDelivery = async () => {
-    const cId = getCustomerId()
+  const handlePickupTimeChange = async (value: string) => {
+    const next = normalizeTime(value, DEFAULT_PICKUP_TIME_12)
+    setPickupTime(next)
+    await saveScheduleTime("default_pickup_time", next, "Pickup time updated successfully")
+  }
+
+  const handleDeliveryTimeChange = async (value: string) => {
+    const next = normalizeTime(value, DEFAULT_DELIVERY_TIME_12)
+    setDeliveryTime(next)
+    await saveScheduleTime("default_delivery_time", next, "Delivery time updated successfully")
+  }
+
+  const handleCasePanCutoffChange = async (casePanId: number, value: string) => {
+    const cId = resolveCustomerId()
     if (!cId) {
       toast({
         title: "Error",
@@ -155,40 +239,52 @@ export function PickupDeliveryTab({
       return
     }
 
+    const next = value.trim() ? normalizeTime(value, DEFAULT_PICKUP_TIME_12) : ""
+    setCasePanCutoffs((prev) =>
+      prev.map((pan) => (pan.id === casePanId ? { ...pan, cutoffDisplay: next } : pan))
+    )
+
     setIsSaving(true)
     try {
-      // Only update the delivery time, other fields will be merged from current settings
-      await updateBusinessSettings({
-        customer_id: cId,
-        customer_type: "lab",
-        case_schedule: {
-          default_delivery_time: convertTo24Hour(editDeliveryTime),
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+      if (!token) throw new Error("Authentication token not found")
+
+      const response = await fetch(`${API_BASE_URL}/library/case-pans/${casePanId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          customer_id: cId,
+          pickup_cutoff_time: next ? convertTo24Hour(next) : null,
+        }),
       })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to update case pan pickup time")
+      }
 
       toast({
         title: "Success",
-        description: "Delivery time updated successfully",
+        description: "Case pan pickup time updated successfully",
       })
-
-      setIsEditingDelivery(false)
-      if (onUpdate) {
-        onUpdate()
-      }
-    } catch (error: any) {
-      console.error("Error updating delivery time:", error)
+    } catch (error: unknown) {
+      console.error("Error updating case pan cutoff:", error)
       toast({
         title: "Error",
-        description: error.message || "Failed to update delivery time",
+        description: error instanceof Error ? error.message : "Failed to update case pan pickup time",
         variant: "destructive",
       })
+      await fetchCasePanCutoffs()
     } finally {
       setIsSaving(false)
     }
   }
 
   const handleSaveRushSettings = async () => {
-    const cId = getCustomerId()
+    const cId = resolveCustomerId()
     if (!cId) {
       toast({
         title: "Error",
@@ -240,62 +336,71 @@ export function PickupDeliveryTab({
   )
 
   return (
-    <div className="p-4 sm:p-6 bg-gray-50">
+    <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50">
       <div className="space-y-6">
         {/* Pick Up Options */}
         <div className="bg-white rounded-lg border">
           <div className="p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold">Pick Up Options</h3>
-              {!isEditingPickup ? (
-                <Edit 
-                  className="h-4 w-4 text-gray-400 cursor-pointer hover:text-blue-600" 
-                  onClick={handleEditPickup}
-                />
-              ) : (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleSavePickup}
-                    disabled={isSaving}
-                    className="h-8"
-                  >
-                    <Save className="h-4 w-4 text-green-600 mr-1" />
-                    Save
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setIsEditingPickup(false)}
-                    disabled={isSaving}
-                    className="h-8"
-                  >
-                    <X className="h-4 w-4 text-gray-400" />
-                  </Button>
-                </div>
-              )}
-            </div>
+            <h3 className="text-lg font-semibold mb-6">Pick Up Options</h3>
 
             <div className="space-y-1">
               <InfoRow label="Service Area:" value={pickupData.serviceArea} />
               <InfoRow label="Pick up days:" value={pickupData.pickupDays} />
-              {isEditingPickup ? (
-                <div className="flex flex-col sm:flex-row sm:items-center py-2 gap-2 sm:gap-0 border-b sm:border-b-0 border-gray-100">
-                  <span className="text-gray-500 text-sm sm:w-48 flex-shrink-0">Pick up cut off time:</span>
-                  <Input
-                    type="time"
-                    value={editPickupTime}
-                    onChange={(e) => setEditPickupTime(e.target.value)}
-                    className="w-32 h-8 text-sm"
-                    disabled={isSaving}
-                  />
-                </div>
-              ) : (
-                <InfoRow label="Pick up cut off time:" value={pickupData.cutOffTime} />
-              )}
+              <div className="flex flex-col sm:flex-row sm:items-center py-2 gap-2 sm:gap-0 border-b sm:border-b-0 border-gray-100">
+                <span className="text-gray-500 text-sm sm:w-48 flex-shrink-0">Default pick up cut off time:</span>
+                <TimePicker
+                  value={pickupTime}
+                  onChange={handlePickupTimeChange}
+                  className="w-36 h-9"
+                />
+              </div>
               <InfoRow label="Pick up Frequency:" value={pickupData.frequency} />
               <InfoRow label="Pick up Window" value={pickupData.window} />
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              <h4 className="text-sm font-semibold text-gray-900 mb-1">Case pan pick up cut off times</h4>
+              <p className="text-sm text-gray-500 mb-4">
+                Optional per case pan. When set, slips for that case pan use this cut off instead of the default.
+              </p>
+              {isLoadingCasePans ? (
+                <p className="text-sm text-gray-500">Loading case pans…</p>
+              ) : casePanCutoffs.length === 0 ? (
+                <p className="text-sm text-gray-500">No case pans found for this lab.</p>
+              ) : (
+                <div className="space-y-2">
+                  {casePanCutoffs.map((pan) => (
+                    <div
+                      key={pan.id}
+                      className="flex flex-col sm:flex-row sm:items-center py-2 gap-2 sm:gap-0 border-b sm:border-b-0 border-gray-100"
+                    >
+                      <span className="text-gray-500 text-sm sm:w-48 flex-shrink-0">
+                        {pan.name}{pan.code ? ` (${pan.code})` : ""}:
+                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <TimePicker
+                          value={pan.cutoffDisplay || pickupTime}
+                          onChange={(value) => handleCasePanCutoffChange(pan.id, value)}
+                          className="w-36 h-9"
+                        />
+                        {pan.cutoffDisplay ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-8 px-2 text-xs text-gray-600"
+                            disabled={isSaving}
+                            onClick={() => handleCasePanCutoffChange(pan.id, "")}
+                          >
+                            Use default
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-gray-500">Using default</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -303,55 +408,19 @@ export function PickupDeliveryTab({
         {/* Delivery Options */}
         <div className="bg-white rounded-lg border">
           <div className="p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold">Delivery Options</h3>
-              {!isEditingDelivery ? (
-                <Edit 
-                  className="h-4 w-4 text-gray-400 cursor-pointer hover:text-blue-600" 
-                  onClick={handleEditDelivery}
-                />
-              ) : (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleSaveDelivery}
-                    disabled={isSaving}
-                    className="h-8"
-                  >
-                    <Save className="h-4 w-4 text-green-600 mr-1" />
-                    Save
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setIsEditingDelivery(false)}
-                    disabled={isSaving}
-                    className="h-8"
-                  >
-                    <X className="h-4 w-4 text-gray-400" />
-                  </Button>
-                </div>
-              )}
-            </div>
+            <h3 className="text-lg font-semibold mb-6">Delivery Options</h3>
 
             <div className="space-y-1">
               <InfoRow label="Service Area:" value={deliveryData.serviceArea} />
               <InfoRow label="Delivery days:" value={deliveryData.deliveryDays} />
-              {isEditingDelivery ? (
-                <div className="flex flex-col sm:flex-row sm:items-center py-2 gap-2 sm:gap-0 border-b sm:border-b-0 border-gray-100">
-                  <span className="text-gray-500 text-sm sm:w-48 flex-shrink-0">Default Delivery time:</span>
-                  <Input
-                    type="time"
-                    value={editDeliveryTime}
-                    onChange={(e) => setEditDeliveryTime(e.target.value)}
-                    className="w-32 h-8 text-sm"
-                    disabled={isSaving}
-                  />
-                </div>
-              ) : (
-                <InfoRow label="Default Delivery time:" value={deliveryData.defaultTime} />
-              )}
+              <div className="flex flex-col sm:flex-row sm:items-center py-2 gap-2 sm:gap-0 border-b sm:border-b-0 border-gray-100">
+                <span className="text-gray-500 text-sm sm:w-48 flex-shrink-0">Default Delivery time:</span>
+                <TimePicker
+                  value={deliveryTime}
+                  onChange={handleDeliveryTimeChange}
+                  className="w-36 h-9"
+                />
+              </div>
               <InfoRow label="Delivery Window:" value={deliveryData.window} />
             </div>
           </div>

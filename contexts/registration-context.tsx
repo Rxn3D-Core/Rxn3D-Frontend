@@ -5,7 +5,7 @@ import { createContext, useContext, useState, useCallback } from "react"
 import { useToast } from "@/components/ui/use-toast"
 
 // Types for registration data
-export type UserRole = "lab_admin" | "lab_user" | "office_admin" | "doctor" | "office_user"
+export type UserRole = "lab_admin" | "lab_user" | "lab_driver" | "office_admin" | "doctor" | "office_user"
 
 export interface RegistrationUser {
   first_name: string
@@ -112,6 +112,23 @@ const defaultRegistrationData: RegistrationData = {
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+
+function findUnitedStates(countries: Country[]): Country | undefined {
+  return countries.find(
+    (country) =>
+      country.code?.toUpperCase() === "US" ||
+      country.name?.toLowerCase() === "united states"
+  )
+}
+
+function sortCountriesUsFirst(countries: Country[]): Country[] {
+  const unitedStates = findUnitedStates(countries)
+  if (!unitedStates) {
+    return countries
+  }
+
+  return [unitedStates, ...countries.filter((country) => country.id !== unitedStates.id)]
+}
 
 const RegistrationContext = createContext<RegistrationContextType | undefined>(undefined)
 
@@ -273,10 +290,24 @@ export function RegistrationProvider({ children }: { children: React.ReactNode }
   const fetchStatesAndCountries = useCallback(async (): Promise<void> => {
     try {
       const countriesData = await getCountries()
-      setCountries(countriesData)
+      const sortedCountries = sortCountriesUsFirst(countriesData)
+      setCountries(sortedCountries)
 
-      if (registrationData.country_id) {
-        const statesData = await getStates(registrationData.country_id)
+      let countryId = registrationData.country_id
+      if (!countryId) {
+        const unitedStates = findUnitedStates(sortedCountries)
+        if (unitedStates) {
+          countryId = unitedStates.id
+          setRegistrationData((prev) => ({
+            ...prev,
+            country_id: unitedStates.id,
+            state_id: 0,
+          }))
+        }
+      }
+
+      if (countryId) {
+        const statesData = await getStates(countryId)
         setStates(statesData)
       } else {
         setStates([])

@@ -1,33 +1,37 @@
 /**
- * Helper to wrap remote S3 file URLs through a same-origin proxy route.
- * Prevents CORS issues when loading STL/image files from AWS S3.
- */
-
-const PROXY_ROUTE = "/api/file-proxy";
-
-/**
- * Convert a remote file URL to a proxied URL if needed.
- * - Local blob: URLs are returned as-is (already same-origin)
- * - Remote http(s) S3 URLs are wrapped through the proxy
- * - Returns the original URL if it's relative/same-origin
+ * Return the URL to use when loading an attachment.
  *
- * @param url The original file URL (could be blob:, http(s), or relative)
- * @returns The URL to use for loading (either the original or proxied)
+ * For files hosted on our S3 buckets we route through `/api/file-proxy`.
+ * This avoids browser CORS blocks: Three.js STLLoader uses fetch(), and S3
+ * does not emit the `Access-Control-Allow-Origin` header for our origin.
+ * The proxy strips the S3 CORS restriction by serving the bytes from the
+ * same origin as the app.
+ *
+ * blob: and relative URLs are returned as-is.
  */
+
+const S3_HOSTS = [
+  "rxn3d-media-files.s3.us-west-2.amazonaws.com",
+  "rxn3d-prod-files.s3.us-west-2.amazonaws.com",
+];
+
+function isS3Url(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return S3_HOSTS.some((h) => hostname === h);
+  } catch {
+    return false;
+  }
+}
+
 export function toProxiedFileUrl(url: string): string {
   if (!url) return url;
-
-  // Blob URLs are already same-origin, don't proxy them
-  if (url.startsWith("blob:")) {
+  // blob: and relative/data: URLs don't need proxying
+  if (url.startsWith("blob:") || url.startsWith("data:") || url.startsWith("/")) {
     return url;
   }
-
-  // Relative URLs are same-origin, don't proxy them
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    return url;
+  if (isS3Url(url)) {
+    return `/api/file-proxy?url=${encodeURIComponent(url)}`;
   }
-
-  // For remote http(s) URLs, wrap through the proxy
-  const encodedUrl = encodeURIComponent(url);
-  return `${PROXY_ROUTE}?url=${encodedUrl}`;
+  return url;
 }

@@ -14,6 +14,15 @@ import { useFormValidation } from "@/hooks/use-form-validation"
 import { AuthHeader } from "@/components/auth-header"
 import { useAuth } from "@/contexts/auth-context"
 import { Loader2 } from "lucide-react"
+import { RegistrationTypeChooser } from "@/components/registration/registration-type-chooser"
+import {
+  RegistrationCard,
+  RegistrationPageHeader,
+  RegistrationPageShell,
+} from "@/components/registration/registration-page-shell"
+import { isOpenRegistrationEnabled } from "@/lib/config/registration"
+import Link from "next/link"
+import { Mail } from "lucide-react"
 
 export default function RegisterPage() {
   const { user, isLoading, setAuthFromData } = useAuth()
@@ -100,6 +109,33 @@ export default function RegisterPage() {
       // This prevents premature dashboard access
     }
   }, [user, isLoading, router])
+
+  if (!invitation_id) {
+    if (isOpenRegistrationEnabled) {
+      return <RegistrationTypeChooser />
+    }
+
+    return (
+      <RegistrationPageShell size="narrow" backHref="/login" backLabel="Back to sign in" showLogo>
+        <RegistrationCard className="text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            <Mail className="h-7 w-7" />
+          </div>
+          <RegistrationPageHeader
+            title="Invitation required"
+            description="Registration is currently invite-only. Please use the invitation link sent to your email to get started."
+            className="mb-0 text-center"
+          />
+          <Link
+            href="/login"
+            className="mt-6 inline-flex items-center text-sm font-semibold text-[#1162A8] hover:underline"
+          >
+            Back to sign in
+          </Link>
+        </RegistrationCard>
+      </RegistrationPageShell>
+    )
+  }
 
   // If loading or already logged in, show a loading state
   if (isLoading || user) {
@@ -428,7 +464,7 @@ export default function RegisterPage() {
       {/* Error message - use both local and context error */}
       {(error || contextError) && (
         <div
-          className={`${(error || contextError)?.includes("Invitation") ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-red-50 border-red-200 text-red-600"} p-4 mx-6 mt-4 rounded border flex items-center`}
+          className={`${(error || contextError)?.includes("Invitation") ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-red-50 border-red-200 text-red-600"} mx-4 sm:mx-6 mt-4 rounded border p-4 flex items-center`}
         >
           {(error || contextError)?.includes("Invitation") && (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -444,15 +480,15 @@ export default function RegisterPage() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 bg-[#f7fbff] p-6 flex justify-center">
+      <div className="flex-1 bg-[#f7fbff] p-4 sm:p-6 flex justify-center overflow-x-hidden">
         {/* Only show the registration form if there's no invitation error */}
         {!(error || contextError)?.includes("Invitation") ? (
-          <div className="bg-white rounded-lg shadow-sm w-full max-w-4xl p-8">
+          <div className="bg-white rounded-lg shadow-sm w-full max-w-4xl p-4 sm:p-8">
             {activeStep === 0 ? (
               /* Step 1: User Profiles */
               <div>
-                <div className="text-center mb-6">
-                  <h1 className="text-2xl font-bold mb-2">Set Up User Profiles</h1>
+                <div className="text-center mb-4 sm:mb-6">
+                  <h1 className="text-xl sm:text-2xl font-bold mb-2">Set Up User Profiles</h1>
                   <p className="text-sm text-[#a19d9d]">
                     Give us details about your {registrationType === "Lab" ? "dental laboratory" : "dental practice"}{" "}
                     and set up user profile.
@@ -487,14 +523,15 @@ export default function RegisterPage() {
                 )}
 
                 {/* Navigation buttons */}
-                <div className="flex justify-between mt-8">
-                  <div className="space-x-4">
-                    <button className="px-6 py-2 bg-[#f1f5f9] text-[#64748b] rounded" onClick={handlePrevious}>
-                      Previous
-                    </button>
-                  </div>
+                <div className="mt-6 sm:mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                   <button
-                    className="px-6 py-2 bg-white text-[#1162a8] border border-[#1162a8] rounded disabled:opacity-50"
+                    className="w-full px-6 py-2.5 bg-[#f1f5f9] text-[#64748b] rounded sm:w-auto"
+                    onClick={handlePrevious}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    className="w-full px-6 py-2.5 bg-white text-[#1162a8] border border-[#1162a8] rounded disabled:opacity-50 sm:w-auto"
                     onClick={handleNext}
                     disabled={isLoadingNext}
                   >
@@ -507,8 +544,8 @@ export default function RegisterPage() {
             ) : (activeStep === 1 && registrationType === "Office") ? (
               /* Step 2: Additional Users (Only for Office) */
               <div>
-                <div className="text-center mb-6">
-                  <h1 className="text-2xl font-bold mb-2">Set Up User Profiles</h1>
+                <div className="text-center mb-4 sm:mb-6">
+                  <h1 className="text-xl sm:text-2xl font-bold mb-2">Set Up User Profiles</h1>
                   <p className="text-sm text-[#a19d9d]">
                     Give us details about your dental {registrationType === "Lab" ? "laboratory" : "practice"} and set
                     up user profile.
@@ -530,9 +567,9 @@ export default function RegisterPage() {
                 />
 
                 {/* Navigation buttons */}
-                <div className="flex justify-end mt-8">
+                <div className="mt-6 sm:mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                   <button
-                    className="px-6 py-2 bg-white text-[#1162a8] border border-[#1162a8] rounded"
+                    className="w-full px-6 py-2.5 bg-white text-[#1162a8] border border-[#1162a8] rounded sm:w-auto"
                     onClick={handleContinue}
                   >
                     {isLoadingNext ? "Sending..." : "Next"}

@@ -38,10 +38,12 @@ const FULL_BLEED_ICONS: Partial<Record<VirtualSlipActionIconName, number>> = {
 const ICON_FILE: Partial<Record<VirtualSlipActionIconName, string>> = {
   "on-hold": "on-hold.png",
   "paper-airplane": "ready-to-send.png",
+  "add-stage": "add-stage.png",
 };
 
 const ICON_BASE_OVERRIDE: Partial<Record<VirtualSlipActionIconName, string>> = {
   "paper-airplane": "/icons/slip-listing",
+  "add-stage": "/icons/virtual-slip-center",
 };
 
 export function VirtualSlipActionIcon({

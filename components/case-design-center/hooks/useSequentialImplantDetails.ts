@@ -6,7 +6,9 @@ import {
   getImplantMirrorSourceTooth,
   getImplantTeethInGroup,
   getSequentialVisibleImplantTeeth,
+  isCompleteLabRecommendation,
   isImplantDetailFilled,
+  isSameImplantDetailData,
 } from "../utils/implantDetailHelpers";
 
 /** One implant box at a time; later teeth mirror the first completed implant. */
@@ -30,10 +32,14 @@ export function useSequentialImplantDetails({
     [toothNumbers, retentionTypesMap]
   );
 
-  const visibleImplantTeeth = useMemo(
-    () => getSequentialVisibleImplantTeeth(implantTeeth, implantDetailCompleteByTooth),
-    [implantTeeth, implantDetailCompleteByTooth]
-  );
+  const visibleImplantTeeth = useMemo(() => {
+    const anyLabRecommendation = implantTeeth.some(
+      (tn) => implantDetailByTooth[tn]?.labRecommendationRequested
+    );
+    // Lab recommendation is one shared request for the implant group — show every tooth.
+    if (anyLabRecommendation) return implantTeeth;
+    return getSequentialVisibleImplantTeeth(implantTeeth, implantDetailCompleteByTooth);
+  }, [implantTeeth, implantDetailCompleteByTooth, implantDetailByTooth]);
 
   const mirrorSourceTooth = useMemo(
     () =>
@@ -55,16 +61,27 @@ export function useSequentialImplantDetails({
     }
     const source = implantDetailByTooth[mirrorSourceTooth];
     if (!isImplantDetailFilled(source)) return;
+    const forceLabRecGroup = isCompleteLabRecommendation(source);
 
     setImplantDetailByTooth((prev) => {
       let changed = false;
       const next = { ...prev };
       for (const tn of implantTeeth) {
         if (tn === mirrorSourceTooth) continue;
-        if (!isImplantDetailFilled(prev[tn])) {
-          next[tn] = cloneImplantDetailData(source!);
-          changed = true;
-        }
+        const existing = prev[tn];
+        const shouldOverwrite =
+          forceLabRecGroup ||
+          !isImplantDetailFilled(existing) ||
+          (!!existing?.labRecommendationRequested &&
+            !(existing.referencePhoto || existing.referencePhotoUrl)) ||
+          // First tooth gained an abutment after later teeth were already mirrored.
+          ((!!source?.abutmentType || !!source?.abutmentId) &&
+            !(existing?.abutmentType || existing?.abutmentId));
+        if (!shouldOverwrite) continue;
+        // Lab-rec with photo used to reclone every run (forceLabRecGroup=true) → #185.
+        if (isSameImplantDetailData(existing, source)) continue;
+        next[tn] = cloneImplantDetailData(source!);
+        changed = true;
       }
       return changed ? next : prev;
     });
@@ -93,7 +110,10 @@ export function useSequentialImplantDetails({
   const getImplantDetailValue = useCallback(
     (toothNumber: number): ImplantDetailData => {
       const stored = implantDetailByTooth[toothNumber];
-      if (isImplantDetailFilled(stored)) {
+      if (isCompleteLabRecommendation(stored)) {
+        return stored ?? defaultImplantDetailData();
+      }
+      if (isImplantDetailFilled(stored) && !stored?.labRecommendationRequested) {
         return stored ?? defaultImplantDetailData();
       }
       if (
@@ -111,10 +131,9 @@ export function useSequentialImplantDetails({
     [implantDetailByTooth, mirrorSourceTooth, mirrorSourceComplete]
   );
 
-  const activeImplantTooth =
-    visibleImplantTeeth.length > 0
-      ? visibleImplantTeeth[visibleImplantTeeth.length - 1]
-      : undefined;
+  const activeImplantTooth = visibleImplantTeeth.find(
+    (tn) => implantDetailCompleteByTooth[tn] !== true
+  );
 
   return {
     implantTeeth,

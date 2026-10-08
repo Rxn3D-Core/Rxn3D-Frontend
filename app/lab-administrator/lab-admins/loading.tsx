@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 export default function Loading() {
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto py-4">
       <Skeleton className="h-8 w-64 mb-6" />
 
       <Card>

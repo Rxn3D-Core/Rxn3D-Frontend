@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { InvitationForm } from "@/components/invitation-form"
 import { CustomerSearchBox } from "@/components/CustomerSearchBox"
 import { Building2, Search, PlusCircle } from "lucide-react"
+import { INVITE_ONBOARDING_MODALS_ENABLED } from "@/lib/invite-onboarding-modals"
 
 interface DashboardOfficeInviteModalProps {
   practicesCount: number
@@ -24,6 +25,16 @@ export function DashboardOfficeInviteModal({
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
+    if (!INVITE_ONBOARDING_MODALS_ENABLED && isOpen) {
+      onClose()
+    }
+  }, [isOpen, onClose])
+
+  useEffect(() => {
+    if (!INVITE_ONBOARDING_MODALS_ENABLED) {
+      return
+    }
+
     if (!isOpen) {
       setShowModal(false)
       return
@@ -57,6 +68,10 @@ export function DashboardOfficeInviteModal({
     // If a customer is selected from search, we can either automatically invite them
     // or fill the form. CustomerSearchBox already has an invite button inside it.
     // We just need to handle the case where they might click the row.
+  }
+
+  if (!INVITE_ONBOARDING_MODALS_ENABLED) {
+    return null
   }
 
   return (

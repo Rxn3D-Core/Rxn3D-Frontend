@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { resolveLibraryCustomerId } from '@/components/case-design-center/utils/libraryCustomerId'
+import { FRESH_LIST_QUERY_OPTIONS } from '@/lib/cache/frontend-list-cache'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ''
 
 /**
- * Query Keys for slip creation cache management
+ * Query Keys for slip creation cache management.
+ * List queries using these keys refetch when the screen remounts (see FRESH_LIST_QUERY_OPTIONS).
  */
 export const slipDataKeys = {
   all: ['slip-data'] as const,
@@ -165,16 +167,15 @@ async function fetchGumShades() {
  * Hook to fetch and cache connected offices/labs
  *
  * Features:
- * - Automatic caching with 10-minute stale time
- * - Persists to localStorage
+ * - In-session cache with in-flight dedupe
+ * - Refetches whenever the screen remounts so API updates are visible
  * - Based on user role (lab_admin vs others)
  */
 export function useConnectedOfficesOrLabs(params?: { search?: string; sort_by?: string; sort_order?: string }) {
   return useQuery({
     queryKey: params ? slipDataKeys.connectedOffices() : slipDataKeys.connectedLabs(),
     queryFn: () => fetchConnectedOfficesOrLabs(params),
-    staleTime: 1000 * 60 * 10, // 10 minutes
-    gcTime: 1000 * 60 * 60 * 24, // 24 hours
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 }
 
@@ -188,8 +189,7 @@ export function useOfficeDoctors(officeId?: number) {
     queryKey: officeId ? slipDataKeys.officeDoctors(officeId) : ['office-doctors-disabled'],
     queryFn: () => fetchOfficeDoctors(officeId!),
     enabled: !!officeId, // Only fetch if officeId exists
-    staleTime: 1000 * 60 * 10, // 10 minutes
-    gcTime: 1000 * 60 * 60 * 24, // 24 hours
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 }
 
@@ -201,8 +201,7 @@ export function useLabProducts(labId?: number, params?: Record<string, any>) {
     queryKey: labId ? slipDataKeys.labProducts(labId, params) : ['lab-products-disabled'],
     queryFn: () => fetchLabProducts(labId!, params),
     enabled: !!labId, // Only fetch if labId exists
-    staleTime: 1000 * 60 * 10, // 10 minutes
-    gcTime: 1000 * 60 * 60 * 24, // 24 hours
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 }
 

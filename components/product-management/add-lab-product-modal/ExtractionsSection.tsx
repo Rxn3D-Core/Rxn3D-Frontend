@@ -84,6 +84,7 @@ export function ExtractionsSection({
       : needsOppositeHydration
         ? false
         : (watch("apply_same_status_to_opposing") ?? true)
+  const hideReferenceTeethSelection = watch("hide_reference_teeth_selection") === "Yes"
 
   // Use extractions passed from parent
   const extractions = allExtractions
@@ -636,18 +637,39 @@ export function ExtractionsSection({
         <div className="text-center py-4">Loading extractions...</div>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={embedded ? "apply-same-status-embedded" : "apply-same-status"}
-              checked={watchedApplySameStatus}
-              onCheckedChange={handleApplySameStatusChange}
-            />
-            <Label
-              htmlFor={embedded ? "apply-same-status-embedded" : "apply-same-status"}
-              className={cn(compact && "text-xs leading-snug")}
-            >
-              Apply same status to opposing
-            </Label>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={embedded ? "apply-same-status-embedded" : "apply-same-status"}
+                checked={watchedApplySameStatus}
+                onCheckedChange={handleApplySameStatusChange}
+              />
+              <Label
+                htmlFor={embedded ? "apply-same-status-embedded" : "apply-same-status"}
+                className={cn(compact && "text-xs leading-snug")}
+              >
+                Apply same status to opposing
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={embedded ? "hide-reference-teeth-embedded" : "hide-reference-teeth"}
+                checked={hideReferenceTeethSelection}
+                onCheckedChange={(checked) =>
+                  setValue(
+                    "hide_reference_teeth_selection",
+                    checked === true ? "Yes" : "No",
+                    { shouldDirty: true },
+                  )
+                }
+              />
+              <Label
+                htmlFor={embedded ? "hide-reference-teeth-embedded" : "hide-reference-teeth"}
+                className={cn(compact && "text-xs leading-snug")}
+              >
+                Hide reference teeth selection
+              </Label>
+            </div>
           </div>
 
           <div

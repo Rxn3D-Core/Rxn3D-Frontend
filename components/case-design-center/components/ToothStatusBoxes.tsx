@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import ReactDOM from "react-dom";
-import { useSupportsHover } from "@/hooks/use-supports-hover";
+import { useEffect, useRef } from "react";
+// import ReactDOM from "react-dom";
+// import { useSupportsHover } from "@/hooks/use-supports-hover";
 import { DoneTransitionButton } from "./DoneTransitionButton";
 import type { ProductExtraction } from "../types";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
@@ -10,6 +10,7 @@ import {
   isTimExtractionByFlag,
   shouldAutoSelectArchForDefaultExtraction,
 } from "../utils/extractionHelpers";
+import { areExtractionRequirementsSatisfied } from "../utils/extractionRequirementHelpers";
 
 interface ToothStatusBoxesProps {
   extractions: ProductExtraction[];
@@ -46,6 +47,11 @@ interface ToothStatusBoxesProps {
   /** Optional acknowledgement props to control Done button display */
   acknowledged?: boolean;
   onAcknowledgedChange?: (value: boolean) => void;
+  /**
+   * When true, hide the tooth status / reference-teeth icons but keep Done
+   * acknowledgement (product flag hide_reference_teeth_selection).
+   */
+  hideReferenceTeethSelection?: boolean;
   /** Smaller icons and tighter boxes (virtual slip read-only view). */
   compact?: boolean;
 }
@@ -165,6 +171,7 @@ export function ToothStatusBoxes({
   displayTeethByCode,
   acknowledged = false,
   onAcknowledgedChange,
+  hideReferenceTeethSelection = false,
   compact = false,
 }: ToothStatusBoxesProps) {
   const allActiveExtractions = extractions
@@ -186,8 +193,6 @@ export function ToothStatusBoxes({
       onSelectAllTeeth(allArchTeeth);
     }
   }, [shouldAutoSelectDefaultTeeth, allArchTeeth, onSelectAllTeeth, selectedTeeth.length]);
-
-  if (activeExtractions.length === 0) return null;
 
   const getTeethForBox = (extraction: ProductExtraction): number[] =>
     getStatusBoxTeeth({
@@ -211,9 +216,12 @@ export function ToothStatusBoxes({
     return teethForBox.length === 0 && !anyOptionalHasTeeth;
   });
 
-  const supportsHover = useSupportsHover();
-  const [tooltipState, setTooltipState] = useState<{ label: string; x: number; y: number } | null>(null);
+  // Temporarily hidden: floating cursor tooltip on extraction boxes was too distracting
+  // const supportsHover = useSupportsHover();
+  // const [tooltipState, setTooltipState] = useState<{ label: string; x: number; y: number } | null>(null);
 
+  // Hooks must run unconditionally — empty extractions still take this path when
+  // edit-slip swaps products (product A has boxes, product B does not).
   const prevRequiredValidationRef = useRef<boolean | null>(null);
   useEffect(() => {
     if (prevRequiredValidationRef.current === hasRequiredValidation) return;
@@ -221,7 +229,23 @@ export function ToothStatusBoxes({
     onRequiredValidationChange?.(hasRequiredValidation);
   }, [hasRequiredValidation, onRequiredValidationChange]);
 
+  if (activeExtractions.length === 0) return null;
+
   const isInteractive = !submitted && !grayed;
+  const showDoneButton =
+    !acknowledged &&
+    !!onAcknowledgedChange &&
+    areExtractionRequirementsSatisfied(allActiveExtractions, {
+      selectedTeeth,
+      toothExtractionMap,
+      claspTeeth,
+    });
+
+  // Product flag hides status icons; if Done is not needed either, render nothing.
+  if (hideReferenceTeethSelection && !showDoneButton) {
+    return null;
+  }
+
   const iconWidth = compact ? 26 : 40;
   const iconHeight = compact ? 30 : 50;
   const iconLeft = compact ? -10 : -18;
@@ -243,6 +267,7 @@ export function ToothStatusBoxes({
       }`}
     >
       {/* Horizontally centered row of extraction options */}
+      {!hideReferenceTeethSelection && (
       <div
         className={`flex flex-wrap items-center ${
           compact ? "justify-start gap-3" : "justify-center gap-x-6 gap-y-2"
@@ -303,14 +328,15 @@ export function ToothStatusBoxes({
             </div>
           );
 
-          const tooltipLabel =
-            isInteractive && supportsHover ? `assign teeth to ${extraction.name}` : undefined;
-          const hoverHandlers = tooltipLabel
-            ? {
-                onMouseMove: (e: React.MouseEvent) => setTooltipState({ label: tooltipLabel, x: e.clientX, y: e.clientY }),
-                onMouseLeave: () => setTooltipState(null),
-              }
-            : {};
+          // Temporarily hidden: floating cursor tooltip on extraction boxes was too distracting
+          // const tooltipLabel =
+          //   isInteractive && supportsHover ? `assign teeth to ${extraction.name}` : undefined;
+          // const hoverHandlers = tooltipLabel
+          //   ? {
+          //       onMouseMove: (e: React.MouseEvent) => setTooltipState({ label: tooltipLabel, x: e.clientX, y: e.clientY }),
+          //       onMouseLeave: () => setTooltipState(null),
+          //     }
+          //   : {};
 
           // Active state: blue border to indicate selection mode
           if (isActive) {
@@ -320,7 +346,7 @@ export function ToothStatusBoxes({
                 type="button"
                 aria-label={extraction.name}
                 onClick={toggleBox}
-                {...hoverHandlers}
+                // {...hoverHandlers}
                 style={{
                   flex: "0 0 auto",
                   border: "2px solid rgb(211, 211, 211)",
@@ -366,7 +392,6 @@ export function ToothStatusBoxes({
                 type="button"
                 aria-label={extraction.name}
                 onClick={toggleBox}
-                {...hoverHandlers}
                 style={{
                   flex: "0 0 auto",
                   border: "2px solid rgb(211, 211, 211)",
@@ -410,7 +435,6 @@ export function ToothStatusBoxes({
                 compact ? "w-[26px] h-[30px]" : "w-[40px] h-[50px]"
               }`}
               onClick={toggleBox}
-              {...hoverHandlers}
             >
               {extraction.image_url ? (
                 <img
@@ -435,13 +459,15 @@ export function ToothStatusBoxes({
           );
         })}
       </div>
+      )}
 
-      {/* Done button centered below options when not yet acknowledged */}
-      {!acknowledged && onAcknowledgedChange && (
+      {/* Done — only when required/optional + min/max rules are satisfied */}
+      {showDoneButton && (
         <div className="w-full flex justify-center py-1 overflow-visible">
-          <DoneTransitionButton onComplete={() => onAcknowledgedChange(true)} />
+          <DoneTransitionButton onComplete={() => onAcknowledgedChange?.(true)} />
         </div>
       )}
+      {/* Temporarily hidden: floating cursor tooltip on extraction boxes was too distracting
       {supportsHover && tooltipState && typeof document !== "undefined" && ReactDOM.createPortal(
         <div
           style={{ position: "fixed", left: tooltipState.x + 12, top: tooltipState.y - 36, zIndex: 9999, pointerEvents: "none" }}
@@ -451,6 +477,7 @@ export function ToothStatusBoxes({
         </div>,
         document.body
       )}
+      */}
     </div>
   );
 }

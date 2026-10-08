@@ -5,15 +5,12 @@ import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { X } from "lucide-react"
-import { format } from "date-fns"
 import { useOfficeSlipContext, type UISlip } from "@/contexts/office-slip-context"
 import { SlipProvider, useSlipContext } from "@/app/lab-case-management/SlipContext"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
+import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities"
 import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog"
 import DriverHistoryModal from "@/components/driver-history-modal"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
@@ -24,24 +21,33 @@ import CallLogModal from "@/components/call-log-modal"
 import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
 import CaseActionModal from "@/components/CaseActionModal"
 import { useToast } from "@/components/ui/use-toast"
-import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import {
   SLIP_LISTING_DEFAULT_PER_PAGE,
-  SLIP_LOCATION_FILTER_OPTIONS,
 } from "@/app/lab-case-management/lab-slip-listing-constants"
 import {
-  SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS,
   SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS,
 } from "@/lib/slip-listing-filter-select"
 import { slipCanHold, SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE } from "@/lib/slip-location"
 import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPauseIcon"
-import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
-import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
-import { LoadingOverlay } from "@/components/ui/loading-overlay"
+import {
+  loadSlipListingLocationFilters,
+  loadSlipListingStatusFilters,
+  saveSlipListingLocationFilters,
+  saveSlipListingStatusFilters,
+} from "@/lib/slip-listing-preferences"
+import { printPaperSlipV6ForSlip } from "@/lib/print-paper-slip-v6-from-slip"
+// Multiple paper slip print disabled from listing
+// import { printPaperSlipV6ForSlips } from "@/lib/print-paper-slip-v6-from-slip"
+import {
+  resolveListingPaperSlipId,
+  // resolveListingPaperSlipJobs,
+} from "@/lib/paper-slip-listing-print-ids"
 import { useDebounce } from "@/lib/performance-utils"
 import { V3CaseWidget } from "@/app/lab-case-management/components/V3CaseWidget"
 import type { SortDirection } from "@/app/lab-case-management/components/V3CaseTable"
@@ -70,6 +76,8 @@ function toCaseRowData(slip: UISlip): V2CaseRowData {
     attachment: slip.attachment,
     dueDate: slip.dueDate,
     doctor: slip.doctorName,
+    productNames: slip.productNames,
+    stageNames: slip.stageNames,
   }
 }
 
@@ -128,6 +136,7 @@ function normalizeStatusFilterValue(status: string): string {
   const value = status.trim().toLowerCase()
   if (value === "on hold" || value === "on-hold") return "on hold"
   if (value === "cancelled" || value === "canceled") return "cancelled"
+  if (value === "deleted") return "deleted"
   return value
 }
 
@@ -138,11 +147,14 @@ function canPrintStatement(row: { billingId?: number | null }): boolean {
 function OfficeCaseManagementPage() {
   const { toast } = useToast()
   const router = useRouter()
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2()
 
   const [search, setSearch] = useState("")
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([])
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(
+    () => loadSlipListingLocationFilters("office") ?? [],
+  )
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(
+    () => loadSlipListingStatusFilters("office") ?? [],
+  )
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [selected, setSelected] = useState<number[]>([])
@@ -150,12 +162,10 @@ function OfficeCaseManagementPage() {
   const [archiveConfirm, setArchiveConfirm] = useState<number | null>(null)
   const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false)
-  const [dateRange, setDateRange] = useState<{ start?: Date; end?: Date }>({})
   const [officeFilter, setOfficeFilter] = useState("All")
   const [productType, setProductType] = useState("All")
   const [doctorFilter, setDoctorFilter] = useState("All")
   const [stageFilter, setStageFilter] = useState("All")
-  const [officeLabFilter, setOfficeLabFilter] = useState("All")
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [sortKey, setSortKey] = useState<ColumnKey | null>("dueDate")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -179,15 +189,31 @@ function OfficeCaseManagementPage() {
   const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<V2CaseRowData | null>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
+  const [deleteSlipModalOpen, setDeleteSlipModalOpen] = useState(false)
+  const [selectedSlipForDelete, setSelectedSlipForDelete] = useState<V2CaseRowData | null>(null)
+  const [deleteSlipSubmitting, setDeleteSlipSubmitting] = useState(false)
+  const [restoreSlipModalOpen, setRestoreSlipModalOpen] = useState(false)
+  const [selectedSlipForRestore, setSelectedSlipForRestore] = useState<V2CaseRowData | null>(null)
+  const [restoreSlipSubmitting, setRestoreSlipSubmitting] = useState(false)
   const [holdSlipModalOpen, setHoldSlipModalOpen] = useState(false)
   const [selectedSlipForHold, setSelectedSlipForHold] = useState<V2CaseRowData | null>(null)
   const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
 
-  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
+  const {
+    readyToSendRequired,
+    readyToSendPhotoEnabled,
+    readyToSendPhotoRequired,
+  } = useSignatureRequirementSettings(showReadyToSendModal)
+
+  // Office listing always loads connected labs (non-lab_admin role path).
+  const { officesAsLabs: connectedLabs } = useConnectedOfficesOrLabs("office_admin", {
+    enabled: showAdvancedFilter,
+  })
 
   const { slips: officeSlips, loading, pagination, fetchOfficeSlips } = useOfficeSlipContext()
   const { fetchDriverPrintData, readyToSend } = useSlipContext()
-  const { fetchProductAddons, cancelSlip, holdSlip } = useSlipCreation()
+  const { fetchProductAddons, cancelSlip, softDeleteSlip, restoreSlip, holdSlip } = useSlipCreation()
+  const { canCancelCase, canDeleteCase } = usePermissionCapabilities()
   const [advancedBillingSearch] = useAdvancedBillingSearchMutation()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
@@ -196,20 +222,85 @@ function OfficeCaseManagementPage() {
   const debouncedSearch = useDebounce(search, 400)
 
   useEffect(() => {
+    saveSlipListingLocationFilters("office", selectedLocations)
+  }, [selectedLocations])
+
+  useEffect(() => {
+    saveSlipListingStatusFilters("office", selectedStatuses)
+  }, [selectedStatuses])
+
+  useEffect(() => {
     const customerId = resolveListingCustomerId()
     if (!customerId) return
-    void fetchOfficeSlips(customerId, currentPage, itemsPerPage)
-  }, [fetchOfficeSlips, currentPage, itemsPerPage])
+    void fetchOfficeSlips(customerId, currentPage, itemsPerPage, {
+      statuses: selectedStatuses.length > 0 ? selectedStatuses : undefined,
+    })
+  }, [fetchOfficeSlips, currentPage, itemsPerPage, selectedStatuses])
 
-  const allOffices = useMemo(() => Array.from(new Set(slips.map((s) => s.officeCode).filter(Boolean))), [slips])
-  const allStatuses = useMemo(() => Array.from(new Set(slips.map((s) => s.status).filter(Boolean))), [slips])
   const allDoctors = useMemo(() => Array.from(new Set(slips.map((s) => s.doctor || "Unknown"))), [slips])
-  const allProductTypes = useMemo(() => Array.from(new Set(slips.map((s) => s.productType || "Unknown"))), [slips])
-  const allStages = useMemo(() => Array.from(new Set(slips.map((s) => s.product).filter(Boolean))), [slips])
+  const allProductNames = useMemo(() => {
+    const names = new Set<string>()
+    slips.forEach((slip) => {
+      ;(slip.productNames || []).forEach((name) => {
+        const normalized = name.trim()
+        if (!normalized || /^(upper|lower)$/i.test(normalized)) return
+        names.add(normalized)
+      })
+    })
+    return Array.from(names).sort((a, b) => a.localeCompare(b))
+  }, [slips])
+  const allStages = useMemo(() => {
+    const names = new Set<string>()
+    slips.forEach((slip) => {
+      ;(slip.stageNames || []).forEach((name) => {
+        const normalized = name.trim()
+        if (normalized) names.add(normalized)
+      })
+    })
+    return Array.from(names).sort((a, b) => a.localeCompare(b))
+  }, [slips])
+
+  const labFilterOptions = useMemo(() => {
+    const fromConnections = connectedLabs
+      .map((lab) => {
+        const value = (lab.name || "").trim()
+        if (!value) return null
+        return { value, label: value }
+      })
+      .filter((option): option is { value: string; label: string } => Boolean(option))
+
+    const seen = new Set(fromConnections.map((option) => option.value))
+    const fromSlips = Array.from(new Set(slips.map((s) => s.officeCode).filter(Boolean)))
+      .filter((name) => name && !seen.has(name))
+      .map((name) => ({ value: name, label: name }))
+
+    return [
+      { value: "All", label: "All Labs" },
+      ...fromConnections,
+      ...fromSlips,
+    ]
+  }, [connectedLabs, slips])
+
+  const doctorFilterOptions = useMemo(
+    () => [
+      { value: "All", label: "All Doctors" },
+      ...allDoctors.filter(Boolean).map((doctor) => ({ value: doctor, label: doctor })),
+    ],
+    [allDoctors]
+  )
+
+  const productFilterOptions = useMemo(
+    () => [
+      { value: "All", label: "All products" },
+      ...allProductNames.map((product) => ({ value: product, label: product })),
+    ],
+    [allProductNames]
+  )
 
   const slipsPage = useMemo(() => {
+    // Status is server-filtered (slip OR product status). Do not re-filter by
+    // slip.status alone — mixed-arch hold/progress cases would be dropped.
     const q = debouncedSearch.trim().toLowerCase()
-    const selectedStatusSet = new Set(selectedStatuses.map(normalizeStatusFilterValue))
     const filtered = slips.filter((slip) => {
       if (q) {
         const haystack = `${slip.patient} ${slip.product} ${slip.doctor ?? ""} ${slip.caseNumber ?? ""} ${slip.slipNumber ?? ""}`.toLowerCase()
@@ -218,17 +309,15 @@ function OfficeCaseManagementPage() {
       if (selectedLocations.length > 0 && !selectedLocations.includes(String(slip.locationId ?? ""))) {
         return false
       }
-      if (selectedStatusSet.size > 0 && !selectedStatusSet.has(normalizeStatusFilterValue(slip.status || ""))) {
-        return false
-      }
       if (officeFilter !== "All" && slip.officeCode !== officeFilter) return false
       if (doctorFilter !== "All" && slip.doctor !== doctorFilter) return false
-      if (stageFilter !== "All" && slip.product !== stageFilter) return false
+      if (stageFilter !== "All" && !(slip.stageNames || []).includes(stageFilter)) return false
+      if (productType !== "All" && !(slip.productNames || []).includes(productType)) return false
       if (showWithAttachments && !slip.attachment) return false
       return true
     })
     return sortRows(filtered, sortKey, sortDirection, selectedLocations.length === 0)
-  }, [slips, debouncedSearch, selectedLocations, selectedStatuses, officeFilter, doctorFilter, stageFilter, showWithAttachments, sortKey, sortDirection])
+  }, [slips, debouncedSearch, selectedLocations, officeFilter, doctorFilter, stageFilter, productType, showWithAttachments, sortKey, sortDirection])
 
   const handleSortChange = useCallback((key: ColumnKey) => {
     if (sortKey === key) {
@@ -250,11 +339,18 @@ function OfficeCaseManagementPage() {
   }
 
   const handleStatusFilterChange = (status: string) => {
-    setSelectedStatuses((current) => (
-      current.some((item) => normalizeStatusFilterValue(item) === normalizeStatusFilterValue(status))
-        ? current.filter((item) => normalizeStatusFilterValue(item) !== normalizeStatusFilterValue(status))
-        : [...current, status]
-    ))
+    const normalized = normalizeStatusFilterValue(status)
+    setSelectedStatuses((current) => {
+      if (normalized === "deleted") {
+        return current.some((item) => normalizeStatusFilterValue(item) === "deleted")
+          ? []
+          : ["Deleted"]
+      }
+      const withoutDeleted = current.filter((item) => normalizeStatusFilterValue(item) !== "deleted")
+      return withoutDeleted.some((item) => normalizeStatusFilterValue(item) === normalized)
+        ? withoutDeleted.filter((item) => normalizeStatusFilterValue(item) !== normalized)
+        : [...withoutDeleted, status]
+    })
   }
 
   const handleClearQuickFilters = () => {
@@ -263,16 +359,11 @@ function OfficeCaseManagementPage() {
   }
 
   const handleClearAdvancedFilters = () => {
-    setDateRange({})
-    setSearch("")
     setProductType("All")
     setDoctorFilter("All")
     setStageFilter("All")
-    setOfficeLabFilter("All")
     setOfficeFilter("All")
     setShowWithAttachments(false)
-    setSelectedLocations([])
-    setSelectedStatuses([])
   }
 
   const allOnPageSelected = slipsPage.length > 0 && slipsPage.every((s) => selected.includes(s.id))
@@ -290,8 +381,10 @@ function OfficeCaseManagementPage() {
   const refreshCurrentListing = useCallback(() => {
     const customerId = resolveListingCustomerId()
     if (!customerId) return
-    void fetchOfficeSlips(customerId, currentPage, itemsPerPage)
-  }, [fetchOfficeSlips, currentPage, itemsPerPage])
+    void fetchOfficeSlips(customerId, currentPage, itemsPerPage, {
+      statuses: selectedStatuses.length > 0 ? selectedStatuses : undefined,
+    })
+  }, [fetchOfficeSlips, currentPage, itemsPerPage, selectedStatuses])
 
   const loadAddonInputsForSlip = useCallback(async (slipId: number) => {
     setAddonInputs(null)
@@ -312,11 +405,11 @@ function OfficeCaseManagementPage() {
   }, [])
 
   const handleOpenReadyToSend = (slip: V2CaseRowData) => { setReadyToSendSlip(slip); setShowReadyToSendModal(true) }
-  const handleConfirmReadyToSend = async (signature?: string) => {
+  const handleConfirmReadyToSend = async (payload: { signature: string; image?: File | null }) => {
     if (!readyToSendSlip) return
     setReadyToSendSubmitting(true)
     try {
-      const res = await readyToSend(readyToSendSlip.id, signature)
+      const res = await readyToSend(readyToSendSlip.id, payload)
       if (res?.success) {
         toast({ title: "Success", description: res.message || "Slip marked as ready to send.", duration: 3000 })
         setShowReadyToSendModal(false); setReadyToSendSlip(null)
@@ -331,12 +424,18 @@ function OfficeCaseManagementPage() {
   }
 
   const handlePrintPaperSlip = (slip: V2CaseRowData) => {
-    const idToSend: number | null = typeof slip.caseId === "number" && !isNaN(slip.caseId) ? slip.caseId : null
+    const idToSend = resolveListingPaperSlipId(slip)
     if (idToSend === null) {
       toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" })
       return
     }
-    printPaperSlip([idToSend], [])
+    return printPaperSlipV6ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
+      toast({
+        title: "Unable to print paper slip",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    })
   }
 
   const handlePrintStatement = (slip: V2CaseRowData) => {
@@ -392,13 +491,41 @@ function OfficeCaseManagementPage() {
     if (!selectedSlipForCancel?.id || !reason.trim()) return
     setCancelSlipSubmitting(true)
     try {
-      await cancelSlip(selectedSlipForCancel.id, reason.trim())
-      toast({ title: "Case cancelled", description: "The case was cancelled successfully.", duration: 3000 })
+      const res = await cancelSlip(selectedSlipForCancel.id, reason.trim())
+      toast({ title: "Case cancelled", description: res?.message ?? "The case was cancelled successfully.", duration: 3000 })
       setCancelSlipModalOpen(false); setSelectedSlipForCancel(null); refreshCurrentListing()
     } catch (error) {
-      toast({ title: "Unable to cancel case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+      toast({ title: "Unable to cancel case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
     } finally {
       setCancelSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmDeleteSlip = async (reason: string) => {
+    if (!selectedSlipForDelete?.id || !reason.trim()) return
+    setDeleteSlipSubmitting(true)
+    try {
+      const res = await softDeleteSlip(selectedSlipForDelete.id, reason.trim())
+      toast({ title: "Slip deleted", description: res?.message ?? "The slip was deleted successfully.", duration: 3000 })
+      setDeleteSlipModalOpen(false); setSelectedSlipForDelete(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to delete slip", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
+    } finally {
+      setDeleteSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmRestoreSlip = async (reason: string) => {
+    if (!selectedSlipForRestore?.id) return
+    setRestoreSlipSubmitting(true)
+    try {
+      const res = await restoreSlip(selectedSlipForRestore.id, reason.trim() || undefined)
+      toast({ title: "Slip restored", description: res?.message ?? "The slip was restored to In Progress.", duration: 3000 })
+      setRestoreSlipModalOpen(false); setSelectedSlipForRestore(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to restore slip", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
+    } finally {
+      setRestoreSlipSubmitting(false)
     }
   }
 
@@ -415,11 +542,11 @@ function OfficeCaseManagementPage() {
     if (!selectedSlipForHold?.id || !reason.trim()) return
     setHoldSlipSubmitting(true)
     try {
-      await holdSlip(selectedSlipForHold.id, reason.trim())
-      toast({ title: "Case put on hold", description: "The case has been put on hold successfully.", duration: 3000 })
+      const res = await holdSlip(selectedSlipForHold.id, reason.trim())
+      toast({ title: "Case put on hold", description: res?.message ?? "The case has been put on hold successfully.", duration: 3000 })
       setHoldSlipModalOpen(false); setSelectedSlipForHold(null); refreshCurrentListing()
     } catch (error) {
-      toast({ title: "Unable to put case on hold", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+      toast({ title: "Unable to put case on hold", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
     } finally {
       setHoldSlipSubmitting(false)
     }
@@ -443,18 +570,23 @@ function OfficeCaseManagementPage() {
     } catch { alert("Failed to generate driver labels.") }
   }
 
-  const handleBulkPrintPaperSlip = () => {
-    if (!selected.length) return
-    const selectedRows = slips.filter((slip) => selected.includes(slip.id))
-    const slipIds = selectedRows
-      .map((r) => (typeof r.caseId === "number" && !isNaN(r.caseId) ? r.caseId : (typeof r.id === "number" && !isNaN(r.id) ? r.id : null)))
-      .filter((id): id is number => typeof id === "number" && !isNaN(id))
-    if (!slipIds.length) {
-      toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" })
-      return
-    }
-    printPaperSlip(slipIds, [])
-  }
+  // Multiple paper slip print disabled from listing
+  // const handleBulkPrintPaperSlip = () => {
+  //   if (!selected.length) return
+  //   const selectedRows = slips.filter((slip) => selected.includes(slip.id))
+  //   const jobs = resolveListingPaperSlipJobs(selectedRows)
+  //   if (!jobs.length) {
+  //     toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" })
+  //     return
+  //   }
+  //   void printPaperSlipV6ForSlips(jobs).catch((error: unknown) => {
+  //     toast({
+  //       title: "Unable to print paper slip",
+  //       description: error instanceof Error ? error.message : "Please try again.",
+  //       variant: "destructive",
+  //     })
+  //   })
+  // }
 
   const handleBulkDriverPrint = async () => {
     if (!selected.length) {
@@ -505,91 +637,26 @@ function OfficeCaseManagementPage() {
         </Button>
       </div>
 
-      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-6">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="group w-full justify-start text-left text-xs font-normal">
-              <SlipListingCalendarIcon className="mr-2" />
-              {dateRange.start ? format(dateRange.start, "PPP") : <span className="text-gray-500">Start Date</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <CalendarComponent
-              mode="single"
-              selected={dateRange.start}
-              onSelect={(date) => setDateRange((prev) => ({ ...prev, start: date }))}
-              disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="group w-full justify-start text-left text-xs font-normal">
-              <SlipListingCalendarIcon className="mr-2" />
-              {dateRange.end ? format(dateRange.end, "PPP") : <span className="text-gray-500">End Date</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <CalendarComponent
-              mode="single"
-              selected={dateRange.end}
-              onSelect={(date) => setDateRange((prev) => ({ ...prev, end: date }))}
-              disabled={(date) =>
-                date > new Date() ||
-                date < new Date("1900-01-01") ||
-                Boolean(dateRange.start && date < dateRange.start)
-              }
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-
-        <Input
-          placeholder="Search patient name, slip #..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="text-xs"
+      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <SearchableSelect
+          value={officeFilter}
+          onValueChange={(value) => setOfficeFilter(value || "All")}
+          placeholder="All Labs"
+          searchPlaceholder="Search labs..."
+          emptyMessage="No labs found."
+          className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}
+          options={labFilterOptions}
         />
 
-        <Select value={selectedStatuses[0] ?? "All"} onValueChange={(value) => setSelectedStatuses(value === "All" ? [] : [value])}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Status</SelectItem>
-            {allStatuses.filter(Boolean).map((status) => (
-              <SelectItem key={status} value={status}>{status}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={officeFilter} onValueChange={setOfficeFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Offices/Lab" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Offices/Lab</SelectItem>
-            {allOffices.filter(Boolean).map((office) => (
-              <SelectItem key={office} value={office}>{office}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <Select value={productType} onValueChange={setProductType}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <span className="text-sm">{productType === "All" ? "All product type" : productType}</span>
-          </SelectTrigger>
-          <SelectContent className="[&_[data-radix-select-item-indicator]]:hidden [&_[role=option]]:pl-2">
-            <SelectItem value="All">All product type</SelectItem>
-            {allProductTypes.filter((product) => product && product !== "Unknown").map((product) => (
-              <SelectItem key={product} value={product}>{product}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={productType}
+          onValueChange={(value) => setProductType(value || "All")}
+          placeholder="All products"
+          searchPlaceholder="Search products..."
+          emptyMessage="No products found."
+          className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}
+          options={productFilterOptions}
+        />
 
         <Select value={stageFilter} onValueChange={setStageFilter}>
           <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
@@ -602,46 +669,18 @@ function OfficeCaseManagementPage() {
             ))}
           </SelectContent>
         </Select>
-
-        <Select value={doctorFilter} onValueChange={setDoctorFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Doctors" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Doctors</SelectItem>
-            {allDoctors.filter(Boolean).map((doctor) => (
-              <SelectItem key={doctor} value={doctor}>{doctor}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={officeLabFilter} onValueChange={setOfficeLabFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Office & Lab" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Office & Lab</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
-      <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
-        <Select
-          value={selectedLocations.length === 1 ? selectedLocations[0] : "All"}
-          onValueChange={(value) => setSelectedLocations(value === "All" ? [] : [value])}
-        >
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Location" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Location</SelectItem>
-            {SLIP_LOCATION_FILTER_OPTIONS.map((loc) => (
-              <SelectItem key={loc.id} value={String(loc.id)}>
-                {loc.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <SearchableSelect
+          value={doctorFilter}
+          onValueChange={(value) => setDoctorFilter(value || "All")}
+          placeholder="All Doctors"
+          searchPlaceholder="Search doctors..."
+          emptyMessage="No doctors found."
+          className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}
+          options={doctorFilterOptions}
+        />
 
         <label className="flex items-center gap-2 text-base">
           <span className="relative">
@@ -663,18 +702,24 @@ function OfficeCaseManagementPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-2">
-        <HIPAAComplianceBanner variant="default" showDetails={false} />
-      </div>
-
       <main className="w-full px-4 pb-8">
         <V3CaseWidget
+          listingProfile="office"
           search={search}
           onSearchChange={setSearch}
           onSearchEnter={() => {
-            if (slipsPage.length === 1) router.push(buildVirtualSlipV2Path(slipsPage[0].id))
+            if (slipsPage.length === 1) {
+              router.push(buildVirtualSlipV2Path(slipsPage[0].caseId, slipsPage[0].id))
+            }
           }}
           onAdvancedFilterClick={() => setShowAdvancedFilter((open) => !open)}
+          advancedFilterActive={
+            officeFilter !== "All" ||
+            productType !== "All" ||
+            doctorFilter !== "All" ||
+            stageFilter !== "All" ||
+            showWithAttachments
+          }
           advancedFilterContent={advancedFilterContent}
           locations={selectedLocations}
           onLocationChange={handleLocationFilterChange}
@@ -688,7 +733,7 @@ function OfficeCaseManagementPage() {
           onSelectAll={handleSelectAllPage}
           onSelectRow={(id) => setSelected((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id])}
           rowActions={{
-            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.id)),
+            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.caseId, row.id)),
             onPrintPaperSlip: handlePrintPaperSlip,
             onPrintDriverLabel: (slip) => { setSelectedSlipForDriverTags(slip); setShowPrintDriverTags(true) },
             onPrintStatement: handlePrintStatement,
@@ -699,7 +744,7 @@ function OfficeCaseManagementPage() {
               setShowAttachModal(true)
             },
             onCopy: (row) => void handleCopyCaseIdentifier(row),
-            onEdit: (slip) => router.push(buildVirtualSlipV2Path(slip.id)),
+            onEdit: (slip) => router.push(buildVirtualSlipV2Path(slip.caseId, slip.id)),
             onHold: handleOpenHoldCase,
             onChangeDueDate: () => {},
             onDriverHistory: (slip) => { setSelectedSlipForDriverHistory(slip); setShowDriverHistoryModal(true) },
@@ -708,12 +753,17 @@ function OfficeCaseManagementPage() {
             onSendBack: () => {},
             onRush: () => {},
             onCancel: (slip) => { setSelectedSlipForCancel(slip); setCancelSlipModalOpen(true) },
+            onDelete: (slip) => { setSelectedSlipForDelete(slip); setDeleteSlipModalOpen(true) },
+            onRestore: (slip) => { setSelectedSlipForRestore(slip); setRestoreSlipModalOpen(true) },
           }}
           canPrintStatement={canPrintStatement}
           canSendBack={() => false}
+          canCancelCase={canCancelCase}
+          canDeleteCase={canDeleteCase}
           officeProfile
           onBulkPrintDriverLabel={() => void handleBulkDriverPrint()}
-          onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
+          // Multiple paper slip print disabled from listing
+          // onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
           printMenuRow={printDropdownOpen}
           moreMenuRow={menuRow}
           onPrintMenuRowChange={setPrintDropdownOpen}
@@ -742,9 +792,6 @@ function OfficeCaseManagementPage() {
           </DialogContent>
         </Dialog>
 
-        {paperSlipPortal}
-        <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
-
         <SlipAttachmentBrowserDialog
           open={showAttachModal && !!selectedCaseForAttachment}
           onClose={() => { setShowAttachModal(false); setSelectedCaseForAttachment(null) }}
@@ -767,6 +814,8 @@ function OfficeCaseManagementPage() {
           location={readyToSendSlip?.location}
           title="Ready to send"
           signatureRequired={readyToSendRequired}
+          photoEnabled={readyToSendPhotoEnabled}
+          photoRequired={readyToSendPhotoRequired}
         />
 
         <CaseActionModal
@@ -783,6 +832,41 @@ function OfficeCaseManagementPage() {
           buttonColor="error"
           reasonPlaceholder="Please provide a reason for case cancellation."
           warning="This action cannot be undone and will archive the case."
+          officeName={selectedSlipForCancel?.officeCode}
+          patientName={selectedSlipForCancel?.patient}
+        />
+
+        <CaseActionModal
+          open={deleteSlipModalOpen}
+          onClose={() => { if (deleteSlipSubmitting) return; setDeleteSlipModalOpen(false); setSelectedSlipForDelete(null) }}
+          onSubmit={handleConfirmDeleteSlip}
+          actionType="delete"
+          title="Delete Slip"
+          description="You are soft-deleting this slip. It will be hidden from active listings and can be viewed with the Deleted filter."
+          icon={<X />}
+          iconBgColor="#f3f4f6"
+          iconColor="#374151"
+          buttonText={deleteSlipSubmitting ? "Deleting..." : "Delete Slip"}
+          buttonColor="error"
+          reasonPlaceholder="Please provide a reason for deleting this slip."
+          warning="Soft-deleted slips stay recoverable via the Deleted filter."
+          officeName={selectedSlipForDelete?.officeCode}
+          patientName={selectedSlipForDelete?.patient}
+        />
+
+        <CaseActionModal
+          open={restoreSlipModalOpen}
+          onClose={() => { if (restoreSlipSubmitting) return; setRestoreSlipModalOpen(false); setSelectedSlipForRestore(null) }}
+          onSubmit={handleConfirmRestoreSlip}
+          actionType="restore"
+          title="Restore Slip"
+          description="You are restoring this deleted slip back to In Progress."
+          icon={<X />}
+          iconBgColor="#E8F5E9"
+          iconColor="#43A047"
+          buttonText={restoreSlipSubmitting ? "Restoring..." : "Restore to In Progress"}
+          buttonColor="success"
+          reasonPlaceholder="Optional reason for restoring this slip."
         />
 
         <CaseActionModal
@@ -791,13 +875,15 @@ function OfficeCaseManagementPage() {
           onSubmit={handleConfirmHoldCase}
           actionType="hold"
           title="Put Case On Hold"
-          description="You are putting this case on hold. The delivery date will be recalculated when the case is resumed."
+          description="You are putting this case on hold. The delivery date will be paused and adjusted when the case is resumed based on remaining days."
           icon={<VirtualSlipPauseIcon className="h-7 w-7" />}
           iconBgColor="#FFF3DF"
           iconColor="#FFB400"
           buttonText={holdSlipSubmitting ? "Saving…" : "Put case on hold"}
           buttonColor="warning"
           reasonPlaceholder="Please provide a reason for putting case on hold."
+          officeName={selectedSlipForHold?.officeCode}
+          patientName={selectedSlipForHold?.patient}
         />
 
         <DriverHistoryModal

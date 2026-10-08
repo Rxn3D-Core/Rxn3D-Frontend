@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import { Button } from "@/components/ui/button"
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
 import { useState } from "react"
@@ -41,7 +42,7 @@ export function SlipCreationFooter({
   const handleCancelConfirm = () => {
     setShowCancelModal(false)
     setTimeout(() => {
-      router.replace("/dashboard")
+      router.replace(getActiveLandingPath())
     }, 100)
   }
 

@@ -25,6 +25,7 @@ import { Card } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { ImplantDetailForm } from "@/components/implant-detail-form"
 import { serializeStageFieldValue } from "./utils/categoryHelpers"
+import { resolveVariationDays } from "./utils/variationHelpers"
 
 export interface FieldConfig {
   key: string
@@ -1872,7 +1873,8 @@ export function DynamicProductFields({
     const isOpen = isAccordionOpen || false
     const productName = product?.name || ""
     const productImageUrl = product?.image_url || "/images/product-default.png"
-    const estimatedDays = product?.estimated_days || 10
+    const variationDays = resolveVariationDays(product as any, teeth.length)
+    const estimatedDays = variationDays ?? product?.estimated_days ?? 10
 
     return (
       <Card

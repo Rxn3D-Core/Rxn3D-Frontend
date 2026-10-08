@@ -8,21 +8,24 @@ type CancelSubscriptionDialogProps = {
   onOpenChange: (open: boolean) => void
   onConfirm: () => Promise<void> | void
   isProcessing?: boolean
+  planName?: string
+  periodEnd?: string
 }
-
-const cancellationImpacts = [
-  "Your Professional plan stays active until May 31, 2026",
-  "All lab members lose access starting June 1, 2026",
-  "Active add-ons will be cancelled immediately",
-  "Your data will be retained for 30 days after cancellation",
-]
 
 export function CancelSubscriptionDialog({
   open,
   onOpenChange,
   onConfirm,
   isProcessing = false,
+  planName = "current",
+  periodEnd,
 }: CancelSubscriptionDialogProps) {
+  const cancellationImpacts = [
+    `Your ${planName} plan stays active until ${periodEnd || "the end of the current billing period"}`,
+    "Lab members lose access when the current period ends",
+    "Active add-ons will be cancelled",
+    "Your data will be retained for 30 days after cancellation",
+  ]
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="w-[min(520px,calc(100vw-24px))] max-w-none overflow-hidden rounded-[10px] border-0 bg-white p-0 shadow-2xl">

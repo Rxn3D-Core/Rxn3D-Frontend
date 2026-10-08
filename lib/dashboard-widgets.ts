@@ -126,6 +126,7 @@ export function getDefaultWidgetsForRole(role: string): DashboardWidget[] {
     case "doctor":
       return getDefaultDoctorWidgets()
     case "lab_user":
+    case "lab_driver":
       return getDefaultLabUserWidgets()
     case "office_user":
       return getDefaultOfficeUserWidgets()
