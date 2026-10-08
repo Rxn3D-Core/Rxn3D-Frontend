@@ -229,6 +229,12 @@ export function ToothStatusBoxes({
     onRequiredValidationChange?.(hasRequiredValidation);
   }, [hasRequiredValidation, onRequiredValidationChange]);
 
+  useEffect(() => {
+    return () => {
+      onRequiredValidationChange?.(false);
+    };
+  }, [onRequiredValidationChange]);
+
   if (activeExtractions.length === 0) return null;
 
   const isInteractive = !submitted && !grayed;
