@@ -406,7 +406,7 @@ export function V3CaseTable(props: Props) {
                       const mobileLocationAction = row.newStageEligible
                         ? "addStage"
                         : !officeProfile
-                        ? isReadyToSendLocation(row)
+                        ? canMarkReadyToSend(row)
                           ? "readyToSend"
                           : isPickupDropoffLocation(row)
                             ? "driverHistory"
@@ -852,7 +852,7 @@ function DesktopCell({
     const locationAction = row.newStageEligible
       ? "addStage"
       : allowDriverActions
-        ? isReadyToSendLocation(row)
+        ? canMarkReadyToSend(row)
           ? "readyToSend"
           : isPickupDropoffLocation(row)
             ? "driverHistory"
@@ -1072,6 +1072,10 @@ function formatCreatedAt(createdAt: string): string {
 function isReadyToSendLocation(row: V2CaseRowData) {
   if (row.locationId === 3) return true
   return row.location === SLIP_LOCATION_FILTER_OPTIONS.find((o) => o.id === 3)?.label
+}
+
+function canMarkReadyToSend(row: V2CaseRowData) {
+  return isReadyToSendLocation(row) && !isSlipCaseCancelled(row.status)
 }
 
 function isPickupDropoffLocation(row: V2CaseRowData) {

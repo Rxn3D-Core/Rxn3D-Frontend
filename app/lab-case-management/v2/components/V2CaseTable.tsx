@@ -106,7 +106,7 @@ export function V2CaseTable(props: V2CaseTableProps) {
                 <td className="px-3 py-2.5 align-top text-right">
                   <button
                     className="inline-flex items-center gap-1.5 rounded text-left text-xs text-[#5f5b55] hover:text-[#292724] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#918d84]"
-                    title={row.newStageEligible ? "Add stage" : isReadyToSendLocation(row) ? "Mark ready to send" : "View driver history"}
+                    title={row.newStageEligible ? "Add stage" : canMarkReadyToSend(row) ? "Mark ready to send" : "View driver history"}
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
@@ -114,7 +114,7 @@ export function V2CaseTable(props: V2CaseTableProps) {
                         props.rowActions.onAddStage(row)
                         return
                       }
-                      isReadyToSendLocation(row) ? props.rowActions.onReadyToSend(row) : props.rowActions.onDriverHistory(row)
+                      canMarkReadyToSend(row) ? props.rowActions.onReadyToSend(row) : props.rowActions.onDriverHistory(row)
                     }}
                   >
                     {locationIcon(row)}
@@ -179,6 +179,10 @@ function locationIcon(row: V2CaseRowData) {
 function isReadyToSendLocation(row: V2CaseRowData) {
   if (row.locationId === 3) return true
   return row.location === SLIP_LOCATION_FILTER_OPTIONS.find((option) => option.id === 3)?.label
+}
+
+function canMarkReadyToSend(row: V2CaseRowData) {
+  return isReadyToSendLocation(row) && !isSlipCaseCancelled(row.status)
 }
 
 function formatDueDate(dueDate: string): string {
