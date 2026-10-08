@@ -2617,6 +2617,9 @@ export function MandibularPanel({
                       handleMandibularToothDeselect(toothNumber);
                     }
                     setMandibularNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
+                    // Product orange header is driven by card ownership — clear it so the
+                    // tooth number leaves the product list, not only the chart visual.
+                    clearToothProgress("mandibular", toothNumber);
                     setToothStatusPopoverTooth(null);
                   }}
                   // Temporarily hidden: floating cursor tooltip was too distracting for users
