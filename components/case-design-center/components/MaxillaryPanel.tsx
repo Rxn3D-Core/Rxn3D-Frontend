@@ -2084,19 +2084,24 @@ export function MaxillaryPanel({
             getToothProduct("maxillary", -activeProductCardId) ??
             hintActiveAp?.product
           );
-      if (
-        isNoToothChartProduct(hintProduct as Record<string, unknown> | null) ||
-        canSkipExtractionToothSelection(
-          hintExtractions,
-          hintProduct as Record<string, unknown> | null
-        )
-      ) {
+      const catalogProduct = hintUsesArchCard0 ? card0InitialProduct : hintActiveAp?.product;
+      const hintCustomLabel =
+        resolveProductCustomLabel(hintProduct) ??
+        resolveProductCustomLabel(catalogProduct);
+      const chartProduct = (hintProduct ?? catalogProduct) as Record<string, unknown> | null;
+      const referenceHidden = shouldHideReferenceTeethSelection(chartProduct);
+      // hide_reference only removes the status boxes, not this prompt. A tooth
+      // product that has not hydrated extractions yet is not "no chart" when
+      // the card already has extraction rows (Done is on screen).
+      const noChart =
+        isNoToothChartProduct(chartProduct) &&
+        !referenceHidden &&
+        !hasConfiguredExtractions(hintExtractions);
+      const selectionOptional = canSkipExtractionToothSelection(hintExtractions, chartProduct);
+      if ((noChart || selectionOptional) && !hintCustomLabel && !referenceHidden) {
         return null;
       }
-      const baseProductName = hintProduct?.name ?? "";
-      const hintCustomLabel = resolveProductCustomLabel(
-        hintProduct ?? (hintUsesArchCard0 ? card0InitialProduct : undefined),
-      );
+      const baseProductName = hintProduct?.name || catalogProduct?.name || "";
       // Hide selection hints once the user clicks Done on the tooth-status boxes.
       if (
         requiresExtractionsAcknowledgement(hintExtractions) &&
@@ -2116,7 +2121,7 @@ export function MaxillaryPanel({
       ) {
         return { kind: "flipper", text: FLIPPER_STAYPLATE_SELECTION_HINT, className: "text-center font-bold text-sm mb-1 text-red-600" };
       }
-      if (activeExtractionCode === null) {
+      if (hintCustomLabel || activeExtractionCode === null || referenceHidden) {
         return { kind: "replace", text: hintCustomLabel ?? `Select teeth to replace${baseProductName ? ` ${baseProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
       }
       return { kind: "reference", text: `Select teeth for reference (not added to ${baseProductName || "product"})`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
