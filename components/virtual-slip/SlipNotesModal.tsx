@@ -38,6 +38,8 @@ import {
   formatSlipStageTabLabel,
   resolveStageTabLabel,
   slipNoteAuthorName,
+  slipNoteStatusColor,
+  slipNoteStatusLabel,
   uploadSlipNoteAttachments,
   type CaseNoteStageSeed,
   type CaseSlipWithNotes,
@@ -191,6 +193,8 @@ function NoteHistoryEntry({
 }) {
   const timestamp = formatStageNoteTimestamp(note.created_at)
   const author = slipNoteAuthorName(note)
+  const status = slipNoteStatusLabel(note)
+  const statusColor = slipNoteStatusColor(status)
   const slipNum = note.slip_number?.trim()
   const stageLabel = resolveNoteStageLabel(note, slips)
   const showDelivery = note.slip_id === currentSlipId && deliveryBadge
@@ -209,6 +213,11 @@ function NoteHistoryEntry({
     >
       <div className="mb-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-snug">
         <span className="italic text-[#9CA3AF]">{timestamp}</span>
+        {status ? (
+          <span className="font-bold uppercase" style={{ color: statusColor }}>
+            {status}
+          </span>
+        ) : null}
         <span className="font-bold text-[#111827]">{author}</span>
         {slipNum ? <MetaBadge>Slip # {slipNum}</MetaBadge> : null}
         <MetaBadge>{stageLabel}</MetaBadge>

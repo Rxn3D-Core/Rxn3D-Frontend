@@ -2,7 +2,6 @@ import {
   slipNoteAuthorName,
   type SlipNoteDetail,
 } from "@/lib/api/slip-notes"
-import { isSlipCaseCancelled, isSlipCaseOnHold } from "@/lib/slip-case-status"
 
 export interface SlipHoldDetail {
   authorName: string
@@ -32,13 +31,17 @@ function noteMatchesSlip(note: SlipNoteDetail, slipId: number | null): boolean {
   return note.slip_id === slipId
 }
 
+function noteActionType(note: SlipNoteDetail): string {
+  return note.action_type?.trim().toLowerCase() ?? ""
+}
+
 /** Newest hold note for the slip (notes are expected newest-first). */
 export function findSlipHoldNote(
   notes: SlipNoteDetail[],
   slipId?: number | null
 ): SlipNoteDetail | null {
   for (const note of notes) {
-    if (!isSlipCaseOnHold(note.slip_status)) continue
+    if (noteActionType(note) !== "hold") continue
     if (!noteMatchesSlip(note, slipId ?? null)) continue
     return note
   }
@@ -51,7 +54,7 @@ export function findSlipCancelNote(
   slipId?: number | null
 ): SlipNoteDetail | null {
   for (const note of notes) {
-    if (!isSlipCaseCancelled(note.slip_status)) continue
+    if (noteActionType(note) !== "cancel") continue
     if (!noteMatchesSlip(note, slipId ?? null)) continue
     return note
   }
