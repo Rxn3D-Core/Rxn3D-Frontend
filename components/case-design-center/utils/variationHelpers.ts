@@ -96,8 +96,9 @@ export function resolveVariationDays(
 
 /**
  * Catalog variation id for the selected teeth count.
- * Matches when `has_variation` is on, or when the product already has variation rows
- * (stubs sometimes omit the flag).
+ * Sends an id when `has_variation` is on, or when the flag is omitted but variation
+ * rows exist (wizard stubs). Explicit `has_variation: No` never sends an id — even
+ * if leftover variation rows are still attached to the product object.
  */
 export function resolveVariationId(
   product: {
@@ -108,11 +109,16 @@ export function resolveVariationId(
 ): number | undefined {
   if (teethCount <= 0) return undefined;
 
-  const hasVariationOn =
-    product?.has_variation === true ||
-    product?.has_variation === "Yes" ||
-    product?.has_variation === "yes";
+  const flag = product?.has_variation;
+  const explicitlyOff =
+    flag === false || flag === "No" || flag === "no";
+  if (explicitlyOff) return undefined;
 
+  const hasVariationOn =
+    flag === true || flag === "Yes" || flag === "yes";
+
+  // Stubs sometimes omit the flag; only then fall back to "rows present".
+  if (!hasVariationOn && flag != null) return undefined;
   if (!hasVariationOn && !(product?.variations?.length)) return undefined;
 
   const matched = findVariationByTeethCount(product?.variations ?? null, teethCount);

@@ -36,3 +36,11 @@ test("does not send a variation id when the product has no variations", () => {
   const id = resolveVariationId({ has_variation: "No", variations: [] }, 2);
   assert.equal(id, undefined);
 });
+
+test("does not send a variation id when has_variation is No even if leftover rows exist", () => {
+  const id = resolveVariationId(
+    { has_variation: "No", variations: flipperVariations },
+    3
+  );
+  assert.equal(id, undefined);
+});
