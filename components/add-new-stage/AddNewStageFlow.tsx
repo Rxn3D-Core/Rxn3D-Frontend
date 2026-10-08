@@ -40,6 +40,7 @@ import {
   useCaseWizardSession,
   type CaseDesignBootstrap,
 } from "@/components/case-design-center/hooks/useCaseWizardSession";
+import { useCaseEstimatedDueDate } from "@/components/case-design-center/hooks/useCaseEstimatedDueDate";
 import {
   getBusinessSettings,
   type BusinessHour,
@@ -115,6 +116,18 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     fetchProductDetails: fetchCaseDesignProductDetails,
     bootstrap,
   });
+
+  const productIdsForDueDate = [
+    wizard.selectedProductId,
+    ...wizard.addedProducts.map(
+      (p) => p.productId ?? (typeof p.product?.id === "number" ? p.product.id : null)
+    ),
+  ];
+  const {
+    displayDate: headerDueDate,
+    isLoading: headerDueDateLoading,
+    effectivePickupCutoffTime,
+  } = useCaseEstimatedDueDate(productIdsForDueDate);
 
   const caseId = useMemo(
     () => resolveVirtualSlipCaseId(virtualSlipDetails),
@@ -459,6 +472,11 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
               labLogoUrl={wizard.completedLab?.logo}
               labName={wizard.completedLab?.name}
               onEditLab={wizard.handleTopBarEditLab}
+              estimatedDueDate={headerDueDate}
+              estimatedDueDateLoading={headerDueDateLoading}
+              cutoffTime={
+                effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time
+              }
             />
 
             {initialSlipState && (
@@ -519,6 +537,9 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
             onConfirmDetailsChange={setConfirmDetailsChecked}
             onSubmit={() => void submitAddStage()}
             onCancelSlip={goBackToVirtualSlip}
+            cutoffTime={
+              effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time
+            }
           />
         )}
 
