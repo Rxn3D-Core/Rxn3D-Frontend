@@ -83,6 +83,7 @@ export default function LabProfile() {
       name: customerProfile.name,
       type: customerProfile.type === "lab" ? "Dental Lab" : "Office",
       email: customerProfile.email,
+      notification_emails: customerProfile.notification_emails || [],
       address: (() => {
         // Clean postal_code to remove country name if present
         let postalCode = customerProfile.postal_code || ''

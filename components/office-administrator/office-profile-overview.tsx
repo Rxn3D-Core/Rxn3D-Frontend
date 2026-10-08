@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 import { TOP_BAR_LOGO_UPLOAD_HINT } from "@/components/case-design-center/components/TopBar"
 import { EditCustomerProfileModal } from "@/components/lab-office-management/edit-customer-profile-modal"
+import { formatNotificationEmails } from "@/lib/notification-emails"
 
 interface OverviewTabProps {
   officeData: {
@@ -16,6 +17,7 @@ interface OverviewTabProps {
     id: string
     number: string
     email: string
+    notification_emails?: string[]
     address: string
     /** Street-only address for the edit modal (not the formatted display string). */
     streetAddress?: string
@@ -62,6 +64,7 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
       id: Number(officeData.id),
       name: officeData.name,
       email: officeData.email,
+      notification_emails: officeData.notification_emails,
       website: officeData.website,
       address: officeData.streetAddress || officeData.address,
       city: officeData.city,
@@ -77,6 +80,7 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
       officeData.id,
       officeData.name,
       officeData.email,
+      officeData.notification_emails,
       officeData.website,
       officeData.streetAddress,
       officeData.address,
@@ -293,6 +297,13 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
               <div className="grid grid-cols-2 gap-4">
                 <label className="text-sm text-gray-500">Office email:</label>
                 <p className="font-medium text-sm">{officeData.email}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="text-sm text-gray-500">Notification emails:</label>
+                <p className="font-medium text-sm">
+                  {formatNotificationEmails(officeData.notification_emails)}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

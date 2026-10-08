@@ -77,6 +77,7 @@ export default function OfficeProfile() {
     name: customerProfile.name,
     type: customerProfile.type === "office" ? "Dental Office" : "Office",
     email: customerProfile.email,
+    notification_emails: customerProfile.notification_emails || [],
     // Full formatted address for display; street kept separate for the edit modal
     address: [customerProfile.address, customerProfile.city, customerProfile.country?.name, customerProfile.postal_code]
       .filter(Boolean)

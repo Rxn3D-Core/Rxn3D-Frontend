@@ -19,6 +19,11 @@ import { useToast } from "@/hooks/use-toast"
 import { useCustomer } from "@/contexts/customer-context"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 import { TOP_BAR_LOGO_UPLOAD_HINT } from "@/components/case-design-center/components/TopBar"
+import {
+  formatNotificationEmails,
+  parseNotificationEmails,
+  validateNotificationEmailsInput,
+} from "@/lib/notification-emails"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -45,6 +50,7 @@ interface OverviewTabProps {
     id: string
     number: string
     email: string
+    notification_emails?: string[]
     address: string
     website: string
     contactName: string
@@ -126,6 +132,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
     return {
       name: labData.name,
       email: labData.email,
+      notification_emails: parseNotificationEmails(labData.notification_emails).join(", "),
       website: labData.website || "",
       address: parsed.address,
       city: parsed.city,
@@ -145,6 +152,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
     setFormData({
       name: labData.name,
       email: labData.email,
+      notification_emails: parseNotificationEmails(labData.notification_emails).join(", "),
       website: labData.website || "",
       address: parsed.address,
       city: parsed.city,
@@ -372,6 +380,9 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       const fetchedFormData = {
         name: customerData.name || "",
         email: customerData.email || "",
+        notification_emails: parseNotificationEmails(
+          customerData.notification_emails
+        ).join(", "),
         website: customerData.website || "",
         address: customerData.address || "",
         city: customerData.city || "",
@@ -410,6 +421,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
     const initialFormData = {
       name: labData.name,
       email: labData.email,
+      notification_emails: parseNotificationEmails(labData.notification_emails).join(", "),
       website: labData.website || "",
       address: parsed.address,
       city: parsed.city,
@@ -528,6 +540,18 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       return
     }
 
+    const notificationEmailsError = validateNotificationEmailsInput(
+      formData.notification_emails
+    )
+    if (notificationEmailsError) {
+      toast({
+        title: "Validation failed",
+        description: notificationEmailsError,
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSaving(true)
     try {
       const updateData: Record<string, unknown> = {
@@ -540,6 +564,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
         country_id: formData.country_id,
         state_id: formData.state_id,
         code,
+        notification_emails: parseNotificationEmails(formData.notification_emails),
       }
       if (formData.release_casepan) {
         updateData.release_casepan = formData.release_casepan
@@ -655,6 +680,13 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                <label className="text-sm text-gray-500">Notification emails:</label>
+                <p className="font-medium text-sm">
+                  {formatNotificationEmails(labData.notification_emails)}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <label className="text-sm text-gray-500">Address:</label>
                 <p className="font-medium text-sm">{labData.address}</p>
               </div>
@@ -764,6 +796,25 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                   />
                 </div>
               </div>
+
+            <div className="mt-4">
+              <Label htmlFor="notification-emails">Notification emails</Label>
+              <Input
+                id="notification-emails"
+                type="text"
+                value={formData.notification_emails}
+                onChange={(e) =>
+                  setFormData({ ...formData, notification_emails: e.target.value })
+                }
+                placeholder="ops@example.com, billing@example.com"
+                disabled={isLoadingProfile}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Separate from the primary contact email. Used for case and billing
+                notifications. Enter up to 10 emails, separated by commas. Leave blank
+                to use the primary organization email.
+              </p>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
