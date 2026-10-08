@@ -50,13 +50,14 @@ Uses existing Customer APIs:
 
 - `PUT /api/v1/customers/{customer_id}`
   - `name`, `code`, `website`, `address`, `city`, `postal_code`, `state_id`, `country_id`
+  - `notification_emails` (optional list, max 10) — separate from primary contact email; used for case/billing notifications. Empty clears the list so notifications fall back to primary `email`.
   - Labs only: `release_casepan` (`After Stage` | `After Product`)
 - `POST /api/v1/customers/{customer_id}/logo`
   - multipart `logo` (PNG/JPG/JPEG/SVG, max 1MB)
 - `POST /api/v1/business-settings` (office / lab hours)
   - `customer_id`, `customer_type`, `business_hours[]`
 
-Email / contact person fields remain read-only (owned by users / primary admin).
+Primary organization `email` and contact person fields remain read-only in the shared edit modal (owned by registration / users / primary admin). Notification emails are editable for both labs and offices.
 
 ## Listing
 

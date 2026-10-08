@@ -146,6 +146,8 @@ export default function VirtualSlipV2Page() {
   // rush here — only during slip creation. Match office listing `allowRush={false}`.
   const canRushFromVirtualSlip =
     canSubmitSlipRush(userRole) && !isOfficeCustomerContext();
+  // Office profiles can view on-hold cases but only labs may resume them.
+  const canResumeCase = !isOfficeCustomerContext();
 
   useEffect(() => {
     if (!slipId || isNaN(slipId)) {
@@ -826,7 +828,9 @@ export default function VirtualSlipV2Page() {
                   }
                 }
                 onResume={
-                  caseCancelled ? undefined : () => openCaseStatusModal("resume")
+                  caseCancelled || !canResumeCase
+                    ? undefined
+                    : () => openCaseStatusModal("resume")
                 }
                 onCancel={
                   caseCancelled || slipInOffice || !canCancelCase
@@ -901,11 +905,13 @@ export default function VirtualSlipV2Page() {
                           label: "Upper",
                           stage: upperHoldStage,
                           reason: holdDetail?.reason,
-                          onResume: () =>
-                            openCaseStatusModal("resume", {
-                              scope: "arch",
-                              arch: "Upper",
-                            }),
+                          onResume: canResumeCase
+                            ? () =>
+                                openCaseStatusModal("resume", {
+                                  scope: "arch",
+                                  arch: "Upper",
+                                })
+                            : undefined,
                           onCancel:
                             slipInOffice || !canCancelCase
                               ? undefined
@@ -943,11 +949,13 @@ export default function VirtualSlipV2Page() {
                           label: "Lower",
                           stage: lowerHoldStage,
                           reason: holdDetail?.reason,
-                          onResume: () =>
-                            openCaseStatusModal("resume", {
-                              scope: "arch",
-                              arch: "Lower",
-                            }),
+                          onResume: canResumeCase
+                            ? () =>
+                                openCaseStatusModal("resume", {
+                                  scope: "arch",
+                                  arch: "Lower",
+                                })
+                            : undefined,
                           onCancel:
                             slipInOffice || !canCancelCase
                               ? undefined

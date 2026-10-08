@@ -18,6 +18,10 @@ import { useToast } from "@/hooks/use-toast"
 import { useCustomer } from "@/contexts/customer-context"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 import { TOP_BAR_LOGO_UPLOAD_HINT } from "@/components/case-design-center/components/TopBar"
+import {
+  parseNotificationEmails,
+  validateNotificationEmailsInput,
+} from "@/lib/notification-emails"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -30,6 +34,7 @@ export interface EditCustomerProfileData {
   id: number
   name: string
   email?: string
+  notification_emails?: string[]
   website?: string | null
   address?: string
   city?: string
@@ -48,7 +53,12 @@ interface EditCustomerProfileModalProps {
   onOpenChange: (open: boolean) => void
   customerType: "lab" | "office"
   customer: EditCustomerProfileData | null
-  onSuccess?: (updated: Partial<EditCustomerProfileData> & { logo_url?: string }) => void
+  onSuccess?: (
+    updated: Partial<EditCustomerProfileData> & {
+      logo_url?: string
+      notification_emails?: string[]
+    }
+  ) => void
 }
 
 const isLocationOption = (item: any): item is LocationOption =>
@@ -92,6 +102,7 @@ export function EditCustomerProfileModal({
     state_id: null as number | null,
     release_casepan: "",
     code: "",
+    notification_emails: "",
   })
 
   const entityLabel = customerType === "lab" ? "Lab" : "Office"
@@ -164,6 +175,13 @@ export function EditCustomerProfileModal({
       errors.state = "State / Province is required."
     }
 
+    const notificationEmailsError = validateNotificationEmailsInput(
+      formData.notification_emails
+    )
+    if (notificationEmailsError) {
+      errors.notification_emails = notificationEmailsError
+    }
+
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) {
       toast({
@@ -194,6 +212,7 @@ export function EditCustomerProfileModal({
       state_id: customer.stateId ?? null,
       release_casepan: customer.release_casepan || "",
       code: customer.code || "",
+      notification_emails: parseNotificationEmails(customer.notification_emails).join(", "),
     }
     setFormData(initial)
     setFieldErrors({})
@@ -219,6 +238,9 @@ export function EditCustomerProfileModal({
           state_id: profileData.state?.id ?? profileData.state_id ?? null,
           release_casepan: profileData.release_casepan || "",
           code: profileData.code || "",
+          notification_emails: parseNotificationEmails(
+            profileData.notification_emails
+          ).join(", "),
         }
         setFormData(next)
         if (profileData.logo_url) setLogoUrl(profileData.logo_url)
@@ -386,6 +408,7 @@ export function EditCustomerProfileModal({
     setIsSaving(true)
     try {
       // Always submit the full editable payload so backend validation runs on all fields
+      const notificationEmails = parseNotificationEmails(formData.notification_emails)
       const updateData: Record<string, unknown> = {
         name: formData.name.trim(),
         code: formData.code.trim(),
@@ -395,6 +418,7 @@ export function EditCustomerProfileModal({
         postal_code: formData.postal_code.trim(),
         country_id: formData.country_id,
         state_id: formData.state_id,
+        notification_emails: notificationEmails,
       }
       if (customerType === "lab" && formData.release_casepan) {
         updateData.release_casepan = formData.release_casepan
@@ -415,6 +439,7 @@ export function EditCustomerProfileModal({
           release_casepan: formData.release_casepan,
           code: formData.code.trim(),
           logo_url: logoUrl,
+          notification_emails: notificationEmails,
         })
         onOpenChange(false)
       }
@@ -578,6 +603,32 @@ export function EditCustomerProfileModal({
                     <p className="text-sm text-destructive mt-1">{fieldErrors.release_casepan}</p>
                   )}
                 </div>
+              )}
+            </div>
+
+            <div className="mt-4">
+              <Label htmlFor="edit-notification-emails">Notification emails</Label>
+              <Input
+                id="edit-notification-emails"
+                type="text"
+                value={formData.notification_emails}
+                onChange={(e) => {
+                  clearFieldError("notification_emails")
+                  setFormData({ ...formData, notification_emails: e.target.value })
+                }}
+                placeholder="ops@example.com, billing@example.com"
+                disabled={isLoadingProfile}
+                aria-invalid={!!fieldErrors.notification_emails}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Separate from the primary contact email. Used for case and billing
+                notifications. Enter up to 10 emails, separated by commas. Leave blank
+                to use the primary organization email.
+              </p>
+              {fieldErrors.notification_emails && (
+                <p className="text-sm text-destructive mt-1">
+                  {fieldErrors.notification_emails}
+                </p>
               )}
             </div>
 
