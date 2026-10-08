@@ -7,6 +7,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { buildLabCaseDropdownActions } from "../../dropdown-actions.mjs"
 
+import { isSlipCaseCancelled } from "@/lib/slip-case-status"
+
 import { v2RowActionStripClass } from "../case-table-ui.mjs"
 import type { V2CaseRowData, V2RowActions } from "../case-table-types"
 import { CalendarIcon } from "./V2CaseIcons"
@@ -60,7 +62,9 @@ export function V2CaseRowActions({ row, actions, canPrintStatement, canSendBack,
           actions.onAddStage(row)
           return
         }
-        row.locationId === 3 ? actions.onReadyToSend(row) : actions.onDriverHistory(row)
+        row.locationId === 3 && !isSlipCaseCancelled(row.status)
+          ? actions.onReadyToSend(row)
+          : actions.onDriverHistory(row)
       }}>
         {locationImg(row)}
       </button>

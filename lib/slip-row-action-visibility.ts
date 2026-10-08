@@ -86,7 +86,8 @@ export function resolveSlipRowActionVisibility(
   const allowUndoLocation = Boolean(input.allowUndoLocation);
 
   const allowDriverActions = input.allowDriverActions !== false;
-  const canReadyToSend = allowDriverActions && slipCanReadyToSend(ref);
+  const canReadyToSend =
+    allowDriverActions && slipCanReadyToSend(ref) && !caseCancelled;
   const showLocation =
     allowDriverActions && (canReadyToSend || slipShowsPickupDropoff(ref));
 

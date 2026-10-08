@@ -774,7 +774,7 @@ export default function VirtualSlipV2Page() {
           pickupDropoffLabel: slipPickupDropoffLabel(pickupDropoffAction),
           onPickupDropoff:
             canRunLabDriverActions ? () => setPickupDropoffOpen(true) : undefined,
-          showReadyToSend: canRunLabDriverActions && showReadyToSendFab,
+          showReadyToSend: canRunLabDriverActions && showReadyToSendFab && !caseCancelled,
           onReadyToSend:
             canRunLabDriverActions
               ? () => {
