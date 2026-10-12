@@ -20,6 +20,10 @@ import { CustomerLogo } from "@/components/customer-logo"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 import { useTheme } from "@/contexts/theme-context"
 import { useEntitlements } from "@/contexts/entitlement-context"
+import {
+  getSlipListingProfileForPath,
+  resetSlipListingPage,
+} from "@/lib/slip-listing-page"
 
 
 interface DashboardSidebarProps {
@@ -373,8 +377,10 @@ function SidebarItem({ item, expanded, isActive, isExpanded, toggleExpand, level
     if (hasChildren) {
       e.preventDefault();
       toggleExpand(item.id);
-    } else if (onItemClick) {
-      onItemClick();
+    } else {
+      const listingProfile = getSlipListingProfileForPath(item.path)
+      if (listingProfile) resetSlipListingPage(listingProfile)
+      if (onItemClick) onItemClick()
     }
   };
 
