@@ -194,8 +194,8 @@ export function V3CaseTable(props: Props) {
   // keep the rush bolt only — no yellow row adaptation.
   const highlightRushRows = !officeProfile
   const desktopColumns = buildDesktopColumns(props.visibleColumns, officeProfile)
-  // checkbox + data columns + actions
-  const columnCount = desktopColumns.length + 2
+  // checkbox + row # + data columns + actions
+  const columnCount = desktopColumns.length + 3
 
   useEffect(() => {
     if (popoverRow === null) return
@@ -256,7 +256,7 @@ export function V3CaseTable(props: Props) {
                 No cases found for the selected filters.
               </div>
             )
-          : props.rows.map((row) => {
+          : props.rows.map((row, rowIndex) => {
               const dueDateColor = dueDateTextColor(row)
               // Shared pan color paints the whole card; rush amber is lab-only
               // and loses to an active pan assignment. Office profiles keep the
@@ -268,6 +268,7 @@ export function V3CaseTable(props: Props) {
                   : "#FFFFFF"
               const virtualSlipHref = buildVirtualSlipV2Path(row.caseId, row.id)
               const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
+              const rowNumber = props.firstEntry + rowIndex
 
               return (
                 <div
@@ -279,8 +280,15 @@ export function V3CaseTable(props: Props) {
                     openVirtualSlipFromRow(row, props.rowActions.onOpen, e)
                   }}
                 >
-                  {/* Header: checkbox + patient name + rush + kebab */}
+                  {/* Header: # + checkbox + patient name + rush + kebab */}
                   <div className="relative z-[2] flex items-start gap-2">
+                    <span
+                      className="shrink-0 mt-0.5 w-6 text-center tabular-nums"
+                      style={{ fontSize: 12, lineHeight: "20px", color: "#77736b", fontWeight: 600 }}
+                      aria-hidden="true"
+                    >
+                      {rowNumber}
+                    </span>
                     <div
                       className="shrink-0 mt-0.5"
                       data-row-interactive="true"
@@ -548,6 +556,21 @@ export function V3CaseTable(props: Props) {
                 />
               </div>
             </th>
+            <th
+              className="px-1 py-0 text-center select-none"
+              style={{
+                width: 36,
+                maxWidth: 36,
+                height: 41,
+                fontWeight: 700,
+                fontSize: 18,
+                lineHeight: "21px",
+                color: "#000000",
+              }}
+              aria-label="Row number"
+            >
+              #
+            </th>
             {desktopColumns.map((column) => {
               return (
               <th
@@ -609,7 +632,7 @@ export function V3CaseTable(props: Props) {
               </td>
             </tr>
           ) : (
-            props.rows.map((row) => {
+            props.rows.map((row, rowIndex) => {
               const rowBg = row.panColorAssignment?.color
                 ? row.panColorAssignment.color
                 : row.rush && highlightRushRows
@@ -620,6 +643,7 @@ export function V3CaseTable(props: Props) {
               const isLocked = isPanColorLocked(row, highlightRushRows)
               const virtualSlipHref = buildVirtualSlipV2Path(row.caseId, row.id)
               const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
+              const rowNumber = props.firstEntry + rowIndex
 
               return (
                 <tr
@@ -665,6 +689,21 @@ export function V3CaseTable(props: Props) {
                         style={{ width: 20, height: 20 }}
                       />
                     </div>
+                  </td>
+                  <td
+                    className="px-1 py-0 align-middle text-center tabular-nums"
+                    style={{
+                      backgroundColor: rowBg,
+                      width: 36,
+                      maxWidth: 36,
+                      fontSize: 13,
+                      lineHeight: "21px",
+                      color: "#575757",
+                      fontWeight: 600,
+                    }}
+                    aria-label={`Row ${rowNumber}`}
+                  >
+                    {rowNumber}
                   </td>
 
                   {desktopColumns.map((column) => (
