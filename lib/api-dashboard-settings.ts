@@ -18,7 +18,8 @@ export interface DashboardSettings {
 export async function getDashboardSettings(customerId?: number | null): Promise<DashboardSettings | null> {
   const token = localStorage.getItem("token") || localStorage.getItem("library_token")
   if (!token) {
-    throw new Error("Authentication token not found")
+    // Auth still hydrating — do not throw (throws flash Next.js ghost overlay).
+    return null
   }
 
   const queryParams = customerId ? `?customer_id=${customerId}` : ""
@@ -31,7 +32,7 @@ export async function getDashboardSettings(customerId?: number | null): Promise<
   })
 
   if (response.status === 401) {
-    window.location.href = "/login"
+    // Global fetch interceptor owns refresh / login redirect.
     throw new Error("Unauthorized")
   }
 
@@ -83,7 +84,7 @@ export async function updateDashboardSettings(settings: DashboardSettings, custo
   })
 
   if (response.status === 401) {
-    window.location.href = "/login"
+    // Global fetch interceptor owns refresh / login redirect.
     throw new Error("Unauthorized")
   }
 

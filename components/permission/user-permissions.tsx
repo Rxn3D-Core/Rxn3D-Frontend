@@ -237,33 +237,30 @@ export function UserPermissions() {
   const roleForPanel = selectedProfile?.role ?? selectedUser?.role ?? ""
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">User permissions</h2>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h2 className="text-lg font-semibold text-gray-900">User overrides</h2>
+        <p className="text-sm text-gray-500 mt-1">
           {isSuperadmin
-            ? "Pick the user's lab or office profile, then assign override permissions for that profile only."
-            : `Assign override permissions for users on this ${scopeLabel.toLowerCase()} profile. Role template grants cannot be removed here.`}
+            ? "Choose a user, pick their lab or office profile, then add extra permissions for that profile only. To invite or edit accounts, open All Users."
+            : `Add extra permissions for users on this ${scopeLabel.toLowerCase()} profile. Base role permissions stay locked here.`}
         </p>
       </div>
 
-      <div className="flex flex-col space-y-4">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="w-full md:w-1/3">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-              <Input
-                placeholder="Search users..."
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200 bg-gray-50/60">
+          <div className="relative w-full md:max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              placeholder="Search by name or email..."
+              className="pl-8 bg-white"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <div className="w-full md:w-1/4">
-            <Label className="text-sm font-medium">Role</Label>
+          <div className="w-full md:w-[180px]">
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-white">
                 <SelectValue placeholder="All Roles" />
               </SelectTrigger>
               <SelectContent>
@@ -278,7 +275,7 @@ export function UserPermissions() {
           </div>
         </div>
 
-        <div className="rounded-md border">
+        <div>
           {isLoading ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />

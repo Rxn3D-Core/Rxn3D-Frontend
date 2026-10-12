@@ -76,6 +76,14 @@ export function getRequestUrl(input: RequestInfo | URL): string {
 async function performRefresh(fetchImpl: FetchLike): Promise<string | null> {
   if (typeof window === "undefined") return null
 
+  // Live support-session JWTs cannot be refreshed (backend 403).
+  if (
+    localStorage.getItem("isImpersonating") === "true" &&
+    localStorage.getItem("impersonator_token")
+  ) {
+    return null
+  }
+
   const currentToken = localStorage.getItem(TOKEN_KEY)
   if (!currentToken) return null
 

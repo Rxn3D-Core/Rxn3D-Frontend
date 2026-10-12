@@ -123,7 +123,9 @@ function TableSkeletonRows({ rows = 5, cols = 8 }: { rows?: number; cols?: numbe
 export default function AllLabs() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = useState(() =>
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("q") ?? "" : ""
+  )
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedUser, setSelectedUser] = useState<SelectedLabCustomer | null>(null)
   const [showAddUser, setShowAddUser] = useState(false)
