@@ -71,6 +71,7 @@ import {
   saveSlipListingLocationFilters,
   saveSlipListingStatusFilters,
 } from "@/lib/slip-listing-preferences"
+import { loadSlipListingPage, saveSlipListingPage } from "@/lib/slip-listing-page"
 import { printPaperSlipV6ForSlip } from "@/lib/print-paper-slip-v6-from-slip"
 // Multiple paper slip print disabled from listing
 // import { printPaperSlipV6ForSlips } from "@/lib/print-paper-slip-v6-from-slip"
@@ -195,6 +196,7 @@ export default function LabSlipV3Page() {
     () => loadSlipListingStatusFilters("lab") ?? ["In Progress"],
   )
   const [currentPage, setCurrentPage] = useState(1)
+  const [listingPageReady, setListingPageReady] = useState(false)
   const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [selected, setSelected] = useState<number[]>([])
   const [menuRow, setMenuRow] = useState<number | null>(null)
@@ -309,6 +311,17 @@ export default function LabSlipV3Page() {
   }, [selectedStatuses])
 
   useEffect(() => {
+    setCurrentPage(loadSlipListingPage("lab"))
+    setListingPageReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!listingPageReady) return
+    saveSlipListingPage("lab", currentPage)
+  }, [listingPageReady, currentPage])
+
+  useEffect(() => {
+    if (!listingPageReady) return
     const customerId = getLabCustomerId()
     if (!customerId) return
 
@@ -334,7 +347,7 @@ export default function LabSlipV3Page() {
       page: pageToFetch,
       per_page: itemsPerPage,
     })
-  }, [filterSig, currentPage, itemsPerPage, fetchLabSlips, selectedLocations, selectedStatuses, officeFilter, showWithAttachments, productType, dateRange.start, dateRange.end])
+  }, [listingPageReady, filterSig, currentPage, itemsPerPage, fetchLabSlips, selectedLocations, selectedStatuses, officeFilter, showWithAttachments, productType, dateRange.start, dateRange.end])
 
   // Advanced-filter dropdown options accumulate across fetches instead of being
   // derived solely from the latest (already-filtered) `slips` response — otherwise
