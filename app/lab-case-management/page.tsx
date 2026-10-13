@@ -979,8 +979,8 @@ export default function LabSlipV3Page() {
   const selectedStatementRow = selected.length === 1 ? slipsPage.find((row) => row.id === selected[0]) : undefined
 
   return (
-    <div className="min-h-screen">
-      <main className="w-full px-4 pb-8">
+    <div>
+      <main className="w-full px-4 pb-4">
         <V3CaseWidget
           listingProfile="lab"
           search={search}
