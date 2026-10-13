@@ -52,6 +52,17 @@ const persistAccessTokenExpiry = (accessToken: string, expiresInSeconds?: number
   }
 }
 
+/** True when the JWT still carries a support-session claim (even if UI flag was cleared). */
+const tokenHasImpersonationClaim = (accessToken: string | null | undefined): boolean => {
+  if (!accessToken) return false
+  try {
+    const payload = JSON.parse(atob(accessToken.split(".")[1] ?? ""))
+    return Boolean(payload?.impersonation)
+  } catch {
+    return false
+  }
+}
+
 type User = {
   id: number
   uuid: string
@@ -243,7 +254,7 @@ type AuthContextType = {
   isAuthenticated: boolean
   checkAuthAndRedirect: () => boolean
   impersonateUser: (userId: number, reason: string) => Promise<boolean>
-  stopImpersonation: () => Promise<void>
+  stopImpersonation: (options?: { navigate?: boolean }) => Promise<void>
   isImpersonating: boolean
   originalUser: User | null
 }
@@ -1604,27 +1615,40 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
   // Superadmin: issue short-lived JWT as target user (backend impersonation).
   const impersonateUser = async (userId: number, reason: string): Promise<boolean> => {
     try {
-      if (!token || !user) {
+      // Prefer localStorage — React state can lag one tick behind Exit.
+      let accessToken =
+        (typeof window !== "undefined" ? localStorage.getItem("token") : null) || token
+      if (!accessToken || !user) {
         throw new Error("Not authenticated")
       }
-      if (isImpersonating) {
-        throw new Error("Already in a support session. Exit first.")
+      // Stale support JWT after a bad exit: end it before starting another.
+      if (isImpersonating || tokenHasImpersonationClaim(accessToken)) {
+        await stopImpersonation({ navigate: false })
+        accessToken =
+          (typeof window !== "undefined" ? localStorage.getItem("token") : null) || token
+        if (!accessToken || tokenHasImpersonationClaim(accessToken)) {
+          throw new Error("Still in a support session. Exit fully, or log out and try again.")
+        }
       }
       const trimmedReason = reason.trim()
       if (trimmedReason.length < 3) {
         throw new Error("Please provide a short reason (at least 3 characters).")
       }
 
-      setOriginalUser(user)
-      setOriginalToken(token)
-      localStorage.setItem("impersonator_user", JSON.stringify(user))
-      localStorage.setItem("impersonator_token", token)
+      const adminUserRaw =
+        typeof window !== "undefined" ? localStorage.getItem("user") : null
+      const adminUser = adminUserRaw ? (JSON.parse(adminUserRaw) as User) : user
+
+      setOriginalUser(adminUser)
+      setOriginalToken(accessToken)
+      localStorage.setItem("impersonator_user", JSON.stringify(adminUser))
+      localStorage.setItem("impersonator_token", accessToken)
 
       const response = await fetch(`${API_BASE_URL}/auth/impersonate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ user_id: userId, reason: trimmedReason }),
       })
@@ -1682,7 +1706,10 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
   }
 
   // Exit support session: blacklist imp JWT and restore superadmin token from API.
-  const stopImpersonation = async () => {
+  const stopImpersonation = async (options?: { navigate?: boolean }) => {
+    const shouldNavigate = options?.navigate !== false
+    const liveToken =
+      (typeof window !== "undefined" ? localStorage.getItem("token") : null) || token
     const backupToken = localStorage.getItem("impersonator_token") || originalToken
     const backupUserRaw = localStorage.getItem("impersonator_user")
     const backupUser = backupUserRaw
@@ -1711,11 +1738,13 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         description: `Restored as ${adminUser.first_name} ${adminUser.last_name}`,
         variant: warned ? "destructive" : "default",
       })
-      router.replace("/case-management")
+      if (shouldNavigate) {
+        router.replace("/case-management")
+      }
     }
 
     try {
-      if (!token) {
+      if (!liveToken) {
         if (backupToken && backupUser) {
           restoreLocalAdmin(backupUser, backupToken, true)
           return
@@ -1727,7 +1756,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${liveToken}`,
         },
       })
 
@@ -1740,11 +1769,26 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
       if (!raw?.access_token || !raw?.user) {
         throw new Error("Invalid stop-impersonation response")
       }
+
+      // If API re-issued a sticky impersonation claim, prefer the pre-session admin backup.
+      let restoredToken = raw.access_token
+      let restoredUser = raw.user
+      if (tokenHasImpersonationClaim(restoredToken)) {
+        if (backupToken && backupUser && !tokenHasImpersonationClaim(backupToken)) {
+          restoredToken = backupToken
+          restoredUser = backupUser
+        } else {
+          throw new Error("Exit returned an invalid support token. Please log in again.")
+        }
+      }
+
       const authData: AuthData = {
         ...raw,
+        access_token: restoredToken,
+        user: restoredUser,
         permissions: raw.permissions?.length
           ? raw.permissions
-          : ((raw.user as User & { permissions?: any[] }).permissions ?? []),
+          : ((restoredUser as User & { permissions?: any[] }).permissions ?? []),
       }
 
       clearTargetTenantLocalState()
@@ -1770,10 +1814,12 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         description: `Restored as ${authData.user.first_name} ${authData.user.last_name}`,
         variant: "default",
       })
-      router.replace("/case-management")
+      if (shouldNavigate) {
+        router.replace("/case-management")
+      }
     } catch (error: any) {
       console.error("Stop impersonation error:", error)
-      if (backupToken && backupUser) {
+      if (backupToken && backupUser && !tokenHasImpersonationClaim(backupToken)) {
         restoreLocalAdmin(backupUser, backupToken, true)
         return
       }
