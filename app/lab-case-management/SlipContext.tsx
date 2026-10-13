@@ -39,6 +39,8 @@ type Slip = {
   digitalImpressions?: Array<{ id: number; name: string; code?: string; url?: string | null }>;
   newStageEligible?: boolean;
   dueDate: string;
+  /** Effective delivery time from listing (`delivery_date.time`), HH:MM or HH:MM:SS. */
+  dueTime?: string;
   overdue: boolean;
   doctor?: string;
   user?: string;
@@ -246,6 +248,10 @@ export function SlipProvider({ children }: { children: ReactNode }) {
         ? apiSlip.new_stage_eligible.trim().toLowerCase() === "yes"
         : Boolean(apiSlip.new_stage_eligible),
     dueDate: apiSlip.delivery_date?.final_date || "",
+    dueTime:
+      typeof apiSlip.delivery_date?.time === "string"
+        ? apiSlip.delivery_date.time
+        : undefined,
     overdue: false, // You can set this based on your logic
     doctor: apiSlip.case?.doctor?.name || apiSlip.doctor || undefined,
     user: apiSlip.user?.name || apiSlip.user || undefined,
