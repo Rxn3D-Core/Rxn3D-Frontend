@@ -10,10 +10,56 @@ import {
 
 type FetchArgs = Parameters<typeof fetch>
 
-function forceLogout(): never {
+type InterceptorWindow = Window & {
+  __rxn3dOriginalFetch?: typeof fetch
+  __rxn3dFetchInterceptorVersion?: number
+}
+
+/** Bump so HMR re-wraps fetch when this file changes. */
+const INTERCEPTOR_VERSION = 7
+
+function restoreImpersonatorSessionOrNull(): string | null {
+  try {
+    const wasImpersonating = localStorage.getItem("isImpersonating") === "true"
+    const backupToken = localStorage.getItem("impersonator_token")
+    const backupUser = localStorage.getItem("impersonator_user")
+    if (!wasImpersonating || !backupToken || !backupUser) {
+      return null
+    }
+
+    localStorage.setItem("token", backupToken)
+    localStorage.setItem("user", backupUser)
+    localStorage.removeItem("isImpersonating")
+    localStorage.removeItem("impersonator_token")
+    localStorage.removeItem("impersonator_user")
+    localStorage.removeItem("customerId")
+    localStorage.removeItem("customerType")
+    localStorage.removeItem("selectedLocation")
+    localStorage.removeItem("role")
+    localStorage.removeItem("profilePermissions")
+    document.cookie = `token=${backupToken}; path=/; samesite=lax`
+    document.cookie = `auth_token=${backupToken}; path=/; samesite=lax`
+    return "/case-management"
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Original redirect behavior (window.location), without throw —
+ * throws caused the Next.js bottom-left ghost error overlay.
+ * Hang so callers never reach their own throw/redirect fallbacks.
+ */
+function forceLogout(): Promise<Response> {
+  const restorePath = restoreImpersonatorSessionOrNull()
+  if (restorePath) {
+    window.location.href = restorePath
+    return new Promise(() => {})
+  }
+
   clearSessionStorage()
   window.location.href = "/login"
-  throw new Error("Unauthorized - Redirecting to login")
+  return new Promise(() => {})
 }
 
 function isRetryAfterRefresh(init?: RequestInit): boolean {
@@ -38,71 +84,74 @@ function rebuildFetchArgs(
   return [args[0], withAuthorizationHeader(init, accessToken)]
 }
 
-// Global fetch interceptor for handling 401 responses with silent JWT refresh
 export function setupGlobalFetchInterceptor() {
   if (typeof window === "undefined") return
-  // Avoid double-wrapping in Fast Refresh / HMR
-  if ((window as Window & { __rxn3dFetchInterceptorInstalled?: boolean }).__rxn3dFetchInterceptorInstalled) {
+
+  const w = window as InterceptorWindow
+  if (w.__rxn3dFetchInterceptorVersion === INTERCEPTOR_VERSION) {
     return
   }
-  ;(window as Window & { __rxn3dFetchInterceptorInstalled?: boolean }).__rxn3dFetchInterceptorInstalled =
-    true
 
-  const originalFetch = window.fetch.bind(window)
+  const originalFetch = (w.__rxn3dOriginalFetch ?? window.fetch.bind(window)) as typeof fetch
+  w.__rxn3dOriginalFetch = originalFetch
+  w.__rxn3dFetchInterceptorVersion = INTERCEPTOR_VERSION
 
   window.fetch = async function (...args: FetchArgs) {
     const input = args[0]
     const requestClone =
       typeof Request !== "undefined" && input instanceof Request ? input.clone() : null
 
-    try {
-      const response = await originalFetch(...args)
+    const response = await originalFetch(...args)
 
-      if (response.status === 401) {
-        const requestUrl = getRequestUrl(args[0])
+    if (response.status === 401) {
+      const requestUrl = getRequestUrl(args[0])
 
-        // Login / refresh / logout 401s must not trigger silent refresh or forced redirect
-        if (isAuthExemptUrl(requestUrl)) {
-          return response
-        }
-
-        if (isRetryAfterRefresh(args[1])) {
-          forceLogout()
-        }
-
-        const newToken = await refreshAccessToken(originalFetch)
-        if (!newToken) {
-          forceLogout()
-        }
-
-        return originalFetch(...rebuildFetchArgs(args, newToken, requestClone))
+      if (isAuthExemptUrl(requestUrl)) {
+        return response
       }
 
-      if (response.status === 402 || response.status === 403) {
-        const requestUrl = getRequestUrl(args[0])
-        if (!requestUrl.includes("/entitlements")) {
-          const body = await response.clone().json().catch(() => null)
-          const code = String(body?.error ?? body?.code ?? "").toLowerCase()
-          if (PLAN_ERROR_CODES.includes(code as (typeof PLAN_ERROR_CODES)[number])) {
-            window.dispatchEvent(new Event("plan-entitlement-changed"))
-            if (!window.location.pathname.startsWith(PLAN_SUBSCRIPTIONS_PATH)) {
-              window.location.assign(PLAN_SUBSCRIPTIONS_PATH)
-            }
+      if (isRetryAfterRefresh(args[1])) {
+        return forceLogout()
+      }
+
+      // Live support session JWTs cannot be refreshed.
+      const liveImpersonation =
+        localStorage.getItem("isImpersonating") === "true" &&
+        Boolean(localStorage.getItem("impersonator_token"))
+      if (liveImpersonation) {
+        return forceLogout()
+      }
+
+      // Stale flag from a prior support session — clear and refresh normally.
+      if (localStorage.getItem("isImpersonating") === "true") {
+        localStorage.removeItem("isImpersonating")
+        localStorage.removeItem("impersonator_user")
+        localStorage.removeItem("originalUser")
+        localStorage.removeItem("originalToken")
+      }
+
+      const newToken = await refreshAccessToken(originalFetch)
+      if (!newToken) {
+        return forceLogout()
+      }
+
+      return originalFetch(...rebuildFetchArgs(args, newToken, requestClone))
+    }
+
+    if (response.status === 402 || response.status === 403) {
+      const requestUrl = getRequestUrl(args[0])
+      if (!requestUrl.includes("/entitlements")) {
+        const body = await response.clone().json().catch(() => null)
+        const code = String(body?.error ?? body?.code ?? "").toLowerCase()
+        if (PLAN_ERROR_CODES.includes(code as (typeof PLAN_ERROR_CODES)[number])) {
+          window.dispatchEvent(new Event("plan-entitlement-changed"))
+          if (!window.location.pathname.startsWith(PLAN_SUBSCRIPTIONS_PATH)) {
+            window.location.assign(PLAN_SUBSCRIPTIONS_PATH)
           }
         }
       }
-
-      return response
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("Unauthorized")) {
-        throw error
-      }
-      throw error
     }
-  }
-}
 
-// Initialize the interceptor when this module is imported
-if (typeof window !== "undefined") {
-  setupGlobalFetchInterceptor()
+    return response
+  }
 }

@@ -2,8 +2,7 @@
 
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Shield, Lock, Eye, FileText, AlertTriangle, CheckCircle } from "lucide-react"
+import { Shield, Lock, Eye, FileText, AlertTriangle } from "lucide-react"
 
 export default function HipaaNoticePage() {
   return (
@@ -15,12 +14,8 @@ export default function HipaaNoticePage() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">HIPAA Compliance Notice</h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            How Rxn3D protects protected health information in our dental laboratory and practice management platform
+            How Rxn3D handles protected health information in our dental laboratory and practice management platform. This notice describes safeguards. It is not a certification of HIPAA compliance.
           </p>
-          <Badge variant="secondary" className="mt-4">
-            <CheckCircle className="h-4 w-4 mr-2" />
-            HIPAA Compliant
-          </Badge>
         </div>
 
         <div className="space-y-6">

@@ -18,6 +18,10 @@ import { filterMenuByPermissions, filterMenuByEntitlements } from "@/lib/menu-pe
 import { PROFILE_SCOPED_ROLES } from "@/lib/permissions"
 import { type MenuItem, getMenuForProfile } from "@/config/sidebar-menu"
 import { useEntitlements } from "@/contexts/entitlement-context"
+import {
+  getSlipListingProfileForPath,
+  resetSlipListingPage,
+} from "@/lib/slip-listing-page" // listing page helpers
 
 const FALLBACK_ICONS: Record<string, React.ReactNode> = {
   "staff-management":    <Users className="h-5 w-5" />,
@@ -173,7 +177,15 @@ export function HeaderWaffleLauncher() {
             }
 
             return (
-              <Link key={item.id} href={href} onClick={handleClose}>
+              <Link
+                key={item.id}
+                href={href}
+                onClick={() => {
+                  const listingProfile = getSlipListingProfileForPath(href)
+                  if (listingProfile) resetSlipListingPage(listingProfile)
+                  handleClose()
+                }}
+              >
                 <NavTile item={item} isActive={isActive} onClick={() => {}} />
               </Link>
             )

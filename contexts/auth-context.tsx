@@ -117,6 +117,7 @@ type AuthData = {
   expires_in: number
   permissions: any[]
   user: User
+  impersonation?: boolean
 }
 
 type AuthContextType = {
@@ -241,8 +242,8 @@ type AuthContextType = {
   ) => Promise<boolean>
   isAuthenticated: boolean
   checkAuthAndRedirect: () => boolean
-  impersonateUser: (userId: number) => Promise<boolean>
-  stopImpersonation: () => void
+  impersonateUser: (userId: number, reason: string) => Promise<boolean>
+  stopImpersonation: () => Promise<void>
   isImpersonating: boolean
   originalUser: User | null
 }
@@ -365,6 +366,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSessionHistory(JSON.parse(storedSessionHistory))
       }
 
+      if (localStorage.getItem("isImpersonating") === "true") {
+        const storedOriginalToken = localStorage.getItem("impersonator_token")
+        // Require backup token — otherwise this is a stale flag from a prior session.
+        if (!storedOriginalToken) {
+          localStorage.removeItem("isImpersonating")
+          localStorage.removeItem("impersonator_user")
+          localStorage.removeItem("originalUser")
+          localStorage.removeItem("originalToken")
+        } else {
+          setIsImpersonating(true)
+          setOriginalToken(storedOriginalToken)
+          const storedOriginal = localStorage.getItem("impersonator_user")
+          if (storedOriginal) {
+            try {
+              setOriginalUser(JSON.parse(storedOriginal))
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+
       // Onboarding status is now tracked via API, not localStorage
     } catch (e) {
       localStorage.removeItem("user")
@@ -395,6 +418,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const maybeRefresh = async () => {
       if (cancelled) return
       if (document.visibilityState === "hidden") return
+      // Live support session only (stale flag must not block normal refresh).
+      if (
+        localStorage.getItem("isImpersonating") === "true" &&
+        localStorage.getItem("impersonator_token")
+      ) {
+        return
+      }
       const expiresAt = getTokenExpiresAt()
       if (!expiresAt) return
       if (expiresAt - Date.now() > PROACTIVE_REFRESH_BEFORE_MS) return
@@ -575,6 +605,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Fresh login/session — never continue a previous user's driver QR trip.
       clearDriverQrLocalSession()
+
+      // Normal login must not inherit a leftover support-session flag from a prior
+      // superadmin impersonation in this browser (that skipped refresh and hard-redirected).
+      if (!authData.impersonation) {
+        localStorage.removeItem("isImpersonating")
+        localStorage.removeItem("impersonator_token")
+        localStorage.removeItem("impersonator_user")
+        localStorage.removeItem("originalUser")
+        localStorage.removeItem("originalToken")
+        setIsImpersonating(false)
+        setOriginalUser(null)
+        setOriginalToken(null)
+      }
 
       setToken(authData.access_token)
       // Navigation is no longer blocked for unverified emails to support auto-login flows.
@@ -1539,34 +1582,51 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     [token, handleUnauthorized, refreshProfilePermissions],
   )
 
-  // Impersonate a user
-  const impersonateUser = async (userId: number): Promise<boolean> => {
+  const clearTargetTenantLocalState = () => {
+    localStorage.removeItem("customerId")
+    localStorage.removeItem("customerType")
+    localStorage.removeItem("selectedLocation")
+    localStorage.removeItem("profilePermissions")
+    localStorage.removeItem("rolePermissions")
+    localStorage.removeItem("overridePermissions")
+    localStorage.removeItem("superadmin_lab_context")
+    localStorage.removeItem("superadmin_original_token")
+    setSelectedCustomerId(null)
+    setProfileRole(null)
+    setProfilePermissions([])
+    setRolePermissions([])
+    setOverridePermissions([])
+    setIsActingAsLabAdmin(false)
+    syncedCustomerIdRef.current = null
+    lastPermissionsFetchKeyRef.current = null
+  }
+
+  // Superadmin: issue short-lived JWT as target user (backend impersonation).
+  const impersonateUser = async (userId: number, reason: string): Promise<boolean> => {
     try {
-      // Store the original user and token
-      if (user && token && !isImpersonating) {
-        setOriginalUser(user)
-        setOriginalToken(token)
-        localStorage.setItem("originalUser", JSON.stringify(user))
-        localStorage.setItem("originalToken", token)
+      if (!token || !user) {
+        throw new Error("Not authenticated")
+      }
+      if (isImpersonating) {
+        throw new Error("Already in a support session. Exit first.")
+      }
+      const trimmedReason = reason.trim()
+      if (trimmedReason.length < 3) {
+        throw new Error("Please provide a short reason (at least 3 characters).")
       }
 
-      // Get customerId from localStorage
-      const customerId = localStorage.getItem("customerId")
+      setOriginalUser(user)
+      setOriginalToken(token)
+      localStorage.setItem("impersonator_user", JSON.stringify(user))
+      localStorage.setItem("impersonator_token", token)
 
-      // Build URL with customerId parameter if available
-      const queryParams = new URLSearchParams()
-      if (customerId) {
-        queryParams.append("customer_id", customerId)
-      }
-      const url = `${API_BASE_URL}/users/${userId}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
-
-      // Fetch the user to impersonate
-      const response = await fetch(url, {
-        method: "GET",
+      const response = await fetch(`${API_BASE_URL}/auth/impersonate`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ user_id: userId, reason: trimmedReason }),
       })
 
       if (response.status === 401) {
@@ -1574,85 +1634,154 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         throw new Error("Unauthorized")
       }
 
+      const result = await response.json().catch(() => ({}))
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Failed to fetch user details (${response.status})`)
+        throw new Error(result.message || `Failed to login as user (${response.status})`)
       }
 
-      const result = await response.json()
-      const impersonatedUser = result.data || result
+      const raw = (result.data || result) as AuthData & { user?: User & { permissions?: any[] } }
+      if (!raw?.access_token || !raw?.user) {
+        throw new Error("Invalid impersonation response")
+      }
+      const authData: AuthData = {
+        ...raw,
+        permissions: raw.permissions?.length
+          ? raw.permissions
+          : ((raw.user as User & { permissions?: any[] }).permissions ?? []),
+      }
 
-      // Update the current user to the impersonated user
-      setUser(impersonatedUser)
+      clearTargetTenantLocalState()
       setIsImpersonating(true)
-      localStorage.setItem("user", JSON.stringify(impersonatedUser))
       localStorage.setItem("isImpersonating", "true")
 
+      const ok = setAuthFromData({ ...authData, impersonation: true })
+      if (!ok) {
+        throw new Error("Failed to apply impersonation session")
+      }
+
       toast({
-        title: "Viewing as User",
-        description: `You are now viewing as ${impersonatedUser.first_name} ${impersonatedUser.last_name}`,
+        title: "Support session started",
+        description: `Logged in as ${authData.user.first_name} ${authData.user.last_name}`,
         variant: "default",
       })
-
-      // Navigate to the user's landing page to see their perspective
-      const impersonatedRoles =
-        impersonatedUser.roles || (impersonatedUser.role ? [impersonatedUser.role] : [])
-      router.push(getPostLoginLandingPath(impersonatedRoles))
 
       return true
     } catch (error: any) {
       console.error("Impersonate user error:", error)
+      localStorage.removeItem("impersonator_token")
+      localStorage.removeItem("impersonator_user")
+      localStorage.removeItem("isImpersonating")
+      setIsImpersonating(false)
       toast({
         title: "Error",
-        description: error.message || "Failed to impersonate user",
+        description: error.message || "Failed to login as user",
         variant: "destructive",
       })
       return false
     }
   }
 
-  // Stop impersonation and restore original user
-  const stopImpersonation = () => {
-    const storedOriginalUser = localStorage.getItem("originalUser")
-    const storedOriginalToken = localStorage.getItem("originalToken")
+  // Exit support session: blacklist imp JWT and restore superadmin token from API.
+  const stopImpersonation = async () => {
+    const backupToken = localStorage.getItem("impersonator_token") || originalToken
+    const backupUserRaw = localStorage.getItem("impersonator_user")
+    const backupUser = backupUserRaw
+      ? (JSON.parse(backupUserRaw) as User)
+      : originalUser
 
-    if (storedOriginalUser && storedOriginalToken) {
-      const parsedOriginalUser = JSON.parse(storedOriginalUser)
-      setUser(parsedOriginalUser)
-      setToken(storedOriginalToken)
+    const restoreLocalAdmin = (adminUser: User, adminToken: string, warned = false) => {
+      clearTargetTenantLocalState()
+      setUser(adminUser)
+      setToken(adminToken)
       setIsImpersonating(false)
-
-      localStorage.setItem("user", storedOriginalUser)
-      localStorage.setItem("token", storedOriginalToken)
+      setOriginalUser(null)
+      setOriginalToken(null)
+      localStorage.setItem("user", JSON.stringify(adminUser))
+      localStorage.setItem("token", adminToken)
+      setCookie("token", adminToken)
+      setCookie("auth_token", adminToken)
+      persistAccessTokenExpiry(adminToken)
+      localStorage.removeItem("impersonator_token")
+      localStorage.removeItem("impersonator_user")
+      localStorage.removeItem("isImpersonating")
       localStorage.removeItem("originalUser")
       localStorage.removeItem("originalToken")
-      localStorage.removeItem("isImpersonating")
-
       toast({
-        title: "Impersonation Stopped",
-        description: `You are now viewing as ${parsedOriginalUser.first_name} ${parsedOriginalUser.last_name}`,
-        variant: "default",
+        title: warned ? "Support session ended (offline restore)" : "Support session ended",
+        description: `Restored as ${adminUser.first_name} ${adminUser.last_name}`,
+        variant: warned ? "destructive" : "default",
+      })
+      router.replace("/case-management")
+    }
+
+    try {
+      if (!token) {
+        if (backupToken && backupUser) {
+          restoreLocalAdmin(backupUser, backupToken, true)
+          return
+        }
+        throw new Error("No active session")
+      }
+
+      const response = await fetch(`${API_BASE_URL}/auth/stop-impersonation`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       })
 
-      router.push("/office-administrator/user-management")
-    } else if (originalUser && originalToken) {
-      setUser(originalUser)
-      setToken(originalToken)
-      setIsImpersonating(false)
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(result.message || `Failed to exit support session (${response.status})`)
+      }
 
-      localStorage.setItem("user", JSON.stringify(originalUser))
-      localStorage.setItem("token", originalToken)
+      const raw = (result.data || result) as AuthData & { user?: User & { permissions?: any[] } }
+      if (!raw?.access_token || !raw?.user) {
+        throw new Error("Invalid stop-impersonation response")
+      }
+      const authData: AuthData = {
+        ...raw,
+        permissions: raw.permissions?.length
+          ? raw.permissions
+          : ((raw.user as User & { permissions?: any[] }).permissions ?? []),
+      }
+
+      clearTargetTenantLocalState()
+      setIsImpersonating(false)
+      setOriginalUser(null)
+      setOriginalToken(null)
+      localStorage.removeItem("impersonator_token")
+      localStorage.removeItem("impersonator_user")
+      localStorage.removeItem("isImpersonating")
       localStorage.removeItem("originalUser")
       localStorage.removeItem("originalToken")
-      localStorage.removeItem("isImpersonating")
 
+      // Soft client navigation — keep SPA transition (no full page reload).
+      setToken(authData.access_token)
+      setUser(authData.user)
+      localStorage.setItem("token", authData.access_token)
+      localStorage.setItem("user", JSON.stringify(authData.user))
+      setCookie("token", authData.access_token)
+      setCookie("auth_token", authData.access_token)
+      persistAccessTokenExpiry(authData.access_token, authData.expires_in)
       toast({
-        title: "Impersonation Stopped",
-        description: `You are now viewing as ${originalUser.first_name} ${originalUser.last_name}`,
+        title: "Support session ended",
+        description: `Restored as ${authData.user.first_name} ${authData.user.last_name}`,
         variant: "default",
       })
-
-      router.push("/office-administrator/user-management")
+      router.replace("/case-management")
+    } catch (error: any) {
+      console.error("Stop impersonation error:", error)
+      if (backupToken && backupUser) {
+        restoreLocalAdmin(backupUser, backupToken, true)
+        return
+      }
+      toast({
+        title: "Error",
+        description: error.message || "Failed to exit support session",
+        variant: "destructive",
+      })
     }
   }
 
@@ -1673,22 +1802,6 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
 
     refreshProfilePermissions(customerId).catch(() => {})
   }, [user?.id, token, isSuperadmin, refreshProfilePermissions, applyProfilePermissions, user?.customers])
-
-  // Load impersonation state on mount
-  useEffect(() => {
-    const storedIsImpersonating = localStorage.getItem("isImpersonating")
-    if (storedIsImpersonating === "true") {
-      setIsImpersonating(true)
-
-      const storedOriginalUser = localStorage.getItem("originalUser")
-      const storedOriginalToken = localStorage.getItem("originalToken")
-
-      if (storedOriginalUser && storedOriginalToken) {
-        setOriginalUser(JSON.parse(storedOriginalUser))
-        setOriginalToken(storedOriginalToken)
-      }
-    }
-  }, [])
 
   //set api customer
   return (

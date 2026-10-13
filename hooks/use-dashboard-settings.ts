@@ -30,7 +30,16 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
 
   // Initialize settings on mount
   useEffect(() => {
-    if (!role) {
+    if (!role || !userId) {
+      setIsLoading(false)
+      return
+    }
+
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("token") || localStorage.getItem("library_token")
+        : null
+    if (!token) {
       setIsLoading(false)
       return
     }

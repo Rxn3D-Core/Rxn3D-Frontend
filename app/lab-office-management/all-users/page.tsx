@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, type MouseEvent as ReactMouseEvent } from "react"
-import { Eye, Search, Plus, ChevronDown, Edit, Trash2, Lock } from "lucide-react"
+import Link from "next/link"
+import { Eye, Search, Plus, ChevronDown, Edit, Trash2, Lock, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -80,7 +81,9 @@ const SORTABLE_COLUMNS = new Set(["first_name", "email", "created_at", "status"]
 export default function AllUsers() {
   const { fetchUsers, updateUser, updateMembershipStatus, deleteUser, fetchUserById, hasPermission } = useAuth()
   const { toast } = useToast()
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = useState(() =>
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("q") ?? "" : ""
+  )
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null)
   const [showSearchInvite, setShowSearchInvite] = useState(false)
@@ -463,9 +466,20 @@ export default function AllUsers() {
 
   return (
     <div className="py-6 px-4">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-        <p className="text-gray-500 mt-1">Manage all users across labs and offices.</p>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+          <p className="text-gray-500 mt-1">
+            Create, invite, and manage users across labs and offices. For permission overrides and
+            role templates, open Permission Management.
+          </p>
+        </div>
+        <Button asChild variant="outline" className="shrink-0">
+          <Link href="/permission">
+            <ShieldCheck className="h-4 w-4 mr-2" />
+            Permission Management
+          </Link>
+        </Button>
       </div>
 
       {/* Filters and actions */}

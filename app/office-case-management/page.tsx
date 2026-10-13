@@ -41,6 +41,7 @@ import {
   saveSlipListingLocationFilters,
   saveSlipListingStatusFilters,
 } from "@/lib/slip-listing-preferences"
+import { loadSlipListingPage, saveSlipListingPage } from "@/lib/slip-listing-page"
 import { printPaperSlipV6ForSlip } from "@/lib/print-paper-slip-v6-from-slip"
 // Multiple paper slip print disabled from listing
 // import { printPaperSlipV6ForSlips } from "@/lib/print-paper-slip-v6-from-slip"
@@ -156,6 +157,7 @@ function OfficeCaseManagementPage() {
     () => loadSlipListingStatusFilters("office") ?? [],
   )
   const [currentPage, setCurrentPage] = useState(1)
+  const [listingPageReady, setListingPageReady] = useState(false)
   const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [selected, setSelected] = useState<number[]>([])
   const [menuRow, setMenuRow] = useState<number | null>(null)
@@ -230,12 +232,23 @@ function OfficeCaseManagementPage() {
   }, [selectedStatuses])
 
   useEffect(() => {
+    setCurrentPage(loadSlipListingPage("office"))
+    setListingPageReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!listingPageReady) return
+    saveSlipListingPage("office", currentPage)
+  }, [listingPageReady, currentPage])
+
+  useEffect(() => {
+    if (!listingPageReady) return
     const customerId = resolveListingCustomerId()
     if (!customerId) return
     void fetchOfficeSlips(customerId, currentPage, itemsPerPage, {
       statuses: selectedStatuses.length > 0 ? selectedStatuses : undefined,
     })
-  }, [fetchOfficeSlips, currentPage, itemsPerPage, selectedStatuses])
+  }, [listingPageReady, fetchOfficeSlips, currentPage, itemsPerPage, selectedStatuses])
 
   const allDoctors = useMemo(() => Array.from(new Set(slips.map((s) => s.doctor || "Unknown"))), [slips])
   const allProductNames = useMemo(() => {

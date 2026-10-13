@@ -12,14 +12,13 @@ import {
   MessageSquare,
   Monitor,
   Settings,
-  Star,
-  Store,
   User,
   Users,
   FlaskConical,
   Layers,
   Settings2,
   LayoutDashboard,
+  ShieldCheck,
 } from "lucide-react"
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
@@ -75,12 +74,6 @@ export const superadminMenu: MenuItem[] = [
         icon: <Briefcase className="h-5 w-5" />,
       },
       {
-        id: "all-users",
-        title: "All Users",
-        path: "/lab-office-management/all-users",
-        icon: <Users className="h-5 w-5" />,
-      },
-      {
         id: "invite-entity",
         title: "Invite New Entity",
         path: "/lab-office-management/invite",
@@ -89,23 +82,37 @@ export const superadminMenu: MenuItem[] = [
     ],
   },
   {
-    id: "user-role-management",
-    title: "User & Role Management",
+    id: "users-and-permissions",
+    title: "Users & Permissions",
     icon: <Users className="h-5 w-5" />,
-    path: "/permission",
+    children: [
+      {
+        id: "all-users",
+        title: "All Users",
+        path: "/lab-office-management/all-users",
+        icon: <Users className="h-5 w-5" />,
+      },
+      {
+        id: "permission-management",
+        title: "Permission Management",
+        path: "/permission",
+        icon: <ShieldCheck className="h-5 w-5" />,
+      },
+    ],
   },
-  {
-    id: "performance-management",
-    title: "Performance Management",
-    icon: <Star className="h-5 w-5" />,
-    path: "/performance-management",
-  },
-  {
-    id: "marketplace",
-    title: "Marketplace",
-    icon: <Store className="h-5 w-5" />,
-    path: "/marketplace",
-  },
+  // Hidden until these modules are ready:
+  // {
+  //   id: "performance-management",
+  //   title: "Performance Management",
+  //   icon: <Star className="h-5 w-5" />,
+  //   path: "/performance-management",
+  // },
+  // {
+  //   id: "marketplace",
+  //   title: "Marketplace",
+  //   icon: <Store className="h-5 w-5" />,
+  //   path: "/marketplace",
+  // },
   {
     id: "billing-subscription",
     title: "Billing & Subscription Control",
