@@ -242,7 +242,8 @@ export default function ChangeDateModal({
           "w-full max-w-none rounded-t-2xl max-h-[92dvh]",
           "sm:left-[50%] sm:right-auto sm:top-[50%] sm:bottom-auto",
           "sm:translate-x-[-50%] sm:translate-y-[-50%]",
-          "sm:w-[calc(100%-2rem)] sm:max-w-md sm:rounded-2xl sm:max-h-[min(90vh,640px)]"
+          "sm:w-[calc(100%-2rem)] sm:max-w-xl sm:rounded-2xl sm:max-h-[min(90vh,720px)]",
+          "md:max-w-2xl lg:max-w-3xl"
         )}
       >
         {/* Drag handle — mobile affordance */}
@@ -250,7 +251,7 @@ export default function ChangeDateModal({
           <div className="h-1 w-10 rounded-full bg-gray-300" />
         </div>
 
-        <DialogHeader className="shrink-0 space-y-0 border-b border-gray-100 px-4 pb-3 pt-1 sm:px-5 sm:pt-4">
+        <DialogHeader className="shrink-0 space-y-0 border-b border-gray-100 px-4 pb-3 pt-1 sm:px-6 sm:pt-5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2AA6DE]/15 via-[#82298D]/10 to-[#C9539F]/15">
@@ -277,7 +278,7 @@ export default function ChangeDateModal({
           </div>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
           {/* Context chips */}
           <div className="mb-4 flex flex-wrap gap-1.5">
             <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700">
@@ -497,7 +498,7 @@ export default function ChangeDateModal({
         {/* Sticky actions */}
         <div
           className={cn(
-            "shrink-0 border-t border-gray-100 bg-white px-4 py-3 sm:px-5",
+            "shrink-0 border-t border-gray-100 bg-white px-4 py-3 sm:px-6",
             "pb-[max(0.75rem,env(safe-area-inset-bottom))]"
           )}
         >
