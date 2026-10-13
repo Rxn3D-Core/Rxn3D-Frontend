@@ -12,7 +12,7 @@ import { PerformanceMonitor } from '@/components/performance-monitor'
 import { OnboardingCheck } from '@/components/onboarding-check'
 import { AppFooter } from '@/components/app-footer'
 import '@/lib/fetch-interceptor' // Global fetch interceptor for 401 handling
-import { inter, islandMoments, windSong } from "@/lib/fonts"
+import { inter, islandMoments, libreCaslonCondensed, windSong } from "@/lib/fonts"
 import { getSiteUrl } from "@/lib/site-url"
 
 // Force all pages to be dynamic (client-rendered) to avoid SSR issues with i18n and navigation hooks
@@ -136,7 +136,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${islandMoments.variable} ${windSong.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${islandMoments.variable} ${windSong.variable} ${libreCaslonCondensed.variable}`}>
       <head>
         <script
           type="application/ld+json"

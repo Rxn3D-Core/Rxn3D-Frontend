@@ -534,7 +534,7 @@ function PaperSlipV2CasePanBlock({ slip }: { slip: PaperSlipPrintV2SlipVM }) {
         )}
         <div
           className="min-w-[177px] text-center font-normal text-[#0A0B0E]"
-          style={{ fontFamily: "Inter, Arial, sans-serif", fontSize: 96, lineHeight: "116px" }}
+          style={{ fontFamily: 'Georgia, "Times New Roman", Times, serif', fontSize: 96, lineHeight: "116px" }}
         >
           <SlashedZeroText value={slip.vm.header.panNumber || ""} />
         </div>

@@ -79,6 +79,18 @@ function panHtml(value: string): string {
   return esc(value).replace(/0/g, `<span class="ps-zero">0<span class="ps-zero-slash"></span></span>`);
 }
 
+/** Large stub pan: equal-width centered chars so they stay aligned when the slip is rotated. */
+function panLargeHtml(value: string): string {
+  return Array.from(String(value ?? ""))
+    .map((ch) => {
+      if (ch === "0") {
+        return `<span class="ps-pan-char"><span class="ps-zero">0<span class="ps-zero-slash"></span></span></span>`;
+      }
+      return `<span class="ps-pan-char">${esc(ch)}</span>`;
+    })
+    .join("");
+}
+
 function text(value: unknown): string {
   if (value == null) return "";
   return String(value).trim();
@@ -350,7 +362,7 @@ export function buildPaperSlipV6Html(input: PaperSlipV6Input, qrCodeUrl = ""): s
     <div class="ps-stub">
       <div class="ps-stub-top">
         ${qrHtml}
-        <div class="ps-pan">${panHtml(header.panNumber || "—")}</div>
+        <div class="ps-pan">${panLargeHtml(header.panNumber || "—")}</div>
       </div>
       <div class="ps-stub-bottom">
         <div class="ps-stub-office">
