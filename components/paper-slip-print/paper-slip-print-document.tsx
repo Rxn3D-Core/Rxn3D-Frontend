@@ -416,7 +416,10 @@ function PaperSlipCasePanBlock({ slip }: { slip: PaperSlipPrintableSlipVM }) {
             QR
           </div>
         )}
-        <div className="text-center font-sans text-[96px] font-normal leading-[100%] tracking-[0] text-[#111827]">
+        <div
+          className="text-center text-[96px] font-normal leading-[100%] tracking-[0] text-[#111827]"
+          style={{ fontFamily: 'Georgia, "Times New Roman", Times, serif' }}
+        >
           <SlashedZeroText value={slip.header.casePanNumber || ""} />
         </div>
       </div>

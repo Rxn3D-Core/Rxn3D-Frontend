@@ -25,3 +25,10 @@ export const windSong = localFont({
   display: "swap",
   weight: "400",
 })
+
+export const libreCaslonCondensed = localFont({
+  src: "../public/fonts/LibreCaslonCondensed-latin-400.woff2",
+  variable: "--font-libre-caslon-condensed",
+  display: "swap",
+  weight: "400",
+})
