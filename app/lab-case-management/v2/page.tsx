@@ -1243,7 +1243,8 @@ export default function LabSlipPage() {
             stage={selectedSlipForDateChange.product || "Unknown Stage"}
             currentDate={new Date().toLocaleDateString()}
             deliveryDate={selectedSlipForDateChange.dueDate}
-            deliveryTime="10:00"
+            deliveryTime={selectedSlipForDateChange.dueTime || "17:00"}
+            deliveryTimeRaw={selectedSlipForDateChange.dueTime}
             slipId={selectedSlipForDateChange.id}
             history={getChangeDateHistory(selectedSlipForDateChange.id)}
             onSaved={refreshSlipsAfterCustomDeliveryDate}
