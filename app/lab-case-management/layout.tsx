@@ -30,7 +30,7 @@ export default function LabProfileLayout({
               <Toaster />
               <div className="flex-1">{children}</div>
               {/* Inside the shell so it does not sit below 100dvh and force a body scrollbar */}
-              <AppFooter />
+              <AppFooter inline />
             </div>
           </div>
         </div>

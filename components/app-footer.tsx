@@ -4,10 +4,10 @@ import { Suspense } from "react"
 import { usePathname } from "next/navigation"
 
 const HIDDEN_ROUTES = ["/login", "/register"]
-/** Shell layouts render AppFooter inside their own scroll pane; skip the root sibling. */
+/** Shell layouts render AppFooter inside their scroll pane; skip the root sibling there. */
 const SHELL_OWNED_FOOTER_ROUTES = ["/lab-case-management"]
 
-function AppFooterInternal() {
+function AppFooterInternal({ inline = false }: { inline?: boolean }) {
   const pathname = usePathname()
   const isHidden = pathname
     ? HIDDEN_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
@@ -16,9 +16,8 @@ function AppFooterInternal() {
     ? SHELL_OWNED_FOOTER_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
     : false
 
-  // Root layout still mounts <AppFooter />; shell layouts mount their own copy.
-  // Detect nested render via a data attribute set by the shell-owned instance.
-  if (isHidden) {
+  // Root layout mounts AppFooter; shell layouts mount <AppFooter inline />.
+  if (isHidden || (!inline && shellOwnsFooter)) {
     return null
   }
 
@@ -31,10 +30,10 @@ function AppFooterInternal() {
   )
 }
 
-export function AppFooter() {
+export function AppFooter({ inline = false }: { inline?: boolean } = {}) {
   return (
     <Suspense fallback={null}>
-      <AppFooterInternal />
+      <AppFooterInternal inline={inline} />
     </Suspense>
   )
 }
