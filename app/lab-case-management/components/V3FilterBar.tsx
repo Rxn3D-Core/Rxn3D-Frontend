@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { Filter, Search, Columns } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -91,6 +92,8 @@ export function V3FilterBar({
   officeProfile = false,
 }: Props) {
   const [colPanelOpen, setColPanelOpen] = useState(false)
+  const [colPanelPos, setColPanelPos] = useState<{ top: number; right: number } | null>(null)
+  const colBtnRef = useRef<HTMLDivElement>(null)
   const colPanelRef = useRef<HTMLDivElement>(null)
   const statusActive = (status: string) => statuses.some((item) => normalizeStatus(item) === normalizeStatus(status))
   const hasQuickFilters = locations.length > 0 || statuses.length > 0
@@ -98,13 +101,24 @@ export function V3FilterBar({
   useEffect(() => {
     if (!colPanelOpen) return
     function onPointerDown(e: PointerEvent) {
-      if (colPanelRef.current && !colPanelRef.current.contains(e.target as Node)) {
-        setColPanelOpen(false)
-      }
+      const target = e.target as Node
+      if (colBtnRef.current?.contains(target) || colPanelRef.current?.contains(target)) return
+      setColPanelOpen(false)
     }
     document.addEventListener("pointerdown", onPointerDown)
     return () => document.removeEventListener("pointerdown", onPointerDown)
   }, [colPanelOpen])
+
+  function placeColPanel() {
+    if (!colBtnRef.current) return
+    const r = colBtnRef.current.getBoundingClientRect()
+    setColPanelPos({ top: r.bottom + 8, right: window.innerWidth - r.right })
+  }
+
+  function toggleColPanel() {
+    if (!colPanelOpen) placeColPanel()
+    setColPanelOpen((o) => !o)
+  }
 
   function toggleColumn(key: ColumnKey) {
     const col = ALL_COLUMNS.find((c) => c.key === key)
@@ -257,26 +271,30 @@ export function V3FilterBar({
           <Filter className="h-5 w-5" stroke={advancedFilterActive ? "url(#v3IconStroke)" : "currentColor"} />
         </IconBtn>
 
-        {/* Columns toggle button + panel */}
-        <div ref={colPanelRef} className="shrink-0" style={{ position: "relative" }}>
+        {/* Columns toggle — panel is portaled so the widget's overflow-hidden cannot clip it */}
+        <div ref={colBtnRef} className="shrink-0">
           <IconBtn
             aria-label="Show/Hide Columns"
             tooltip="Show/Hide Columns"
             active={colPanelOpen}
-            onClick={() => setColPanelOpen((o) => !o)}
+            onClick={toggleColPanel}
           >
             <Columns className="h-5 w-5" stroke={colPanelOpen ? "url(#v3IconStroke)" : "currentColor"} />
           </IconBtn>
 
-          {colPanelOpen && (
+          {colPanelOpen && colPanelPos && typeof document !== "undefined" && createPortal(
             <div
+              ref={colPanelRef}
               style={{
-                position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 60,
+                position: "fixed", top: colPanelPos.top, right: colPanelPos.right, zIndex: 1000,
                 background: "#fff", borderRadius: 12,
                 boxShadow: "0px 8px 24px rgba(0,0,0,0.12)",
                 border: "1px solid #E2E4E8",
                 minWidth: 260, padding: "16px 0 12px",
+                maxHeight: `min(420px, calc(100vh - ${colPanelPos.top}px - 16px))`,
+                overflowY: "auto",
               }}
+              onPointerDown={(e) => e.stopPropagation()}
             >
               <p style={{ fontSize: 18, fontWeight: 700, color: "#000", padding: "0 16px 12px" }}>Show/Hide Column</p>
               <div style={{ borderTop: "1px solid #E2E4E8", marginBottom: 4 }} />
@@ -324,7 +342,8 @@ export function V3FilterBar({
                   </button>
                 )
               })}
-            </div>
+            </div>,
+            document.body,
           )}
         </div>
         </div>

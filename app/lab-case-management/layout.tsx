@@ -1,4 +1,5 @@
 import type React from "react"
+import { AppFooter } from "@/components/app-footer"
 import { CaseManagementProfileRedirect } from "@/components/case-management-profile-redirect"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
@@ -25,9 +26,11 @@ export default function LabProfileLayout({
           <div className="flex-1 flex flex-col overflow-hidden">
             <Header />
             <LabProductLibrarySetupNotice />
-            <div className="flex-1 overflow-auto">
-              <Toaster /> 
-              {children}
+            <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+              <Toaster />
+              <div className="flex-1">{children}</div>
+              {/* Inside the shell so it does not sit below 100dvh and force a body scrollbar */}
+              <AppFooter inline />
             </div>
           </div>
         </div>

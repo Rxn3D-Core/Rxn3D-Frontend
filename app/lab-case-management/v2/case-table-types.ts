@@ -28,6 +28,8 @@ export interface V2CaseRowData {
   /** Digital impressions connected to the slip (listing Attachments column). */
   digitalImpressions?: Array<{ id: number; name: string; code?: string; url?: string | null }>
   dueDate: string
+  /** Effective delivery time from listing (`delivery_date.time`). */
+  dueTime?: string
   doctor?: string
   user?: string
   productType?: string

@@ -438,7 +438,8 @@ body {
 }
 .ps-pan {
   min-width: 0;
-  font-family: Inter, Arial, sans-serif;
+  /* Serif makes 1 / i / L distinct; zeros still use .ps-zero slash vs O. */
+  font-family: Georgia, "Times New Roman", Times, serif;
   font-size: 121px;
   line-height: 121px;
   height: 121px;

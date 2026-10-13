@@ -1,4 +1,7 @@
-/** Pan numbers mix digits and letters, so zero gets a stroke to tell it apart from the letter O. */
+/**
+ * Pan numbers mix digits and letters, so zero gets a stroke to tell it apart from O.
+ * Parent should use a serif face (e.g. Georgia) so 1 / i / L stay distinct.
+ */
 export function SlashedZeroText({ value }: { value: string }) {
   return (
     <>

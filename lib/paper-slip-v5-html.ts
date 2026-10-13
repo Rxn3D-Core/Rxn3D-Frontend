@@ -10,6 +10,7 @@ import { getClaspOverlayImageUrl } from "@/components/case-design-center/utils/c
 import type { ArchVM, ProductVM, VirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { printHtmlViaHiddenIframe } from "@/lib/print-paper-slip-v4-html";
 import { PAPER_SLIP_V5_CSS } from "@/lib/paper-slip-v5-css";
+import { paperSlipPanFontFaceCss } from "@/lib/paper-slip-pan-font";
 
 export type PaperSlipV5Input = {
   vm: VirtualSlipVM;
@@ -78,6 +79,18 @@ function esc(value: string): string {
 /** Pan numbers mix digits and letters, so zero gets a stroke to tell it apart from the letter O. */
 function panHtml(value: string): string {
   return esc(value).replace(/0/g, `<span class="ps-zero">0<span class="ps-zero-slash"></span></span>`);
+}
+
+/** Large stub pan: equal-width centered chars so they stay aligned when the slip is rotated. */
+function panLargeHtml(value: string): string {
+  return Array.from(String(value ?? ""))
+    .map((ch) => {
+      if (ch === "0") {
+        return `<span class="ps-pan-char"><span class="ps-zero">0<span class="ps-zero-slash"></span></span></span>`;
+      }
+      return `<span class="ps-pan-char">${esc(ch)}</span>`;
+    })
+    .join("");
 }
 
 function text(value: unknown): string {
@@ -343,7 +356,7 @@ export function buildPaperSlipV5Html(input: PaperSlipV5Input, qrCodeUrl = ""): s
 <head>
   <meta charset="UTF-8">
   <title>Paper Slip — ${esc(header.labName || "Rxn3D")}</title>
-  <style>${PAPER_SLIP_V5_CSS}</style>
+  <style>${paperSlipPanFontFaceCss()}${PAPER_SLIP_V5_CSS}</style>
 </head>
 <body>
 <div class="ps-page">
@@ -402,7 +415,7 @@ export function buildPaperSlipV5Html(input: PaperSlipV5Input, qrCodeUrl = ""): s
     <div class="ps-stub">
       <div class="ps-stub-top">
         ${qrHtml}
-        <div class="ps-pan">${panHtml(header.panNumber || "—")}</div>
+        <div class="ps-pan">${panLargeHtml(header.panNumber || "—")}</div>
       </div>
       <div class="ps-stub-bottom">
         <div class="ps-stub-office">

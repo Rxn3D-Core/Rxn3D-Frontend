@@ -979,8 +979,8 @@ export default function LabSlipV3Page() {
   const selectedStatementRow = selected.length === 1 ? slipsPage.find((row) => row.id === selected[0]) : undefined
 
   return (
-    <div className="min-h-screen">
-      <main className="w-full px-4 pb-8">
+    <div>
+      <main className="w-full px-4 pb-4">
         <V3CaseWidget
           listingProfile="lab"
           search={search}
@@ -1099,7 +1099,8 @@ export default function LabSlipV3Page() {
             stage={selectedSlipForDateChange.product || "Unknown Stage"}
             currentDate={new Date().toLocaleDateString()}
             deliveryDate={selectedSlipForDateChange.dueDate}
-            deliveryTime="10:00"
+            deliveryTime={selectedSlipForDateChange.dueTime || "17:00"}
+            deliveryTimeRaw={selectedSlipForDateChange.dueTime}
             slipId={selectedSlipForDateChange.id}
             history={[]}
             onSaved={refreshSlipsAfterCustomDeliveryDate}
