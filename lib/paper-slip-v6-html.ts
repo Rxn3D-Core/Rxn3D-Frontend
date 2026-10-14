@@ -6,6 +6,7 @@
 
 import QRCode from "qrcode";
 import { getClaspOverlayImageUrl } from "@/components/case-design-center/utils/claspOverlayImage";
+import { formatPaperSlipNotesForPrint } from "@/lib/paper-slip-notes-display";
 import type { ArchVM, ProductVM, VirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { printHtmlViaHiddenIframe } from "@/lib/print-paper-slip-v4-html";
 import { PAPER_SLIP_V6_CSS } from "@/lib/paper-slip-v6-css";
@@ -336,7 +337,11 @@ export function buildPaperSlipV6Html(input: PaperSlipV6Input, qrCodeUrl = ""): s
   const doctor = details?.case?.doctor ?? details?.doctor ?? {};
   const officeCode = text(office.code || office.unique_code);
   const license = text(doctor.license_number);
-  const note = oldestNote(details, vm);
+  const noteText = formatPaperSlipNotesForPrint(
+    oldestNote(details, vm),
+    typeof document !== "undefined" ? document : null
+  );
+  const noteHtml = noteText ? esc(noteText) : "";
   const maxSummary = productSummary(maxillary);
   const mandSummary = productSummary(mandibular);
   const qr = qrCodeUrl || existingQr(details);
@@ -421,7 +426,7 @@ export function buildPaperSlipV6Html(input: PaperSlipV6Input, qrCodeUrl = ""): s
     </div>
     <div class="ps-details">${rows}</div>
     <div class="ps-qr-note">Scan QR / open virtual slip for full details.</div>
-    ${note ? `<div class="ps-notes">${esc(note)}</div>` : ""}
+    ${noteHtml ? `<div class="ps-notes">${noteHtml}</div>` : ""}
     <div class="ps-sig-wrap">
       <div class="ps-sig">
         <div class="ps-sig-line"></div>
