@@ -125,21 +125,22 @@ export default function ReadyToSendModal({
                 <ImageDropzone
                   image={image}
                   onChange={setImage}
+                  allowVideo
                   onRejected={(names) => {
                     toast({
-                      title: "Only images are allowed",
+                      title: "File type not allowed",
                       description:
                         names.length > 0
                           ? `Skipped: ${names.join(", ")}`
-                          : "Please choose an image file.",
+                          : "Please choose an image or video (MP4, MOV, AVI).",
                       variant: "destructive",
                     });
                   }}
                   required={photoRequired}
                   hint={
                     photoRequired
-                      ? "A proof photo is required before confirming."
-                      : "Optional proof photo for this ready-to-send action."
+                      ? "A proof photo or video is required before confirming."
+                      : "Optional proof photo or video for this ready-to-send action."
                   }
                 />
               ) : null}
