@@ -22,7 +22,13 @@ import { AutoOpenSuppressionContext } from "./auto-open-suppression";
 import { CenterNavigation } from "./CenterNavigation";
 import { ModalOrchestrator } from "./ModalOrchestrator";
 import { mockImpressions } from "../constants";
-import { hasRetentionOptions, isNonRetentionCategory, serializeStageFieldValue, serializeStageSelectionFromProduct } from "../utils/categoryHelpers";
+import {
+  hasRetentionOptions,
+  isNonRetentionCategory,
+  serializeStageFieldValue,
+  serializeStageSelectionFromProduct,
+  shouldSkipStageSelection,
+} from "../utils/categoryHelpers";
 import {
   isGradeFieldValueSkipped,
   productHasGrades,
@@ -66,6 +72,7 @@ import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
 import { buildRushArchSlots } from "../utils/rushModalContext";
 import { useRushSlotDeliveryDates } from "../hooks/useRushSlotDeliveryDates";
+import { formatEstimatedDueDate } from "../hooks/useProductEstimatedDueDate";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 import { canSkipExtractionToothSelection, getDefaultExtractionStrict } from "../utils/extractionHelpers";
 import { hasUserSelectedCard0TeethOnArch } from "../utils/card0ProductPanelVisibility";
@@ -1173,7 +1180,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ]
   );
 
-  const rushSlotDeliveryDates = useRushSlotDeliveryDates(rushArchSlots);
+  const { dates: rushSlotDeliveryDates, isLoading: rushSlotDeliveryDatesLoading } =
+    useRushSlotDeliveryDates(rushArchSlots);
 
   const rushArchSlotsWithDelivery = useMemo(
     () =>
@@ -1183,6 +1191,43 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       }),
     [rushArchSlots, rushSlotDeliveryDates]
   );
+
+  // Header due date: once every active product slot has a stage (or skips stage
+  // selection), take the latest calendar date from the stage-aware delivery-date API.
+  const stagesReadyForDueDate = useMemo(() => {
+    if (rushArchSlots.length === 0) return false;
+    return rushArchSlots.every((slot) => {
+      if (slot.stageName?.trim()) return true;
+      if (slot.apiProductId <= 0) return false;
+      const product = state.getToothProduct(slot.arch, slot.repTooth);
+      const stages = product?.stages ?? [];
+      return stages.length === 0 || shouldSkipStageSelection(product);
+    });
+  }, [rushArchSlots, state.getToothProduct]);
+
+  const headerDueDateIso = useMemo(() => {
+    if (!stagesReadyForDueDate) return null;
+    const dated = rushArchSlots
+      .map((slot) => rushSlotDeliveryDates[slot.rushKey])
+      .filter((iso): iso is string => Boolean(iso))
+      .sort((a, b) => a.localeCompare(b));
+    return dated.length > 0 ? dated[dated.length - 1] : null;
+  }, [stagesReadyForDueDate, rushArchSlots, rushSlotDeliveryDates]);
+
+  const onEstimatedDueDateChangeRef = useRef(props.onEstimatedDueDateChange);
+  onEstimatedDueDateChangeRef.current = props.onEstimatedDueDateChange;
+
+  useEffect(() => {
+    const notify = onEstimatedDueDateChangeRef.current;
+    if (!notify) return;
+    notify({
+      isoDate: headerDueDateIso,
+      displayDate: headerDueDateIso
+        ? formatEstimatedDueDate(headerDueDateIso)
+        : null,
+      isLoading: stagesReadyForDueDate && rushSlotDeliveryDatesLoading,
+    });
+  }, [headerDueDateIso, stagesReadyForDueDate, rushSlotDeliveryDatesLoading]);
 
   const addOnArchSlots = useMemo(
     () =>

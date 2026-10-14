@@ -40,7 +40,6 @@ import {
   useCaseWizardSession,
   type CaseDesignBootstrap,
 } from "@/components/case-design-center/hooks/useCaseWizardSession";
-import { useCaseEstimatedDueDate } from "@/components/case-design-center/hooks/useCaseEstimatedDueDate";
 import {
   getBusinessSettings,
   type BusinessHour,
@@ -52,6 +51,7 @@ import { Button } from "@/components/ui/button";
 import NewCaseWizard from "@/components/new-case-wizard";
 import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
 import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
+import { isOfficeCustomerContext } from "@/lib/role-utils";
 
 type FlowStep = "loading" | "ineligible" | "design";
 
@@ -96,6 +96,8 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     "idle" | "submitting" | "success-transition"
   >("idle");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [headerDueDate, setHeaderDueDate] = useState<string | null>(null);
+  const [headerDueDateLoading, setHeaderDueDateLoading] = useState(false);
 
   const apiProducts = useMemo(
     () => extractVirtualSlipProducts(virtualSlipDetails),
@@ -107,27 +109,43 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     return d?.location?.id ?? d?.location_id ?? null;
   }, [virtualSlipDetails]);
 
-  const labCustomerId = useMemo(
-    () => resolveLibraryCustomerId(resolveLabIdFromSlipDetails(virtualSlipDetails)),
+  const slipLabId = useMemo(
+    () => resolveLabIdFromSlipDetails(virtualSlipDetails),
     [virtualSlipDetails]
   );
+
+  const labCustomerId = useMemo(
+    () => resolveLibraryCustomerId(slipLabId),
+    [slipLabId]
+  );
+
+  // Office profiles resolve ProductApi lab via localStorage selectedLabId.
+  // Add-new-stage skips the lab picker, so seed it from the source slip's lab.
+  useEffect(() => {
+    if (!slipLabId || !isOfficeCustomerContext()) return;
+    localStorage.setItem("selectedLabId", String(slipLabId));
+  }, [slipLabId]);
 
   const wizard = useCaseWizardSession({
     fetchProductDetails: fetchCaseDesignProductDetails,
     bootstrap,
   });
 
-  const productIdsForDueDate = [
-    wizard.selectedProductId,
-    ...wizard.addedProducts.map(
-      (p) => p.productId ?? (typeof p.product?.id === "number" ? p.product.id : null)
-    ),
-  ];
-  const {
-    displayDate: headerDueDate,
-    isLoading: headerDueDateLoading,
-    effectivePickupCutoffTime,
-  } = useCaseEstimatedDueDate(productIdsForDueDate);
+  const handleEstimatedDueDateChange = useCallback(
+    (info: {
+      isoDate: string | null;
+      displayDate: string | null;
+      isLoading: boolean;
+    }) => {
+      setHeaderDueDate((prev) =>
+        prev === info.displayDate ? prev : info.displayDate
+      );
+      setHeaderDueDateLoading((prev) =>
+        prev === info.isLoading ? prev : info.isLoading
+      );
+    },
+    []
+  );
 
   const caseId = useMemo(
     () => resolveVirtualSlipCaseId(virtualSlipDetails),
@@ -150,6 +168,8 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     setBootstrap(null);
     setInitialSlipState(null);
     setAddStageContext(null);
+    setHeaderDueDate(null);
+    setHeaderDueDateLoading(false);
     initRanRef.current = false;
     clearSlipCreationStorage();
     void fetchVirtualSlipDetails(sourceSlipId).then(() => setDetailsReady(true));
@@ -474,9 +494,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
               onEditLab={wizard.handleTopBarEditLab}
               estimatedDueDate={headerDueDate}
               estimatedDueDateLoading={headerDueDateLoading}
-              cutoffTime={
-                effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time
-              }
+              cutoffTime={rushCaseSchedule?.default_pickup_time}
             />
 
             {initialSlipState && (
@@ -510,6 +528,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
                 initialSlipState={initialSlipState}
                 preloadInitialSlipState
                 addStageContext={addStageContext ?? undefined}
+                onEstimatedDueDateChange={handleEstimatedDueDateChange}
                 slipCollectorRef={slipCollectorRef}
                 caseSummaryNotesRef={caseSummaryNotesRef}
                 confirmDetailsChecked={confirmDetailsChecked}
