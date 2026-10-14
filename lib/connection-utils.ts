@@ -28,6 +28,17 @@ export function isActiveConnection(connection: Connection): boolean {
   return connection.status?.toLowerCase() === "active"
 }
 
+/** Lab↔office link paused from the dashboard (API status `OnHold`). */
+export function isOnHoldConnection(connection: Connection): boolean {
+  const status = connection.status?.toLowerCase().replace(/[\s_-]/g, "") ?? ""
+  return status === "onhold"
+}
+
+/** Connected tab should list Active and OnHold partners. */
+export function isVisibleDashboardConnection(connection: Connection): boolean {
+  return isActiveConnection(connection) || isOnHoldConnection(connection)
+}
+
 export function getConnectionPartner(connection: Connection) {
   return connection.partner
 }
