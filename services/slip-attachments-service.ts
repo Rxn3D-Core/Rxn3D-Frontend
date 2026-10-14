@@ -139,6 +139,10 @@ export const SLIP_ATTACHMENT_ALLOWED_EXTENSIONS = [
   "docx",
   "xls",
   "xlsx",
+  // Match backend UploadAttachmentRequest EXTRA_EXTENSIONS video allowlist.
+  "mp4",
+  "mov",
+  "avi",
 ] as const;
 
 export const SLIP_ATTACHMENT_ACCEPT =
