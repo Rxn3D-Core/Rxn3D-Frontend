@@ -105,6 +105,60 @@ export async function fetchConnectionsApi(
 export const DEFAULT_CONNECTIONS_PER_PAGE = 50
 export const DASHBOARD_CONNECTIONS_PER_PAGE = 10
 
+const DEFAULT_HOLD_REASON =
+  "Paused from dashboard — not receiving slips for this connection"
+
+function authJsonHeaders(): HeadersInit {
+  const token = typeof window === "undefined" ? null : localStorage.getItem("token")
+  const headers: HeadersInit = { "Content-Type": "application/json" }
+  if (token) headers.Authorization = `Bearer ${token}`
+  return headers
+}
+
+async function connectionMutation<T>(
+  endpoint: string,
+  method: "PUT" | "POST" | "DELETE",
+  body?: Record<string, unknown>
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method,
+    headers: authJsonHeaders(),
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("user")
+      localStorage.removeItem("token")
+      window.location.href = "/login"
+    }
+    throw new Error("Unauthorized")
+  }
+
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(
+      (json as { message?: string; error?: string }).message ||
+        (json as { error?: string }).error ||
+        `Request failed (${response.status})`
+    )
+  }
+  return json as T
+}
+
+/** PUT /connections/{id}/hold — pauses lab↔office link (slips require Active). */
+export async function holdConnectionApi(
+  connectionId: number,
+  reason: string = DEFAULT_HOLD_REASON
+): Promise<unknown> {
+  return connectionMutation(`/connections/${connectionId}/hold`, "PUT", { reason })
+}
+
+/** PUT /connections/{id}/resume — restores Active status. */
+export async function resumeConnectionApi(connectionId: number): Promise<unknown> {
+  return connectionMutation(`/connections/${connectionId}/resume`, "PUT")
+}
+
 /** Build pagination metadata when the API only returns total_connections. */
 export function normalizeConnectionsPagination(
   response: ConnectionsResponse,

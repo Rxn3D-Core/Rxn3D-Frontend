@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { MoreHorizontal, Mail, Trash2, CirclePause, EllipsisVertical, CircleOff, Search, Plus, LayoutDashboard } from "lucide-react"
+import { MoreHorizontal, Mail, Trash2, Search, Plus, LayoutDashboard } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { Skeleton } from "../ui/skeleton"
 import { Button } from "../ui/button"
@@ -499,17 +499,6 @@ export function SuperAdminDashboard() {
                             <span className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium ${getStatusBadgeClass(practice.status || '')}`}>
                               {getStatusLabel(practice.status || '')}
                             </span>
-                            <div className="flex items-center gap-1 sm:gap-2">
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-orange-500 hover:bg-orange-50 rounded-full transition-all">
-                                <CirclePause className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                                <CircleOff className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
-                                <EllipsisVertical className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                            </div>
                           </div>
                         </div>
                       );
@@ -717,17 +706,6 @@ export function SuperAdminDashboard() {
                             <span className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium ${getStatusBadgeClass(lab.status || '')}`}>
                               {getStatusLabel(lab.status || '')}
                             </span>
-                            <div className="flex items-center gap-1 sm:gap-2">
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-orange-500 hover:bg-orange-50 rounded-full transition-all">
-                                <CirclePause className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                                <CircleOff className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
-                                <EllipsisVertical className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                            </div>
                           </div>
                         </div>
                       );
@@ -910,17 +888,6 @@ export function SuperAdminDashboard() {
                       <span className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium ${getStatusBadgeClass(user.status)}`}>
                         {getStatusLabel(user.status)}
                       </span>
-                      <div className="flex items-center gap-1 sm:gap-2">
-                        <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-orange-500 hover:bg-orange-50 rounded-full transition-all">
-                          <CirclePause className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </button>
-                        <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                          <CircleOff className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </button>
-                        <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
-                          <EllipsisVertical className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </button>
-                      </div>
                     </div>
                   </div>
                 ))}
