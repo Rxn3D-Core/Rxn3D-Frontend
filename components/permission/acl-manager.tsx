@@ -99,78 +99,81 @@ export function ACLManager() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Shield className="h-5 w-5" />
+          <Shield className="h-5 w-5 text-[#1162a8]" />
           Permission catalog
         </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {scopeLabel} permissions from{" "}
-          <code className="text-xs">GET /users/permissions/available</code> ({totalCount}{" "}
-          shown). Use these keys in sidebar and guards.
+        <p className="text-sm text-gray-500 mt-1">
+          Browse available {scopeLabel.toLowerCase()} permissions ({totalCount} shown). This list is
+          read-only — assign access from User overrides or Roles.
         </p>
       </div>
 
-      <div className="flex flex-col space-y-6">
-            <div className="relative max-w-md">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-              <Input
-                placeholder="Search permissions or groups..."
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                Loading permission catalog...
-              </div>
-            ) : filteredGroups.length === 0 ? (
-              <p className="text-center text-muted-foreground py-12">No permissions found.</p>
-            ) : (
-              <div className="space-y-8">
-                {filteredGroups.map(([group, permissions]) => (
-                  <div key={group} className="space-y-3">
-                    <h3 className="text-sm font-semibold text-foreground border-b pb-2">
-                      {formatGroupLabel(group)}
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        ({permissions.length})
-                      </span>
-                    </h3>
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      {permissions.map((permission) => (
-                        <div
-                          key={permission}
-                          className="flex items-start gap-2 rounded-md border p-3 bg-muted/30"
-                        >
-                          <Checkbox
-                            id={permission}
-                            checked={labRoleBundle.includes(permission)}
-                            disabled
-                            className="mt-0.5"
-                          />
-                          <div className="min-w-0">
-                            <Label
-                              htmlFor={permission}
-                              className="text-sm font-medium leading-tight cursor-default"
-                            >
-                              {formatPermissionLabel(permission)}
-                            </Label>
-                            <p className="text-xs text-muted-foreground font-mono mt-0.5 break-all">
-                              {permission}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-200 bg-gray-50/60">
+          <div className="relative max-w-md">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              placeholder="Search permissions or groups..."
+              className="pl-8 bg-white"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
+        </div>
+
+        <div className="p-4 md:p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              Loading permission catalog...
+            </div>
+          ) : filteredGroups.length === 0 ? (
+            <p className="text-center text-muted-foreground py-12">No permissions found.</p>
+          ) : (
+            <div className="space-y-8">
+              {filteredGroups.map(([group, permissions]) => (
+                <div key={group} className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                    {formatGroupLabel(group)}
+                    <span className="ml-2 text-xs font-normal text-gray-500">
+                      ({permissions.length})
+                    </span>
+                  </h3>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {permissions.map((permission) => (
+                      <div
+                        key={permission}
+                        className="flex items-start gap-2 rounded-lg border border-gray-200 p-3 bg-white"
+                      >
+                        <Checkbox
+                          id={permission}
+                          checked={labRoleBundle.includes(permission)}
+                          disabled
+                          className="mt-0.5"
+                        />
+                        <div className="min-w-0">
+                          <Label
+                            htmlFor={permission}
+                            className="text-sm font-medium leading-tight cursor-default text-gray-900"
+                          >
+                            {formatPermissionLabel(permission)}
+                          </Label>
+                          <p className="text-xs text-gray-500 font-mono mt-0.5 break-all">
+                            {permission}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

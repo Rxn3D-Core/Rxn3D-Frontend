@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/contexts/auth-context"
+import { LoginAsUserDialog } from "@/components/login-as-user-dialog"
 
 interface User {
   id: number
@@ -48,13 +49,21 @@ export function OfficeUserDetail({ user, onBack }: OfficeUserDetailProps) {
   const [activeTab, setActiveTab] = useState<"details" | "activity">("details")
   const [searchTerm, setSearchTerm] = useState("")
   const [entriesPerPage, setEntriesPerPage] = useState("10")
-  const { impersonateUser } = useAuth()
-  const [isImpersonating, setIsImpersonating] = useState(false)
+  const { impersonateUser, isImpersonating, user: authUser } = useAuth()
+  const [loginAsOpen, setLoginAsOpen] = useState(false)
+  const [loginAsBusy, setLoginAsBusy] = useState(false)
+  const canLoginAsUser =
+    !isImpersonating &&
+    Array.isArray(authUser?.roles) &&
+    authUser.roles.includes("superadmin")
 
-  const handleViewAsUser = async () => {
-    setIsImpersonating(true)
-    await impersonateUser(user.id)
-    setIsImpersonating(false)
+  const handleLoginAsUser = async (reason: string) => {
+    setLoginAsBusy(true)
+    try {
+      return await impersonateUser(user.id, reason)
+    } finally {
+      setLoginAsBusy(false)
+    }
   }
 
   // Mock activity data for office users
@@ -164,24 +173,34 @@ export function OfficeUserDetail({ user, onBack }: OfficeUserDetailProps) {
             </div>
           </div>
 
-          <Button
-            variant="outline"
-            className="w-full mt-6 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white hover:bg-blue-700 hover:text-white"
-            onClick={handleViewAsUser}
-            disabled={isImpersonating}
-          >
-            {isImpersonating ? (
-              <span className="flex items-center gap-2">
-                <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Loading...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <Eye className="h-4 w-4" />
-                View as User
-              </span>
-            )}
-          </Button>
+          {canLoginAsUser ? (
+            <>
+              <Button
+                variant="outline"
+                className="w-full mt-6 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white hover:bg-blue-700 hover:text-white"
+                onClick={() => setLoginAsOpen(true)}
+                disabled={loginAsBusy}
+              >
+                {loginAsBusy ? (
+                  <span className="flex items-center gap-2">
+                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Starting...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Login as user
+                  </span>
+                )}
+              </Button>
+              <LoginAsUserDialog
+                open={loginAsOpen}
+                onOpenChange={setLoginAsOpen}
+                targetName={user.name}
+                onConfirm={handleLoginAsUser}
+              />
+            </>
+          ) : null}
         </div>
       </div>
 

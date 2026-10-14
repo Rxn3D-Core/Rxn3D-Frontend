@@ -1,7 +1,7 @@
 import withBundleAnalyzer from '@next/bundle-analyzer';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { CSP_CONNECT_SRC_EXTRA, CSP_FRAME_SRC, CSP_OBJECT_SRC, CSP_SCRIPT_SRC } from './lib/content-security-policy.js';
+import { CSP_CONNECT_SRC_EXTRA, CSP_FRAME_SRC, CSP_OBJECT_SRC, CSP_SCRIPT_SRC } from './lib/content-security-policy.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

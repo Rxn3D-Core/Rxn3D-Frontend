@@ -88,7 +88,9 @@ export default function AllOffice() {
   const searchParams = useSearchParams()
   const { user } = useAuth()
   const { toast } = useToast()
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = useState(() =>
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("q") ?? "" : ""
+  )
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedUser, setSelectedUser] = useState<SelectedOfficeCustomer | null>(null)
   const [showAddUser, setShowAddUser] = useState(false)

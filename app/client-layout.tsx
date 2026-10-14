@@ -17,7 +17,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [isRedirecting, setIsRedirecting] = useState(false)
   const [showContent, setShowContent] = useState(true)
   const { user } = useAuth()
-  const userRole = getPrimaryRole(user)
+  // Avoid fetching settings before auth hydrates (getPrimaryRole(null) === "user").
+  const userRole = user ? getPrimaryRole(user) : ""
   const userId = user?.id
   const customerId = getCustomerId(user)
   const { isEnabled, isLoading } = useDashboardSettings(userRole, userId, customerId)
