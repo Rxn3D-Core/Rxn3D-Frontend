@@ -14,9 +14,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, X, Settings, QrCode, Building2, Plus } from "lucide-react"
+import { X, Settings, Building2, Plus } from "lucide-react"
 import { searchSuperadminLabCustomers } from "@/lib/api/superadmin-customers"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
@@ -54,6 +53,7 @@ import { User as UserIcon } from "lucide-react"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
 import { HeaderWaffleLauncher } from "@/components/header-waffle-launcher"
+import { SuperadminHeaderSearch } from "@/components/superadmin-header-search"
 import { cn } from "@/lib/utils"
 import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { TrialBanner } from "@/components/billing/trial-banner"
@@ -1057,14 +1057,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               </div>
               {isSuperAdmin && (
                 <div className="hidden sm:block w-full max-w-md lg:max-w-lg xl:max-w-xl">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="search"
-                      placeholder={t("header.searchLab", "Search Lab")}
-                      className="w-full pl-10 pr-4 h-8 sm:h-9 md:h-10 text-sm border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8] focus:border-[#1162a8] dark:bg-gray-800 dark:border-gray-700"
-                    />
-                  </div>
+                  <SuperadminHeaderSearch />
                 </div>
               )}
             </div>

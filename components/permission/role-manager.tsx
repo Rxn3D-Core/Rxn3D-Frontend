@@ -170,28 +170,30 @@ export function RoleManager() {
   const scopeLabel = profileScopeLabel()
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Role permissions</h2>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h2 className="text-lg font-semibold text-gray-900">Roles</h2>
+        <p className="text-sm text-gray-500 mt-1">
           {isSuperadmin
-            ? "Superadmin can sync global role bundles via PUT /role-permissions/roles/{id}."
-            : `Per-lab templates for ${LAB_EDITABLE_ROLE_NAMES.join(" and ")} on this ${scopeLabel.toLowerCase()}. lab_admin is locked.`}
+            ? "Edit the default permission set for each system role. Changes apply globally for users with that role."
+            : `Customize permission templates for ${LAB_EDITABLE_ROLE_NAMES.map(formatRoleLabel).join(" and ")} on this ${scopeLabel.toLowerCase()}. Lab Admin stays locked.`}
         </p>
       </div>
 
-      <div className="flex flex-col space-y-4">
-        <div className="relative w-full md:w-1/3">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-          <Input
-            placeholder="Search roles..."
-            className="pl-8"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-200 bg-gray-50/60">
+          <div className="relative w-full md:max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              placeholder="Search roles..."
+              className="pl-8 bg-white"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="rounded-md border">
+        <div>
           {isLoading ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -264,14 +266,13 @@ export function RoleManager() {
             </Table>
           )}
         </div>
-
-        {!isSuperadmin && (
-          <p className="text-xs text-muted-foreground">
-            Catalog reference: {labRoleBundle.length} permissions in lab_role_bundle from{" "}
-            <code className="text-xs">GET /users/permissions/available</code>.
-          </p>
-        )}
       </div>
+
+      {!isSuperadmin && (
+        <p className="text-xs text-gray-500">
+          Reference catalog includes {labRoleBundle.length} lab permissions available for templates.
+        </p>
+      )}
 
       {editingRole && (
         <Dialog open onOpenChange={(open) => !open && setEditingRole(null)}>
@@ -279,11 +280,8 @@ export function RoleManager() {
             <DialogHeader>
               <DialogTitle>Edit {formatRoleLabel(editingRole.name)} template</DialogTitle>
               <DialogDescription>
-                Saves via{" "}
-                <code className="text-xs">
-                  PUT /customers/&#123;labId&#125;/roles/&#123;roleId&#125;/permissions
-                </code>
-                . Applies to all users with this role on this lab only.
+                Choose which permissions this role includes for your lab. Applies to everyone with
+                this role at this lab only.
               </DialogDescription>
             </DialogHeader>
             <PermissionAssignmentPanel
@@ -311,8 +309,7 @@ export function RoleManager() {
             <DialogHeader>
               <DialogTitle>Edit global role — {editingBackendRole.name}</DialogTitle>
               <DialogDescription>
-                Updates global permissions via{" "}
-                <code className="text-xs">PUT /role-permissions/roles/&#123;id&#125;</code>.
+                Updates the default permissions for this role across the platform.
               </DialogDescription>
             </DialogHeader>
             <PermissionAssignmentPanel

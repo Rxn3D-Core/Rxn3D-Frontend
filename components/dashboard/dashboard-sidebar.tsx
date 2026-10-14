@@ -23,7 +23,7 @@ import { useEntitlements } from "@/contexts/entitlement-context"
 import {
   getSlipListingProfileForPath,
   resetSlipListingPage,
-} from "@/lib/slip-listing-page"
+} from "@/lib/slip-listing-page" // listing page helpers
 
 
 interface DashboardSidebarProps {

@@ -22,9 +22,11 @@ export function clearSessionStorage(): void {
     "selectedLabId",
     "role",
     "labAdminHistory",
-    "originalUser", // for impersonation
-    "originalToken", // for impersonation
-    "isImpersonating", // for impersonation
+    "originalUser", // legacy impersonation keys
+    "originalToken",
+    "isImpersonating",
+    "impersonator_token",
+    "impersonator_user",
     "superadmin_lab_context",
     "superadmin_original_token",
   ]

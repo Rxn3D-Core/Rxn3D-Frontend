@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
-import { Edit, Globe, Mail, MapPin, Phone, Search, Filter } from "lucide-react"
+import { Edit, Eye, Globe, Mail, MapPin, Phone, Search, Filter } from "lucide-react"
+import { LoginAsUserDialog } from "@/components/login-as-user-dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { OperatingHoursTab } from "@/components/lab-administrator/lab-profile-operating-hours"
@@ -159,7 +160,7 @@ export function StaffUserDetail({
   officeAdmins = [],
   doctors = [],
 }: StaffUserDetailProps) {
-  const { fetchUserActivity } = useAuth()
+  const { fetchUserActivity, impersonateUser, isImpersonating, user: authUser } = useAuth()
   const isLabMode = mode === "lab"
   const isOfficeMode = mode === "office"
   const [activeTab, setActiveTab] = useState<"details" | "activity" | "lab_admins" | "office_admins" | "doctors" | "operating_hours" | "pickup_delivery">("details")
@@ -168,7 +169,15 @@ export function StaffUserDetail({
   const [activities, setActivities] = useState<Activity[]>([])
   const [isActivityLoading, setIsActivityLoading] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [loginAsOpen, setLoginAsOpen] = useState(false)
+  const [loginAsBusy, setLoginAsBusy] = useState(false)
   const [displayUser, setDisplayUser] = useState(user)
+  const canLoginAsUser =
+    !isLabMode &&
+    !isOfficeMode &&
+    !isImpersonating &&
+    Array.isArray(authUser?.roles) &&
+    authUser.roles.includes("superadmin")
   const sidebarPhone = (isLabMode || isOfficeMode)
     ? displayUser.phone || displayUser.contactNumber || "-"
     : displayUser.phone || "-"
@@ -324,11 +333,41 @@ export function StaffUserDetail({
             </Button>
           )}
 
-          {!isLabMode && !isOfficeMode && (
-            <Button variant="outline" className="w-full mt-6">
-              View as User
-            </Button>
-          )}
+          {canLoginAsUser ? (
+            <>
+              <Button
+                variant="outline"
+                className="w-full mt-6"
+                onClick={() => setLoginAsOpen(true)}
+                disabled={loginAsBusy}
+              >
+                {loginAsBusy ? (
+                  <span className="flex items-center gap-2">
+                    <div className="h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    Starting...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Login as user
+                  </span>
+                )}
+              </Button>
+              <LoginAsUserDialog
+                open={loginAsOpen}
+                onOpenChange={setLoginAsOpen}
+                targetName={displayUser.name}
+                onConfirm={async (reason) => {
+                  setLoginAsBusy(true)
+                  try {
+                    return await impersonateUser(user.id, reason)
+                  } finally {
+                    setLoginAsBusy(false)
+                  }
+                }}
+              />
+            </>
+          ) : null}
         </div>
       </div>
 

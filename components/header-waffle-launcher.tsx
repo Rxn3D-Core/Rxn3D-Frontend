@@ -21,7 +21,7 @@ import { useEntitlements } from "@/contexts/entitlement-context"
 import {
   getSlipListingProfileForPath,
   resetSlipListingPage,
-} from "@/lib/slip-listing-page"
+} from "@/lib/slip-listing-page" // listing page helpers
 
 const FALLBACK_ICONS: Record<string, React.ReactNode> = {
   "staff-management":    <Users className="h-5 w-5" />,

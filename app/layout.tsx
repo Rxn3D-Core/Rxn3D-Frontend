@@ -11,7 +11,7 @@ import ReactQueryProvider from '@/components/ReactQueryProvider'
 import { PerformanceMonitor } from '@/components/performance-monitor'
 import { OnboardingCheck } from '@/components/onboarding-check'
 import { AppFooter } from '@/components/app-footer'
-import '@/lib/fetch-interceptor' // Global fetch interceptor for 401 handling
+import { FetchInterceptorBootstrap } from "@/components/fetch-interceptor-bootstrap"
 import { inter, islandMoments, libreCaslonCondensed, windSong } from "@/lib/fonts"
 import { getSiteUrl } from "@/lib/site-url"
 
@@ -144,6 +144,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-[100dvh] bg-background font-sans antialiased" suppressHydrationWarning>
+        <FetchInterceptorBootstrap />
         <ReactQueryProvider>
           <RouteAwareProviders>
             <AccessibilityProvider>
