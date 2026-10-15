@@ -59,6 +59,7 @@ import {
   getRepToothForRemovableCard,
   listRemovableCardIdsOnArch,
 } from "../utils/archSharedRemovable";
+import { getPrimaryCardRepresentativeTooth } from "../utils/productSelectionReadiness";
 import {
   findArchProductDonor,
   findOppositeArchProductDonor,
@@ -2742,9 +2743,22 @@ export function useCaseDesignState(props: CaseDesignProps) {
         const card0Teeth =
           arch === "maxillary" ? getMaxillaryCard0Teeth() : getMandibularCard0Teeth();
         if (card0Teeth.length === 0) continue;
-        const repTooth = Math.min(...card0Teeth);
-        const product = toothFieldProgress.getToothProduct(arch, repTooth) ?? initialProductDetails;
-        autoPopulateDefaultAddons(arch, repTooth, product);
+        const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+        const selectedTeeth =
+          arch === "maxillary" ? teeth.maxillaryTeeth : teeth.mandibularTeeth ?? [];
+        // Prefer chart-selected rep (panel fields list), not accordion sentinel 1/17.
+        const repTooth =
+          getPrimaryCardRepresentativeTooth({
+            allTeeth,
+            selectedTeeth,
+            getToothProduct: toothFieldProgress.getToothProduct,
+            getToothProductCard: toothFieldProgress.getToothProductCard,
+            arch,
+          }) ?? Math.min(...card0Teeth);
+        const product =
+          toothFieldProgress.getToothProduct(arch, repTooth) ?? initialProductDetails;
+        const lookupTeeth = card0Teeth.filter((tn) => tn !== repTooth);
+        autoPopulateDefaultAddons(arch, repTooth, product, lookupTeeth);
       }
     }
   }, [
@@ -2755,6 +2769,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
     autoPopulateDefaultAddons,
     getMaxillaryCard0Teeth,
     getMandibularCard0Teeth,
+    teeth.maxillaryTeeth,
+    teeth.mandibularTeeth,
     toothFieldProgress.getToothProduct,
     toothFieldProgress.getToothProductCard,
   ]);
