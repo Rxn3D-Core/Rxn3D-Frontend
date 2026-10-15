@@ -87,3 +87,37 @@ export function getPrimaryCardRepresentativeTooth({
   const card0Teeth = candidateTeeth.filter((tooth) => getToothProductCard(arch, tooth) === 0);
   return card0Teeth.length > 0 ? Math.min(...card0Teeth) : null;
 }
+
+/**
+ * Tooth to store removable field progress for a card.
+ * Prefer chart-selected teeth (matches panel `cardTeeth[0]` / UI rep) over the
+ * accordion-only sentinel (1/17) that may also carry the product assignment.
+ */
+export function getCardFieldToothPreferSelected({
+  allTeeth,
+  selectedTeeth,
+  cardId,
+  getToothProduct,
+  getToothProductCard,
+  arch,
+}: {
+  allTeeth: number[];
+  selectedTeeth: number[];
+  cardId: number;
+  getToothProduct: GetToothProduct;
+  getToothProductCard: GetToothProductCard;
+  arch: Arch;
+}): number | null {
+  const selectedOnCard = selectedTeeth.filter(
+    (tooth) =>
+      getToothProductCard(arch, tooth) === cardId && !!getToothProduct(arch, tooth)
+  );
+  if (selectedOnCard.length > 0) return Math.min(...selectedOnCard);
+  return getCardRepresentativeTooth({
+    allTeeth,
+    cardId,
+    getToothProduct,
+    getToothProductCard,
+    arch,
+  });
+}

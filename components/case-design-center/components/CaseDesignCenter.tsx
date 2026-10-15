@@ -35,7 +35,7 @@ import {
   resolveProductForStageField,
 } from "../utils/gradeHelpers";
 import {
-  getCardRepresentativeTooth,
+  getCardFieldToothPreferSelected,
   getPrimaryCardRepresentativeTooth,
   getRepresentativeTeethByCard,
 } from "../utils/productSelectionReadiness";
@@ -445,7 +445,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const MAXILLARY_SENTINEL = 1;
   const MANDIBULAR_SENTINEL = 17;
 
-  /** Same tooth the accordion/readiness use for impression — not an unselected sentinel or wrong arch slot. */
+  /** Same tooth the accordion/fields list use — chart-selected rep, not accordion-only sentinel. */
   const resolveRemovableImpressionTooth = useCallback(
     (arch: "maxillary" | "mandibular", preferredTooth: number | null) => {
       const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
@@ -453,8 +453,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
       if (preferredTooth != null) {
         const cardId = state.getToothProductCard(arch, preferredTooth);
-        const fromCard = getCardRepresentativeTooth({
+        const fromCard = getCardFieldToothPreferSelected({
           allTeeth,
+          selectedTeeth,
           cardId,
           getToothProduct: state.getToothProduct,
           getToothProductCard: state.getToothProductCard,
@@ -1416,6 +1417,58 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     }
   }, [mandibularHasRemovablesCard0, card0RemovedArches.mandibular, assignCard0Sentinel]);
 
+  // Removable field steps used to land on the accordion sentinel (1/17) while the
+  // fields list uses the chart-selected rep (e.g. #8). Migrate so addons unlock.
+  useEffect(() => {
+    if (props.caseSubmitted) return;
+    for (const arch of ["maxillary", "mandibular"] as const) {
+      const sentinel = arch === "maxillary" ? MAXILLARY_SENTINEL : MANDIBULAR_SENTINEL;
+      const selectedTeeth = arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth;
+      const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const primary = getPrimaryCardRepresentativeTooth({
+        allTeeth,
+        selectedTeeth,
+        getToothProduct: state.getToothProduct,
+        getToothProductCard: state.getToothProductCard,
+        arch,
+      });
+      if (primary == null || primary === sentinel) continue;
+      for (const step of ["impression", "addons"] as const) {
+        if (state.isFieldCompleted(arch, primary, step)) continue;
+        const sentinelVal = state.getFieldValue(arch, sentinel, step);
+        if (!state.isFieldCompleted(arch, sentinel, step) || !sentinelVal?.trim()) continue;
+        state.completeFieldStep(arch, primary, step, sentinelVal);
+        state.uncompleteFieldStep(arch, sentinel, step);
+      }
+      const sentinelAddonKey = `${arch}_${sentinel}`;
+      const primaryAddonKey = `${arch}_${primary}`;
+      const sentinelStructured = state.selectedAddonsByTooth?.[sentinelAddonKey];
+      if (
+        sentinelStructured?.length &&
+        !state.selectedAddonsByTooth?.[primaryAddonKey]?.length
+      ) {
+        state.setSelectedAddonsByTooth((prev) => {
+          if (prev[primaryAddonKey]?.length) return prev;
+          const next = { ...prev, [primaryAddonKey]: sentinelStructured };
+          delete next[sentinelAddonKey];
+          return next;
+        });
+      }
+    }
+  }, [
+    props.caseSubmitted,
+    state.maxillaryTeeth,
+    state.mandibularTeeth,
+    state.selectedAddonsByTooth,
+    state.setSelectedAddonsByTooth,
+    state.getToothProduct,
+    state.getToothProductCard,
+    state.isFieldCompleted,
+    state.getFieldValue,
+    state.completeFieldStep,
+    state.uncompleteFieldStep,
+  ]);
+
   // ── Catch-up: assign product to card 0 teeth that have retention types but no product ──
   // This handles cases where teeth were clicked before the product was ready, or rapid clicks
   // caused some teeth to miss the fetchAndAssignProduct call in handleSelectRetentionType.
@@ -2375,9 +2428,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             props.initialArch === "both" &&
             isNonRetentionCategory(state.initialProductDetails)
           ) {
-            const card0 =
-              arch === "maxillary" ? state.getMaxillaryCard0Teeth() : state.getMandibularCard0Teeth();
-            if (card0.length > 0) toothNum = card0[0];
+            const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+            const selectedTeeth =
+              arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth;
+            const primary = getPrimaryCardRepresentativeTooth({
+              allTeeth,
+              selectedTeeth,
+              getToothProduct: state.getToothProduct,
+              getToothProductCard: state.getToothProductCard,
+              arch,
+            });
+            if (primary != null) toothNum = primary;
           }
 
           const addonLabels = addOns
