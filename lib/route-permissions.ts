@@ -6,7 +6,7 @@ export const ROUTE_PERMISSIONS = {
   officeProfile: ["view_office", "edit_office", "manage_office"],
   caseManagement: ["view_case_details_status", "submit_new_case", "edit_slip"],
   caseDesign: ["submit_new_case", "edit_slip"],
-  productLibrary: ["view_product", "create_product", "update_product", "delete_product"],
+  productLibrary: ["access_product_management"],
   businessSettings: ["view_business_setting", "update_business_setting"],
   dashboardSettings: ["manage_dashboard_settings"],
   slipSettings: ["manage_slip_settings"],
