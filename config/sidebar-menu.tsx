@@ -307,7 +307,7 @@ export const labAdminMenu: MenuItem[] = [
     title: "Product Management",
     icon: <Layers className="h-5 w-5" />,
     path: "/lab-product-library/products",
-    permission: ["view_product", "create_product", "update_product", "delete_product"],
+    permission: ["access_product_management"],
   },
   {
     id: "case-management",
