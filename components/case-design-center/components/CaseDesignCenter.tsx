@@ -793,7 +793,58 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ]
   );
 
-  /** Dual-grid impression modal (maxillary + mandibular sections). */
+  /** Product driving the open impression modal (tooth / removable / initial). */
+  const currentImpressionProduct = useMemo(() => {
+    const toothNum = state.currentImpressionToothNumber;
+    const arch = state.currentImpressionArch;
+    let product =
+      toothNum !== null ? state.getToothProduct(arch, toothNum) : null;
+    if (!product && state.currentImpressionProductId) {
+      const archKeys =
+        arch === "maxillary"
+          ? Object.keys(state.maxillaryRetentionTypes || {})
+          : Object.keys(state.mandibularRetentionTypes || {});
+      for (const k of archKeys) {
+        const p = state.getToothProduct(arch, Number(k));
+        if (p?.id?.toString() === state.currentImpressionProductId) {
+          product = p;
+          break;
+        }
+      }
+    }
+    if (
+      !product &&
+      state.initialProductDetails?.id?.toString() ===
+        state.currentImpressionProductId
+    ) {
+      product = state.initialProductDetails;
+    }
+    if (
+      !product &&
+      isNonRetentionCategory(state.initialProductDetails) &&
+      state.initialProductDetails &&
+      (state.initialProductDetails.id?.toString() ===
+        state.currentImpressionProductId ||
+        state.currentImpressionProductId === "0")
+    ) {
+      product = state.initialProductDetails;
+    }
+    return product;
+  }, [
+    state.currentImpressionToothNumber,
+    state.currentImpressionArch,
+    state.currentImpressionProductId,
+    state.getToothProduct,
+    state.maxillaryRetentionTypes,
+    state.mandibularRetentionTypes,
+    state.initialProductDetails,
+  ]);
+
+  /**
+   * Dual-grid impression modal (maxillary + mandibular sections).
+   * Must match when oppositeImpression="Yes" is passed to the modal so both
+   * grids share the product catalog (avoids empty opposing → mockImpressions).
+   */
   const impressionModalShowsDualArches = useMemo(() => {
     if (slipHasProductsOnBothArches) return true;
     if (
@@ -802,17 +853,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ) {
       return true;
     }
-    return (
+    if (
       props.initialArch !== "both" &&
       isNonRetentionCategory(state.initialProductDetails) &&
       initialProductHasOppositeSection &&
       isOppositeImpressionEnabled(state.initialProductDetails)
-    );
+    ) {
+      return true;
+    }
+    // Fixed / tooth product with opposing impression — same dual grid as removable.
+    return isOppositeImpressionEnabled(currentImpressionProduct);
   }, [
     slipHasProductsOnBothArches,
     props.initialArch,
     state.initialProductDetails,
     initialProductHasOppositeSection,
+    currentImpressionProduct,
   ]);
 
   const slipWideImpressionCatalog = useMemo(
@@ -892,15 +948,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           state.initialProductDetails,
           props.initialArch
         );
+    // Never show mock letter-cards on opposing when the primary product catalog exists.
+    const sharedFallback =
+      slipWideImpressionCatalog.length > 0
+        ? slipWideImpressionCatalog
+        : impressionModalCatalog;
     return buildImpressionModalOptions(
       opposingArch,
       state.selectedImpressions,
       catalog,
-      mockImpressions
+      mockImpressions,
+      sharedFallback
     );
   }, [
     impressionModalShowsDualArches,
     slipWideImpressionCatalog,
+    impressionModalCatalog,
     state.currentImpressionArch,
     state.getToothProduct,
     state.maxillaryRetentionTypes,
@@ -2278,59 +2341,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         impressionOptions={impressionModalOptions}
         oppositeImpressions={oppositeImpressionModalOptions}
         currentImpressionOppositeImpression={
-          (() => {
-            // Multi-product / mixed arch: always show both impression grids.
-            if (slipHasProductsOnBothArches) {
-              return "Yes";
-            }
-            // Removable + both arches: one dialog with maxillary and mandibular sections (no mirroring).
-            if (
-              props.initialArch === "both" &&
-              isNonRetentionCategory(state.initialProductDetails)
-            ) {
-              return "Yes";
-            }
-            // Single-arch removable with opposing scan: same dual-grid + Skip Opposing flow as primary product.
-            if (
-              props.initialArch !== "both" &&
-              isNonRetentionCategory(state.initialProductDetails) &&
-              initialProductHasOppositeSection &&
-              (() => {
-                const oi = state.initialProductDetails?.opposite_impression as unknown;
-                return oi === "Yes" || oi === true || oi === 1;
-              })()
-            ) {
-              return "Yes";
-            }
-            const toothNum = state.currentImpressionToothNumber;
-            const arch = state.currentImpressionArch;
-            if (toothNum === null) return undefined;
-            let product = state.getToothProduct(arch, toothNum);
-            if (!product && state.currentImpressionProductId) {
-              const archKeys = arch === "maxillary"
-                ? Object.keys(state.maxillaryRetentionTypes || {})
-                : Object.keys(state.mandibularRetentionTypes || {});
-              for (const k of archKeys) {
-                const p = state.getToothProduct(arch, Number(k));
-                if (p?.id?.toString() === state.currentImpressionProductId) { product = p; break; }
-              }
-            }
-            // Fallback to initialProductDetails for removable products (not stored in retentionTypes)
-            if (!product && state.initialProductDetails?.id?.toString() === state.currentImpressionProductId) {
-              product = state.initialProductDetails;
-            }
-            if (
-              !product &&
-              isNonRetentionCategory(state.initialProductDetails) &&
-              state.initialProductDetails &&
-              (state.initialProductDetails.id?.toString() === state.currentImpressionProductId ||
-                state.currentImpressionProductId === "0")
-            ) {
-              product = state.initialProductDetails;
-            }
-            const oi = product?.opposite_impression as unknown;
-            return (oi === "Yes" || oi === true || oi === 1) ? "Yes" : "No";
-          })()
+          impressionModalShowsDualArches
+            ? "Yes"
+            : state.currentImpressionToothNumber === null
+              ? undefined
+              : isOppositeImpressionEnabled(currentImpressionProduct)
+                ? "Yes"
+                : "No"
         }
         selectedImpressions={state.selectedImpressions}
         setSelectedImpressions={state.setSelectedImpressions}

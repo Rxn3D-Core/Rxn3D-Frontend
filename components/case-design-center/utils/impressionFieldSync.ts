@@ -120,6 +120,26 @@ export function collectImpressionCatalogForArch(
     }
   }
 
+  // Opposing jaw on a single-arch slip: reuse impressions from products on the treated arch
+  // (edit-slip tooth products often live only there; initialProductDetails may be empty).
+  if (initialArch != null && initialArch !== "both" && initialArch !== arch) {
+    const treatedArch = initialArch;
+    const treatedTeeth =
+      treatedArch === "maxillary" ? MAXILLARY_TEETH : MANDIBULAR_TEETH;
+    for (const tn of treatedTeeth) {
+      const product = getToothProduct(treatedArch, tn);
+      if (isOppositeImpressionEnabled(product)) addProduct(product);
+    }
+    for (const ap of addedProducts ?? []) {
+      if (ap.arch !== treatedArch) continue;
+      const product = ap.product as ProductApiData | null | undefined;
+      if (isOppositeImpressionEnabled(product)) {
+        addProduct(product);
+        if (ap.id) addProduct(getToothProduct(treatedArch, -ap.id));
+      }
+    }
+  }
+
   return [...seen.values()];
 }
 
@@ -170,11 +190,17 @@ export function buildImpressionModalOptions(
   arch: Arch,
   selectedImpressions: SlipImpressionSelections,
   catalog: ImpressionOptionForModal[],
-  mockFallback: ImpressionOptionForModal[]
+  mockFallback: ImpressionOptionForModal[],
+  /** Prefer this over mocks when the arch catalog is empty (e.g. opposing jaw). */
+  sharedCatalogFallback?: ImpressionOptionForModal[]
 ): ImpressionOptionForModal[] {
-  // Prefer the product catalog; when the opposing arch has none yet, keep the
-  // full mock list so selecting a card does not collapse the grid to one item.
-  const baseCatalog = catalog.length > 0 ? catalog : mockFallback;
+  // Prefer the product catalog; then a shared slip catalog; mocks only as last resort.
+  const baseCatalog =
+    catalog.length > 0
+      ? catalog
+      : sharedCatalogFallback && sharedCatalogFallback.length > 0
+        ? sharedCatalogFallback
+        : mockFallback;
   return mergeCatalogWithArchSelections(
     baseCatalog,
     selectedImpressions[arch]
