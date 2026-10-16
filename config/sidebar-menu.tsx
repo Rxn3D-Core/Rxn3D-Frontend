@@ -100,6 +100,12 @@ export const superadminMenu: MenuItem[] = [
       },
     ],
   },
+  {
+    id: "beta-features",
+    title: "Beta Features",
+    icon: <FlaskConical className="h-5 w-5" />,
+    path: "/beta-features",
+  },
   // Hidden until these modules are ready:
   // {
   //   id: "performance-management",

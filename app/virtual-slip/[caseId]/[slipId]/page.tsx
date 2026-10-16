@@ -991,6 +991,7 @@ export default function VirtualSlipV2Page() {
           slipNumber={vm.header.slipNumber}
           caseNumber={vm.header.caseNumber}
           patientName={vm.header.patientName}
+          doctorName={vm.header.doctorName}
           stageLabel={stageSeeds[0]?.label}
           deliveryDateDisplay={slipDeliveryDates.dueDate}
           deliveryTimeDisplay={vm.header.deliveryTime}

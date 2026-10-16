@@ -468,7 +468,12 @@ export default function LabSlipPage() {
     }
   }
 
-  const handleConfirmRushCase = async (rushData: { targetDate?: string | null }) => {
+  const handleConfirmRushCase = async (rushData: {
+    targetDate?: string | null
+    isOverride?: boolean
+    rushFee?: number
+    rushPercentage?: number
+  }) => {
     if (!selectedSlipForRush?.id) return
     if (!rushData?.targetDate) {
       toast({
@@ -482,6 +487,13 @@ export default function LabSlipPage() {
     try {
       await requestSlipRush(selectedSlipForRush.id, {
         requested_delivery_date: rushData.targetDate,
+        ...(rushData.isOverride
+          ? {
+              is_override: true,
+              rush_fee: rushData.rushFee,
+              rush_percentage: rushData.rushPercentage,
+            }
+          : {}),
       })
       toast({
         title: "Rush case updated",

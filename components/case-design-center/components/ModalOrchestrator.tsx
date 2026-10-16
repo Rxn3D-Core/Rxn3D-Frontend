@@ -598,6 +598,9 @@ export function ModalOrchestrator({
             mirrorRushAcrossArches={rushSlotsShareProduct(rushArchSlots)}
             rushCaseSchedule={rushCaseSchedule}
             labBusinessHours={labBusinessHours}
+            caseId={attachmentCaseId}
+            patientName={attachmentPatientName}
+            doctorName={attachmentDoctorName}
             product={{
               name: primarySlot?.productName ?? "Product",
               stage: "",
