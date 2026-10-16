@@ -119,6 +119,7 @@ import {
 import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
+  resolveRemovableProgressTooth,
 } from "../utils/resolveAddedCardProduct";
 import {
   resolveActiveAddedProductOnArch,
@@ -1148,6 +1149,7 @@ export function MaxillaryPanel({
     isExtractionsSetupComplete,
     setExtractionsSetupComplete,
     areRemovableFieldsUnlocked,
+    areFixedFieldsUnlocked,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
   } = useExtractionsAcknowledged("maxillary", preloadInitialSlipState, addedProducts);
@@ -2884,14 +2886,35 @@ export function MaxillaryPanel({
                   apRepTn,
                   hasRetentionOptions(apProduct)
                 );
+                const apHeaderStageTn = hasRetentionOptions(apProduct)
+                  ? cardTeeth.length > 0
+                    ? resolveGroupStageToothNumber(
+                        cardTeeth,
+                        "maxillary",
+                        getRetentionFieldChain(
+                          getProductAdvanceFieldsForSlip(apProduct),
+                          apProduct
+                        ),
+                        isFieldCompleted,
+                        getFieldValue
+                      )
+                    : apRepTn
+                  : resolveRemovableProgressTooth(
+                      cardTeeth,
+                      "maxillary",
+                      ap.id,
+                      isFieldCompleted,
+                      getFieldValue,
+                      selectedStages
+                    );
                 const apStageKey = hasRetentionOptions(apProduct)
-                  ? `maxillary_fixed_${apRepTn}`
-                  : `maxillary_prep_${apRepTn}`;
+                  ? `maxillary_fixed_${apHeaderStageTn}`
+                  : `maxillary_prep_${apHeaderStageTn}`;
                 const apStageVal =
                   selectedStages[apStageKey] ||
                   getFieldValue(
                     "maxillary",
-                    apRepTn,
+                    apHeaderStageTn,
                     hasRetentionOptions(apProduct) ? "fixed_stage" : "stage"
                   ) ||
                   "";
@@ -3241,11 +3264,24 @@ export function MaxillaryPanel({
                         getToothProduct,
                         "maxillary"
                       );
+                      // Keep the tooth that already has stage/grade when a lower tooth is added
+                      const fieldTn = isCardRemovables
+                        ? resolveRemovableProgressTooth(
+                            cardTeeth,
+                            "maxillary",
+                            ap.id,
+                            isFieldCompleted,
+                            getFieldValue,
+                            selectedStages
+                          )
+                        : repTn;
                       const toothProduct =
-                        getToothProduct("maxillary", repTn) ?? apProduct;
+                        getToothProduct("maxillary", fieldTn) ??
+                        getToothProduct("maxillary", repTn) ??
+                        apProduct;
 
                       if (isCardRemovables) {
-                        const productKey = `maxillary_prep_${repTn}`;
+                        const productKey = `maxillary_prep_${fieldTn}`;
                         const apShowRemovableFields = useMaxillaryArchSharedRemovable
                           ? maxillaryArchExtractionsReady ||
                             areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
@@ -3267,20 +3303,26 @@ export function MaxillaryPanel({
                           getToothProduct
                         );
                         const singleStageSkip = shouldSkipStageSelection(stageProduct);
-                        const fieldTeeth = cardTeeth.length > 0 ? cardTeeth : [repTn];
+                        const fieldTeeth = cardTeeth.length > 0 ? cardTeeth : [fieldTn];
+                        const stageAlreadyOnCard =
+                          !!selectedStages[productKey] ||
+                          isFieldCompleted("maxillary", fieldTn, "stage") ||
+                          fieldTeeth.some(
+                            (tn) =>
+                              !!selectedStages[`maxillary_prep_${tn}`] ||
+                              isFieldCompleted("maxillary", tn, "stage") ||
+                              !!getFieldValue("maxillary", tn, "stage")?.trim()
+                          );
                         return (
                           <>
-                            {!singleStageSkip && (
+                            {!singleStageSkip && !stageAlreadyOnCard && (
                               <AutoOpenStageIfEmpty
                                 productId={productKey}
                                 arch="maxillary"
-                                toothNumber={repTn}
+                                toothNumber={fieldTn}
                                 isExpanded={isExpanded && apShowRemovableFields}
                                 isStageVisible={hasAdvanceField("stage", toothProduct?.advance_fields, toothProduct ?? undefined)}
-                                isStageEmpty={
-                                  !isFieldCompleted("maxillary", repTn, "stage") &&
-                                  !(selectedStages[productKey])
-                                }
+                                isStageEmpty={!stageAlreadyOnCard}
                                 onOpenStage={handleOpenStageModal}
                                 caseSubmitted={caseSubmitted}
                               />
@@ -3295,7 +3337,7 @@ export function MaxillaryPanel({
                               arch="maxillary"
                               labCustomerId={labCustomerId}
                               productCardId={ap.id}
-                              firstToothNumber={repTn}
+                              firstToothNumber={fieldTn}
                               selectedProduct={toothProduct ?? apProduct}
                               toothNumbers={fieldTeeth}
                               caseSubmitted={caseSubmitted}
@@ -3344,7 +3386,19 @@ export function MaxillaryPanel({
                       const apToothProduct =
                         getToothProduct("maxillary", apFirstTn) ?? apProduct;
                       const apRetentionTypes = cardTeeth.flatMap(tn => maxillaryRetentionTypes[tn] || []);
-                      const apGroupStageProductIdFixed = `maxillary_fixed_${apFirstTn}`;
+                      // Same as card 0: keep the tooth that already has progress when chart changes
+                      const apFixedChainForStage = getRetentionFieldChain(
+                        getProductAdvanceFieldsForSlip(apToothProduct),
+                        apToothProduct
+                      );
+                      const apStageTn = resolveGroupStageToothNumber(
+                        cardTeeth,
+                        "maxillary",
+                        apFixedChainForStage,
+                        isFieldCompleted,
+                        getFieldValue
+                      );
+                      const apGroupStageProductIdFixed = `maxillary_fixed_${apStageTn}`;
                       // Shared with card 0 — see utils/fixedCardGating.ts
                       const apGating = resolveFixedCardGating({
                         arch: "maxillary",
@@ -3352,7 +3406,7 @@ export function MaxillaryPanel({
                         cardProduct: apProduct,
                         cardId: ap.id,
                         toothNumbers: cardTeeth,
-                        stageToothNumber: apFirstTn,
+                        stageToothNumber: apStageTn,
                         caseSubmitted,
                         isAnyModalOpen,
                         openShadeFieldType: shadeSelectionState.fieldType,
@@ -3362,6 +3416,7 @@ export function MaxillaryPanel({
                         getFieldValue,
                         isFieldVisible,
                         isFixedRetentionSetupComplete,
+                        areFixedFieldsUnlocked,
                       });
                       const apFixedChain = apGating.fixedChain;
                       const apIsFixed = apGating.isFixedStep;
@@ -3388,11 +3443,11 @@ export function MaxillaryPanel({
                               onOpenStage={handleOpenStageModal}
                               stageProductId={apGroupStageProductIdFixed}
                               arch="maxillary"
-                              stageToothNumber={apFirstTn}
+                              stageToothNumber={apStageTn}
                               usesAccordionShadePicker={apUsesAccordionShadePicker}
                               firstMissingShadeField={apFirstMissingShadeField}
                               fixedShadeProductId={apFixedShadeProductId}
-                              storageToothNumber={apFirstTn}
+                              storageToothNumber={apStageTn}
                               setShadeSelectionState={setShadeSelectionState}
                               isLegacyShadeSectionVisible={
                                 apIsFixed("fixed_stump_shade") || apIsFixed("fixed_shade_trio")
@@ -3415,7 +3470,7 @@ export function MaxillaryPanel({
                             <AutoOpenStageIfEmpty
                               productId={apGroupStageProductIdFixed}
                               arch="maxillary"
-                              toothNumber={apFirstTn}
+                              toothNumber={apStageTn}
                               isExpanded={isExpanded}
                               isStageVisible={apGating.stageVisible}
                               isStageEmpty={apGating.stageEmpty}
@@ -3433,7 +3488,7 @@ export function MaxillaryPanel({
                             stumpShadeEmpty={apNeedsStumpShade && !getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")}
                             toothShadeEmpty={apNeedsToothShade && !getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade")}
                             firstMissingShadeField={apFirstMissingShadeField}
-                            storageToothNumber={apFirstTn}
+                            storageToothNumber={apStageTn}
                             setShadeSelectionState={setShadeSelectionState}
                             caseSubmitted={caseSubmitted}
                             skipAutoOpen={apUsesAccordionShadePicker || apFixedShadesComplete || apGating.gradeIncomplete}
@@ -3443,7 +3498,7 @@ export function MaxillaryPanel({
                             hasValue={apGating.gumAutoOpenHasValue}
                             onOpen={() =>
                               setPanelGumShadePicker({
-                                toothNumber: apFirstTn,
+                                toothNumber: apStageTn,
                                 gumShades: apToothProduct?.gum_shades || [],
                                 stepOverride: "fixed_stump_shade",
                               })
@@ -3453,8 +3508,8 @@ export function MaxillaryPanel({
                             arch="maxillary"
                             productCardId={ap.id}
                             isExpanded={isExpanded}
-                            firstToothNumber={apFirstTn}
-                            groupStageToothNumber={apFirstTn}
+                            firstToothNumber={apStageTn}
+                            groupStageToothNumber={apStageTn}
                             groupStageProductIdFixed={apGroupStageProductIdFixed}
                             labCustomerId={labCustomerId}
                             selectedProduct={apToothProduct}
@@ -3655,6 +3710,7 @@ export function MaxillaryPanel({
                   getFieldValue,
                   isFieldVisible,
                   isFixedRetentionSetupComplete,
+                  areFixedFieldsUnlocked,
                 });
                 const isFixed = card0Gating.isFixedStep;
                 const _fixedShadeProductId = card0Gating.fixedShadeProductId;
@@ -3680,9 +3736,11 @@ export function MaxillaryPanel({
                 );
                 // Guided both-arch flow: keep the "Done" acknowledgement (card0ShowFixedFields)
                 // intact for the header, but suppress the field *content* until this arch's
-                // fields phase is reached.
+                // fields phase is reached. Sticky unlock keeps fields mounted when Done is
+                // reset so tooth-chart edits do not remount and re-prompt stage/grade.
                 const card0ShowFixedFieldsContent =
-                  card0ShowFixedFields && !guidedHideCard0Fields;
+                  (card0ShowFixedFields || areFixedFieldsUnlocked(0)) &&
+                  !guidedHideCard0Fields;
                 // Auto-open gate — identical to the added-product cards, so a card 0 whose
                 // product is mid-hydration can't jump ahead of its own Done button either.
                 const card0AutoOpenReady =
@@ -4327,7 +4385,14 @@ export function MaxillaryPanel({
                   }
                 >
                   {(() => {
-                    const repTn = cardTeeth[0];
+                    const repTn = resolveRemovableProgressTooth(
+                      cardTeeth,
+                      "maxillary",
+                      0,
+                      isFieldCompleted,
+                      getFieldValue,
+                      selectedStages
+                    );
                     const toothProduct = getCardToothProduct(repTn);
                     const advFields = getProductAdvanceFieldsForSlip(toothProduct);
                     const removableChain = getSelectionFieldChain(toothProduct);
@@ -4338,7 +4403,17 @@ export function MaxillaryPanel({
                     const fVal = (step: string) => getFieldValue("maxillary", repTn, step as any);
                     const productKey = `maxillary_prep_${repTn}`;
                     const impressionModalProductId = "0";
-                    const stageVal = fVal("stage") || selectedStages[productKey] || "";
+                    const stageVal =
+                      fVal("stage") ||
+                      selectedStages[productKey] ||
+                      cardTeeth
+                        .map(
+                          (tn) =>
+                            selectedStages[`maxillary_prep_${tn}`] ||
+                            getFieldValue("maxillary", tn, "stage")
+                        )
+                        .find((v) => !!v?.trim()) ||
+                      "";
                     const singleStageSkip = shouldSkipStageSelection(
                       resolveProductForStageField(toothProduct, "maxillary", getToothProduct)
                     );

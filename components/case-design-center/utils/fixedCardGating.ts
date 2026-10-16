@@ -78,6 +78,11 @@ export interface FixedCardGatingInput {
     caseSubmitted?: boolean,
     cardId?: number
   ) => boolean;
+  /**
+   * Sticky unlock after first Done / preload — fields stay visible when the user
+   * resets Done to re-edit the tooth chart (mirrors removable areRemovableFieldsUnlocked).
+   */
+  areFixedFieldsUnlocked?: (cardId: number) => boolean;
 }
 
 export interface FixedCardGating {
@@ -144,6 +149,7 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
     getFieldValue,
     isFieldVisible,
     isFixedRetentionSetupComplete,
+    areFixedFieldsUnlocked,
   } = input;
   const shadeToothNumber = input.shadeToothNumber ?? stageToothNumber;
 
@@ -282,8 +288,10 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
   // isFixedRetentionSetupComplete answers "true" for a null product ("nothing to
   // acknowledge"), so a card whose details are still loading would unlock the field
   // chain and auto-open stage/grade before the Done button has even rendered.
+  // Sticky unlock keeps fields mounted when Done is reset to re-edit the tooth chart.
   const retentionFieldsVisible =
-    isFixedRetentionSetupComplete(cardProduct, caseSubmitted, cardId) &&
+    (isFixedRetentionSetupComplete(cardProduct, caseSubmitted, cardId) ||
+      areFixedFieldsUnlocked?.(cardId) === true) &&
     (caseSubmitted || (!!cardProduct && toothNumbers.length > 0));
 
   const stageVisible = !isSingleStageNoStages(product) && isFixedStep("fixed_stage");

@@ -5,6 +5,7 @@ import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
   resolveCardFieldValue,
+  resolveRemovableProgressTooth,
 } from "./resolveAddedCardProduct.ts";
 
 test("resolveAddedCardRepTooth uses virtual slot when card has no teeth", () => {
@@ -52,6 +53,23 @@ test("resolveAddedCardProductData falls back to virtual slot", () => {
   );
   assert.equal(p?.id, 99);
   assert.equal(p?.advance_fields?.length, 1);
+});
+
+test("resolveRemovableProgressTooth keeps tooth that already has stage when lower tooth joins", () => {
+  const values = new Map([
+    [25, { stage: "Final" }],
+    [20, {}],
+  ]);
+  const completed = new Map([[25, new Set(["stage"])]]);
+  const tn = resolveRemovableProgressTooth(
+    [20, 25, 27, 28],
+    "mandibular",
+    3,
+    (_arch, tooth, step) => completed.get(tooth)?.has(step) === true,
+    (_arch, tooth, step) => values.get(tooth)?.[step] ?? "",
+    { mandibular_prep_25: "Final" }
+  );
+  assert.equal(tn, 25);
 });
 
 test("resolveCardFieldValue finds stage on virtual slot when rep tooth is empty", () => {

@@ -18,6 +18,16 @@ export function isHydratedProductApiData(
   return false;
 }
 
+/** Removable steps whose progress should keep the field tooth stable when the chart changes. */
+const REMOVABLE_PROGRESS_STEPS: FieldStep[] = [
+  "stage",
+  "grade",
+  "impression",
+  "teeth_shade",
+  "gum_shade",
+  "addons",
+];
+
 /** Tooth number used for field progress / shade keys on an added-product card. */
 export function resolveAddedCardRepTooth(
   cardTeeth: readonly number[],
@@ -30,6 +40,32 @@ export function resolveAddedCardRepTooth(
     return withProduct ?? Math.min(...cardTeeth);
   }
   return -cardId;
+}
+
+/**
+ * Stable tooth for removable stage/grade/impression fields.
+ * Keeps the tooth that already has progress when a lower-numbered tooth joins the card
+ * (add-new-stage / edit-slip tooth-chart edits must not orphan saved stage).
+ */
+export function resolveRemovableProgressTooth(
+  cardTeeth: readonly number[],
+  arch: Arch,
+  cardId: number,
+  isFieldCompleted: (arch: Arch, toothNumber: number, step: FieldStep) => boolean,
+  getFieldValue: (arch: Arch, toothNumber: number, step: FieldStep) => string,
+  selectedStages?: Record<string, string>
+): number {
+  const sorted = [...cardTeeth].sort((a, b) => a - b);
+  if (sorted.length === 0) return -cardId;
+  const withProgress = sorted.find((tn) => {
+    if (selectedStages?.[`${arch}_prep_${tn}`]?.trim()) return true;
+    return REMOVABLE_PROGRESS_STEPS.some((step) => {
+      return (
+        isFieldCompleted(arch, tn, step) || !!getFieldValue(arch, tn, step)?.trim()
+      );
+    });
+  });
+  return withProgress ?? sorted[0];
 }
 
 /** First loaded product on any tooth in the card, else virtual slot (-cardId), else stub. */
