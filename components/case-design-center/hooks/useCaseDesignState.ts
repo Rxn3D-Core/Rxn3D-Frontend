@@ -2338,6 +2338,79 @@ export function useCaseDesignState(props: CaseDesignProps) {
   );
 
   /**
+   * Copy removable stage/grade/shade/impression from an existing tooth on the same card
+   * onto a newly added tooth. Prevents add-new-stage / edit-slip tooth-chart edits from
+   * orphaning saved fields when the representative (min) tooth changes.
+   */
+  const copyRemovableProgressFromCardSiblings = useCallback(
+    (arch: Arch, cardId: number, targetTooth: number) => {
+      const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const siblings = allTeeth.filter(
+        (tn) =>
+          tn !== targetTooth &&
+          toothFieldProgress.getToothProductCard(arch, tn) === cardId
+      );
+      if (siblings.length === 0) return;
+
+      const donor =
+        siblings.find((tn) =>
+          [...REMOVABLE_MIRROR_STEPS].some(
+            (step) =>
+              toothFieldProgress.isFieldCompleted(arch, tn, step as FieldStep) ||
+              !!toothFieldProgress.getFieldValue(arch, tn, step as FieldStep)?.trim()
+          )
+        ) ??
+        siblings.find((tn) => modals.selectedStages[`${arch}_prep_${tn}`]) ??
+        null;
+      if (donor == null) return;
+
+      for (const step of REMOVABLE_MIRROR_STEPS) {
+        const fieldStep = step as FieldStep;
+        const targetCompleted = toothFieldProgress.isFieldCompleted(arch, targetTooth, fieldStep);
+        const targetValue = toothFieldProgress.getFieldValue(arch, targetTooth, fieldStep);
+        if (targetCompleted || targetValue) continue;
+
+        const sourceValue = toothFieldProgress.getFieldValue(arch, donor, fieldStep);
+        const sourceCompleted = toothFieldProgress.isFieldCompleted(arch, donor, fieldStep);
+        if (sourceCompleted) {
+          toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, sourceValue || "");
+        } else if (sourceValue) {
+          toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, sourceValue);
+        }
+      }
+
+      const donorStageKey = `${arch}_prep_${donor}`;
+      const targetStageKey = `${arch}_prep_${targetTooth}`;
+      const donorStage = modals.selectedStages[donorStageKey];
+      if (donorStage && !modals.selectedStages[targetStageKey]) {
+        modals.setSelectedStages((prev) => ({ ...prev, [targetStageKey]: donorStage }));
+      }
+
+      const donorAddonKey = `${arch}_${donor}`;
+      const targetAddonKey = `${arch}_${targetTooth}`;
+      if (
+        selectedAddonsByTooth[donorAddonKey]?.length &&
+        !selectedAddonsByTooth[targetAddonKey]?.length
+      ) {
+        setSelectedAddonsByTooth((prev) => ({
+          ...prev,
+          [targetAddonKey]: [...(prev[donorAddonKey] ?? [])],
+        }));
+      }
+    },
+    [
+      MAXILLARY_ALL,
+      MANDIBULAR_ALL,
+      REMOVABLE_MIRROR_STEPS,
+      modals.selectedStages,
+      modals.setSelectedStages,
+      selectedAddonsByTooth,
+      setSelectedAddonsByTooth,
+      toothFieldProgress,
+    ]
+  );
+
+  /**
    * When a removable added product had values mirrored while still on virtual slot (-cardId),
    * copy those values to its first real tooth as soon as the user assigns one.
    * Keeps "derive from previous product" behavior even when product 2 is added later.
@@ -2787,7 +2860,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (target.cardId !== 0) {
         if (isRemovableActive) {
           migrateRemovableVirtualProgressToTooth(arch, target.cardId, toothNumber);
+          // Same-card siblings already hold stage/grade — copy before rep tooth can change.
+          copyRemovableProgressFromCardSiblings(arch, target.cardId, toothNumber);
           void fetchAndAssignProduct(arch, toothNumber, target.productId).then(() => {
+            copyRemovableProgressFromCardSiblings(arch, target.cardId, toothNumber);
             backfillRemovableFromExistingCard(arch, target.cardId, toothNumber);
             backfillRemovableFromOppositeArch(arch, toothNumber);
           });
@@ -2797,9 +2873,14 @@ export function useCaseDesignState(props: CaseDesignProps) {
         return;
       }
 
-      // Card 0 assign path — unchanged behavior when target is card 0.
+      // Card 0 assign path — copy sibling progress on removable so adding a lower
+      // tooth does not orphan the stage key stored on the previous rep tooth.
+      if (isRemovableActive) {
+        copyRemovableProgressFromCardSiblings(arch, 0, toothNumber);
+      }
       void fetchAndAssignProduct(arch, toothNumber, target.productId).then(() => {
         if (isRemovableActive) {
+          copyRemovableProgressFromCardSiblings(arch, 0, toothNumber);
           backfillRemovableFromOppositeArch(arch, toothNumber);
         }
       });
@@ -2809,6 +2890,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       fetchAndAssignProduct,
       backfillRemovableFromExistingCard,
       backfillRemovableFromOppositeArch,
+      copyRemovableProgressFromCardSiblings,
       migrateRemovableVirtualProgressToTooth,
       toothFieldProgress,
     ]
@@ -3080,8 +3162,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
           fetchAndAssignProduct(arch, toothNumber, targetProductId);
         }
 
-        // Migrate Fixed Restoration stage key if the new tooth becomes the new min
-        // (e.g. adding tooth #7 to an existing group [#8, #9] changes min from 8 to 7)
+        // Keep shade keys product-scoped. Do NOT migrate stage/field progress on select:
+        // changing retention on the existing min tooth made priorSiblings' Math.min look like
+        // a "new min" and wiped sibling ownership + staged fields. UI already keeps the
+        // tooth that has progress via resolveGroupStageToothNumber when a lower tooth joins.
         const retTypes = arch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
         const targetProduct = targetProductId ? cachedProductRef.current.get(targetProductId) : undefined;
         if (hasRetentionOptions(targetProduct) && targetProduct?.id) {
@@ -3095,16 +3179,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
             const stableShadeId = buildFixedShadeProductId(targetProduct.id);
             for (const tn of siblingTeeth) {
               shades.migrateFixedShadeProductId(`fixed_${tn}`, stableShadeId, arch);
-            }
-            const priorSiblings = siblingTeeth.filter((tn) => tn !== toothNumber);
-            if (priorSiblings.length > 0) {
-              const oldMin = Math.min(...priorSiblings);
-              const newMin = Math.min(...siblingTeeth);
-              if (newMin !== oldMin) {
-                const prefix = `${arch}_fixed_`;
-                modals.migrateStageKey(`${prefix}${oldMin}`, `${prefix}${newMin}`);
-                toothFieldProgress.migrateToothProgress(arch, oldMin, newMin);
-              }
             }
           }
         }

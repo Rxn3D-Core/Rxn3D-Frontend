@@ -114,12 +114,31 @@ export function useExtractionsAcknowledged(
     [arch, acknowledgedByCard, isPreloadedCard]
   );
 
+  /**
+   * Sticky unlock for fixed stage/grade/shade/impression. Once Done is clicked
+   * (or the card was preloaded), fields stay visible even if Done is later reset
+   * so the user can edit the tooth chart — avoids remounting and re-prompting.
+   */
+  const areFixedFieldsUnlocked = useCallback(
+    (cardId: number) => {
+      if (isPreloadedCard(cardId)) return true;
+      return fieldsUnlockedByCard[fixedRetentionAckKey(arch, cardId)] === true;
+    },
+    [arch, fieldsUnlockedByCard, isPreloadedCard]
+  );
+
   const setFixedRetentionSetupComplete = useCallback(
     (value: boolean, cardId = 0) => {
+      const key = fixedRetentionAckKey(arch, cardId);
       setAcknowledgedByCard((prev) => ({
         ...prev,
-        [fixedRetentionAckKey(arch, cardId)]: value,
+        [key]: value,
       }));
+      if (value) {
+        setFieldsUnlockedByCard((prev) =>
+          prev[key] === true ? prev : { ...prev, [key]: true }
+        );
+      }
     },
     [arch]
   );
@@ -128,6 +147,7 @@ export function useExtractionsAcknowledged(
     isExtractionsSetupComplete,
     setExtractionsSetupComplete,
     areRemovableFieldsUnlocked,
+    areFixedFieldsUnlocked,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
   };
