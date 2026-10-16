@@ -1,0 +1,310 @@
+diff --git a/components/case-design-center/components/RemovableRestorationFields.tsx b/components/case-design-center/components/RemovableRestorationFields.tsx
+index 22e409b..1b5cf54 100644
+--- a/components/case-design-center/components/RemovableRestorationFields.tsx
++++ b/components/case-design-center/components/RemovableRestorationFields.tsx
+@@ -44,6 +44,12 @@ import {
+ } from "../utils/abutmentAddonSync";
+ import { useCaseDesignStore } from "@/stores/caseDesignStore";
+ import { getProductAdvanceFieldsForSlip } from "../utils/advanceFieldStepHelpers";
++import {
++  isRemovableCardFieldVisible,
++  isRemovableCardStepComplete,
++  resolveCardFieldValue,
++  resolveCardImpressionText,
++} from "../utils/resolveAddedCardProduct";
+ import type { SlipImpressionSelections } from "../utils/impressionStorage";
+ import {
+   ARCH_IMPRESSION_PRODUCT_ID,
+@@ -626,7 +632,6 @@ export function SelectionProductFields({
+   implantDetailByTooth,
+   setImplantDetailByTooth,
+   isExpanded,
+-  isFieldVisible: isFieldVisibleFn,
+   isFieldCompleted: isFieldCompletedFn,
+   getFieldValue: getFieldValueFn,
+   completeFieldStep: completeFieldStepFn,
+@@ -683,11 +688,21 @@ export function SelectionProductFields({
+     );
+   }, [arch, selectedProduct?.id, getToothProduct, getFieldValueFn]);
+ 
++  // "No Impression" is saved as text on whichever card tooth received the impression, which
++  // is not always `firstToothNumber` — read it across the card or the box renders empty.
++  const cardImpressionText = resolveCardImpressionText(
++    arch,
++    productCardId,
++    toothNumbers,
++    firstToothNumber,
++    isFieldCompletedFn,
++    getFieldValueFn
++  );
+   const impressionDisplay =
+-    getImpressionDisplayText?.(ARCH_IMPRESSION_PRODUCT_ID, arch) ||
+-    getFieldValueFn(arch, firstToothNumber, "impression");
++    getImpressionDisplayText?.(ARCH_IMPRESSION_PRODUCT_ID, arch) || cardImpressionText;
+   const impressionComplete =
+     isFieldCompletedFn(arch, firstToothNumber, "impression") ||
++    !!cardImpressionText ||
+     impressionDisplay === "No Impression" ||
+     (!!impressionDisplay &&
+       archHasActiveImpressionSelections(
+@@ -729,7 +744,28 @@ export function SelectionProductFields({
+ 
+   if (!showProgressiveFields) return null;
+ 
+-  const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
++  // Progress is read across the whole card, not just `firstToothNumber`: add-new-stage preloads
++  // grade/stage/shade on the slip's own teeth while the impression can land on another tooth of
++  // the card (a full denture binds the whole arch). Evaluating the chain on one tooth hid every
++  // field after Grade even though the card already had their values.
++  const isStepComplete = (step: FieldStep): boolean =>
++    isRemovableCardStepComplete({
++      arch,
++      cardId: productCardId,
++      cardTeeth: toothNumbers,
++      repTooth: firstToothNumber,
++      step,
++      isFieldCompleted: isFieldCompletedFn,
++      getFieldValue: getFieldValueFn,
++      selectedImpressions,
++    });
++  const cardFieldValue = (step: FieldStep): string =>
++    resolveCardFieldValue(arch, productCardId, toothNumbers, firstToothNumber, step, getFieldValueFn);
++  const isVisible = (step: FieldStep): boolean =>
++    isRemovableCardFieldVisible({ step, chain: removableChain, isStepComplete });
++  const teethShadeComplete = isStepComplete("teeth_shade");
++  const gumShadeComplete = isStepComplete("gum_shade");
++  const addonsComplete = isStepComplete("addons");
+   const implantDetailReady = areAllImplantDetailsComplete(
+     implantTeeth,
+     implantDetailCompleteByTooth,
+@@ -959,20 +995,20 @@ export function SelectionProductFields({
+         return (
+         <>
+         <AutoOpenShade
+-          hasValue={isFieldCompletedFn(arch, firstToothNumber, "teeth_shade")}
++          hasValue={teethShadeComplete}
+           onOpen={() => handleShadeFieldClick(arch, "tooth_shade", `prep_${firstToothNumber}`)}
+         />
+         <AutoOpenGumShade
+           visible={showGumShade}
+-          hasValue={isFieldCompletedFn(arch, firstToothNumber, "gum_shade")}
++          hasValue={gumShadeComplete}
+           onOpen={() => setPanelGumShadePicker({ toothNumber: firstToothNumber, gumShades: selectedProduct?.gum_shades || [] })}
+         />
+         <div className={`grid grid-cols-1 ${showGumShade ? "sm:grid-cols-2" : ""} gap-3 mt-3`}>
+           <fieldset
+             className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${
+-              isFieldCompletedFn(arch, firstToothNumber, "teeth_shade") && !caseSubmitted
++              teethShadeComplete && !caseSubmitted
+                 ? "border-[#34a853]"
+-                : isFieldCompletedFn(arch, firstToothNumber, "teeth_shade")
++                : teethShadeComplete
+                   ? "border-[#b4b0b0]"
+                   : "border-[#CF0202]"
+             }`}
+@@ -986,9 +1022,9 @@ export function SelectionProductFields({
+           >
+             <legend
+               className={`text-sm px-1 leading-none ${
+-                isFieldCompletedFn(arch, firstToothNumber, "teeth_shade") && !caseSubmitted
++                teethShadeComplete && !caseSubmitted
+                   ? "text-[#34a853]"
+-                  : isFieldCompletedFn(arch, firstToothNumber, "teeth_shade")
++                  : teethShadeComplete
+                     ? "text-[#7f7f7f]"
+                     : "text-[#CF0202]"
+               }`}
+@@ -997,7 +1033,7 @@ export function SelectionProductFields({
+             </legend>
+             <div className="flex items-center gap-2 w-full min-w-0">
+               {(() => {
+-                const teethShadeRaw = getFieldValueFn(arch, firstToothNumber, "teeth_shade");
++                const teethShadeRaw = cardFieldValue("teeth_shade");
+                 const teethShadeLabel = formatRemovableShadeFieldLabel(
+                   teethShadeRaw,
+                   selectedProduct?.teeth_shades,
+@@ -1013,7 +1049,7 @@ export function SelectionProductFields({
+                   </>
+                 );
+               })()}
+-              {isFieldCompletedFn(arch, firstToothNumber, "teeth_shade") && !caseSubmitted && (
++              {teethShadeComplete && !caseSubmitted && (
+                 <Check size={16} className="text-[#34a853] flex-shrink-0" />
+               )}
+             </div>
+@@ -1022,15 +1058,15 @@ export function SelectionProductFields({
+           {isVisible("gum_shade") ? (
+             <fieldset
+               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${
+-                isFieldCompletedFn(arch, firstToothNumber, "gum_shade") && !caseSubmitted
++                gumShadeComplete && !caseSubmitted
+                   ? "border-[#34a853]"
+-                  : isFieldCompletedFn(arch, firstToothNumber, "gum_shade")
++                  : gumShadeComplete
+                     ? "border-[#b4b0b0]"
+                     : "border-[#CF0202]"
+               }`}
+               onClick={() => {
+                 if (!caseSubmitted) {
+-                  const currentGumShade = getFieldValueFn(arch, firstToothNumber, "gum_shade");
++                  const currentGumShade = cardFieldValue("gum_shade");
+                   let currentName: string | null = null;
+                   if (currentGumShade) { try { currentName = JSON.parse(currentGumShade).name ?? null; } catch {} }
+                   setPanelGumShadePicker({ toothNumber: firstToothNumber, gumShades: selectedProduct?.gum_shades || [], selectedName: currentName });
+@@ -1039,9 +1075,9 @@ export function SelectionProductFields({
+             >
+               <legend
+                 className={`text-sm px-1 leading-none ${
+-                  isFieldCompletedFn(arch, firstToothNumber, "gum_shade") && !caseSubmitted
++                  gumShadeComplete && !caseSubmitted
+                     ? "text-[#34a853]"
+-                    : isFieldCompletedFn(arch, firstToothNumber, "gum_shade")
++                    : gumShadeComplete
+                       ? "text-[#7f7f7f]"
+                       : "text-[#CF0202]"
+                 }`}
+@@ -1050,7 +1086,7 @@ export function SelectionProductFields({
+               </legend>
+               <div className="flex items-center gap-2 w-full min-w-0">
+                 {(() => {
+-                  const raw = getFieldValueFn(arch, firstToothNumber, "gum_shade");
++                  const raw = cardFieldValue("gum_shade");
+                   const matchedShade = findShadeCatalogMatch(raw, selectedProduct?.gum_shades);
+                   const color = matchedShade?.color_code_middle ?? null;
+                   const displayName = formatRemovableShadeFieldLabel(raw, selectedProduct?.gum_shades);
+@@ -1065,7 +1101,7 @@ export function SelectionProductFields({
+                     </>
+                   );
+                 })()}
+-                {isFieldCompletedFn(arch, firstToothNumber, "gum_shade") && !caseSubmitted && (
++                {gumShadeComplete && !caseSubmitted && (
+                   <Check size={16} className="text-[#34a853] flex-shrink-0" />
+                 )}
+               </div>
+@@ -1131,7 +1167,7 @@ export function SelectionProductFields({
+                 <fieldset
+                   key={`${item}-${idx}`}
+                   className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[220px] ${
+-                    isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
++                    addonsComplete && !caseSubmitted
+                       ? "border-[#34a853]"
+                       : "border-[#b4b0b0]"
+                   }`}
+@@ -1141,7 +1177,7 @@ export function SelectionProductFields({
+                 >
+                   <legend
+                     className={`text-sm px-1 leading-none ${
+-                      isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
++                      addonsComplete && !caseSubmitted
+                         ? "text-[#34a853]"
+                         : "text-[#7f7f7f]"
+                     }`}
+@@ -1152,7 +1188,7 @@ export function SelectionProductFields({
+                     <span className="text-[14px] sm:text-lg text-[#000000] break-words">
+                       {item}
+                     </span>
+-                    {isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted && idx === items.length - 1 && (
++                    {addonsComplete && !caseSubmitted && idx === items.length - 1 && (
+                       <Check size={16} className="text-[#34a853] ml-auto flex-shrink-0" />
+                     )}
+                   </div>
+diff --git a/components/case-design-center/utils/resolveAddedCardProduct.test.mjs b/components/case-design-center/utils/resolveAddedCardProduct.test.mjs
+index c1b7f3c..6e725a3 100644
+--- a/components/case-design-center/utils/resolveAddedCardProduct.test.mjs
++++ b/components/case-design-center/utils/resolveAddedCardProduct.test.mjs
+@@ -5,6 +5,7 @@ import {
+   resolveAddedCardProductData,
+   resolveAddedCardRepTooth,
+   resolveCardFieldValue,
++  resolveCardImpressionText,
+   resolveRemovableProgressTooth,
+ } from "./resolveAddedCardProduct.ts";
+ 
+@@ -88,3 +89,87 @@ test("resolveCardFieldValue finds stage on virtual slot when rep tooth is empty"
+   );
+   assert.equal(val, stageJson);
+ });
++
++test("resolveRemovableProgressTooth stays on the tooth with grade/stage when a lower tooth only gets impression", () => {
++  // Full-denture card binds the whole arch (17-32) but the slip preloads grade/stage/shade
++  // only on its own teeth. Impression then lands on the lowest bound tooth (17).
++  const archTeeth = Array.from({ length: 16 }, (_, i) => 17 + i);
++  const completed = new Map([
++    [17, new Set(["impression"])],
++    [18, new Set(["grade", "stage", "teeth_shade"])],
++    [19, new Set(["grade", "stage", "teeth_shade"])],
++  ]);
++  const values = new Map([
++    [17, { impression: "No Impression" }],
++    [18, { grade: "Mid Grade", stage: "Try-in" }],
++  ]);
++  const tn = resolveRemovableProgressTooth(
++    archTeeth,
++    "mandibular",
++    1,
++    (_arch, tooth, step) => completed.get(tooth)?.has(step) === true,
++    (_arch, tooth, step) => values.get(tooth)?.[step] ?? "",
++    { mandibular_prep_18: "Try-in", mandibular_prep_19: "Try-in" }
++  );
++  assert.equal(tn, 18);
++});
++
++test("resolveRemovableProgressTooth still picks the lowest tooth when progress is equal", () => {
++  const completed = new Map([
++    [18, new Set(["grade", "stage"])],
++    [19, new Set(["grade", "stage"])],
++  ]);
++  const tn = resolveRemovableProgressTooth(
++    [19, 18, 17],
++    "mandibular",
++    1,
++    (_arch, tooth, step) => completed.get(tooth)?.has(step) === true,
++    () => ""
++  );
++  assert.equal(tn, 18);
++});
++
++test("resolveCardImpressionText reads No Impression from the card tooth that holds it", () => {
++  // Impression is saved on the lowest tooth bound to the card (17) while the field
++  // tooth is 18 — the "No Impression" label must still show.
++  const completed = new Map([[17, new Set(["impression"])]]);
++  const values = new Map([[17, { impression: "No Impression" }]]);
++  const text = resolveCardImpressionText(
++    "mandibular",
++    1,
++    [17, 18, 19],
++    18,
++    (_arch, tooth, step) => completed.get(tooth)?.has(step) === true,
++    (_arch, tooth, step) => values.get(tooth)?.[step] ?? ""
++  );
++  assert.equal(text, "No Impression");
++});
++
++test("resolveCardImpressionText ignores stale text on teeth whose impression was un-completed", () => {
++  const completed = new Map([[17, new Set(["impression"])]]);
++  const values = new Map([
++    [17, { impression: "No Impression" }],
++    [18, { impression: "1x PVS" }],
++  ]);
++  const text = resolveCardImpressionText(
++    "mandibular",
++    1,
++    [17, 18, 19],
++    18,
++    (_arch, tooth, step) => completed.get(tooth)?.has(step) === true,
++    (_arch, tooth, step) => values.get(tooth)?.[step] ?? ""
++  );
++  assert.equal(text, "No Impression");
++});
++
++test("resolveCardImpressionText is empty when no tooth has a completed impression", () => {
++  const text = resolveCardImpressionText(
++    "mandibular",
++    1,
++    [17, 18],
++    18,
++    () => false,
++    () => ""
++  );
++  assert.equal(text, "");
++});

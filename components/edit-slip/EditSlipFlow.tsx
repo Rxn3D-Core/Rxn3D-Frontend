@@ -18,6 +18,8 @@ import {
   slipIsInLab,
   type SlipLocationRef,
 } from "@/lib/slip-location";
+import { useBetaFeature } from "@/hooks/use-beta-feature";
+import { BETA_FEATURE_KEYS } from "@/lib/api/beta-features";
 import { resolveCreatedByFromVirtualSlip } from "@/lib/slip-header-response-data";
 import {
   buildVirtualSlipInitialState,
@@ -97,13 +99,21 @@ function selectedStageNotesText(details: unknown, products: unknown[]): string {
     .join("\n");
 }
 
-function isSlipEditBlocked(details: unknown): { blocked: boolean; reason?: string } {
+function isSlipEditBlocked(
+  details: unknown,
+  options?: { allowBetaExpandedEdit?: boolean }
+): { blocked: boolean; reason?: string } {
   const status = String((details as { status?: string } | null)?.status ?? "").toLowerCase();
-  if (status === "finished") {
-    return { blocked: true, reason: "Finished slips cannot be edited." };
-  }
   if (status === "cancelled" || status === "canceled") {
     return { blocked: true, reason: "Cancelled slips cannot be edited." };
+  }
+  // Finished is blocked for everyone except beta edit_slip_all_locations.
+  if (status === "finished" && !options?.allowBetaExpandedEdit) {
+    return { blocked: true, reason: "Finished slips cannot be edited." };
+  }
+
+  if (options?.allowBetaExpandedEdit) {
+    return { blocked: false };
   }
 
   const d = details as {
@@ -124,6 +134,7 @@ function isSlipEditBlocked(details: unknown): { blocked: boolean; reason?: strin
 export function EditSlipFlow({ slipId }: Props) {
   const router = useRouter();
   const { toast } = useToast();
+  const allowEditSlipAllLocations = useBetaFeature(BETA_FEATURE_KEYS.editSlipAllLocations);
   const { fetchVirtualSlipDetails, virtualSlipDetails } = useSlipCreation();
 
   const [step, setStep] = useState<FlowStep>("loading");
@@ -223,13 +234,15 @@ export function EditSlipFlow({ slipId }: Props) {
     initRanRef.current = false;
     clearSlipCreationStorage();
     void fetchVirtualSlipDetails(slipId).then(() => setDetailsReady(true));
-  }, [slipId, fetchVirtualSlipDetails]);
+  }, [slipId, allowEditSlipAllLocations, fetchVirtualSlipDetails]);
 
   useEffect(() => {
     if (!detailsReady || !virtualSlipDetails || initRanRef.current) return;
     initRanRef.current = true;
 
-    const blocked = isSlipEditBlocked(virtualSlipDetails);
+    const blocked = isSlipEditBlocked(virtualSlipDetails, {
+      allowBetaExpandedEdit: allowEditSlipAllLocations,
+    });
     if (blocked.blocked) {
       setIneligibleMessage(blocked.reason ?? "This slip cannot be edited.");
       setStep("ineligible");
@@ -257,7 +270,7 @@ export function EditSlipFlow({ slipId }: Props) {
       initialArch: determineInitialArch(apiProducts),
     });
     setStep("design");
-  }, [apiProducts, detailsReady, virtualSlipDetails]);
+  }, [allowEditSlipAllLocations, apiProducts, detailsReady, virtualSlipDetails]);
 
   useEffect(() => {
     if (step !== "design" || !labCustomerId) return;

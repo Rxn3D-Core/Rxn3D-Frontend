@@ -215,6 +215,9 @@ export function hasAdvanceField(
   if (step === "fixed_shade_trio") {
     if (hasTeethShadeFlag) return true;
   }
+  // Removable shades: honor product flags so unrelated AFs do not stall the chain after grade.
+  if (step === "teeth_shade" && product?.has_teeth_shade !== "No") return true;
+  if (step === "gum_shade" && product?.has_gum_shade !== "No") return true;
 
   // When product is omitted, trust the caller's advanceFields (already slip-filtered).
   // When product is passed, honor has_advance_field=No.
@@ -273,9 +276,9 @@ export function hasAdvanceField(
     case "grade":
       return productHasGrades(product as ProductApiData) || names.some((n) => n.includes("grade"));
     case "teeth_shade":
-      return names.some((n) => n.includes("teeth") && n.includes("shade"));
+      return product?.has_teeth_shade !== "No";
     case "gum_shade":
-      return names.some((n) => n.includes("gum") && n.includes("shade"));
+      return product?.has_gum_shade !== "No";
     case "addons":
       return names.some((n) => n.includes("add") && (n.includes("on") || n.includes("addon")));
     default:

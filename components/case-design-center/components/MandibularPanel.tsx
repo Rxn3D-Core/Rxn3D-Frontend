@@ -109,6 +109,7 @@ import {
 import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
+  resolveCardImpressionText,
   resolveRemovableProgressTooth,
 } from "../utils/resolveAddedCardProduct";
 import {
@@ -4657,7 +4658,14 @@ export function MandibularPanel({
                           {isF("impression") && (() => {
                             const impressionDisplay =
                               getImpressionDisplayText(impressionModalProductId, "mandibular", repTn) ||
-                              fVal("impression");
+                              resolveCardImpressionText(
+                                "mandibular",
+                                0,
+                                cardTeeth,
+                                repTn,
+                                isFieldCompleted,
+                                getFieldValue
+                              );
                             const impressionComplete =
                               isFComplete("impression") ||
                               (!!impressionDisplay &&

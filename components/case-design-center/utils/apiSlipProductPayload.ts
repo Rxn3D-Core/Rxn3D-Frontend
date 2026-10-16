@@ -369,15 +369,18 @@ function pickString(prepared: string | undefined, baseline: string | undefined):
  * Merge CDC-built product (preferred) with API baseline so edit PUT keeps teeth,
  * extractions, tooth_chart, and other fields when the live collector omits them.
  *
- * Cancelled / On hold status from the API is never overwritten by CDC's default
- * "In Progress" — resume is only via the hold/resume APIs; cancelled cannot resume.
+ * Cancelled / On hold / Finished status from the API is never overwritten by CDC's
+ * default "In Progress" — resume is only via the hold/resume APIs; cancelled cannot
+ * resume; Finished stays Finished when beta users edit a finished slip.
  */
 export function mergeEditSlipProductWithBaseline(
   prepared: EditSlipProduct,
   baseline: EditSlipProduct
 ): EditSlipProduct {
   const lockedStatus =
-    baseline.status === "cancelled" || baseline.status === "On hold"
+    baseline.status === "cancelled" ||
+    baseline.status === "On hold" ||
+    baseline.status === "Finished"
       ? baseline.status
       : prepared.status ?? baseline.status ?? "In Progress";
 
