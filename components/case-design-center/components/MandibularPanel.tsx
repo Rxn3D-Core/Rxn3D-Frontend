@@ -111,7 +111,6 @@ import {
   resolveAddedCardRepTooth,
   resolveRemovableProgressTooth,
 } from "../utils/resolveAddedCardProduct";
-import { countPreloadedTeethByCard } from "../utils/preloadedCardTeeth";
 import {
   resolveActiveAddedProductOnArch,
   resolveAddedFixedCardHeaderTeeth,
@@ -667,8 +666,6 @@ interface MandibularPanelProps {
   caseSubmitted?: boolean;
   /** Add-new-stage / edit-slip preload: auto-acknowledge extractions so Done is skipped on load. */
   preloadInitialSlipState?: boolean;
-  /** Preload tooth→card map (`mandibular_20` → cardId) used to seed Done for empty charts. */
-  initialToothProductCards?: Record<string, number>;
   /** Swap the product on a product card (0 = initial product) while keeping shared field values. */
   onEditProductCard?: (cardId: number) => void;
   /** Removable card 0 was deleted on this arch. */
@@ -897,7 +894,6 @@ export function MandibularPanel({
   card0ProductPanelVisible = false,
   caseSubmitted = false,
   preloadInitialSlipState = false,
-  initialToothProductCards,
   onEditProductCard,
   onCard0Removed,
   disabled = false,
@@ -1133,25 +1129,14 @@ export function MandibularPanel({
     getToothProductCard,
   ]);
   const [activeExtractions, setActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
-  const mandibularPreloadedToothCounts = useMemo(
-    () => countPreloadedTeethByCard(initialToothProductCards, "mandibular"),
-    [initialToothProductCards]
-  );
   const {
     isExtractionsSetupComplete,
     setExtractionsSetupComplete,
-    hasExplicitExtractionsAck,
     areRemovableFieldsUnlocked,
     areFixedFieldsUnlocked,
-    hasExplicitFixedRetentionAck,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
-  } = useExtractionsAcknowledged(
-    "mandibular",
-    preloadInitialSlipState,
-    addedProducts,
-    mandibularPreloadedToothCounts
-  );
+  } = useExtractionsAcknowledged("mandibular", preloadInitialSlipState, addedProducts);
 
   // Guided cross-arch flow: notify the parent once the card-0 extraction setup is
   // acknowledged ("Done"). Only meaningful when the product actually needs acknowledgement.
@@ -3345,10 +3330,7 @@ export function MandibularPanel({
                           );
                         return (
                           <>
-                            {!singleStageSkip &&
-                              apShowRemovableFields &&
-                              hasExplicitExtractionsAck(ap.id) &&
-                              !stageAlreadyOnCard && (
+                            {!singleStageSkip && apShowRemovableFields && !stageAlreadyOnCard && (
                               <AutoOpenStageIfEmpty
                                 productId={productKey}
                                 arch="mandibular"
@@ -3466,7 +3448,7 @@ export function MandibularPanel({
 
                       return (
                         <>
-                          {apRetentionFieldsVisible && hasExplicitFixedRetentionAck(ap.id) && (
+                          {apRetentionFieldsVisible && (
                             <AutoOpenFirstFixedFieldAfterRetentionDone
                               retentionFieldsVisible={apRetentionFieldsVisible}
                               isExpanded={isCardAccordionExpanded(apSlotId)}
@@ -3499,7 +3481,7 @@ export function MandibularPanel({
                           )}
                           {/* Same gate as card 0: the retention "Done" acknowledgement comes
                               first — never pop the stage modal on the first tooth click. */}
-                          {apRetentionFieldsVisible && hasExplicitFixedRetentionAck(ap.id) && (
+                          {apRetentionFieldsVisible && (
                             <AutoOpenStageIfEmpty
                               productId={apGroupStageProductIdFixed}
                               arch="mandibular"
@@ -3898,9 +3880,7 @@ export function MandibularPanel({
                       />
                     }
                   >
-                    {card0AutoOpenReady &&
-                      hasRetentionOptions(selectedProduct) &&
-                      hasExplicitFixedRetentionAck(0) && (
+                    {card0AutoOpenReady && hasRetentionOptions(selectedProduct) && (
                       <AutoOpenFirstFixedFieldAfterRetentionDone
                         retentionFieldsVisible={card0Gating.retentionFieldsVisible}
                         isExpanded={card0FixedExpanded}
@@ -3931,11 +3911,7 @@ export function MandibularPanel({
                         gradeIncomplete={card0Gating.gradeIncomplete}
                       />
                     )}
-                    {card0AutoOpenReady &&
-                      !isSingleStageNoStages(selectedProduct) &&
-                      (hasRetentionOptions(selectedProduct)
-                        ? hasExplicitFixedRetentionAck(0)
-                        : hasExplicitExtractionsAck(0)) && (
+                    {card0AutoOpenReady && !isSingleStageNoStages(selectedProduct) && (
                       <AutoOpenStageIfEmpty
                         productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `mandibular_prep_${firstToothNumber}`}
                         arch="mandibular"
@@ -4489,11 +4465,7 @@ export function MandibularPanel({
                     }
                     return (
                       <>
-                        {!singleStageSkip &&
-                          !suppressAutoOpen &&
-                          card0ShowRemovableFields &&
-                          hasExplicitExtractionsAck(0) &&
-                          !stageVal && (
+                        {!singleStageSkip && !suppressAutoOpen && card0ShowRemovableFields && !stageVal && (
                           <AutoOpenStageIfEmpty
                             productId={productKey}
                             arch="mandibular"
