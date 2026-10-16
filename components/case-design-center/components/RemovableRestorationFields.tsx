@@ -827,16 +827,33 @@ export function SelectionProductFields({
 
       {/* Step 1: Grade / Stage */}
       {isVisible("grade") && (() => {
-        const stageRaw = getFieldValueFn(arch, firstToothNumber, "stage");
+        // Stage/grade may live on a sibling tooth when a lower tooth was just added —
+        // scan the card so tooth-chart edits do not look like a reset.
+        const stageRaw =
+          getFieldValueFn(arch, firstToothNumber, "stage") ||
+          toothNumbers
+            .map((tn) => getFieldValueFn(arch, tn, "stage"))
+            .find((v) => !!v?.trim()) ||
+          "";
         const stageName = parseStageDisplayName(stageRaw);
+        const stageComplete =
+          isFieldCompletedFn(arch, firstToothNumber, "stage") ||
+          !!stageName ||
+          toothNumbers.some((tn) => isFieldCompletedFn(arch, tn, "stage"));
         const selectedStageObj = selectedProduct?.stages?.find((s) => s.name === stageName);
         const stageCfg = selectedStageObj?.stage_configurations;
 
-        const gradeRaw = getFieldValueFn(arch, firstToothNumber, "grade") || "";
+        const gradeRaw =
+          getFieldValueFn(arch, firstToothNumber, "grade") ||
+          toothNumbers
+            .map((tn) => getFieldValueFn(arch, tn, "grade"))
+            .find((v) => !!v?.trim()) ||
+          "";
         const gradeVal = parseGradeDisplayName(gradeRaw);
         const isGradeComplete = isGradeStepCompleteForDisplay(
           gradeRaw,
-          isFieldCompletedFn(arch, firstToothNumber, "grade"),
+          isFieldCompletedFn(arch, firstToothNumber, "grade") ||
+            toothNumbers.some((tn) => isFieldCompletedFn(arch, tn, "grade")),
           selectedProduct
         );
         const showGradeGreen = isGradeComplete && !caseSubmitted;
@@ -898,9 +915,9 @@ export function SelectionProductFields({
           {showStage ? (
             <fieldset
               className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 transition-colors ${
-                isFieldCompletedFn(arch, firstToothNumber, "stage") && !caseSubmitted
+                stageComplete && !caseSubmitted
                   ? "border-[#34a853]"
-                  : isFieldCompletedFn(arch, firstToothNumber, "stage")
+                  : stageComplete
                     ? "border-[#b4b0b0]"
                     : "border-[#CF0202]"
               }`}
@@ -910,9 +927,9 @@ export function SelectionProductFields({
             >
               <legend
                 className={`text-sm px-1 leading-none ${
-                  isFieldCompletedFn(arch, firstToothNumber, "stage") && !caseSubmitted
+                  stageComplete && !caseSubmitted
                     ? "text-[#34a853]"
-                    : isFieldCompletedFn(arch, firstToothNumber, "stage")
+                    : stageComplete
                       ? "text-[#7f7f7f]"
                       : "text-[#CF0202]"
                 }`}
@@ -923,7 +940,7 @@ export function SelectionProductFields({
                 <span className="text-[14px] sm:text-lg text-[#000000]">
                   {stageName}
                 </span>
-                {isFieldCompletedFn(arch, firstToothNumber, "stage") && !caseSubmitted && (
+                {stageComplete && !caseSubmitted && (
                   <Check size={16} className="text-[#34a853]" />
                 )}
                 <div className="ml-auto">

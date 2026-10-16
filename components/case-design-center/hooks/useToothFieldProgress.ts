@@ -398,7 +398,11 @@ export function useToothFieldProgress() {
     []
   );
 
-  /** Migrate field progress from one tooth to another (e.g. when the representative tooth of a Fixed Restoration group changes). */
+  /**
+   * Migrate field progress from one tooth to another (deselect of Fixed Restoration min tooth).
+   * Merges into the target so existing stage/grade/impression on `toTooth` are not wiped.
+   * Does not overwrite product/card ownership already present on `toTooth`.
+   */
   const migrateToothProgress = useCallback(
     (arch: Arch, fromTooth: number, toTooth: number) => {
       if (fromTooth === toTooth) return;
@@ -409,24 +413,29 @@ export function useToothFieldProgress() {
         const existing = prev[fromKey];
         if (!existing) return prev;
         const { [fromKey]: _, ...rest } = prev;
-        return { ...rest, [toKey]: existing };
+        const merged = [...new Set([...(rest[toKey] ?? []), ...existing])];
+        return { ...rest, [toKey]: merged };
       });
       setFieldValues((prev) => {
         const existing = prev[fromKey];
         if (!existing) return prev;
         const { [fromKey]: _, ...rest } = prev;
-        return { ...rest, [toKey]: existing };
+        // Target values win on key overlap so a tooth that already holds the
+        // saved stage/grade is not overwritten by a sibling's copy.
+        return { ...rest, [toKey]: { ...existing, ...(rest[toKey] ?? {}) } };
       });
       setToothProducts((prev) => {
         const existing = prev[fromKey];
         if (!existing) return prev;
         const { [fromKey]: _, ...rest } = prev;
+        if (rest[toKey]) return rest;
         return { ...rest, [toKey]: existing };
       });
       setToothProductCardMap((prev) => {
         const existing = prev[fromKey];
         if (existing === undefined) return prev;
         const { [fromKey]: _, ...rest } = prev;
+        if (rest[toKey] !== undefined) return rest;
         return { ...rest, [toKey]: existing };
       });
     },

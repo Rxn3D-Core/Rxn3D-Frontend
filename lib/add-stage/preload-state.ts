@@ -94,23 +94,25 @@ export function buildAddStagePreload(
     if (repTooth == null) continue;
 
     const removable = isNonFixedSlipProduct(apiProduct);
-    const stageKey = removable
-      ? `${arch}_prep_${repTooth}`
-      : `${arch}_fixed_${repTooth}`;
-    selectedStages[stageKey] = pick.stageName;
+    const stageStep = removable ? "stage" : "fixed_stage";
+    // Write stage onto every product tooth (and every prep/fixed key) so adding a
+    // lower-numbered tooth later does not orphan the saved stage on teeth[0].
+    const teethToWrite = teeth.length > 0 ? teeth : [repTooth];
+    for (const tn of teethToWrite) {
+      const stageKey = removable
+        ? `${arch}_prep_${tn}`
+        : `${arch}_fixed_${tn}`;
+      selectedStages[stageKey] = pick.stageName;
 
-    const toothKey = `${arch}_${repTooth}`;
-    const existingValues = { ...(fieldValues[toothKey] ?? {}) };
-    if (removable) {
-      existingValues.stage = pick.stageName;
-    } else {
-      existingValues.fixed_stage = pick.stageName;
+      const toothKey = `${arch}_${tn}`;
+      const existingValues = { ...(fieldValues[toothKey] ?? {}) };
+      existingValues[stageStep] = pick.stageName;
+      fieldValues[toothKey] = existingValues;
+
+      const steps = new Set(completedFields[toothKey] ?? []);
+      steps.add(stageStep);
+      completedFields[toothKey] = [...steps];
     }
-    fieldValues[toothKey] = existingValues;
-
-    const steps = new Set(completedFields[toothKey] ?? []);
-    steps.add(removable ? "stage" : "fixed_stage");
-    completedFields[toothKey] = [...steps];
   }
 
   return {
