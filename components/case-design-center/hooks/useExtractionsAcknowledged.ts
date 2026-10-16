@@ -18,11 +18,15 @@ import {
  *   Products added later on the empty arch still require tooth selection + Done.
  * @param addedProducts snapshot of cards present when the hook first runs; new
  *   cards appended after that are not treated as preloaded.
+ * @param preloadedToothCounts teeth-per-card from the slip preload map. Empty
+ *   preloaded cards seed Done=false so selecting the first tooth cannot open
+ *   stage/grade before the tooth-chart Done click.
  */
 export function useExtractionsAcknowledged(
   arch: Arch,
   preloaded = false,
-  addedProducts?: ReadonlyArray<Pick<AddedProduct, "id" | "arch">>
+  addedProducts?: ReadonlyArray<Pick<AddedProduct, "id" | "arch">>,
+  preloadedToothCounts?: Readonly<Record<number, number>>
 ) {
   const preloadedCardIdsRef = useRef<Set<number> | null>(null);
   if (preloadedCardIdsRef.current === null) {
@@ -50,13 +54,43 @@ export function useExtractionsAcknowledged(
     [preloaded]
   );
 
-  const [acknowledgedByCard, setAcknowledgedByCard] = useState<Record<string, boolean>>({});
+  const [acknowledgedByCard, setAcknowledgedByCard] = useState<Record<string, boolean>>(
+    () => {
+      if (!preloaded || !preloadedToothCounts) return {};
+      const init: Record<string, boolean> = {};
+      const cardIds = new Set<number>([0, ...(preloadedCardIdsRef.current ?? [])]);
+      for (const id of Object.keys(preloadedToothCounts).map(Number)) {
+        cardIds.add(id);
+      }
+      for (const cardId of cardIds) {
+        if (cardId === ARCH_SHARED_REMOVABLE_ACK_CARD_ID) continue;
+        const hasTeeth = (preloadedToothCounts[cardId] ?? 0) > 0;
+        // Empty chart → must click Done after selecting teeth.
+        // Chart already has teeth → treat as Done so saved fields stay open.
+        init[removableCardAckKey(arch, cardId)] = hasTeeth;
+        init[fixedRetentionAckKey(arch, cardId)] = hasTeeth;
+      }
+      return init;
+    }
+  );
   /**
    * Sticky unlock for grade/stage/shade/impression. Once the user clicks Done the
    * first time, fields stay visible even if Done is later reset so they can edit
    * teeth — avoids remounting and re-prompting already-selected values.
    */
-  const [fieldsUnlockedByCard, setFieldsUnlockedByCard] = useState<Record<string, boolean>>({});
+  const [fieldsUnlockedByCard, setFieldsUnlockedByCard] = useState<Record<string, boolean>>(
+    () => {
+      if (!preloaded || !preloadedToothCounts) return {};
+      const init: Record<string, boolean> = {};
+      for (const [idStr, count] of Object.entries(preloadedToothCounts)) {
+        if ((count ?? 0) <= 0) continue;
+        const cardId = Number(idStr);
+        init[removableCardAckKey(arch, cardId)] = true;
+        init[fixedRetentionAckKey(arch, cardId)] = true;
+      }
+      return init;
+    }
+  );
 
   const isExtractionsSetupComplete = useCallback(
     (
@@ -73,12 +107,20 @@ export function useExtractionsAcknowledged(
     [arch, acknowledgedByCard, isPreloadedCard]
   );
 
+  /** True only after the user (or preload-with-teeth seed) set Done — not the empty-card default. */
+  const hasExplicitExtractionsAck = useCallback(
+    (cardId: number) => acknowledgedByCard[removableCardAckKey(arch, cardId)] === true,
+    [arch, acknowledgedByCard]
+  );
+
   const areRemovableFieldsUnlocked = useCallback(
     (cardId: number) => {
-      if (isPreloadedCard(cardId)) return true;
-      return fieldsUnlockedByCard[removableCardAckKey(arch, cardId)] === true;
+      if (fieldsUnlockedByCard[removableCardAckKey(arch, cardId)] === true) return true;
+      // Preloaded cards that already had teeth stay unlocked; empty charts do not.
+      if (isPreloadedCard(cardId) && (preloadedToothCounts?.[cardId] ?? 0) > 0) return true;
+      return false;
     },
-    [arch, fieldsUnlockedByCard, isPreloadedCard]
+    [arch, fieldsUnlockedByCard, isPreloadedCard, preloadedToothCounts]
   );
 
   const setExtractionsSetupComplete = useCallback(
@@ -114,17 +156,22 @@ export function useExtractionsAcknowledged(
     [arch, acknowledgedByCard, isPreloadedCard]
   );
 
+  const hasExplicitFixedRetentionAck = useCallback(
+    (cardId: number) => acknowledgedByCard[fixedRetentionAckKey(arch, cardId)] === true,
+    [arch, acknowledgedByCard]
+  );
+
   /**
    * Sticky unlock for fixed stage/grade/shade/impression. Once Done is clicked
-   * (or the card was preloaded), fields stay visible even if Done is later reset
-   * so the user can edit the tooth chart — avoids remounting and re-prompting.
+   * (or the card was preloaded with teeth), fields stay unlocked.
    */
   const areFixedFieldsUnlocked = useCallback(
     (cardId: number) => {
-      if (isPreloadedCard(cardId)) return true;
-      return fieldsUnlockedByCard[fixedRetentionAckKey(arch, cardId)] === true;
+      if (fieldsUnlockedByCard[fixedRetentionAckKey(arch, cardId)] === true) return true;
+      if (isPreloadedCard(cardId) && (preloadedToothCounts?.[cardId] ?? 0) > 0) return true;
+      return false;
     },
-    [arch, fieldsUnlockedByCard, isPreloadedCard]
+    [arch, fieldsUnlockedByCard, isPreloadedCard, preloadedToothCounts]
   );
 
   const setFixedRetentionSetupComplete = useCallback(
@@ -146,8 +193,10 @@ export function useExtractionsAcknowledged(
   return {
     isExtractionsSetupComplete,
     setExtractionsSetupComplete,
+    hasExplicitExtractionsAck,
     areRemovableFieldsUnlocked,
     areFixedFieldsUnlocked,
+    hasExplicitFixedRetentionAck,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
   };

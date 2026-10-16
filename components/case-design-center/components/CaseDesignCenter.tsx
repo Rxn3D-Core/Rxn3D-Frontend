@@ -2005,6 +2005,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           card0ProductPanelVisible={maxillaryCard0ProductPanelVisible}
           caseSubmitted={props.caseSubmitted}
           preloadInitialSlipState={props.preloadInitialSlipState}
+          initialToothProductCards={props.initialSlipState?.toothProductCards}
           onEditProductCard={editProductCardForArch("maxillary")}
           onCard0Removed={() => markCard0Removed("maxillary")}
           disabled={!props.caseSubmitted && isAddingMandibularProduct}
@@ -2167,6 +2168,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           showDetails={showProductDetails}
           card0ProductPanelVisible={mandibularCard0ProductPanelVisible}
           preloadInitialSlipState={props.preloadInitialSlipState}
+          initialToothProductCards={props.initialSlipState?.toothProductCards}
           onEditProductCard={editProductCardForArch("mandibular")}
           onCard0Removed={() => markCard0Removed("mandibular")}
           caseSubmitted={props.caseSubmitted}
