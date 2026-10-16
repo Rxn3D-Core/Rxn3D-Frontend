@@ -13,11 +13,15 @@ On edit slip and add-new-stage, changing the tooth chart (especially adding a lo
 
 ## Fix
 
-1. Stop select-time fixed stage/field migration; keep progress-stable fixed stage tooth; sticky unlock for fixed fields.
+1. Stop select-time fixed stage/field migration; keep progress-stable fixed stage tooth.
 2. **`resolveRemovableProgressTooth`** — keep the tooth that already has stage/grade when the chart changes.
 3. **Copy sibling removable progress** onto newly assigned teeth (same card).
 4. **Add-stage preload** writes the chosen stage onto every product tooth / stage key.
 5. Removable stage UI scans all card teeth so a chart edit cannot look like a reset.
+6. **Done gates fields again**: clearing/reselecting teeth must not auto-open stage/grade —
+   progressive fields stay hidden until tooth-chart Done is clicked. Clearing the last
+   tooth on a card resets Done. Clearing a tooth stashes stage/grade onto the card
+   virtual slot (`-cardId`) so Done can restore them without re-prompting.
 
 ## Files
 

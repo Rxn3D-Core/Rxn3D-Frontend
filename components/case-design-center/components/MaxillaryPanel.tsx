@@ -1510,6 +1510,52 @@ export function MaxillaryPanel({
   /** Per-product extractions/status when multiple products share one arch (incl. fixed + removable). */
   const useMaxillaryArchSharedRemovable = false;
 
+  // Clearing every tooth on a card must re-show Done and hide progressive fields —
+  // selecting teeth again must not auto-open stage until Done is clicked.
+  // Only fire on a >0 → 0 transition (ignore initial empty hydrate).
+  // Declared after useMaxillaryArchSharedRemovable to avoid TDZ.
+  const prevCardToothCountRef = useRef<Record<string, number>>({});
+  useEffect(() => {
+    if (caseSubmitted) return;
+    const countTeeth = (cardId: number) =>
+      MAXILLARY_ALL_TEETH.filter((tn) => getToothProductCard("maxillary", tn) === cardId)
+        .length;
+
+    const consider = (cardId: number, reset: () => void) => {
+      const key = String(cardId);
+      const next = countTeeth(cardId);
+      const prev = prevCardToothCountRef.current[key];
+      prevCardToothCountRef.current[key] = next;
+      if (prev != null && prev > 0 && next === 0) reset();
+    };
+
+    if (maxillaryHasRemovablesCard0 || maxillaryHasFixedCard0) {
+      consider(0, () => {
+        setExtractionsSetupComplete(0, false);
+        setFixedRetentionSetupComplete(false, 0);
+        if (useMaxillaryArchSharedRemovable) {
+          setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, false);
+        }
+      });
+    }
+    for (const ap of addedProducts) {
+      if (ap.arch !== "maxillary" && ap.arch !== "both") continue;
+      consider(ap.id, () => {
+        setExtractionsSetupComplete(ap.id, false);
+        setFixedRetentionSetupComplete(false, ap.id);
+      });
+    }
+  }, [
+    caseSubmitted,
+    addedProducts,
+    maxillaryHasRemovablesCard0,
+    maxillaryHasFixedCard0,
+    useMaxillaryArchSharedRemovable,
+    getToothProductCard,
+    setExtractionsSetupComplete,
+    setFixedRetentionSetupComplete,
+  ]);
+
   /** After deleting removable card 0: drop its leftover sentinel/product-only teeth on this arch. */
   const clearCard0RemovableLeftovers = () => {
     MAXILLARY_ALL_TEETH.forEach((tn) => {
@@ -3282,14 +3328,17 @@ export function MaxillaryPanel({
 
                       if (isCardRemovables) {
                         const productKey = `maxillary_prep_${fieldTn}`;
-                        const apShowRemovableFields = useMaxillaryArchSharedRemovable
-                          ? maxillaryArchExtractionsReady ||
-                            areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
+                        // Gate on tooth-chart Done only — do not keep fields/auto-open alive
+                        // via sticky unlock while the user clears and reselects teeth.
+                        const chartDoneAck = useMaxillaryArchSharedRemovable
+                          ? maxillaryArchExtractionsReady
                           : isExtractionsSetupComplete(
                               removableCardExtractions,
                               ap.id,
                               caseSubmitted
-                            ) || areRemovableFieldsUnlocked(ap.id);
+                            );
+                        const apShowRemovableFields =
+                          chartDoneAck && (caseSubmitted || cardTeeth.length > 0);
                         if (
                           !apShowRemovableFields &&
                           !useMaxillaryArchSharedRemovable &&
@@ -3304,9 +3353,13 @@ export function MaxillaryPanel({
                         );
                         const singleStageSkip = shouldSkipStageSelection(stageProduct);
                         const fieldTeeth = cardTeeth.length > 0 ? cardTeeth : [fieldTn];
+                        const virtualTn = -ap.id;
                         const stageAlreadyOnCard =
                           !!selectedStages[productKey] ||
+                          !!selectedStages[`maxillary_prep_${virtualTn}`] ||
                           isFieldCompleted("maxillary", fieldTn, "stage") ||
+                          isFieldCompleted("maxillary", virtualTn, "stage") ||
+                          !!getFieldValue("maxillary", virtualTn, "stage")?.trim() ||
                           fieldTeeth.some(
                             (tn) =>
                               !!selectedStages[`maxillary_prep_${tn}`] ||
@@ -3315,7 +3368,7 @@ export function MaxillaryPanel({
                           );
                         return (
                           <>
-                            {!singleStageSkip && !stageAlreadyOnCard && (
+                            {!singleStageSkip && apShowRemovableFields && !stageAlreadyOnCard && (
                               <AutoOpenStageIfEmpty
                                 productId={productKey}
                                 arch="maxillary"
@@ -3736,11 +3789,10 @@ export function MaxillaryPanel({
                 );
                 // Guided both-arch flow: keep the "Done" acknowledgement (card0ShowFixedFields)
                 // intact for the header, but suppress the field *content* until this arch's
-                // fields phase is reached. Sticky unlock keeps fields mounted when Done is
-                // reset so tooth-chart edits do not remount and re-prompt stage/grade.
+                // fields phase is reached. Do not use sticky unlock — Done must re-gate fields
+                // after the user clears and reselects teeth on the chart.
                 const card0ShowFixedFieldsContent =
-                  (card0ShowFixedFields || areFixedFieldsUnlocked(0)) &&
-                  !guidedHideCard0Fields;
+                  card0ShowFixedFields && !guidedHideCard0Fields;
                 // Auto-open gate — identical to the added-product cards, so a card 0 whose
                 // product is mid-hydration can't jump ahead of its own Done button either.
                 const card0AutoOpenReady =
@@ -4024,14 +4076,14 @@ export function MaxillaryPanel({
                         setPanelGumShadePicker={setPanelGumShadePicker}
                         noOpposingNeeded={noOpposingNeeded}
                         showProgressiveFields={
-                          useMaxillaryArchSharedRemovable
-                            ? maxillaryArchExtractionsReady ||
-                              areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
+                          (useMaxillaryArchSharedRemovable
+                            ? maxillaryArchExtractionsReady
                             : isExtractionsSetupComplete(
                                 selectedProduct?.extractions ?? [],
                                 0,
                                 caseSubmitted
-                              ) || areRemovableFieldsUnlocked(0)
+                              )) &&
+                          (caseSubmitted || toothNumbers.length > 0)
                         }
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
                         peerImplantCompleteByTooth={peerImplantCompleteByTooth}
@@ -4433,12 +4485,13 @@ export function MaxillaryPanel({
                       removableImplantTeeth,
                       implantDetailCompleteByTooth
                     );
-                    const card0ShowRemovableFields = useMaxillaryArchSharedRemovable
-                      ? maxillaryArchExtractionsReady ||
-                        areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
+                    const card0ChartDoneAck = useMaxillaryArchSharedRemovable
+                      ? maxillaryArchExtractionsReady
                       : card0SkipsLegacyDefaults ||
-                        isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted) ||
-                        areRemovableFieldsUnlocked(0);
+                        isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted);
+                    // Done only — sticky unlock must not keep fields open during reselect.
+                    const card0ShowRemovableFields =
+                      card0ChartDoneAck && (caseSubmitted || cardTeeth.length > 0);
                     // Guided both-arch flow: suppress card-0 field content until this arch's
                     // fields phase (chart + teeth selection above remain visible).
                     if (guidedHideCard0Fields) {
@@ -4453,7 +4506,7 @@ export function MaxillaryPanel({
                     }
                     return (
                       <>
-                        {!singleStageSkip && (
+                        {!singleStageSkip && card0ShowRemovableFields && !stageVal && (
                           <AutoOpenStageIfEmpty
                             productId={productKey}
                             arch="maxillary"

@@ -2338,6 +2338,83 @@ export function useCaseDesignState(props: CaseDesignProps) {
   );
 
   /**
+   * Before wiping a removable tooth, stash stage/grade/etc. onto the card virtual slot
+   * (-cardId) so clear-all + reselect + Done can restore without re-prompting.
+   */
+  const stashRemovableProgressToVirtual = useCallback(
+    (arch: Arch, toothNumber: number) => {
+      const cardId = toothFieldProgress.getToothProductCard(arch, toothNumber);
+      if (cardId == null || cardId === 0) return;
+      const product = toothFieldProgress.getToothProduct(arch, toothNumber);
+      if (!product || hasRetentionOptions(product)) return;
+
+      const virtualTooth = -cardId;
+      if (virtualTooth === toothNumber) return;
+
+      for (const step of REMOVABLE_MIRROR_STEPS) {
+        const fieldStep = step as FieldStep;
+        const sourceValue = toothFieldProgress.getFieldValue(arch, toothNumber, fieldStep);
+        const sourceCompleted = toothFieldProgress.isFieldCompleted(
+          arch,
+          toothNumber,
+          fieldStep
+        );
+        const virtualValue = toothFieldProgress.getFieldValue(arch, virtualTooth, fieldStep);
+        const virtualCompleted = toothFieldProgress.isFieldCompleted(
+          arch,
+          virtualTooth,
+          fieldStep
+        );
+        if (sourceCompleted && !virtualCompleted) {
+          toothFieldProgress.completeFieldStep(
+            arch,
+            virtualTooth,
+            fieldStep,
+            sourceValue || ""
+          );
+        } else if (sourceValue && !virtualValue) {
+          toothFieldProgress.storeFieldValue(arch, virtualTooth, fieldStep, sourceValue);
+        }
+      }
+
+      const sourceStageKey = `${arch}_prep_${toothNumber}`;
+      const virtualStageKey = `${arch}_prep_${virtualTooth}`;
+      const sourceStage = modals.selectedStages[sourceStageKey];
+      if (sourceStage && !modals.selectedStages[virtualStageKey]) {
+        modals.setSelectedStages((prev) => ({ ...prev, [virtualStageKey]: sourceStage }));
+      }
+
+      const sourceAddonKey = `${arch}_${toothNumber}`;
+      const virtualAddonKey = `${arch}_${virtualTooth}`;
+      if (
+        selectedAddonsByTooth[sourceAddonKey]?.length &&
+        !selectedAddonsByTooth[virtualAddonKey]?.length
+      ) {
+        setSelectedAddonsByTooth((prev) => ({
+          ...prev,
+          [virtualAddonKey]: [...(prev[sourceAddonKey] ?? [])],
+        }));
+      }
+    },
+    [
+      REMOVABLE_MIRROR_STEPS,
+      modals.selectedStages,
+      modals.setSelectedStages,
+      selectedAddonsByTooth,
+      setSelectedAddonsByTooth,
+      toothFieldProgress,
+    ]
+  );
+
+  const clearToothProgressPreservingRemovableFields = useCallback(
+    (arch: Arch, toothNumber: number) => {
+      stashRemovableProgressToVirtual(arch, toothNumber);
+      toothFieldProgress.clearToothProgress(arch, toothNumber);
+    },
+    [stashRemovableProgressToVirtual, toothFieldProgress]
+  );
+
+  /**
    * Copy removable stage/grade/shade/impression from an existing tooth on the same card
    * onto a newly added tooth. Prevents add-new-stage / edit-slip tooth-chart edits from
    * orphaning saved fields when the representative (min) tooth changes.
@@ -3761,6 +3838,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     ...products,
     ...implants,
     ...toothFieldProgress,
+    clearToothProgress: clearToothProgressPreservingRemovableFields,
     completeFieldStep: mirroredCompleteFieldStep, // Override: auto-copy maxillary→mandibular for removable "both arches"
     storeFieldValue: mirroredStoreFieldValue, // Override: auto-copy maxillary→mandibular for removable "both arches"
     uncompleteFieldStep: mirroredUncompleteFieldStep, // Override: auto-copy maxillary→mandibular for removable "both arches"
