@@ -119,6 +119,7 @@ import {
 import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
+  resolveCardImpressionText,
   resolveRemovableProgressTooth,
 } from "../utils/resolveAddedCardProduct";
 import {
@@ -4694,7 +4695,14 @@ export function MaxillaryPanel({
                           {isF("impression") && (() => {
                             const impressionDisplay =
                               getImpressionDisplayText(impressionModalProductId, "maxillary", repTn) ||
-                              fVal("impression");
+                              resolveCardImpressionText(
+                                "maxillary",
+                                0,
+                                cardTeeth,
+                                repTn,
+                                isFieldCompleted,
+                                getFieldValue
+                              );
                             const impressionComplete =
                               isFComplete("impression") ||
                               (!!impressionDisplay &&

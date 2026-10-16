@@ -5,6 +5,7 @@ import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
   resolveCardFieldValue,
+  resolveCardImpressionText,
   resolveRemovableProgressTooth,
 } from "./resolveAddedCardProduct.ts";
 
@@ -87,4 +88,88 @@ test("resolveCardFieldValue finds stage on virtual slot when rep tooth is empty"
     (_arch, tooth, step) => values.get(`maxillary_${tooth}`)?.[step] ?? ""
   );
   assert.equal(val, stageJson);
+});
+
+test("resolveRemovableProgressTooth stays on the tooth with grade/stage when a lower tooth only gets impression", () => {
+  // Full-denture card binds the whole arch (17-32) but the slip preloads grade/stage/shade
+  // only on its own teeth. Impression then lands on the lowest bound tooth (17).
+  const archTeeth = Array.from({ length: 16 }, (_, i) => 17 + i);
+  const completed = new Map([
+    [17, new Set(["impression"])],
+    [18, new Set(["grade", "stage", "teeth_shade"])],
+    [19, new Set(["grade", "stage", "teeth_shade"])],
+  ]);
+  const values = new Map([
+    [17, { impression: "No Impression" }],
+    [18, { grade: "Mid Grade", stage: "Try-in" }],
+  ]);
+  const tn = resolveRemovableProgressTooth(
+    archTeeth,
+    "mandibular",
+    1,
+    (_arch, tooth, step) => completed.get(tooth)?.has(step) === true,
+    (_arch, tooth, step) => values.get(tooth)?.[step] ?? "",
+    { mandibular_prep_18: "Try-in", mandibular_prep_19: "Try-in" }
+  );
+  assert.equal(tn, 18);
+});
+
+test("resolveRemovableProgressTooth still picks the lowest tooth when progress is equal", () => {
+  const completed = new Map([
+    [18, new Set(["grade", "stage"])],
+    [19, new Set(["grade", "stage"])],
+  ]);
+  const tn = resolveRemovableProgressTooth(
+    [19, 18, 17],
+    "mandibular",
+    1,
+    (_arch, tooth, step) => completed.get(tooth)?.has(step) === true,
+    () => ""
+  );
+  assert.equal(tn, 18);
+});
+
+test("resolveCardImpressionText reads No Impression from the card tooth that holds it", () => {
+  // Impression is saved on the lowest tooth bound to the card (17) while the field
+  // tooth is 18 — the "No Impression" label must still show.
+  const completed = new Map([[17, new Set(["impression"])]]);
+  const values = new Map([[17, { impression: "No Impression" }]]);
+  const text = resolveCardImpressionText(
+    "mandibular",
+    1,
+    [17, 18, 19],
+    18,
+    (_arch, tooth, step) => completed.get(tooth)?.has(step) === true,
+    (_arch, tooth, step) => values.get(tooth)?.[step] ?? ""
+  );
+  assert.equal(text, "No Impression");
+});
+
+test("resolveCardImpressionText ignores stale text on teeth whose impression was un-completed", () => {
+  const completed = new Map([[17, new Set(["impression"])]]);
+  const values = new Map([
+    [17, { impression: "No Impression" }],
+    [18, { impression: "1x PVS" }],
+  ]);
+  const text = resolveCardImpressionText(
+    "mandibular",
+    1,
+    [17, 18, 19],
+    18,
+    (_arch, tooth, step) => completed.get(tooth)?.has(step) === true,
+    (_arch, tooth, step) => values.get(tooth)?.[step] ?? ""
+  );
+  assert.equal(text, "No Impression");
+});
+
+test("resolveCardImpressionText is empty when no tooth has a completed impression", () => {
+  const text = resolveCardImpressionText(
+    "mandibular",
+    1,
+    [17, 18],
+    18,
+    () => false,
+    () => ""
+  );
+  assert.equal(text, "");
 });

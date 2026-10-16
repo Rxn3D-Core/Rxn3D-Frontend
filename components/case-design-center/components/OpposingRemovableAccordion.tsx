@@ -97,6 +97,9 @@ function hasAdvanceField(
     return true;
   }
   if (step === "fixed_shade_trio" && product?.has_teeth_shade === "Yes") return true;
+  // Removable shades: honor product flags so unrelated AFs do not stall the chain after grade.
+  if (step === "teeth_shade" && product?.has_teeth_shade !== "No") return true;
+  if (step === "gum_shade" && product?.has_gum_shade !== "No") return true;
   if (!advanceFields || advanceFields.length === 0) return true;
   const names = advanceFields.map((f) => (f.name || "").toLowerCase());
   switch (step) {
@@ -105,9 +108,9 @@ function hasAdvanceField(
         productHasGrades(product as ProductApiData) || names.some((n) => n.includes("grade"))
       );
     case "teeth_shade":
-      return product?.has_teeth_shade === "Yes" || names.some((n) => n.includes("teeth") && n.includes("shade"));
+      return product?.has_teeth_shade !== "No";
     case "gum_shade":
-      return product?.has_gum_shade === "Yes" || names.some((n) => n.includes("gum") && n.includes("shade"));
+      return product?.has_gum_shade !== "No";
     default:
       return names.some((n) => n.includes(step.replace(/_/g, " ")));
   }

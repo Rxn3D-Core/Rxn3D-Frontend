@@ -37,6 +37,8 @@ import {
 } from "@/lib/virtual-slip-view-model";
 import { resolveSlipDeliveryDates } from "@/lib/virtual-slip-rush-dates";
 import { useToast } from "@/components/ui/use-toast";
+import { useBetaFeature } from "@/hooks/use-beta-feature";
+import { BETA_FEATURE_KEYS } from "@/lib/api/beta-features";
 import { VirtualSlipHeader } from "@/components/virtual-slip/VirtualSlipHeader";
 import { VirtualSlipArch } from "@/components/virtual-slip/VirtualSlipArch";
 import type { AddOnsProduct } from "@/components/add-ons-modal";
@@ -90,6 +92,7 @@ export default function VirtualSlipV2Page() {
 
   const { toast } = useToast();
   const { canEditSlip, canCancelCase, canDeleteCase } = usePermissionCapabilities();
+  const allowEditSlipAllLocations = useBetaFeature(BETA_FEATURE_KEYS.editSlipAllLocations);
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation();
   const {
     fetchVirtualSlipDetails,
@@ -1015,7 +1018,9 @@ export default function VirtualSlipV2Page() {
           hasMaxillary={hasMaxillary}
           hasMandibular={hasMandibular}
           visibleArches={visibleArches}
-          showEditSlip={slipInLab && !caseCancelled && canEditSlip}
+          showEditSlip={
+            (slipInLab || allowEditSlipAllLocations) && !caseCancelled && canEditSlip
+          }
           caseOnHold={caseOnHold}
           rushCaseSchedule={rushCaseSchedule}
           labBusinessHours={labBusinessHours}
