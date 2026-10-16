@@ -121,6 +121,7 @@ import {
   resolveAddedCardRepTooth,
   resolveRemovableProgressTooth,
 } from "../utils/resolveAddedCardProduct";
+import { countPreloadedTeethByCard } from "../utils/preloadedCardTeeth";
 import {
   resolveActiveAddedProductOnArch,
   resolveAddedFixedCardHeaderTeeth,
@@ -538,6 +539,8 @@ interface MaxillaryPanelProps {
   caseSubmitted?: boolean;
   /** Add-new-stage / edit-slip preload: auto-acknowledge extractions so Done is skipped on load. */
   preloadInitialSlipState?: boolean;
+  /** Preload tooth→card map (`maxillary_14` → cardId) used to seed Done for empty charts. */
+  initialToothProductCards?: Record<string, number>;
   /** Swap the product on a product card (0 = initial product) while keeping shared field values. */
   onEditProductCard?: (cardId: number) => void;
   /** Removable card 0 was deleted on this arch. */
@@ -901,6 +904,7 @@ export function MaxillaryPanel({
   card0ProductPanelVisible = false,
   caseSubmitted = false,
   preloadInitialSlipState = false,
+  initialToothProductCards,
   onEditProductCard,
   onCard0Removed,
   maxillaryTeeth,
@@ -1145,14 +1149,25 @@ export function MaxillaryPanel({
     getToothProductCard,
   ]);
   const [activeExtractions, setActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
+  const maxillaryPreloadedToothCounts = useMemo(
+    () => countPreloadedTeethByCard(initialToothProductCards, "maxillary"),
+    [initialToothProductCards]
+  );
   const {
     isExtractionsSetupComplete,
     setExtractionsSetupComplete,
+    hasExplicitExtractionsAck,
     areRemovableFieldsUnlocked,
     areFixedFieldsUnlocked,
+    hasExplicitFixedRetentionAck,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
-  } = useExtractionsAcknowledged("maxillary", preloadInitialSlipState, addedProducts);
+  } = useExtractionsAcknowledged(
+    "maxillary",
+    preloadInitialSlipState,
+    addedProducts,
+    maxillaryPreloadedToothCounts
+  );
 
   // Guided cross-arch flow: notify the parent once the card-0 extraction setup is
   // acknowledged ("Done"). Only meaningful when the product actually needs acknowledgement.
@@ -3368,7 +3383,10 @@ export function MaxillaryPanel({
                           );
                         return (
                           <>
-                            {!singleStageSkip && apShowRemovableFields && !stageAlreadyOnCard && (
+                            {!singleStageSkip &&
+                              apShowRemovableFields &&
+                              hasExplicitExtractionsAck(ap.id) &&
+                              !stageAlreadyOnCard && (
                               <AutoOpenStageIfEmpty
                                 productId={productKey}
                                 arch="maxillary"
@@ -3486,7 +3504,7 @@ export function MaxillaryPanel({
 
                       return (
                         <>
-                          {apRetentionFieldsVisible && (
+                          {apRetentionFieldsVisible && hasExplicitFixedRetentionAck(ap.id) && (
                             <AutoOpenFirstFixedFieldAfterRetentionDone
                               retentionFieldsVisible={apRetentionFieldsVisible}
                               isExpanded={isExpanded}
@@ -3519,7 +3537,7 @@ export function MaxillaryPanel({
                           )}
                           {/* Same gate as card 0: the retention "Done" acknowledgement comes
                               first — never pop the stage modal on the first tooth click. */}
-                          {apRetentionFieldsVisible && (
+                          {apRetentionFieldsVisible && hasExplicitFixedRetentionAck(ap.id) && (
                             <AutoOpenStageIfEmpty
                               productId={apGroupStageProductIdFixed}
                               arch="maxillary"
@@ -3922,7 +3940,9 @@ export function MaxillaryPanel({
                       />
                     }
                   >
-                    {card0AutoOpenReady && hasRetentionOptions(selectedProduct) && (
+                    {card0AutoOpenReady &&
+                      hasRetentionOptions(selectedProduct) &&
+                      hasExplicitFixedRetentionAck(0) && (
                       <AutoOpenFirstFixedFieldAfterRetentionDone
                         retentionFieldsVisible={card0Gating.retentionFieldsVisible}
                         isExpanded={card0FixedExpanded}
@@ -3953,7 +3973,11 @@ export function MaxillaryPanel({
                         gradeIncomplete={card0Gating.gradeIncomplete}
                       />
                     )}
-                    {card0AutoOpenReady && !isSingleStageNoStages(selectedProduct) && (
+                    {card0AutoOpenReady &&
+                      !isSingleStageNoStages(selectedProduct) &&
+                      (hasRetentionOptions(selectedProduct)
+                        ? hasExplicitFixedRetentionAck(0)
+                        : hasExplicitExtractionsAck(0)) && (
                       <AutoOpenStageIfEmpty
                         productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `maxillary_prep_${firstToothNumber}`}
                         arch="maxillary"
@@ -4506,7 +4530,10 @@ export function MaxillaryPanel({
                     }
                     return (
                       <>
-                        {!singleStageSkip && card0ShowRemovableFields && !stageVal && (
+                        {!singleStageSkip &&
+                          card0ShowRemovableFields &&
+                          hasExplicitExtractionsAck(0) &&
+                          !stageVal && (
                           <AutoOpenStageIfEmpty
                             productId={productKey}
                             arch="maxillary"

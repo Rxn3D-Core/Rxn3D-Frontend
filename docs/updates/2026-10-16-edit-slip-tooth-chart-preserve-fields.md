@@ -22,6 +22,9 @@ On edit slip and add-new-stage, changing the tooth chart (especially adding a lo
    progressive fields stay hidden until tooth-chart Done is clicked. Clearing the last
    tooth on a card resets Done. Clearing a tooth stashes stage/grade onto the card
    virtual slot (`-cardId`) so Done can restore them without re-prompting.
+7. **Empty preloaded products**: cards that load with no teeth seed Done=false, so the
+   first tooth click cannot auto-open stage. Auto-open helpers also require an explicit
+   Done acknowledgement (`hasExplicitExtractionsAck` / `hasExplicitFixedRetentionAck`).
 
 ## Files
 
