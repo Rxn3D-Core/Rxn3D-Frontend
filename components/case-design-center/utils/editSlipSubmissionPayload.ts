@@ -15,11 +15,18 @@ import {
 
 export type { EditSlipProduct };
 
-/** Statuses that edit must keep intact (resume only via hold API; cancelled never resumes). */
+/** Statuses that edit must keep intact when omitted (resume only via hold API; cancelled never resumes). */
 const PRESERVED_EDIT_PRODUCT_STATUSES = new Set(["cancelled", "On hold", "Finished"]);
+
+/** Arches that must not receive a newly designed product's id mapping (except Finished — update in place). */
+const NON_REUSABLE_ARCH_STATUSES = new Set(["cancelled", "On hold"]);
 
 function isPreservedEditProductStatus(status: string | null | undefined): boolean {
   return PRESERVED_EDIT_PRODUCT_STATUSES.has(String(status ?? ""));
+}
+
+function isNonReusableArchStatus(status: string | null | undefined): boolean {
+  return NON_REUSABLE_ARCH_STATUSES.has(String(status ?? ""));
 }
 
 /** Keep product notes that were already stored. Drop notes generated from the live design. */
@@ -73,9 +80,11 @@ function buildSlipProductIdByType(apiProducts: unknown[]): Map<"Upper" | "Lower"
 
   for (const row of apiProducts) {
     const product = row as { id?: number; type?: string; status?: string };
-    // Do not attach cancelled/hold/finished ids to a newly designed arch product —
-    // those arches stay intact separately (or cancelled may be replaced without id).
-    if (isPreservedEditProductStatus(product.status)) continue;
+    // Do not attach cancelled/hold ids to a newly designed arch product —
+    // those arches stay intact separately (cancelled may be replaced without id).
+    // Finished ids ARE attached so beta edit of a Finished slip updates in place
+    // instead of posting a duplicate arch product.
+    if (isNonReusableArchStatus(product.status)) continue;
     const archType = normalizeSlipProductType(product.type);
     if (archType && typeof product.id === "number" && product.id > 0) {
       map.set(archType, product.id);

@@ -78,6 +78,12 @@ export interface FixedCardGatingInput {
     caseSubmitted?: boolean,
     cardId?: number
   ) => boolean;
+  /**
+   * Optional sticky unlock callback (kept for call-site compatibility).
+   * Field visibility is gated on Done acknowledgement only — sticky unlock must
+   * not keep fields open while the user clears and reselects teeth.
+   */
+  areFixedFieldsUnlocked?: (cardId: number) => boolean;
 }
 
 export interface FixedCardGating {
@@ -144,6 +150,7 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
     getFieldValue,
     isFieldVisible,
     isFixedRetentionSetupComplete,
+    areFixedFieldsUnlocked,
   } = input;
   const shadeToothNumber = input.shadeToothNumber ?? stageToothNumber;
 
@@ -282,6 +289,9 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
   // isFixedRetentionSetupComplete answers "true" for a null product ("nothing to
   // acknowledge"), so a card whose details are still loading would unlock the field
   // chain and auto-open stage/grade before the Done button has even rendered.
+  // Gate on Done only (not sticky unlock) so clearing/reselecting teeth cannot
+  // auto-open stage until the tooth-chart Done button is clicked again.
+  void areFixedFieldsUnlocked;
   const retentionFieldsVisible =
     isFixedRetentionSetupComplete(cardProduct, caseSubmitted, cardId) &&
     (caseSubmitted || (!!cardProduct && toothNumbers.length > 0));

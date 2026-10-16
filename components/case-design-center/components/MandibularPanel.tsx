@@ -109,6 +109,8 @@ import {
 import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
+  resolveCardImpressionText,
+  resolveRemovableProgressTooth,
 } from "../utils/resolveAddedCardProduct";
 import {
   resolveActiveAddedProductOnArch,
@@ -1132,6 +1134,7 @@ export function MandibularPanel({
     isExtractionsSetupComplete,
     setExtractionsSetupComplete,
     areRemovableFieldsUnlocked,
+    areFixedFieldsUnlocked,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
   } = useExtractionsAcknowledged("mandibular", preloadInitialSlipState, addedProducts);
@@ -1488,6 +1491,52 @@ export function MandibularPanel({
   }, [mandibularCard0IsRemovable, addedProducts]);
 
   const useMandibularArchSharedRemovable = false;
+
+  // Clearing every tooth on a card must re-show Done and hide progressive fields —
+  // selecting teeth again must not auto-open stage until Done is clicked.
+  // Only fire on a >0 → 0 transition (ignore initial empty hydrate).
+  // Declared after useMandibularArchSharedRemovable to avoid TDZ.
+  const prevCardToothCountRef = useRef<Record<string, number>>({});
+  useEffect(() => {
+    if (caseSubmitted) return;
+    const countTeeth = (cardId: number) =>
+      MANDIBULAR_ALL_TEETH.filter((tn) => getToothProductCard("mandibular", tn) === cardId)
+        .length;
+
+    const consider = (cardId: number, reset: () => void) => {
+      const key = String(cardId);
+      const next = countTeeth(cardId);
+      const prev = prevCardToothCountRef.current[key];
+      prevCardToothCountRef.current[key] = next;
+      if (prev != null && prev > 0 && next === 0) reset();
+    };
+
+    if (mandibularHasRemovablesCard0 || mandibularHasFixedCard0) {
+      consider(0, () => {
+        setExtractionsSetupComplete(0, false);
+        setFixedRetentionSetupComplete(false, 0);
+        if (useMandibularArchSharedRemovable) {
+          setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, false);
+        }
+      });
+    }
+    for (const ap of addedProducts) {
+      if (ap.arch !== "mandibular" && ap.arch !== "both") continue;
+      consider(ap.id, () => {
+        setExtractionsSetupComplete(ap.id, false);
+        setFixedRetentionSetupComplete(false, ap.id);
+      });
+    }
+  }, [
+    caseSubmitted,
+    addedProducts,
+    mandibularHasRemovablesCard0,
+    mandibularHasFixedCard0,
+    useMandibularArchSharedRemovable,
+    getToothProductCard,
+    setExtractionsSetupComplete,
+    setFixedRetentionSetupComplete,
+  ]);
 
   /** After deleting removable card 0: drop its leftover sentinel/product-only teeth on this arch. */
   const clearCard0RemovableLeftovers = () => {
@@ -2786,14 +2835,35 @@ export function MandibularPanel({
                   apRepTn,
                   hasRetentionOptions(apProduct)
                 );
+                const apHeaderStageTn = hasRetentionOptions(apProduct)
+                  ? cardTeeth.length > 0
+                    ? resolveGroupStageToothNumber(
+                        cardTeeth,
+                        "mandibular",
+                        getRetentionFieldChain(
+                          getProductAdvanceFieldsForSlip(apProduct),
+                          apProduct
+                        ),
+                        isFieldCompleted,
+                        getFieldValue
+                      )
+                    : apRepTn
+                  : resolveRemovableProgressTooth(
+                      cardTeeth,
+                      "mandibular",
+                      ap.id,
+                      isFieldCompleted,
+                      getFieldValue,
+                      selectedStages
+                    );
                 const apStageKey = hasRetentionOptions(apProduct)
-                  ? `mandibular_fixed_${apRepTn}`
-                  : `mandibular_prep_${apRepTn}`;
+                  ? `mandibular_fixed_${apHeaderStageTn}`
+                  : `mandibular_prep_${apHeaderStageTn}`;
                 const apStageVal =
                   selectedStages[apStageKey] ||
                   getFieldValue(
                     "mandibular",
-                    apRepTn,
+                    apHeaderStageTn,
                     hasRetentionOptions(apProduct) ? "fixed_stage" : "stage"
                   ) ||
                   "";
@@ -2804,8 +2874,8 @@ export function MandibularPanel({
                 );
                 const apRemEstDaysText = resolveRemovableEstDaysText(
                   cardProduct,
-                  selectedStages[`mandibular_prep_${apRepTn}`] ||
-                    getFieldValue("mandibular", apRepTn, "stage") ||
+                  selectedStages[`mandibular_prep_${apHeaderStageTn}`] ||
+                    getFieldValue("mandibular", apHeaderStageTn, "stage") ||
                     "",
                   assignedTeeth.length
                 );
@@ -3203,19 +3273,35 @@ export function MandibularPanel({
                         getToothProduct,
                         "mandibular"
                       );
+                      // Keep the tooth that already has stage/grade when a lower tooth is added
+                      const fieldTn = isCardRemovables
+                        ? resolveRemovableProgressTooth(
+                            cardTeeth,
+                            "mandibular",
+                            ap.id,
+                            isFieldCompleted,
+                            getFieldValue,
+                            selectedStages
+                          )
+                        : repTn;
                       const toothProduct =
-                        getToothProduct("mandibular", repTn) ?? apProduct;
+                        getToothProduct("mandibular", fieldTn) ??
+                        getToothProduct("mandibular", repTn) ??
+                        apProduct;
 
                       if (isCardRemovables) {
-                        const productKey = `mandibular_prep_${repTn}`;
-                        const apShowRemovableFields = useMandibularArchSharedRemovable
-                          ? mandibularArchExtractionsReady ||
-                            areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
+                        const productKey = `mandibular_prep_${fieldTn}`;
+                        // Gate on tooth-chart Done only — do not keep fields/auto-open alive
+                        // via sticky unlock while the user clears and reselects teeth.
+                        const chartDoneAck = useMandibularArchSharedRemovable
+                          ? mandibularArchExtractionsReady
                           : isExtractionsSetupComplete(
                               removableCardExtractions,
                               ap.id,
                               caseSubmitted
-                            ) || areRemovableFieldsUnlocked(ap.id);
+                            );
+                        const apShowRemovableFields =
+                          chartDoneAck && (caseSubmitted || cardTeeth.length > 0);
                         if (
                           !apShowRemovableFields &&
                           !useMandibularArchSharedRemovable &&
@@ -3229,20 +3315,30 @@ export function MandibularPanel({
                           getToothProduct
                         );
                         const singleStageSkip = shouldSkipStageSelection(stageProduct);
-                        const fieldTeeth = cardTeeth.length > 0 ? cardTeeth : [repTn];
+                        const fieldTeeth = cardTeeth.length > 0 ? cardTeeth : [fieldTn];
+                        const virtualTn = -ap.id;
+                        const stageAlreadyOnCard =
+                          !!selectedStages[productKey] ||
+                          !!selectedStages[`mandibular_prep_${virtualTn}`] ||
+                          isFieldCompleted("mandibular", fieldTn, "stage") ||
+                          isFieldCompleted("mandibular", virtualTn, "stage") ||
+                          !!getFieldValue("mandibular", virtualTn, "stage")?.trim() ||
+                          fieldTeeth.some(
+                            (tn) =>
+                              !!selectedStages[`mandibular_prep_${tn}`] ||
+                              isFieldCompleted("mandibular", tn, "stage") ||
+                              !!getFieldValue("mandibular", tn, "stage")?.trim()
+                          );
                         return (
                           <>
-                            {!singleStageSkip && (
+                            {!singleStageSkip && apShowRemovableFields && !stageAlreadyOnCard && (
                               <AutoOpenStageIfEmpty
                                 productId={productKey}
                                 arch="mandibular"
-                                toothNumber={repTn}
+                                toothNumber={fieldTn}
                                 isExpanded={isExpanded && apShowRemovableFields}
                                 isStageVisible={hasAdvanceField("stage", toothProduct?.advance_fields, toothProduct ?? undefined)}
-                                isStageEmpty={
-                                  !isFieldCompleted("mandibular", repTn, "stage") &&
-                                  !(selectedStages[productKey])
-                                }
+                                isStageEmpty={!stageAlreadyOnCard}
                                 onOpenStage={handleOpenStageModal}
                                 caseSubmitted={caseSubmitted}
                               />
@@ -3257,7 +3353,7 @@ export function MandibularPanel({
                               arch="mandibular"
                               labCustomerId={labCustomerId}
                               productCardId={ap.id}
-                              firstToothNumber={repTn}
+                              firstToothNumber={fieldTn}
                               selectedProduct={toothProduct ?? apProduct}
                               toothNumbers={fieldTeeth}
                               caseSubmitted={caseSubmitted}
@@ -3306,7 +3402,19 @@ export function MandibularPanel({
                       const apToothProduct =
                         getToothProduct("mandibular", apFirstTn) ?? apProduct;
                       const apRetentionTypes = cardTeeth.flatMap(tn => mandibularRetentionTypes[tn] || []);
-                      const apGroupStageProductIdFixed = `mandibular_fixed_${apFirstTn}`;
+                      // Same as card 0: keep the tooth that already has progress when chart changes
+                      const apFixedChainForStage = getRetentionFieldChain(
+                        getProductAdvanceFieldsForSlip(apToothProduct),
+                        apToothProduct
+                      );
+                      const apStageTn = resolveGroupStageToothNumber(
+                        cardTeeth,
+                        "mandibular",
+                        apFixedChainForStage,
+                        isFieldCompleted,
+                        getFieldValue
+                      );
+                      const apGroupStageProductIdFixed = `mandibular_fixed_${apStageTn}`;
                       // Shared with card 0 — see utils/fixedCardGating.ts
                       const apGating = resolveFixedCardGating({
                         arch: "mandibular",
@@ -3314,7 +3422,7 @@ export function MandibularPanel({
                         cardProduct: apProduct,
                         cardId: ap.id,
                         toothNumbers: cardTeeth,
-                        stageToothNumber: apFirstTn,
+                        stageToothNumber: apStageTn,
                         caseSubmitted,
                         isAnyModalOpen,
                         openShadeFieldType: shadeSelectionState.fieldType,
@@ -3324,6 +3432,7 @@ export function MandibularPanel({
                         getFieldValue,
                         isFieldVisible,
                         isFixedRetentionSetupComplete,
+                        areFixedFieldsUnlocked,
                       });
                       const apFixedChain = apGating.fixedChain;
                       const apIsFixed = apGating.isFixedStep;
@@ -3350,11 +3459,11 @@ export function MandibularPanel({
                               onOpenStage={handleOpenStageModal}
                               stageProductId={apGroupStageProductIdFixed}
                               arch="mandibular"
-                              stageToothNumber={apFirstTn}
+                              stageToothNumber={apStageTn}
                               usesAccordionShadePicker={apUsesAccordionShadePicker}
                               firstMissingShadeField={apFirstMissingShadeField}
                               fixedShadeProductId={apFixedShadeProductId}
-                              storageToothNumber={apFirstTn}
+                              storageToothNumber={apStageTn}
                               setShadeSelectionState={setShadeSelectionState}
                               isLegacyShadeSectionVisible={
                                 apIsFixed("fixed_stump_shade") || apIsFixed("fixed_shade_trio")
@@ -3377,7 +3486,7 @@ export function MandibularPanel({
                             <AutoOpenStageIfEmpty
                               productId={apGroupStageProductIdFixed}
                               arch="mandibular"
-                              toothNumber={apFirstTn}
+                              toothNumber={apStageTn}
                               isExpanded={isCardAccordionExpanded(apSlotId)}
                               isStageVisible={apGating.stageVisible}
                               isStageEmpty={apGating.stageEmpty}
@@ -3395,7 +3504,7 @@ export function MandibularPanel({
                             stumpShadeEmpty={apNeedsStumpShade && !getSelectedShade(apFixedShadeProductId, "mandibular", "stump_shade")}
                             toothShadeEmpty={apNeedsToothShade && !getSelectedShade(apFixedShadeProductId, "mandibular", "tooth_shade")}
                             firstMissingShadeField={apFirstMissingShadeField}
-                            storageToothNumber={apFirstTn}
+                            storageToothNumber={apStageTn}
                             setShadeSelectionState={setShadeSelectionState}
                             caseSubmitted={caseSubmitted}
                             skipAutoOpen={apUsesAccordionShadePicker || apFixedShadesComplete || apGating.gradeIncomplete}
@@ -3405,7 +3514,7 @@ export function MandibularPanel({
                             hasValue={apGating.gumAutoOpenHasValue}
                             onOpen={() =>
                               setPanelGumShadePicker({
-                                toothNumber: apFirstTn,
+                                toothNumber: apStageTn,
                                 gumShades: apToothProduct?.gum_shades || [],
                                 stepOverride: "fixed_stump_shade",
                               })
@@ -3415,8 +3524,8 @@ export function MandibularPanel({
                             arch="mandibular"
                             productCardId={ap.id}
                             isExpanded={isCardAccordionExpanded(apSlotId)}
-                            firstToothNumber={apFirstTn}
-                            groupStageToothNumber={apFirstTn}
+                            firstToothNumber={apStageTn}
+                            groupStageToothNumber={apStageTn}
                             groupStageProductIdFixed={apGroupStageProductIdFixed}
                             labCustomerId={labCustomerId}
                             selectedProduct={apToothProduct}
@@ -3618,6 +3727,7 @@ export function MandibularPanel({
                   getFieldValue,
                   isFieldVisible,
                   isFixedRetentionSetupComplete,
+                  areFixedFieldsUnlocked,
                 });
                 const isFixed = card0Gating.isFixedStep;
                 const _mandFixedShadeProductId = card0Gating.fixedShadeProductId;
@@ -3644,7 +3754,8 @@ export function MandibularPanel({
                 );
                 // Guided both-arch flow: keep the "Done" acknowledgement (card0ShowFixedFields)
                 // intact for the header, but suppress the field *content* until this arch's
-                // fields phase is reached.
+                // fields phase is reached. Do not use sticky unlock — Done must re-gate fields
+                // after the user clears and reselects teeth on the chart.
                 const card0ShowFixedFieldsContent =
                   card0ShowFixedFields && !guidedHideCard0Fields;
                 // Auto-open gate — identical to the added-product cards, so a card 0 whose
@@ -3924,14 +4035,14 @@ export function MandibularPanel({
                         setPanelGumShadePicker={setPanelGumShadePicker}
                         noOpposingNeeded={noOpposingNeeded}
                         showProgressiveFields={
-                          useMandibularArchSharedRemovable
-                            ? mandibularArchExtractionsReady ||
-                              areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
+                          (useMandibularArchSharedRemovable
+                            ? mandibularArchExtractionsReady
                             : isExtractionsSetupComplete(
                                 selectedProduct?.extractions ?? [],
                                 0,
                                 caseSubmitted
-                              ) || areRemovableFieldsUnlocked(0)
+                              )) &&
+                          (caseSubmitted || toothNumbers.length > 0)
                         }
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
                         peerImplantCompleteByTooth={peerImplantCompleteByTooth}
@@ -4286,7 +4397,14 @@ export function MandibularPanel({
                   }
                 >
                   {(() => {
-                    const repTn = cardTeeth[0];
+                    const repTn = resolveRemovableProgressTooth(
+                      cardTeeth,
+                      "mandibular",
+                      0,
+                      isFieldCompleted,
+                      getFieldValue,
+                      selectedStages
+                    );
                     const toothProduct = getCardToothProduct(repTn);
                     const advFields = getProductAdvanceFieldsForSlip(toothProduct);
                     const removableChain = getSelectionFieldChain(toothProduct);
@@ -4297,7 +4415,17 @@ export function MandibularPanel({
                     const fVal = (step: string) => getFieldValue("mandibular", repTn, step as any);
                     const productKey = `mandibular_prep_${repTn}`;
                     const impressionModalProductId = "0";
-                    const stageVal = fVal("stage") || selectedStages[productKey] || "";
+                    const stageVal =
+                      fVal("stage") ||
+                      selectedStages[productKey] ||
+                      cardTeeth
+                        .map(
+                          (tn) =>
+                            selectedStages[`mandibular_prep_${tn}`] ||
+                            getFieldValue("mandibular", tn, "stage")
+                        )
+                        .find((v) => !!v?.trim()) ||
+                      "";
                     const singleStageSkip = shouldSkipStageSelection(
                       resolveProductForStageField(toothProduct, "mandibular", getToothProduct)
                     );
@@ -4317,12 +4445,13 @@ export function MandibularPanel({
                       removableImplantTeeth,
                       implantDetailCompleteByTooth
                     );
-                    const card0ShowRemovableFields = useMandibularArchSharedRemovable
-                      ? mandibularArchExtractionsReady ||
-                        areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
+                    const card0ChartDoneAck = useMandibularArchSharedRemovable
+                      ? mandibularArchExtractionsReady
                       : card0SkipsLegacyDefaults ||
-                        isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted) ||
-                        areRemovableFieldsUnlocked(0);
+                        isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted);
+                    // Done only — sticky unlock must not keep fields open during reselect.
+                    const card0ShowRemovableFields =
+                      card0ChartDoneAck && (caseSubmitted || cardTeeth.length > 0);
                     // Guided both-arch flow: suppress card-0 field content until this arch's
                     // fields phase (chart + teeth selection above remain visible).
                     if (guidedHideCard0Fields) {
@@ -4337,7 +4466,7 @@ export function MandibularPanel({
                     }
                     return (
                       <>
-                        {!singleStageSkip && !suppressAutoOpen && (
+                        {!singleStageSkip && !suppressAutoOpen && card0ShowRemovableFields && !stageVal && (
                           <AutoOpenStageIfEmpty
                             productId={productKey}
                             arch="mandibular"
@@ -4529,7 +4658,14 @@ export function MandibularPanel({
                           {isF("impression") && (() => {
                             const impressionDisplay =
                               getImpressionDisplayText(impressionModalProductId, "mandibular", repTn) ||
-                              fVal("impression");
+                              resolveCardImpressionText(
+                                "mandibular",
+                                0,
+                                cardTeeth,
+                                repTn,
+                                isFieldCompleted,
+                                getFieldValue
+                              );
                             const impressionComplete =
                               isFComplete("impression") ||
                               (!!impressionDisplay &&

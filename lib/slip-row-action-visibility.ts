@@ -53,6 +53,11 @@ export type SlipRowActionVisibilityInput = SlipLocationRef & {
   allowDriverActions?: boolean;
   /** Lab admin (or superadmin as lab) may undo one location step. Defaults false. */
   allowUndoLocation?: boolean;
+  /**
+   * Beta: allow Edit Slip when the slip is not at In lab (e.g. In office).
+   * Defaults false — non-beta users stay In-lab-only.
+   */
+  allowEditSlipAllLocations?: boolean;
 };
 
 export type SlipRowActionVisibility = Record<SlipRowActionKey, boolean>;
@@ -84,12 +89,14 @@ export function resolveSlipRowActionVisibility(
   const canDeleteCase = input.canDeleteCase !== false;
   const canPrintStatement = Boolean(input.canPrintStatement);
   const allowUndoLocation = Boolean(input.allowUndoLocation);
+  const allowEditSlipAllLocations = Boolean(input.allowEditSlipAllLocations);
 
   const allowDriverActions = input.allowDriverActions !== false;
   const canReadyToSend =
     allowDriverActions && slipCanReadyToSend(ref) && !caseCancelled;
   const showLocation =
     allowDriverActions && (canReadyToSend || slipShowsPickupDropoff(ref));
+  const canEditAtLocation = slipInLab || allowEditSlipAllLocations;
 
   return {
     location: showLocation && !caseDeleted,
@@ -104,7 +111,7 @@ export function resolveSlipRowActionVisibility(
     addOns: !caseOnHold && !caseFinished && !caseCancelled && !caseDeleted,
     callLog: !caseDeleted,
     attach: !caseDeleted,
-    editSlip: slipInLab && !caseCancelled && !caseDeleted && canEditSlip,
+    editSlip: canEditAtLocation && !caseCancelled && !caseDeleted && canEditSlip,
     deleteSlip: !caseDeleted && canDeleteCase,
     restoreSlip: caseDeleted && canDeleteCase,
     printDriverLabel: allowDriverActions,

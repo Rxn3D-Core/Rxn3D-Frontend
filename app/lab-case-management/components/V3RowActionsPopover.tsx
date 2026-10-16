@@ -4,6 +4,8 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Loader2 } from "lucide-react"
 import { resolveSlipRowActionVisibility } from "@/lib/slip-row-action-visibility"
+import { useBetaFeature } from "@/hooks/use-beta-feature"
+import { BETA_FEATURE_KEYS } from "@/lib/api/beta-features"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 
 const VS = "/icons/virtual-slip-center"
@@ -34,6 +36,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
   { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canCancelCase = true, canDeleteCase = true, allowDriverActions = true, allowRush = true, allowUndoLocation = false, onClose, variant },
   ref,
 ) {
+  const allowEditSlipAllLocations = useBetaFeature(BETA_FEATURE_KEYS.editSlipAllLocations)
   const visibility = useMemo(
     () =>
       resolveSlipRowActionVisibility({
@@ -47,8 +50,9 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
         allowRush,
         allowDriverActions,
         allowUndoLocation,
+        allowEditSlipAllLocations,
       }),
-    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canCancelCase, canDeleteCase, allowRush, allowDriverActions, allowUndoLocation]
+    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canCancelCase, canDeleteCase, allowRush, allowDriverActions, allowUndoLocation, allowEditSlipAllLocations]
   )
 
   const [printing, setPrinting] = useState(false)
