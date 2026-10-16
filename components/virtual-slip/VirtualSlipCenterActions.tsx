@@ -167,7 +167,12 @@ export function VirtualSlipCenterActions({
     }
   };
 
-  const handleConfirmRush = async (rushData: { targetDate?: string | null }) => {
+  const handleConfirmRush = async (rushData: {
+    targetDate?: string | null
+    isOverride?: boolean
+    rushFee?: number
+    rushPercentage?: number
+  }) => {
     if (!slipId || slipId <= 0) return;
     // When mirroring, the modal calls onConfirm twice (once per arch). Only act on the first.
     if (rushConfirmedRef.current) return;
@@ -186,6 +191,13 @@ export function VirtualSlipCenterActions({
     try {
       await requestSlipRush(slipId, {
         requested_delivery_date: rushData.targetDate,
+        ...(rushData.isOverride
+          ? {
+              is_override: true,
+              rush_fee: rushData.rushFee,
+              rush_percentage: rushData.rushPercentage,
+            }
+          : {}),
       });
       toast({
         title: "Rush case updated",

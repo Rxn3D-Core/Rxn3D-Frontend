@@ -87,6 +87,8 @@ type User = {
   updated_at?: string
   deleted_at?: string | null
   permissions?: any[]
+  /** Enabled beta feature keys from login (GA or allowlisted beta). */
+  beta_features?: string[]
   customers?: Array<{
     id: number
     name: string
@@ -1739,7 +1741,8 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         variant: warned ? "destructive" : "default",
       })
       if (shouldNavigate) {
-        router.replace("/case-management")
+        // Superadmin exit: return to User Management listing (not case management).
+        router.replace("/lab-office-management/all-users")
       }
     }
 
@@ -1815,7 +1818,8 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         variant: "default",
       })
       if (shouldNavigate) {
-        router.replace("/case-management")
+        // Superadmin exit: return to User Management listing (not case management).
+        router.replace("/lab-office-management/all-users")
       }
     } catch (error: any) {
       console.error("Stop impersonation error:", error)

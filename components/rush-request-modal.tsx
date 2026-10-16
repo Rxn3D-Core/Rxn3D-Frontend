@@ -27,6 +27,8 @@ import { Calendar } from "@/components/ui/calendar"
 import { useHolidays } from "@/contexts/holidays-context"
 import type { Matcher } from "react-day-picker"
 import { DoneTransitionButton } from "@/components/case-design-center/components/DoneTransitionButton"
+import { useBetaFeature } from "@/hooks/use-beta-feature"
+import { BETA_FEATURE_KEYS } from "@/lib/api/beta-features"
 
 /** Parse API (`yyyy-MM-dd`) or display (`MM/dd/yyyy`, `MM/dd/yy`) delivery strings. */
 function parseDeliveryDateValue(value: string | undefined | null): Date | undefined {
@@ -162,6 +164,8 @@ export interface RushConfirmPayload {
   rushPercentage: number
   rushFee: number
   totalPrice: number
+  /** Policy override when standard delivery is before earliest rush date. */
+  isOverride?: boolean
 }
 
 interface RushRequestModalProps {
@@ -225,6 +229,7 @@ export default function RushRequestModal({
 }: RushRequestModalProps) {
   const initializedForOpenRef = useRef(false)
   const { holidays } = useHolidays()
+  const canOverrideRushPolicy = useBetaFeature(BETA_FEATURE_KEYS.rushPolicyOverride)
 
   const labCalendarCtx = useMemo(
     () =>
@@ -239,6 +244,9 @@ export default function RushRequestModal({
   const [maxTargetDateStr, setMaxTargetDateStr] = useState("")
   const [mandTargetDateStr, setMandTargetDateStr] = useState("")
   const [targetDatesByKey, setTargetDatesByKey] = useState<Record<string, string>>({})
+  const [overrideAccepted, setOverrideAccepted] = useState(false)
+  const [overrideFeeStr, setOverrideFeeStr] = useState("")
+  const [overridePctStr, setOverridePctStr] = useState("")
 
   const isFlexibleRush = rushCaseSchedule?.rush_type === "flexible"
 
@@ -304,6 +312,9 @@ export default function RushRequestModal({
     if (initializedForOpenRef.current) return
     initializedForOpenRef.current = true
 
+    setOverrideAccepted(false)
+    setOverrideFeeStr("")
+    setOverridePctStr("")
     setMaxTargetDateStr(effectiveMaxExistingDate ?? "")
     setMandTargetDateStr(effectiveMandExistingDate ?? "")
     if (useArchSlots) {
@@ -325,6 +336,38 @@ export default function RushRequestModal({
     archSlots,
   ])
 
+  const parseOverrideFee = (): number | null => {
+    const raw = overrideFeeStr.trim()
+    if (!raw) return null
+    const n = Number.parseFloat(raw)
+    return Number.isFinite(n) && n >= 0 ? n : null
+  }
+
+  const parseOverridePct = (): number | null => {
+    const raw = overridePctStr.trim()
+    if (!raw) return null
+    const n = Number.parseFloat(raw)
+    return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null
+  }
+
+  const resolveOverrideMetrics = (): { rushPercentage: number; rushFee: number } | null => {
+    const fee = parseOverrideFee()
+    const pct = parseOverridePct()
+    if (fee === null && pct === null) return null
+    const price = product.price || 0
+    if (fee !== null && pct !== null) {
+      return { rushFee: fee, rushPercentage: pct }
+    }
+    if (pct !== null) {
+      return { rushPercentage: pct, rushFee: Math.round(price * (pct / 100) * 100) / 100 }
+    }
+    if (fee !== null) {
+      const derivedPct = price > 0 ? Math.round((fee / price) * 100 * 100) / 100 : 0
+      return { rushFee: fee, rushPercentage: derivedPct }
+    }
+    return null
+  }
+
   const buildPayload = (
     arch: "maxillary" | "mandibular",
     targetDateStr: string,
@@ -332,6 +375,23 @@ export default function RushRequestModal({
     standardDelivery?: Date,
     slotMeta?: { cardId: number; repTooth: number }
   ): RushConfirmPayload => {
+    if (overrideAccepted) {
+      const overrideMetrics = resolveOverrideMetrics()
+      const rushFee = overrideMetrics?.rushFee ?? 0
+      const rushPercentage = overrideMetrics?.rushPercentage ?? 0
+      return {
+        arch,
+        rushKey,
+        cardId: slotMeta?.cardId,
+        repTooth: slotMeta?.repTooth,
+        targetDate: targetDateStr || null,
+        daysSaved: 0,
+        rushPercentage,
+        rushFee,
+        totalPrice: product.price + rushFee,
+        isOverride: true,
+      }
+    }
     const metrics = computeRushMetrics(targetDateStr, standardDelivery)
     return {
       arch,
@@ -353,7 +413,8 @@ export default function RushRequestModal({
     const archEffectiveStandard = slot?.normalDeliveryDate
       ? parseDeliveryDateValue(slot.normalDeliveryDate)
       : actualDelivery
-    if (!isRushDateValidStr(targetDateStr, archEffectiveStandard)) return
+    if (!isRushDateValidStr(targetDateStr, archEffectiveStandard, overrideAccepted)) return
+    if (overrideAccepted && !resolveOverrideMetrics()) return
 
     const rushKey = slot?.rushKey ?? `${arch}_legacy`
     onConfirm(buildPayload(arch, targetDateStr, rushKey, archEffectiveStandard))
@@ -394,7 +455,8 @@ export default function RushRequestModal({
     const slotEffectiveStandard = slot.normalDeliveryDate
       ? parseDeliveryDateValue(slot.normalDeliveryDate)
       : actualDelivery
-    if (!isRushDateValidStr(targetDateStr, slotEffectiveStandard)) return
+    if (!isRushDateValidStr(targetDateStr, slotEffectiveStandard, overrideAccepted)) return
+    if (overrideAccepted && !resolveOverrideMetrics()) return
 
     onConfirm(
       buildPayload(slot.arch, targetDateStr, slot.rushKey, slotEffectiveStandard, {
@@ -460,21 +522,26 @@ export default function RushRequestModal({
 
   const isRushDateValidStr = (
     targetDateStr: string | undefined,
-    actualDelivery: Date | undefined
+    actualDelivery: Date | undefined,
+    ignoreStandardMax = false
   ): boolean => {
     if (!targetDateStr?.trim()) return false
     const rushDay = parseLocalDateString(targetDateStr)
     if (!isLabWorkingDay(rushDay, labCalendarCtx)) return false
     if (rushDay < earliestRushDelivery) return false
-    if (actualDelivery) {
+    if (!ignoreStandardMax && actualDelivery) {
       const maxDay = startOfDay(actualDelivery)
       if (rushDay > maxDay) return false
     }
     return true
   }
 
-  const rushDateDisabledMatchers = (maxDelivery?: Date) =>
-    buildRushDateDisabledMatchers(labCalendarCtx, earliestRushDelivery, maxDelivery)
+  const rushDateDisabledMatchers = (maxDelivery?: Date, ignoreStandardMax = false) =>
+    buildRushDateDisabledMatchers(
+      labCalendarCtx,
+      earliestRushDelivery,
+      ignoreStandardMax ? undefined : maxDelivery
+    )
 
   const applySameDateToAllProducts = (sourceRushKey: string) => {
     const date = targetDatesByKey[sourceRushKey]?.trim()
@@ -504,10 +571,19 @@ export default function RushRequestModal({
         ? parseDeliveryDateValue(slot.normalDeliveryDate)
         : actualDelivery
     const effectiveStandard = standardDelivery ?? actualDelivery
-    const canRequestRush = isRushDateValidStr(targetDateStr, effectiveStandard)
-    const rushMetrics = computeRushMetrics(targetDateStr, effectiveStandard)
     const rushWindowImpossible =
       !!effectiveStandard && earliestRushDelivery > startOfDay(effectiveStandard)
+    const overrideActive = overrideAccepted && canOverrideRushPolicy && rushWindowImpossible
+    const overrideMetricsOk = !overrideActive || !!resolveOverrideMetrics()
+    const canRequestRush =
+      isRushDateValidStr(targetDateStr, effectiveStandard, overrideActive) && overrideMetricsOk
+    const rushMetrics = overrideActive
+      ? {
+          daysSaved: 0,
+          rushPercentage: resolveOverrideMetrics()?.rushPercentage ?? 0,
+          rushFee: resolveOverrideMetrics()?.rushFee ?? 0,
+        }
+      : computeRushMetrics(targetDateStr, effectiveStandard)
 
     const hasExistingRushDetails =
       archRushed &&
@@ -549,7 +625,7 @@ export default function RushRequestModal({
           </p>
           <RushDateField
             ariaLabel={`Rush delivery date for ${slot.productName}`}
-            disabledMatchers={rushDateDisabledMatchers(standardDelivery)}
+            disabledMatchers={rushDateDisabledMatchers(standardDelivery, overrideActive)}
             value={targetDateStr}
             onChange={(value) =>
               setTargetDatesByKey((prev) => ({ ...prev, [slot.rushKey]: value }))
@@ -558,7 +634,7 @@ export default function RushRequestModal({
           <p className="text-[10px] mt-1.5 ml-2.5" style={{ color: "#B4B0B0" }}>
             Select a lab working day (weekoffs and holidays are disabled). Earliest rush date:{" "}
             {format(earliestRushDelivery, "MM/dd/yyyy")}
-            {standardDelivery ? (
+            {standardDelivery && !overrideActive ? (
               <>; must be on or before standard delivery ({formatDisplayDate(standardDelivery)}).</>
             ) : (
               "."
@@ -570,10 +646,62 @@ export default function RushRequestModal({
               <span className="block mt-1 text-[#CF0202]">
                 Rush is not available for this product: standard delivery is before the earliest rush
                 date allowed by lab policy.
+                {canOverrideRushPolicy && !overrideAccepted ? (
+                  <button
+                    type="button"
+                    className="block mt-1.5 underline font-semibold text-[#1162A8] cursor-pointer"
+                    onClick={() => setOverrideAccepted(true)}
+                  >
+                    Still set up rush with a custom date and fee?
+                  </button>
+                ) : null}
+                {overrideActive ? (
+                  <span className="block mt-1 text-[#1162A8]">
+                    Override enabled: pick any lab working day on/after the earliest rush date and enter
+                    a custom fee and/or percentage.
+                  </span>
+                ) : null}
               </span>
             ) : null}
           </p>
         </div>
+
+        {overrideActive ? (
+          <div className="mb-4 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] font-bold mb-1.5 tracking-[-0.02em]" style={labelStyle}>
+                Custom rush fee ($)
+              </p>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={overrideFeeStr}
+                onChange={(e) => setOverrideFeeStr(e.target.value)}
+                className="w-full h-[36px] rounded-md px-3 text-[13px] border border-[#E5E5E5]"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold mb-1.5 tracking-[-0.02em]" style={labelStyle}>
+                Custom rush %
+              </p>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={overridePctStr}
+                onChange={(e) => setOverridePctStr(e.target.value)}
+                className="w-full h-[36px] rounded-md px-3 text-[13px] border border-[#E5E5E5]"
+                placeholder="0"
+              />
+            </div>
+            <p className="col-span-2 text-[10px]" style={{ color: "#B4B0B0" }}>
+              Provide fee, percentage, or both.
+            </p>
+          </div>
+        ) : null}
 
         {hasExistingRushDetails && !dateChanged ? (
           <div className="px-5 py-4 rounded-md mb-4" style={{ border: "1px solid #FFE2E2" }}>
@@ -704,8 +832,19 @@ export default function RushRequestModal({
       ? parseDeliveryDateValue(slot.normalDeliveryDate)
       : actualDelivery
     const effectiveStandard = standardDelivery ?? actualDelivery
-    const canRequestRush = isRushDateValidStr(targetDateStr, effectiveStandard)
-    const rushMetrics = computeRushMetrics(targetDateStr, effectiveStandard)
+    const rushWindowImpossible =
+      !!effectiveStandard && earliestRushDelivery > startOfDay(effectiveStandard)
+    const overrideActive = overrideAccepted && canOverrideRushPolicy && rushWindowImpossible
+    const overrideMetricsOk = !overrideActive || !!resolveOverrideMetrics()
+    const canRequestRush =
+      isRushDateValidStr(targetDateStr, effectiveStandard, overrideActive) && overrideMetricsOk
+    const rushMetrics = overrideActive
+      ? {
+          daysSaved: 0,
+          rushPercentage: resolveOverrideMetrics()?.rushPercentage ?? 0,
+          rushFee: resolveOverrideMetrics()?.rushFee ?? 0,
+        }
+      : computeRushMetrics(targetDateStr, effectiveStandard)
 
     const hasExistingRushDetails =
       archRushed &&
@@ -741,14 +880,14 @@ export default function RushRequestModal({
           </p>
           <RushDateField
             ariaLabel="Rush delivery date"
-            disabledMatchers={rushDateDisabledMatchers(standardDelivery)}
+            disabledMatchers={rushDateDisabledMatchers(standardDelivery, overrideActive)}
             value={targetDateStr}
             onChange={setTargetDateStr}
           />
           <p className="text-[10px] mt-1.5 ml-2.5" style={{ color: "#B4B0B0" }}>
             Select a lab working day (weekoffs and holidays are disabled). Earliest rush date:{" "}
             {format(earliestRushDelivery, "MM/dd/yyyy")}
-            {standardDelivery ? (
+            {standardDelivery && !overrideActive ? (
               <>; must be on or before standard delivery ({formatDisplayDate(standardDelivery)}).</>
             ) : (
               "."
@@ -756,8 +895,66 @@ export default function RushRequestModal({
             {rushCaseSchedule?.rush_type === "fixed" && configuredTurnaroundDays != null ? (
               <> Fixed turnaround: {configuredTurnaroundDays} lab working days from today.</>
             ) : null}
+            {rushWindowImpossible ? (
+              <span className="block mt-1 text-[#CF0202]">
+                Rush is not available for this product: standard delivery is before the earliest rush
+                date allowed by lab policy.
+                {canOverrideRushPolicy && !overrideAccepted ? (
+                  <button
+                    type="button"
+                    className="block mt-1.5 underline font-semibold text-[#1162A8] cursor-pointer"
+                    onClick={() => setOverrideAccepted(true)}
+                  >
+                    Still set up rush with a custom date and fee?
+                  </button>
+                ) : null}
+                {overrideActive ? (
+                  <span className="block mt-1 text-[#1162A8]">
+                    Override enabled: pick any lab working day on/after the earliest rush date and enter
+                    a custom fee and/or percentage.
+                  </span>
+                ) : null}
+              </span>
+            ) : null}
           </p>
         </div>
+
+        {overrideActive ? (
+          <div className="mb-4 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] font-bold mb-1.5 tracking-[-0.02em]" style={labelStyle}>
+                Custom rush fee ($)
+              </p>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={overrideFeeStr}
+                onChange={(e) => setOverrideFeeStr(e.target.value)}
+                className="w-full h-[36px] rounded-md px-3 text-[13px] border border-[#E5E5E5]"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold mb-1.5 tracking-[-0.02em]" style={labelStyle}>
+                Custom rush %
+              </p>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={overridePctStr}
+                onChange={(e) => setOverridePctStr(e.target.value)}
+                className="w-full h-[36px] rounded-md px-3 text-[13px] border border-[#E5E5E5]"
+                placeholder="0"
+              />
+            </div>
+            <p className="col-span-2 text-[10px]" style={{ color: "#B4B0B0" }}>
+              Provide fee, percentage, or both.
+            </p>
+          </div>
+        ) : null}
 
         {hasExistingRushDetails && !dateChanged ? (
           <div className="px-5 py-4 rounded-md mb-4" style={{ border: "1px solid #FFE2E2" }}>

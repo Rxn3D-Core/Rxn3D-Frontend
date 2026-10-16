@@ -653,14 +653,28 @@ export default function LabSlipV3Page() {
       toast({ title: "Unable to remove rush", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
     }
   }
-  const handleConfirmRushCase = async (rushData: { targetDate?: string | null }) => {
+  const handleConfirmRushCase = async (rushData: {
+    targetDate?: string | null
+    isOverride?: boolean
+    rushFee?: number
+    rushPercentage?: number
+  }) => {
     if (!selectedSlipForRush?.id) return
     if (!rushData?.targetDate) {
       toast({ title: "Rush date required", description: "Please select a target delivery date first.", variant: "destructive" })
       return
     }
     try {
-      await requestSlipRush(selectedSlipForRush.id, { requested_delivery_date: rushData.targetDate })
+      await requestSlipRush(selectedSlipForRush.id, {
+        requested_delivery_date: rushData.targetDate,
+        ...(rushData.isOverride
+          ? {
+              is_override: true,
+              rush_fee: rushData.rushFee,
+              rush_percentage: rushData.rushPercentage,
+            }
+          : {}),
+      })
       toast({ title: "Rush case updated", description: "The rush request was submitted successfully.", duration: 3000 })
       setShowRushModal(false); setSelectedSlipForRush(null); refreshCurrentListing()
     } catch (error) {
