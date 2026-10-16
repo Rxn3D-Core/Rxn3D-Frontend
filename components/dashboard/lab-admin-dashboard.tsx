@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { KpiCard } from "./kpi-card"
 import { PlanCard } from "./plan-card"
-import { Search, X, Eye, MoreHorizontal, Plus, Mail, Trash2, CirclePause, EllipsisVertical, CircleOff, Menu} from 'lucide-react'
+import { Search, X, Eye, MoreHorizontal, Plus, Mail, Trash2, Menu } from 'lucide-react'
+import { ConnectionHoldButton } from "@/components/dashboard/connection-hold-button"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { Input } from "@/components/ui/input"
@@ -46,6 +47,7 @@ const getStatusBadgeClass = (status: string) => {
       return "bg-[#c3f2cf] text-[#119933]"
     case "on-hold":
     case "on hold":
+    case "onhold":
       return "bg-[#fff3e1] text-[#ff9500]"
     case "requested":
       return "bg-[#fff3e1] text-[#ff9500]"
@@ -69,6 +71,7 @@ const getStatusLabel = (status: string) => {
       return "Connected"
     case "on-hold":
     case "on hold":
+    case "onhold":
       return "On Hold"
     case "pending":
       return "Requested"
@@ -508,17 +511,7 @@ export function LabAdminDashboard() {
                             <span className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium ${getStatusBadgeClass(practice.status || '')}`}>
                               {getStatusLabel(practice.status || '')}
                             </span>
-                            <div className="flex items-center gap-1 sm:gap-2">
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-orange-500 hover:bg-orange-50 rounded-full transition-all">
-                                <CirclePause className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                                <CircleOff className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
-                                <EllipsisVertical className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                            </div>
+                            <ConnectionHoldButton connection={practice} partnerLabel="office" />
                           </div>
                         </div>
                       );
@@ -811,23 +804,7 @@ export function LabAdminDashboard() {
                               <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                             </button>
                           </div>
-                        ) : (
-                          <div className="flex items-center gap-1 sm:gap-2">
-                            <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-orange-500 hover:bg-orange-50 rounded-full transition-all">
-                              <CirclePause className="h-3 w-3 sm:h-4 sm:w-4" />
-                            </button>
-                            <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                              {user.status === "declined" ? (
-                                <CircleOff className="h-3 w-3 sm:h-4 sm:w-4 text-[#eb0303]" />
-                              ) : (
-                                <CircleOff className="h-3 w-3 sm:h-4 sm:w-4" />
-                              )}
-                            </button>
-                            <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
-                              <EllipsisVertical className="h-3 w-3 sm:h-4 sm:w-4" />
-                            </button>
-                          </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   ))}

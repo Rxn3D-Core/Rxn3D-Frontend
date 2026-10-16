@@ -404,9 +404,18 @@ function findAllSlotsForArch(arch: Arch, params: BuildRushArchSlotsParams): Rush
       const matchedStage = resolvedStageName && product?.stages?.length
         ? product.stages.find((s) => s.name === resolvedStageName)
         : undefined;
+      const defaultStage = product?.stages?.find((s) => s.is_default === "Yes");
+      // Prefer library stage_id (delivery-date / rush APIs); fall back to pivot id.
+      const resolveStageApiId = (
+        stage: { stage_id?: number; id?: number } | undefined
+      ): number | undefined => {
+        const libraryId = Number(stage?.stage_id ?? 0);
+        if (libraryId > 0) return libraryId;
+        const pivotId = Number(stage?.id ?? 0);
+        return pivotId > 0 ? pivotId : undefined;
+      };
       const apiStageId =
-        matchedStage?.id ??
-        product?.stages?.find((s) => s.is_default === "Yes")?.id;
+        resolveStageApiId(matchedStage) ?? resolveStageApiId(defaultStage);
 
       const matchedVariation =
         teeth.length > 0

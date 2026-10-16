@@ -22,6 +22,7 @@ import { AddOnsCategoryProvider } from "@/contexts/product-add-on-category-conte
 import { CaseTrackingProvider } from "@/contexts/case-tracking-context"
 import { ProtectedRoute } from "@/components/protected-route"
 import { PermissionRoute } from "@/components/permission-route"
+import { ROUTE_PERMISSIONS } from "@/lib/route-permissions"
 
 const SUPERADMIN_ONLY = process.env.NEXT_PUBLIC_PRODUCT_MGMT_SUPERADMIN_ONLY === "true"
 
@@ -51,7 +52,7 @@ export default function LabProductLibraryLayout({
     <ProtectedRoute>
       <ProductManagementGuard>
       <PermissionRoute
-        permissions={["view_product", "create_product", "update_product", "delete_product"]}
+        permissions={[...ROUTE_PERMISSIONS.productLibrary]}
       >
       <ProductLibraryProvider>
         <ProductCategoryProvider>

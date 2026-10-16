@@ -3,7 +3,8 @@
 import React from "react"
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { Search, Info, Eye, MoreHorizontal, Plus, Mail, Trash2, CirclePause, EllipsisVertical, CircleOff } from 'lucide-react'
+import { Search, Info, Eye, MoreHorizontal, Plus, Mail, Trash2 } from 'lucide-react'
+import { ConnectionHoldButton } from "@/components/dashboard/connection-hold-button"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -247,6 +248,7 @@ export function OfficeAdminDashboard() {
         return "bg-[#c3f2cf] text-[#119933]"
       case "on-hold":
       case "on hold":
+      case "onhold":
         return "bg-[#fff3e1] text-[#ff9500]"
       case "requested":
         return "bg-[#fff3e1] text-[#ff9500]"
@@ -270,6 +272,7 @@ export function OfficeAdminDashboard() {
         return "Connected"
       case "on-hold":
       case "on hold":
+      case "onhold":
         return "On Hold"
       case "pending":
         return "Requested"
@@ -544,17 +547,7 @@ export function OfficeAdminDashboard() {
                             <span className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium ${getStatusBadgeClass(lab.status || '')}`}>
                               {getStatusLabel(lab.status || '')}
                             </span>
-                            <div className="flex items-center gap-1 sm:gap-2">
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-orange-500 hover:bg-orange-50 rounded-full transition-all">
-                                <CirclePause className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                                <CircleOff className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                              <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
-                                <EllipsisVertical className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </button>
-                            </div>
+                            <ConnectionHoldButton connection={lab} partnerLabel="lab" />
                           </div>
                         </div>
                       );
@@ -846,19 +839,6 @@ export function OfficeAdminDashboard() {
                                 </button>
                               </>
                             )}
-                            {!isInvitation && (
-                              <>
-                                <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-orange-500 hover:bg-orange-50 rounded-full transition-all">
-                                  <CirclePause className="h-3 w-3 sm:h-4 sm:w-4" />
-                                </button>
-                                <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                                  <CircleOff className="h-3 w-3 sm:h-4 sm:w-4" />
-                                </button>
-                              </>
-                            )}
-                            <button className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
-                              <EllipsisVertical className="h-3 w-3 sm:h-4 sm:w-4" />
-                            </button>
                           </div>
                         </div>
                       </div>

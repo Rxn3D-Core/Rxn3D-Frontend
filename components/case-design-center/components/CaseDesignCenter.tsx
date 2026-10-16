@@ -22,14 +22,20 @@ import { AutoOpenSuppressionContext } from "./auto-open-suppression";
 import { CenterNavigation } from "./CenterNavigation";
 import { ModalOrchestrator } from "./ModalOrchestrator";
 import { mockImpressions } from "../constants";
-import { hasRetentionOptions, isNonRetentionCategory, serializeStageFieldValue, serializeStageSelectionFromProduct } from "../utils/categoryHelpers";
+import {
+  hasRetentionOptions,
+  isNonRetentionCategory,
+  serializeStageFieldValue,
+  serializeStageSelectionFromProduct,
+  shouldSkipStageSelection,
+} from "../utils/categoryHelpers";
 import {
   isGradeFieldValueSkipped,
   productHasGrades,
   resolveProductForStageField,
 } from "../utils/gradeHelpers";
 import {
-  getCardRepresentativeTooth,
+  getCardFieldToothPreferSelected,
   getPrimaryCardRepresentativeTooth,
   getRepresentativeTeethByCard,
 } from "../utils/productSelectionReadiness";
@@ -66,6 +72,7 @@ import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
 import { buildRushArchSlots } from "../utils/rushModalContext";
 import { useRushSlotDeliveryDates } from "../hooks/useRushSlotDeliveryDates";
+import { formatEstimatedDueDate } from "../hooks/useProductEstimatedDueDate";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 import { canSkipExtractionToothSelection, getDefaultExtractionStrict } from "../utils/extractionHelpers";
 import { hasUserSelectedCard0TeethOnArch } from "../utils/card0ProductPanelVisibility";
@@ -438,7 +445,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const MAXILLARY_SENTINEL = 1;
   const MANDIBULAR_SENTINEL = 17;
 
-  /** Same tooth the accordion/readiness use for impression — not an unselected sentinel or wrong arch slot. */
+  /** Same tooth the accordion/fields list use — chart-selected rep, not accordion-only sentinel. */
   const resolveRemovableImpressionTooth = useCallback(
     (arch: "maxillary" | "mandibular", preferredTooth: number | null) => {
       const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
@@ -446,8 +453,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
       if (preferredTooth != null) {
         const cardId = state.getToothProductCard(arch, preferredTooth);
-        const fromCard = getCardRepresentativeTooth({
+        const fromCard = getCardFieldToothPreferSelected({
           allTeeth,
+          selectedTeeth,
           cardId,
           getToothProduct: state.getToothProduct,
           getToothProductCard: state.getToothProductCard,
@@ -785,7 +793,58 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ]
   );
 
-  /** Dual-grid impression modal (maxillary + mandibular sections). */
+  /** Product driving the open impression modal (tooth / removable / initial). */
+  const currentImpressionProduct = useMemo(() => {
+    const toothNum = state.currentImpressionToothNumber;
+    const arch = state.currentImpressionArch;
+    let product =
+      toothNum !== null ? state.getToothProduct(arch, toothNum) : null;
+    if (!product && state.currentImpressionProductId) {
+      const archKeys =
+        arch === "maxillary"
+          ? Object.keys(state.maxillaryRetentionTypes || {})
+          : Object.keys(state.mandibularRetentionTypes || {});
+      for (const k of archKeys) {
+        const p = state.getToothProduct(arch, Number(k));
+        if (p?.id?.toString() === state.currentImpressionProductId) {
+          product = p;
+          break;
+        }
+      }
+    }
+    if (
+      !product &&
+      state.initialProductDetails?.id?.toString() ===
+        state.currentImpressionProductId
+    ) {
+      product = state.initialProductDetails;
+    }
+    if (
+      !product &&
+      isNonRetentionCategory(state.initialProductDetails) &&
+      state.initialProductDetails &&
+      (state.initialProductDetails.id?.toString() ===
+        state.currentImpressionProductId ||
+        state.currentImpressionProductId === "0")
+    ) {
+      product = state.initialProductDetails;
+    }
+    return product;
+  }, [
+    state.currentImpressionToothNumber,
+    state.currentImpressionArch,
+    state.currentImpressionProductId,
+    state.getToothProduct,
+    state.maxillaryRetentionTypes,
+    state.mandibularRetentionTypes,
+    state.initialProductDetails,
+  ]);
+
+  /**
+   * Dual-grid impression modal (maxillary + mandibular sections).
+   * Must match when oppositeImpression="Yes" is passed to the modal so both
+   * grids share the product catalog (avoids empty opposing → mockImpressions).
+   */
   const impressionModalShowsDualArches = useMemo(() => {
     if (slipHasProductsOnBothArches) return true;
     if (
@@ -794,17 +853,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ) {
       return true;
     }
-    return (
+    if (
       props.initialArch !== "both" &&
       isNonRetentionCategory(state.initialProductDetails) &&
       initialProductHasOppositeSection &&
       isOppositeImpressionEnabled(state.initialProductDetails)
-    );
+    ) {
+      return true;
+    }
+    // Fixed / tooth product with opposing impression — same dual grid as removable.
+    return isOppositeImpressionEnabled(currentImpressionProduct);
   }, [
     slipHasProductsOnBothArches,
     props.initialArch,
     state.initialProductDetails,
     initialProductHasOppositeSection,
+    currentImpressionProduct,
   ]);
 
   const slipWideImpressionCatalog = useMemo(
@@ -884,15 +948,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           state.initialProductDetails,
           props.initialArch
         );
+    // Never show mock letter-cards on opposing when the primary product catalog exists.
+    const sharedFallback =
+      slipWideImpressionCatalog.length > 0
+        ? slipWideImpressionCatalog
+        : impressionModalCatalog;
     return buildImpressionModalOptions(
       opposingArch,
       state.selectedImpressions,
       catalog,
-      mockImpressions
+      mockImpressions,
+      sharedFallback
     );
   }, [
     impressionModalShowsDualArches,
     slipWideImpressionCatalog,
+    impressionModalCatalog,
     state.currentImpressionArch,
     state.getToothProduct,
     state.maxillaryRetentionTypes,
@@ -1173,7 +1244,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ]
   );
 
-  const rushSlotDeliveryDates = useRushSlotDeliveryDates(rushArchSlots);
+  const { dates: rushSlotDeliveryDates, isLoading: rushSlotDeliveryDatesLoading } =
+    useRushSlotDeliveryDates(rushArchSlots);
 
   const rushArchSlotsWithDelivery = useMemo(
     () =>
@@ -1183,6 +1255,43 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       }),
     [rushArchSlots, rushSlotDeliveryDates]
   );
+
+  // Header due date: once every active product slot has a stage (or skips stage
+  // selection), take the latest calendar date from the stage-aware delivery-date API.
+  const stagesReadyForDueDate = useMemo(() => {
+    if (rushArchSlots.length === 0) return false;
+    return rushArchSlots.every((slot) => {
+      if (slot.stageName?.trim()) return true;
+      if (slot.apiProductId <= 0) return false;
+      const product = state.getToothProduct(slot.arch, slot.repTooth);
+      const stages = product?.stages ?? [];
+      return stages.length === 0 || shouldSkipStageSelection(product);
+    });
+  }, [rushArchSlots, state.getToothProduct]);
+
+  const headerDueDateIso = useMemo(() => {
+    if (!stagesReadyForDueDate) return null;
+    const dated = rushArchSlots
+      .map((slot) => rushSlotDeliveryDates[slot.rushKey])
+      .filter((iso): iso is string => Boolean(iso))
+      .sort((a, b) => a.localeCompare(b));
+    return dated.length > 0 ? dated[dated.length - 1] : null;
+  }, [stagesReadyForDueDate, rushArchSlots, rushSlotDeliveryDates]);
+
+  const onEstimatedDueDateChangeRef = useRef(props.onEstimatedDueDateChange);
+  onEstimatedDueDateChangeRef.current = props.onEstimatedDueDateChange;
+
+  useEffect(() => {
+    const notify = onEstimatedDueDateChangeRef.current;
+    if (!notify) return;
+    notify({
+      isoDate: headerDueDateIso,
+      displayDate: headerDueDateIso
+        ? formatEstimatedDueDate(headerDueDateIso)
+        : null,
+      isLoading: stagesReadyForDueDate && rushSlotDeliveryDatesLoading,
+    });
+  }, [headerDueDateIso, stagesReadyForDueDate, rushSlotDeliveryDatesLoading]);
 
   const addOnArchSlots = useMemo(
     () =>
@@ -1370,6 +1479,58 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       assignCard0Sentinel("mandibular", MANDIBULAR_SENTINEL);
     }
   }, [mandibularHasRemovablesCard0, card0RemovedArches.mandibular, assignCard0Sentinel]);
+
+  // Removable field steps used to land on the accordion sentinel (1/17) while the
+  // fields list uses the chart-selected rep (e.g. #8). Migrate so addons unlock.
+  useEffect(() => {
+    if (props.caseSubmitted) return;
+    for (const arch of ["maxillary", "mandibular"] as const) {
+      const sentinel = arch === "maxillary" ? MAXILLARY_SENTINEL : MANDIBULAR_SENTINEL;
+      const selectedTeeth = arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth;
+      const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const primary = getPrimaryCardRepresentativeTooth({
+        allTeeth,
+        selectedTeeth,
+        getToothProduct: state.getToothProduct,
+        getToothProductCard: state.getToothProductCard,
+        arch,
+      });
+      if (primary == null || primary === sentinel) continue;
+      for (const step of ["impression", "addons"] as const) {
+        if (state.isFieldCompleted(arch, primary, step)) continue;
+        const sentinelVal = state.getFieldValue(arch, sentinel, step);
+        if (!state.isFieldCompleted(arch, sentinel, step) || !sentinelVal?.trim()) continue;
+        state.completeFieldStep(arch, primary, step, sentinelVal);
+        state.uncompleteFieldStep(arch, sentinel, step);
+      }
+      const sentinelAddonKey = `${arch}_${sentinel}`;
+      const primaryAddonKey = `${arch}_${primary}`;
+      const sentinelStructured = state.selectedAddonsByTooth?.[sentinelAddonKey];
+      if (
+        sentinelStructured?.length &&
+        !state.selectedAddonsByTooth?.[primaryAddonKey]?.length
+      ) {
+        state.setSelectedAddonsByTooth((prev) => {
+          if (prev[primaryAddonKey]?.length) return prev;
+          const next = { ...prev, [primaryAddonKey]: sentinelStructured };
+          delete next[sentinelAddonKey];
+          return next;
+        });
+      }
+    }
+  }, [
+    props.caseSubmitted,
+    state.maxillaryTeeth,
+    state.mandibularTeeth,
+    state.selectedAddonsByTooth,
+    state.setSelectedAddonsByTooth,
+    state.getToothProduct,
+    state.getToothProductCard,
+    state.isFieldCompleted,
+    state.getFieldValue,
+    state.completeFieldStep,
+    state.uncompleteFieldStep,
+  ]);
 
   // ── Catch-up: assign product to card 0 teeth that have retention types but no product ──
   // This handles cases where teeth were clicked before the product was ready, or rapid clicks
@@ -2180,59 +2341,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         impressionOptions={impressionModalOptions}
         oppositeImpressions={oppositeImpressionModalOptions}
         currentImpressionOppositeImpression={
-          (() => {
-            // Multi-product / mixed arch: always show both impression grids.
-            if (slipHasProductsOnBothArches) {
-              return "Yes";
-            }
-            // Removable + both arches: one dialog with maxillary and mandibular sections (no mirroring).
-            if (
-              props.initialArch === "both" &&
-              isNonRetentionCategory(state.initialProductDetails)
-            ) {
-              return "Yes";
-            }
-            // Single-arch removable with opposing scan: same dual-grid + Skip Opposing flow as primary product.
-            if (
-              props.initialArch !== "both" &&
-              isNonRetentionCategory(state.initialProductDetails) &&
-              initialProductHasOppositeSection &&
-              (() => {
-                const oi = state.initialProductDetails?.opposite_impression as unknown;
-                return oi === "Yes" || oi === true || oi === 1;
-              })()
-            ) {
-              return "Yes";
-            }
-            const toothNum = state.currentImpressionToothNumber;
-            const arch = state.currentImpressionArch;
-            if (toothNum === null) return undefined;
-            let product = state.getToothProduct(arch, toothNum);
-            if (!product && state.currentImpressionProductId) {
-              const archKeys = arch === "maxillary"
-                ? Object.keys(state.maxillaryRetentionTypes || {})
-                : Object.keys(state.mandibularRetentionTypes || {});
-              for (const k of archKeys) {
-                const p = state.getToothProduct(arch, Number(k));
-                if (p?.id?.toString() === state.currentImpressionProductId) { product = p; break; }
-              }
-            }
-            // Fallback to initialProductDetails for removable products (not stored in retentionTypes)
-            if (!product && state.initialProductDetails?.id?.toString() === state.currentImpressionProductId) {
-              product = state.initialProductDetails;
-            }
-            if (
-              !product &&
-              isNonRetentionCategory(state.initialProductDetails) &&
-              state.initialProductDetails &&
-              (state.initialProductDetails.id?.toString() === state.currentImpressionProductId ||
-                state.currentImpressionProductId === "0")
-            ) {
-              product = state.initialProductDetails;
-            }
-            const oi = product?.opposite_impression as unknown;
-            return (oi === "Yes" || oi === true || oi === 1) ? "Yes" : "No";
-          })()
+          impressionModalShowsDualArches
+            ? "Yes"
+            : state.currentImpressionToothNumber === null
+              ? undefined
+              : isOppositeImpressionEnabled(currentImpressionProduct)
+                ? "Yes"
+                : "No"
         }
         selectedImpressions={state.selectedImpressions}
         setSelectedImpressions={state.setSelectedImpressions}
@@ -2330,9 +2445,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             props.initialArch === "both" &&
             isNonRetentionCategory(state.initialProductDetails)
           ) {
-            const card0 =
-              arch === "maxillary" ? state.getMaxillaryCard0Teeth() : state.getMandibularCard0Teeth();
-            if (card0.length > 0) toothNum = card0[0];
+            const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+            const selectedTeeth =
+              arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth;
+            const primary = getPrimaryCardRepresentativeTooth({
+              allTeeth,
+              selectedTeeth,
+              getToothProduct: state.getToothProduct,
+              getToothProductCard: state.getToothProductCard,
+              arch,
+            });
+            if (primary != null) toothNum = primary;
           }
 
           const addonLabels = addOns

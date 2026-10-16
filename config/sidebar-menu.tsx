@@ -100,6 +100,12 @@ export const superadminMenu: MenuItem[] = [
       },
     ],
   },
+  {
+    id: "beta-features",
+    title: "Beta Features",
+    icon: <FlaskConical className="h-5 w-5" />,
+    path: "/beta-features",
+  },
   // Hidden until these modules are ready:
   // {
   //   id: "performance-management",
@@ -307,7 +313,7 @@ export const labAdminMenu: MenuItem[] = [
     title: "Product Management",
     icon: <Layers className="h-5 w-5" />,
     path: "/lab-product-library/products",
-    permission: ["view_product", "create_product", "update_product", "delete_product"],
+    permission: ["access_product_management"],
   },
   {
     id: "case-management",

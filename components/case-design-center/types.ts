@@ -172,6 +172,15 @@ export interface CaseDesignProps {
    * sequential stage modal prompt on load (maxillary, then mandibular).
    */
   addStageContext?: AddStageDesignContext;
+  /**
+   * Fires when the case-level estimated delivery date changes (from the lab
+   * delivery-date API, stage-aware). Used by add-new-stage header.
+   */
+  onEstimatedDueDateChange?: (info: {
+    isoDate: string | null;
+    displayDate: string | null;
+    isLoading: boolean;
+  }) => void;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
   /** Called whenever any full-screen modal (impression, stage, add-ons, etc.) opens or closes. */

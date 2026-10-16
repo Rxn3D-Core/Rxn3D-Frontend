@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type MouseEvent as ReactMouseEvent } from "react"
 import Link from "next/link"
-import { Eye, Search, Plus, ChevronDown, Edit, Trash2, Lock, ShieldCheck } from "lucide-react"
+import { Eye, Search, Plus, ChevronDown, Edit, Trash2, Lock, ShieldCheck, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,6 +17,7 @@ import { CreateUserModal } from "@/components/office-administrator/create-user-m
 import { SearchInviteUserModal } from "@/components/office-administrator/search-invite-user-modal"
 import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
 import { ResetUserPasswordModal } from "@/components/office-administrator/reset-user-password-modal"
+import { LoginAsUserDialog } from "@/components/login-as-user-dialog"
 import {
   USER_STATUSES,
   formatUserStatusForApi,
@@ -79,7 +80,17 @@ const avatarColors = [
 const SORTABLE_COLUMNS = new Set(["first_name", "email", "created_at", "status"])
 
 export default function AllUsers() {
-  const { fetchUsers, updateUser, updateMembershipStatus, deleteUser, fetchUserById, hasPermission } = useAuth()
+  const {
+    fetchUsers,
+    updateUser,
+    updateMembershipStatus,
+    deleteUser,
+    fetchUserById,
+    hasPermission,
+    impersonateUser,
+    isImpersonating,
+    user: authUser,
+  } = useAuth()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState(() =>
     typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("q") ?? "" : ""
@@ -93,6 +104,8 @@ export default function AllUsers() {
   const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
+  const [loginAsUser, setLoginAsUser] = useState<StaffUser | null>(null)
+  const [loginAsBusy, setLoginAsBusy] = useState(false)
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
   const [allSelected, setAllSelected] = useState(false)
@@ -110,6 +123,10 @@ export default function AllUsers() {
   const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([])
   const canCreateUser = hasPermission("create_user")
   const canEditUser = hasPermission("edit_user")
+  const canLoginAsUser =
+    !isImpersonating &&
+    Array.isArray(authUser?.roles) &&
+    authUser.roles.includes("superadmin")
   const hasActiveFilters = statusFilter !== "all" || roleFilter !== "all" || !!departmentFilter || !!customerFilter
   const lockedRole = resolveLockedRole(roleFilter)
   const addButtonLabel = getAddUserButtonLabel(lockedRole)
@@ -807,11 +824,23 @@ export default function AllUsers() {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleViewUser(user)} className="text-blue-600 hover:text-blue-800"><Eye className="h-5 w-5" /></Button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <Button variant="ghost" size="sm" onClick={() => handleViewUser(user)} className="text-blue-600 hover:text-blue-800" title="View user"><Eye className="h-5 w-5" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)} className="text-green-600 hover:text-green-800" disabled={!canEditUser} title="Edit user"><Edit className="h-5 w-5" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => handleResetPassword(user)} className="text-amber-600 hover:text-amber-800" disabled={!canEditUser} title="Set password"><Lock className="h-5 w-5" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(user.id)} className="text-red-600 hover:text-red-800" disabled={!canEditUser}><Trash2 className="h-5 w-5" /></Button>
+                        {canLoginAsUser ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setLoginAsUser(user)}
+                            className="text-violet-600 hover:text-violet-800"
+                            disabled={loginAsBusy}
+                            title="Login as user"
+                          >
+                            <LogIn className="h-5 w-5" />
+                          </Button>
+                        ) : null}
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(user.id)} className="text-red-600 hover:text-red-800" disabled={!canEditUser} title="Delete user"><Trash2 className="h-5 w-5" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -899,6 +928,23 @@ export default function AllUsers() {
               }
             : null
         }
+      />
+
+      <LoginAsUserDialog
+        open={!!loginAsUser}
+        onOpenChange={(open) => {
+          if (!open && !loginAsBusy) setLoginAsUser(null)
+        }}
+        targetName={loginAsUser?.name || "user"}
+        onConfirm={async (reason) => {
+          if (!loginAsUser) return false
+          setLoginAsBusy(true)
+          try {
+            return await impersonateUser(loginAsUser.id, reason)
+          } finally {
+            setLoginAsBusy(false)
+          }
+        }}
       />
     </div>
   )

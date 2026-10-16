@@ -22,6 +22,8 @@ import {
   getConnectionPartnerId,
   getConnectionPartnerLocation,
   getConnectionPartnerName,
+  isOnHoldConnection,
+  isVisibleDashboardConnection,
 } from "@/lib/connection-utils"
 
 export default function AllConnections() {
@@ -145,10 +147,11 @@ export default function AllConnections() {
 
   const getCurrentConnections = () => {
     if (activeTab === "connected") {
-      const activeConnections = isLabSide ? practices : labs
+      const activeConnections = (isLabSide ? practices : labs).filter(isVisibleDashboardConnection)
 
       return activeConnections.map((connection) => ({
         id: getConnectionPartnerId(connection).toString(),
+        connectionId: connection.id,
         name: getConnectionPartnerName(connection),
         address: getConnectionPartnerLocation(connection) || "Address not available",
         type: isLabSide ? ("Practice" as const) : ("Lab" as const),
@@ -157,7 +160,7 @@ export default function AllConnections() {
         date: new Date(connection.connected_since || connection.created_at || new Date())
           .toISOString()
           .split("T")[0],
-        status: "Connected" as const,
+        status: (isOnHoldConnection(connection) ? "OnHold" : "Connected") as "Connected" | "OnHold",
       }))
     }
 

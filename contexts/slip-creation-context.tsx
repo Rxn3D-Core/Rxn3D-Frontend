@@ -291,7 +291,15 @@ interface SlipCreationContextType {
   generatePaperSlips: (caseIds: number[]) => Promise<any>
 
   // Request a rush for a slip using TanStack React Query
-  requestSlipRush: (slipId: number, payload: { requested_delivery_date: string }) => Promise<any>
+  requestSlipRush: (
+    slipId: number,
+    payload: {
+      requested_delivery_date: string
+      is_override?: boolean
+      rush_fee?: number
+      rush_percentage?: number
+    }
+  ) => Promise<any>
   /** Remove rush from an existing slip (DELETE /v1/slip/{id}/rush). */
   cancelSlipRush: (slipId: number) => Promise<any>
 
@@ -337,7 +345,13 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
   // TanStack Query client and mutation for rush request
   const queryClient = useQueryClient()
 
-  type RushVariables = { slipId: number; payload: { requested_delivery_date: string } }
+  type RushRequestPayload = {
+    requested_delivery_date: string
+    is_override?: boolean
+    rush_fee?: number
+    rush_percentage?: number
+  }
+  type RushVariables = { slipId: number; payload: RushRequestPayload }
 
   const rushMutation = useMutation<any, Error, RushVariables>({
     mutationFn: async ({ slipId, payload }: RushVariables) => {
@@ -370,7 +384,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     },
   })
 
-  const requestSlipRush = useCallback(async (slipId: number, payload: { requested_delivery_date: string }) => {
+  const requestSlipRush = useCallback(async (slipId: number, payload: RushRequestPayload) => {
     return rushMutation.mutateAsync({ slipId, payload })
   }, [rushMutation])
 

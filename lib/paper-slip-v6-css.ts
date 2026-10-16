@@ -372,7 +372,8 @@ body {
   box-sizing: border-box;
   width: 100%;
   min-height: 52px;
-  max-height: 72px;
+  /* 3 lines × 18px line-height + 16px vertical padding — safety net after measure truncate */
+  max-height: 70px;
   overflow: hidden;
   border: 1px solid #B8BFC4;
   border-radius: 7px;

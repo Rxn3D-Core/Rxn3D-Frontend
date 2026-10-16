@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  getCardFieldToothPreferSelected,
   getCardRepresentativeTooth,
   getPrimaryCardRepresentativeTooth,
   getRepresentativeTeethByCard,
@@ -53,4 +54,30 @@ test("primary card representative tooth prefers a selected tooth over sentinel",
   });
 
   assert.equal(representativeTooth, 8);
+});
+
+test("card field tooth prefers selected teeth over accordion sentinel", () => {
+  const fieldTooth = getCardFieldToothPreferSelected({
+    allTeeth: [1, 8, 9],
+    selectedTeeth: [8, 9],
+    cardId: 0,
+    getToothProduct: (_arch, tooth) => (tooth === 1 || tooth === 8 || tooth === 9 ? { id: 10 } : null),
+    getToothProductCard: (_arch, _tooth) => 0,
+    arch: "maxillary",
+  });
+
+  assert.equal(fieldTooth, 8);
+});
+
+test("card field tooth falls back to sentinel when nothing is chart-selected", () => {
+  const fieldTooth = getCardFieldToothPreferSelected({
+    allTeeth: [1, 8, 9],
+    selectedTeeth: [],
+    cardId: 0,
+    getToothProduct: (_arch, tooth) => (tooth === 1 ? { id: 10 } : null),
+    getToothProductCard: (_arch, _tooth) => 0,
+    arch: "maxillary",
+  });
+
+  assert.equal(fieldTooth, 1);
 });

@@ -293,13 +293,17 @@ export function SignaturePad({
 
 /* -------------------------- Image dropzone ------------------------- */
 
-/** Single image per slip (backend stores one image per slip per action). */
+const PROOF_MEDIA_ACCEPT =
+  "image/*,.mp4,.mov,.avi,video/mp4,video/quicktime,video/x-msvideo";
+
+/** Single image (or optional video) per slip — backend stores one file per action. */
 export function ImageDropzone({
   image,
   onChange,
   onRejected,
   required = false,
   hint,
+  allowVideo = false,
 }: {
   image: UploadedImage | null;
   onChange: (image: UploadedImage | null) => void;
@@ -308,26 +312,35 @@ export function ImageDropzone({
   required?: boolean;
   /** Optional helper line under the main drop text. */
   hint?: string;
+  /** When true (ready-to-send), also accept mp4/mov/avi up to 500MB. */
+  allowVideo?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   // Android's photo picker (accept="image/*") has no camera option; capture forces the camera.
   const cameraRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
+  const fileAccept = allowVideo ? PROOF_MEDIA_ACCEPT : "image/*";
+  const isVideoPreview =
+    Boolean(image) &&
+    (image!.file.type.startsWith("video/") ||
+      /\.(mp4|mov|avi)$/i.test(image!.name));
 
   const addFiles = useCallback(
     async (files: FileList | File[]) => {
       setBusy(true);
       try {
-        const { images: added, rejected } = await filesToUploadedImages(files);
+        const { images: added, rejected } = await filesToUploadedImages(files, {
+          allowVideo,
+        });
         if (rejected.length && onRejected) onRejected(rejected);
-        // One image per slip — keep the first valid file, replacing any existing.
+        // One file per slip — keep the first valid file, replacing any existing.
         if (added.length) onChange(added[0]);
       } finally {
         setBusy(false);
       }
     },
-    [onChange, onRejected]
+    [allowVideo, onChange, onRejected]
   );
 
   const cameraInput = (
@@ -348,9 +361,19 @@ export function ImageDropzone({
   if (image) {
     return (
       <div className="flex items-center gap-3 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-3">
-        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-[#E5E7EB]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image.dataUrl} alt={image.name} className="h-full w-full object-cover" />
+        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-[#E5E7EB] bg-black/5">
+          {isVideoPreview ? (
+            <video
+              src={image.dataUrl}
+              className="h-full w-full object-cover"
+              muted
+              playsInline
+              preload="metadata"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={image.dataUrl} alt={image.name} className="h-full w-full object-cover" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-[#111827]">{image.name}</p>
@@ -370,7 +393,7 @@ export function ImageDropzone({
               className="inline-flex items-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-3 py-1.5 text-xs font-medium text-[#374151] hover:bg-gray-100"
             >
               <Upload className="h-3.5 w-3.5" aria-hidden />
-              Upload Photo
+              {allowVideo ? "Upload Media" : "Upload Photo"}
             </button>
             <button
               type="button"
@@ -385,7 +408,7 @@ export function ImageDropzone({
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={fileAccept}
           className="hidden"
           onChange={(e) => {
             if (e.target.files?.length) void addFiles(e.target.files);
@@ -422,11 +445,13 @@ export function ImageDropzone({
         <Loader2 className="h-6 w-6 animate-spin text-[#0E66B2]" />
       ) : null}
       <p className="text-sm text-[#6B7280]">
-        {hint ?? "Add a proof photo"}
+        {hint ?? (allowVideo ? "Add a proof photo or video" : "Add a proof photo")}
       </p>
       <p className="text-xs text-[#9CA3AF]">
         {required ? "Required · " : ""}
-        Image only (JPG, PNG, GIF, WEBP, SVG) · max 10MB
+        {allowVideo
+          ? "Images (max 10MB) or video MP4/MOV/AVI (max 500MB)"
+          : "Image only (JPG, PNG, GIF, WEBP, SVG) · max 10MB"}
       </p>
       <div className="flex flex-wrap items-center justify-center gap-2">
         <button
@@ -445,13 +470,13 @@ export function ImageDropzone({
           className="inline-flex items-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-gray-100 disabled:opacity-60"
         >
           <Upload className="h-4 w-4" aria-hidden />
-          Upload Photo
+          {allowVideo ? "Upload Media" : "Upload Photo"}
         </button>
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={fileAccept}
         className="hidden"
         onChange={(e) => {
           if (e.target.files?.length) void addFiles(e.target.files);

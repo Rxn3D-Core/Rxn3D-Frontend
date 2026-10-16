@@ -44,6 +44,7 @@ Canonical permission names and API contracts are defined in the **backend** repo
 | `edit_slips` | `edit_slip` |
 | `delete_slips` | `soft_delete_case` |
 | `view_connections` | `get_connections` |
-| `manage_products` | `view_product`, `create_product`, … |
+| `manage_products` (CRUD) | `view_product`, `create_product`, `update_product`, `delete_product` |
+| Product Management menu / URL | `access_product_management` |
 | `view_lab_schedule` | `view_business_setting` |
 | `generate_reports` (statements) | `view_statements`, `create_statements` |

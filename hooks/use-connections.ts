@@ -5,7 +5,9 @@ import { categorizeConnectionsForUser } from '@/lib/connection-utils'
 import {
   fetchConnectionsApi,
   getActiveCustomerId,
+  holdConnectionApi,
   normalizeConnectionsPagination,
+  resumeConnectionApi,
   type ConnectionsQueryParams,
   DEFAULT_CONNECTIONS_PER_PAGE,
 } from '@/lib/connection-api'
@@ -78,6 +80,31 @@ export function useRefetchConnections() {
 
   return useMutation({
     mutationFn: async () => {
+      await queryClient.invalidateQueries({ queryKey: connectionKeys.all })
+    },
+  })
+}
+
+/** Pause a lab↔office connection (stops slip traffic that requires Active). */
+export function useHoldConnection() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ connectionId, reason }: { connectionId: number; reason?: string }) =>
+      holdConnectionApi(connectionId, reason),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: connectionKeys.all })
+    },
+  })
+}
+
+/** Resume a held lab↔office connection. */
+export function useResumeConnection() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (connectionId: number) => resumeConnectionApi(connectionId),
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: connectionKeys.all })
     },
   })
