@@ -20,7 +20,10 @@ import { ProfileModal, type ProfileData } from "@/components/profile-modal"
 import { fetchProfileData, saveProfileData } from "@/lib/api-profile"
 import { useFetchUsersQuery } from "@/hooks/use-users"
 import { useFetchUserInvitations, useResendUserInvitation } from "@/hooks/use-user-invitations"
-import { CancelUserInvitationButton } from "@/components/dashboard/cancel-user-invitation-button"
+import {
+  CancelUserInvitationButton,
+  DeleteUserInvitationButton,
+} from "@/components/dashboard/user-invitation-actions"
 import { useQueryClient } from "@tanstack/react-query"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
@@ -832,6 +835,11 @@ export function OfficeAdminDashboard() {
                                   )}
                                 </button>
                                 <CancelUserInvitationButton
+                                  invitationId={invitationData.id}
+                                  name={user.name}
+                                  email={invitationData.email}
+                                />
+                                <DeleteUserInvitationButton
                                   invitationId={invitationData.id}
                                   name={user.name}
                                   email={invitationData.email}

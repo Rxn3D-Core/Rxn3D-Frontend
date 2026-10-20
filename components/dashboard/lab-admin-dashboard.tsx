@@ -19,7 +19,10 @@ import { ProfileModal, type ProfileData } from "@/components/profile-modal"
 import { fetchProfileData, saveProfileData } from "@/lib/api-profile"
 import { useFetchUsersQuery } from "@/hooks/use-users"
 import { useFetchUserInvitations, useResendUserInvitation } from "@/hooks/use-user-invitations"
-import { CancelUserInvitationButton } from "@/components/dashboard/cancel-user-invitation-button"
+import {
+  CancelUserInvitationButton,
+  DeleteUserInvitationButton,
+} from "@/components/dashboard/user-invitation-actions"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { getPrimaryRole } from "@/lib/get-primary-role"
@@ -802,6 +805,11 @@ export function LabAdminDashboard() {
                               )}
                             </button>
                             <CancelUserInvitationButton
+                              invitationId={user.invitationId}
+                              name={user.name}
+                              email={user.email}
+                            />
+                            <DeleteUserInvitationButton
                               invitationId={user.invitationId}
                               name={user.name}
                               email={user.email}
