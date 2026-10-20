@@ -79,10 +79,14 @@ export function SearchInviteUserModal({
     return localCustomerType
   }, [requireCustomerSelection, customerOptions, selectedCustomerId, localCustomerType])
 
-  const roleOptions = useMemo(
-    () => roleSelectOptionsForCustomerType(selectedCustomerType),
-    [selectedCustomerType],
-  )
+  const roleOptions = useMemo(() => {
+    const options = roleSelectOptionsForCustomerType(selectedCustomerType)
+    // This dialog links an existing user, so it has no "also Doctor / also Admin" checkboxes like the
+    // create/update forms do. Offer the composite Doctor Admin role directly for office customers.
+    return selectedCustomerType === "office"
+      ? [...options, { value: "doctor_admin", label: getRoleDisplayLabel("doctor_admin") }]
+      : options
+  }, [selectedCustomerType])
 
   const effectiveCustomerId = requireCustomerSelection ? selectedCustomerId : localCustomerId
   const title = lockedRole ? getAddUserButtonLabel(lockedRole) : "Add User"
