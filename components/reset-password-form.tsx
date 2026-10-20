@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 export default function ResetPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { resetPasswordConfirm } = useAuth()
+  const { resetPasswordConfirm, validateResetLink } = useAuth()
 
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -19,6 +19,9 @@ export default function ResetPasswordForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSuccess, setIsSuccess] = useState(false)
+  // A reset link works once. Ask the server before showing the form, and fall back to
+  // the same "used or expired" screen if a submit is refused for that reason.
+  const [linkStatus, setLinkStatus] = useState<"checking" | "valid" | "invalid">("checking")
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
 
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -26,6 +29,24 @@ export default function ResetPasswordForm() {
 
   const token = searchParams.get("token") || ""
   const email = (searchParams.get("email") || "").replace(" ", "+")
+
+  useEffect(() => {
+    if (!token || !email) {
+      setLinkStatus("invalid")
+      return
+    }
+
+    let cancelled = false
+    validateResetLink(token, email).then((result) => {
+      // "unknown" (e.g. offline): show the form; the server still refuses a spent link on submit.
+      if (!cancelled) setLinkStatus(result === "invalid" ? "invalid" : "valid")
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, email])
+
   useEffect(() => {
     const timer = setInterval(() => {
       nextSlide()
@@ -125,8 +146,12 @@ export default function ResetPasswordForm() {
         setIsSuccess(true)
       }
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred. Please try again.")
-      console.error(err)
+      if (err?.code === "reset_link_invalid") {
+        setLinkStatus("invalid")
+      } else {
+        setError(err.message || "An unexpected error occurred. Please try again.")
+        console.error(err)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -144,6 +169,28 @@ export default function ResetPasswordForm() {
             <div className="text-center space-y-4">
               <h1 className="text-3xl font-bold text-[#000000] mb-2">Password Changed!</h1>
               <div className="pt-4">
+                <Link href="/login" className="text-[#1162a8] hover:underline flex items-center justify-center">
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Back to login
+                </Link>
+              </div>
+            </div>
+          ) : linkStatus === "checking" ? (
+            <div className="flex items-center justify-center text-slate-600" role="status">
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Checking your reset link...
+            </div>
+          ) : linkStatus === "invalid" ? (
+            <div className="max-w-md mx-auto w-full text-center space-y-4">
+              <h1 className="text-3xl font-bold text-[#000000] mb-2">This link can&apos;t be used</h1>
+              <p className="text-slate-600">
+                This password reset link has already been used or has expired. Request a new link to reset your
+                password.
+              </p>
+              <div className="pt-4 space-y-4">
+                <Button asChild size="lg" className="w-full">
+                  <Link href="/forgot-password">Request a new link</Link>
+                </Button>
                 <Link href="/login" className="text-[#1162a8] hover:underline flex items-center justify-center">
                   <ChevronLeft className="w-4 h-4 mr-1" />
                   Back to login

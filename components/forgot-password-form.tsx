@@ -82,13 +82,10 @@ export default function ForgotPasswordForm() {
     setIsLoading(true)
 
     try {
-      const success = await forgotPassword(email)
-
-      if (success) {
-        setIsSuccess(true)
-      } else {
-        setEmailError("Email not found")
-      }
+      // The server answers the same way whether or not the address has an account,
+      // so success here must not claim that an email was sent.
+      await forgotPassword(email)
+      setIsSuccess(true)
     } catch (error: any) {
       setEmailError("An error occurred. Please try again.")
     } finally {
@@ -122,9 +119,12 @@ export default function ForgotPasswordForm() {
               <div className="text-center space-y-4">
                 <h1 className="text-3xl font-bold text-[#000000] mb-2">Check your email</h1>
                 <p className="text-[#545f71] mb-4">
-                  We've sent a password reset link to <span className="font-medium">{email}</span>
+                  If an account exists for <span className="font-medium">{email}</span>, we've sent a password reset
+                  link to it.
                 </p>
-                <p className="text-sm text-[#707070]">If you don't see it, please check your spam folder.</p>
+                <p className="text-sm text-[#707070]">
+                  If you don't see it, please check your spam folder. You can request another link after a minute.
+                </p>
                 <div className="pt-4">
                   <Link href="/login" className="text-[#1162a8] hover:underline flex items-center justify-center">
                     <ChevronLeft className="w-4 h-4 mr-1" />
