@@ -130,7 +130,8 @@ export default function UserInvitationPage() {
     return false
   }, [invitation])
 
-  const isProcessed = invitation?.status === "Accepted" || invitation?.status === "Cancelled"
+  const isCancelled = invitation?.status === "Cancelled"
+  const isProcessed = invitation?.status === "Accepted"
   const alreadyLinked = invitation?.already_linked === true
   const existingActiveUserFlow = invitation ? isExistingActiveUserInvitation(invitation) : false
   const showRegistrationForm = invitation ? isRegistrationInvitation(invitation) : false
@@ -287,6 +288,26 @@ export default function UserInvitationPage() {
           >
             Go to login
           </Button>
+        </div>
+      </Shell>
+    )
+  }
+
+  // Checked before "expired": a cancelled invitation past its expiry date is still a cancelled one.
+  if (isCancelled) {
+    return (
+      <Shell>
+        <div className="text-center">
+          <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-[#cf0202]" />
+          <h1 className="mb-2 text-xl font-bold text-gray-900">This invitation has been cancelled</h1>
+          <p className="mb-6 text-sm text-gray-600">
+            This link can no longer be used. Please ask your administrator at {invitation.customer?.name} to send you a
+            new invitation.
+          </p>
+          <Link href="/login" className="inline-flex items-center text-[#1162a8] hover:underline">
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            Back to login
+          </Link>
         </div>
       </Shell>
     )
