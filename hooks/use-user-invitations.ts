@@ -156,6 +156,34 @@ const resendUserInvitation = async (id: number): Promise<{ message?: string }> =
   return response.json()
 }
 
+// Cancel a pending user invitation: the status becomes "Cancelled" and the emailed link stops working
+const cancelUserInvitation = async (id: number): Promise<{ message?: string }> => {
+  const token = localStorage.getItem("token")
+
+  if (!token) {
+    throw new Error("No authentication token found")
+  }
+
+  const response = await fetch(`${API_BASE_URL}/user-invitations/${id}/cancel`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (response.status === 401) {
+    throw new Error("Unauthorized")
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.message || "Failed to cancel invitation")
+  }
+
+  return response.json()
+}
+
 // Get user invitation by token
 const getUserInvitation = async (token: string): Promise<UserInvitation> => {
   const response = await fetch(`${API_BASE_URL}/user-invitations/${token}`, {
@@ -439,6 +467,34 @@ export function useResendUserInvitation() {
       toast({
         title: "Resend Failed",
         description: error?.message || "Failed to resend the invitation. Please try again.",
+        variant: "destructive",
+      })
+    },
+  })
+}
+
+export function useCancelUserInvitation() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+
+  return useMutation({
+    mutationFn: ({ id }: { id: number; name?: string }) => cancelUserInvitation(id),
+    onSuccess: (_data, variables) => {
+      // The pending list only contains Pending invitations, so the cancelled one drops out on refetch
+      queryClient.invalidateQueries({ queryKey: ["user-invitations"] })
+
+      toast({
+        title: "Invitation Cancelled",
+        description: variables.name
+          ? `The invitation for ${variables.name} was cancelled. Its link no longer works.`
+          : "The invitation was cancelled. Its link no longer works.",
+        variant: "default",
+      })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Cancel Failed",
+        description: error?.message || "Failed to cancel the invitation. Please try again.",
         variant: "destructive",
       })
     },
