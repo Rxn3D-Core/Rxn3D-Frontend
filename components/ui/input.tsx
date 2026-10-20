@@ -29,6 +29,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       revealToggle = false,
       disabled,
       value,
+      // Pulled out of `props` so the spread on <input> cannot override the focus tracking below.
+      onFocus,
+      onBlur,
       ...props
     },
     ref
@@ -36,6 +39,15 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const [isFocused, setIsFocused] = React.useState(false)
     const [isRevealed, setIsRevealed] = React.useState(false)
     const hasValue = value !== undefined && value !== null && value !== ""
+
+    // Message shown under the field, linked to the input for assistive tech.
+    const message =
+      validationState === "error"
+        ? errorMessage
+        : validationState === "warning"
+        ? warningMessage
+        : undefined
+    const messageId = message && props.id ? `${props.id}-message` : undefined
 
     const canReveal = revealToggle && type === "password"
     const effectiveType = canReveal && isRevealed ? "text" : type
@@ -136,15 +148,15 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             value={value}
             disabled={disabled || validationState === "disabled"}
             className="min-w-0 flex-1 bg-transparent text-base outline-none disabled:cursor-not-allowed"
+            {...props}
             onFocus={(e) => {
               setIsFocused(true)
-              props.onFocus?.(e)
+              onFocus?.(e)
             }}
             onBlur={(e) => {
               setIsFocused(false)
-              props.onBlur?.(e)
+              onBlur?.(e)
             }}
-            {...props}
           />
           {getRevealToggle()}
         </div>
@@ -185,25 +197,31 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               disabled={disabled || validationState === "disabled"}
               className="text-[14px] font-normal text-[#000000] bg-transparent outline-none leading-tight min-w-0 flex-1 truncate"
               placeholder=""
+              aria-invalid={validationState === "error" ? true : undefined}
+              aria-describedby={messageId}
+              {...props}
               onFocus={(e) => {
                 setIsFocused(true)
-                props.onFocus?.(e)
+                onFocus?.(e)
               }}
               onBlur={(e) => {
                 setIsFocused(false)
-                props.onBlur?.(e)
+                onBlur?.(e)
               }}
-              {...props}
             />
             {getValidationIcon()}
             {getRevealToggle()}
           </div>
         </div>
         {validationState === "error" && errorMessage && (
-          <p className="text-xs text-[#CF0202] mt-1 px-1">{errorMessage}</p>
+          <p id={messageId} role="alert" className="text-xs text-[#CF0202] mt-1 px-1">
+            {errorMessage}
+          </p>
         )}
         {validationState === "warning" && warningMessage && (
-          <p className="text-xs text-[#FF9900] mt-1 px-1">{warningMessage}</p>
+          <p id={messageId} className="text-xs text-[#FF9900] mt-1 px-1">
+            {warningMessage}
+          </p>
         )}
       </div>
     )

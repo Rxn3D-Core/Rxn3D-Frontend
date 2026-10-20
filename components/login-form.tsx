@@ -12,6 +12,7 @@ import { useLoginMutation } from "@/hooks/use-login"
 import { useSessionHistory } from "@/hooks/use-session-history"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { getLoginEmailFieldState, validateLoginEmail } from "@/lib/auth/login-email-validation"
 
 export default function LoginForm() {
   const router = useRouter()
@@ -19,8 +20,9 @@ export default function LoginForm() {
   const { t } = useTranslation()
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
-  const [identifierError, setIdentifierError] = useState("")
-  const [passwordError, setPasswordError] = useState("")
+  const [identifierTouched, setIdentifierTouched] = useState(false)
+  const [identifierFocused, setIdentifierFocused] = useState(false)
+  const [submitAttempted, setSubmitAttempted] = useState(false)
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [showPassword, setShowPassword] = useState(false)
   const [signedOutForIdle, setSignedOutForIdle] = useState(false)
@@ -78,47 +80,45 @@ export default function LoginForm() {
     },
   ])
 
-  // Validate identifier (can be email or username)
-  const validateIdentifier = (value: string) => {
-    // If it looks like an email, validate as email
-    if (value.includes("@")) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      return emailRegex.test(value)
-    }
+  // Field state is derived from the current value so it never goes stale.
+  // Green means "email format is valid" only; it says nothing about the account or credentials.
+  const identifierField = getLoginEmailFieldState({
+    value: identifier,
+    touched: identifierTouched,
+    submitted: submitAttempted,
+    editing: identifierFocused,
+  })
 
-    // Otherwise, validate as username (at least 3 chars)
-    return value.length >= 3
+  const identifierMessages = {
+    error:
+      identifierField.issue === "required"
+        ? t("Email is required")
+        : t("Enter a valid email address, e.g. name@example.com"),
+    warning: t("Keep typing, this email address is incomplete"),
   }
+
+  // A failed login overrides live validation until the user edits either field.
+  const identifierValidationState = loginMutation.error ? "error" : identifierField.status
+  const passwordMissing = submitAttempted && !password
 
   // Handle form submission
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    setSubmitAttempted(true)
 
-    // Reset errors
-    setIdentifierError("")
-    setPasswordError("")
-
-    // Validate inputs
-    let isValid = true
-
-    if (!identifier) {
-      setIdentifierError(t("Username or email is required"))
-      isValid = false
-    } else if (!validateIdentifier(identifier)) {
-      setIdentifierError(t("Please enter a valid username or email"))
-      isValid = false
+    // Validate inputs; focus the first invalid field so keyboard/screen-reader users land on it
+    if (!validateLoginEmail(identifier).isValid) {
+      document.getElementById("identifier")?.focus()
+      return
     }
-
     if (!password) {
-      setPasswordError(t("Password is required"))
-      isValid = false
+      document.getElementById("password")?.focus()
+      return
     }
-
-    if (!isValid) return
 
     // Attempt login using TanStack Query mutation; let AuthProvider apply auth data and navigate
     loginMutation.mutate(
-      { identifier, password },
+      { identifier: identifier.trim(), password },
       {
         onSuccess: (data, variables) => {
           // Apply auth data to app state and navigate (AuthProvider helper)
@@ -135,8 +135,7 @@ export default function LoginForm() {
   const handleQuickFill = (sessionIdentifier: string) => {
     setIdentifier(sessionIdentifier)
     setPassword("") // Clear password field for security
-    setIdentifierError("")
-    setPasswordError("")
+    setSubmitAttempted(false)
     // Focus on password field
     document.getElementById("password")?.focus()
   }
@@ -203,31 +202,37 @@ export default function LoginForm() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Username/Email input with floating label */}
+              {/* Email input with floating label (type="text" so our own validation runs, not the browser's) */}
               <Input
                 type="text"
                 id="identifier"
-                label={t("Username or Email")}
+                inputMode="email"
+                autoComplete="email"
+                label={t("Email")}
                 value={identifier}
                 onChange={(e) => {
                   setIdentifier(e.target.value)
+                  // Emptying the field starts over: the next entry is "editing" again, not already-invalid
+                  if (!e.target.value.trim()) {
+                    setIdentifierTouched(false)
+                  }
                   // Clear error when user starts typing
                   if (loginMutation.error) {
                     loginMutation.reset()
                   }
                 }}
-                validationState={
-                  loginMutation.error || identifierError
-                    ? "error"
-                    : identifier
-                    ? "valid"
-                    : "default"
-                }
+                onFocus={() => setIdentifierFocused(true)}
+                onBlur={() => {
+                  setIdentifierFocused(false)
+                  // Only a value the user actually entered can be "invalid after blur";
+                  // tabbing through an empty field must stay neutral
+                  setIdentifierTouched(identifier.trim().length > 0)
+                }}
+                validationState={identifierValidationState}
                 errorMessage={
-                  loginMutation.error
-                    ? "Invalid Username / Email"
-                    : identifierError
+                  loginMutation.error ? "Invalid Email" : identifierMessages.error
                 }
+                warningMessage={identifierMessages.warning}
                 disabled={loginMutation.isPending}
               />
 
@@ -245,17 +250,10 @@ export default function LoginForm() {
                       loginMutation.reset()
                     }
                   }}
-                  validationState={
-                    loginMutation.error || passwordError
-                      ? "error"
-                      : password
-                      ? "valid"
-                      : "default"
-                  }
+                  // Never "valid": a non-empty password says nothing until the server authenticates it
+                  validationState={loginMutation.error || passwordMissing ? "error" : "default"}
                   errorMessage={
-                    loginMutation.error
-                      ? "Invalid Password"
-                      : passwordError
+                    loginMutation.error ? "Invalid Password" : t("Password is required")
                   }
                   disabled={loginMutation.isPending}
                   showValidIcon={false}
