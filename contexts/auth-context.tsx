@@ -153,6 +153,7 @@ type AuthContextType = {
     password_confirmation: string,
     email: string,
   ) => Promise<boolean>
+  validateResetLink: (token: string, email: string) => Promise<"valid" | "invalid" | "unknown">
   forgotPassword: (email: string) => Promise<boolean>
   setupAccount: (
     token: string,
@@ -933,6 +934,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
           message: result?.error_description || result?.message || "Reset password failed",
           errors: result?.errors || null,
           status: result?.status_code || response.status,
+          code: result?.code as string | undefined,
         }
         throw errorPayload
       }
@@ -941,6 +943,26 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     } catch (error: any) {
       console.error("Reset password failed:", error)
       throw error
+    }
+  }
+
+  // Asks the server whether an emailed reset link can still be used, before the form is shown.
+  // "unknown" means we could not tell (network error, older backend); the server still enforces
+  // single use when the form is submitted, so the caller may show the form.
+  const validateResetLink = async (token: string, email: string): Promise<"valid" | "invalid" | "unknown"> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/reset-password/validate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token, email }),
+      })
+
+      if (response.ok) return "valid"
+      return response.status === 422 ? "invalid" : "unknown"
+    } catch {
+      return "unknown"
     }
   }
 
@@ -1873,6 +1895,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         isNewUser,
         setOnboardingComplete,
         resetPasswordConfirm,
+        validateResetLink,
         forgotPassword,
         setupAccount,
         fetchUsers,
