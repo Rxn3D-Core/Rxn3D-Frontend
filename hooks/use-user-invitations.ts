@@ -184,6 +184,34 @@ const cancelUserInvitation = async (id: number): Promise<{ message?: string }> =
   return response.json()
 }
 
+// Permanently delete a not-yet-accepted user invitation (its link stops working)
+const deleteUserInvitation = async (id: number): Promise<{ message?: string }> => {
+  const token = localStorage.getItem("token")
+
+  if (!token) {
+    throw new Error("No authentication token found")
+  }
+
+  const response = await fetch(`${API_BASE_URL}/user-invitations/${id}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (response.status === 401) {
+    throw new Error("Unauthorized")
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.message || "Failed to delete invitation")
+  }
+
+  return response.json().catch(() => ({}))
+}
+
 // Get user invitation by token
 const getUserInvitation = async (token: string): Promise<UserInvitation> => {
   const response = await fetch(`${API_BASE_URL}/user-invitations/${token}`, {
@@ -495,6 +523,33 @@ export function useCancelUserInvitation() {
       toast({
         title: "Cancel Failed",
         description: error?.message || "Failed to cancel the invitation. Please try again.",
+        variant: "destructive",
+      })
+    },
+  })
+}
+
+export function useDeleteUserInvitation() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+
+  return useMutation({
+    mutationFn: ({ id }: { id: number; name?: string }) => deleteUserInvitation(id),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["user-invitations"] })
+
+      toast({
+        title: "Invitation Deleted",
+        description: variables.name
+          ? `The invitation for ${variables.name} was permanently deleted. Its link no longer works.`
+          : "The invitation was permanently deleted. Its link no longer works.",
+        variant: "default",
+      })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Delete Failed",
+        description: error?.message || "Failed to delete the invitation. Please try again.",
         variant: "destructive",
       })
     },
