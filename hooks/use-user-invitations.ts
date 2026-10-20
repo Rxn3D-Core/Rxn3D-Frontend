@@ -6,6 +6,8 @@ import type { AuthData } from "@/hooks/use-login"
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
 export interface UserInvitation {
+  /** Numeric id; the resend / cancel endpoints are addressed by id, not by token. */
+  id?: number
   token: string
   status: "Pending" | "Accepted" | "Cancelled" | "Expired"
   name: string
@@ -121,6 +123,34 @@ const createUserInvitation = async (payload: CreateUserInvitationPayload): Promi
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
     throw new Error(errorData.message || "Failed to create user invitation")
+  }
+
+  return response.json()
+}
+
+// Resend a pending user invitation: same invitation (no new user or membership), fresh expiry, new email
+const resendUserInvitation = async (id: number): Promise<{ message?: string }> => {
+  const token = localStorage.getItem("token")
+
+  if (!token) {
+    throw new Error("No authentication token found")
+  }
+
+  const response = await fetch(`${API_BASE_URL}/user-invitations/${id}/resend`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (response.status === 401) {
+    throw new Error("Unauthorized")
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.message || "Failed to resend invitation")
   }
 
   return response.json()
@@ -382,6 +412,33 @@ export function useCreateUserInvitation() {
       toast({
         title: "Error",
         description: error?.message || "Failed to send user invitation",
+        variant: "destructive",
+      })
+    },
+  })
+}
+
+export function useResendUserInvitation() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+
+  return useMutation({
+    mutationFn: ({ id }: { id: number; email?: string }) => resendUserInvitation(id),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["user-invitations"] })
+
+      toast({
+        title: "Invitation Resent",
+        description: variables.email
+          ? `A new invitation email was sent to ${variables.email}.`
+          : data?.message || "Invitation resent successfully.",
+        variant: "default",
+      })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Resend Failed",
+        description: error?.message || "Failed to resend the invitation. Please try again.",
         variant: "destructive",
       })
     },

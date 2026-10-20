@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { KpiCard } from "./kpi-card"
 import { PlanCard } from "./plan-card"
-import { Search, X, Eye, MoreHorizontal, Plus, Mail, Trash2, Menu } from 'lucide-react'
+import { Search, X, Eye, MoreHorizontal, Plus, Mail, Trash2, Menu, Loader2 } from 'lucide-react'
 import { ConnectionHoldButton } from "@/components/dashboard/connection-hold-button"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
@@ -18,7 +18,7 @@ import { CustomerSearchBox } from "@/components/CustomerSearchBox"
 import { ProfileModal, type ProfileData } from "@/components/profile-modal"
 import { fetchProfileData, saveProfileData } from "@/lib/api-profile"
 import { useFetchUsersQuery } from "@/hooks/use-users"
-import { useFetchUserInvitations } from "@/hooks/use-user-invitations"
+import { useFetchUserInvitations, useResendUserInvitation } from "@/hooks/use-user-invitations"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { getPrimaryRole } from "@/lib/get-primary-role"
@@ -88,6 +88,7 @@ const getStatusLabel = (status: string) => {
 export function LabAdminDashboard() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const resendUserInvitation = useResendUserInvitation()
   const userRole = getPrimaryRole(user) || "lab_admin"
   const userId = user?.id
   const customerId = getCustomerId(user)
@@ -307,6 +308,7 @@ export function LabAdminDashboard() {
       status: "pending",
       email: inv.email,
       token: inv.token,
+      invitationId: inv.id as number | undefined,
     }))
 
   // Filter users based on active tab
@@ -776,18 +778,27 @@ export function LabAdminDashboard() {
                         {user.status === "pending" && user.token ? (
                           <div className="flex items-center gap-1 sm:gap-2">
                             <button
-                              className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-blue-500 hover:bg-blue-50 rounded-full transition-all"
-                              onClick={async () => {
-                                // Resend invitation logic can be added here
-                                toast({
-                                  title: "Info",
-                                  description: "Resend functionality coming soon",
-                                })
+                              className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-blue-500 hover:bg-blue-50 rounded-full transition-all disabled:opacity-60 disabled:pointer-events-none"
+                              disabled={resendUserInvitation.isPending && resendUserInvitation.variables?.id === user.invitationId}
+                              onClick={() => {
+                                if (!user.invitationId) {
+                                  toast({
+                                    title: "Resend Failed",
+                                    description: "This invitation cannot be resent right now. Please refresh the page and try again.",
+                                    variant: "destructive",
+                                  })
+                                  return
+                                }
+                                resendUserInvitation.mutate({ id: user.invitationId, email: user.email })
                               }}
                               aria-label={`Resend invitation for ${user.name}`}
                               title="Resend Invitation"
                             >
-                              <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
+                              {resendUserInvitation.isPending && resendUserInvitation.variables?.id === user.invitationId ? (
+                                <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                              ) : (
+                                <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
+                              )}
                             </button>
                             <button
                               className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
