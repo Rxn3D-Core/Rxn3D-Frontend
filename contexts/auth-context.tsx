@@ -215,6 +215,7 @@ type AuthContextType = {
     work_number?: string;
     status: string;
     department_ids?: number[];
+    customer_id?: number;
     role?: string;
     is_doctor?: boolean;
     license_number?: string;
@@ -1475,6 +1476,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     work_number?: string;
     status: string;
     department_ids?: number[];
+    customer_id?: number;
     role?: string;
     is_doctor?: boolean;
     license_number?: string;
