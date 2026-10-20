@@ -57,9 +57,18 @@ export interface Country {
 }
 
 // Context type
+/** Who sent the invitation, as returned by the invitation API (the same value the invitation email uses). */
+export interface InvitationInviter {
+  name: string
+  logoUrl: string | null
+  /** True when the platform (Rxn3D) itself sent the invitation rather than another organization. */
+  isPlatform: boolean
+}
+
 interface RegistrationContextType {
   registrationData: RegistrationData
   registrationType: "Lab" | "Office"
+  invitedBy: InvitationInviter | null
   activeStep: number
   isSubmitting: boolean
   error: string | null
@@ -135,6 +144,7 @@ const RegistrationContext = createContext<RegistrationContextType | undefined>(u
 export function RegistrationProvider({ children }: { children: React.ReactNode }) {
   const [registrationData, setRegistrationData] = useState<RegistrationData>({ ...defaultRegistrationData })
   const [registrationType, setRegistrationType] = useState<"Lab" | "Office">("Lab")
+  const [invitedBy, setInvitedBy] = useState<InvitationInviter | null>(null)
   const [activeStep, setActiveStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -443,6 +453,17 @@ export function RegistrationProvider({ children }: { children: React.ReactNode }
       const invitationType = data?.data?.type || "Lab"
       setRegistrationType(invitationType === "Office" ? "Office" : "Lab")
 
+      const inviter = data?.data?.invited_by
+      setInvitedBy(
+        inviter?.name
+          ? {
+              name: String(inviter.name),
+              logoUrl: inviter.logo_url ? String(inviter.logo_url) : null,
+              isPlatform: Boolean(inviter.is_platform),
+            }
+          : null,
+      )
+
       const adminRole = invitationType === "Office" ? "office_admin" : "lab_admin"
 
       setRegistrationData({
@@ -489,6 +510,7 @@ export function RegistrationProvider({ children }: { children: React.ReactNode }
   const value: RegistrationContextType = {
     registrationData,
     registrationType,
+    invitedBy,
     activeStep,
     isSubmitting,
     error,
