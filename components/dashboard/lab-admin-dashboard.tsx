@@ -19,6 +19,7 @@ import { ProfileModal, type ProfileData } from "@/components/profile-modal"
 import { fetchProfileData, saveProfileData } from "@/lib/api-profile"
 import { useFetchUsersQuery } from "@/hooks/use-users"
 import { useFetchUserInvitations, useResendUserInvitation } from "@/hooks/use-user-invitations"
+import { CancelUserInvitationButton } from "@/components/dashboard/cancel-user-invitation-button"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { getPrimaryRole } from "@/lib/get-primary-role"
@@ -800,20 +801,11 @@ export function LabAdminDashboard() {
                                 <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
                               )}
                             </button>
-                            <button
-                              className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                              onClick={async () => {
-                                // Delete invitation logic can be added here
-                                toast({
-                                  title: "Info",
-                                  description: "Delete functionality coming soon",
-                                })
-                              }}
-                              aria-label={`Delete invitation for ${user.name}`}
-                              title="Delete Invitation"
-                            >
-                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                            </button>
+                            <CancelUserInvitationButton
+                              invitationId={user.invitationId}
+                              name={user.name}
+                              email={user.email}
+                            />
                           </div>
                         ) : null}
                       </div>

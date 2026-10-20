@@ -20,6 +20,7 @@ import { ProfileModal, type ProfileData } from "@/components/profile-modal"
 import { fetchProfileData, saveProfileData } from "@/lib/api-profile"
 import { useFetchUsersQuery } from "@/hooks/use-users"
 import { useFetchUserInvitations, useResendUserInvitation } from "@/hooks/use-user-invitations"
+import { CancelUserInvitationButton } from "@/components/dashboard/cancel-user-invitation-button"
 import { useQueryClient } from "@tanstack/react-query"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
@@ -830,22 +831,11 @@ export function OfficeAdminDashboard() {
                                     <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
                                   )}
                                 </button>
-                                <button
-                                  className="p-1.5 sm:p-2 text-[#a19d9d] hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                                  onClick={async (e) => {
-                                    e.stopPropagation()
-                                    // Cancel invitation logic would go here
-                                    toast({
-                                      title: "Info",
-                                      description: "Cancel invitation functionality coming soon",
-                                      variant: "default",
-                                    })
-                                  }}
-                                  aria-label={`Cancel invitation for ${user.name}`}
-                                  title="Cancel Invitation"
-                                >
-                                  <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                                </button>
+                                <CancelUserInvitationButton
+                                  invitationId={invitationData.id}
+                                  name={user.name}
+                                  email={invitationData.email}
+                                />
                               </>
                             )}
                           </div>
