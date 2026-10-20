@@ -163,6 +163,25 @@ export function UpdateUserModal({
     reValidateMode: "onChange",
   })
 
+  const fieldClass = "h-10 text-sm"
+
+  // Same rules as the Create form: neutral until edited, then error / warning (email) / valid.
+  const getValidationState = (
+    fieldName: keyof UpdateUserFormValues,
+  ): "default" | "valid" | "warning" | "error" => {
+    if (form.formState.errors[fieldName]) return "error"
+    if (!form.formState.dirtyFields[fieldName]) return "default"
+
+    const value = form.getValues(fieldName)
+    const hasValue = typeof value === "string" ? value.trim() !== "" : Boolean(value)
+    if (!hasValue) return "default"
+
+    if (fieldName === "email") {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value)) ? "valid" : "warning"
+    }
+    return "valid"
+  }
+
   const isDoctor = form.watch("is_doctor")
   const isAlsoAdmin = form.watch("is_also_admin")
   const selectedEditRole = form.watch("role")
@@ -178,6 +197,19 @@ export function UpdateUserModal({
   }, [isOfficeCustomer, profileRole, isDoctor, isAlsoAdmin])
 
   const treatingAsDoctor = requiresDoctorCredentials(effectiveUpdateRole)
+  // Super Admin "manage links" mode has no single customer context, so doctor credentials follow the user's
+  // office association(s) that carry a doctor role. The credentials live on the user, so any one link will do.
+  const doctorLink = useMemo(
+    () =>
+      manageCustomerLinks
+        ? customerLinks.find(
+            (link) =>
+              (link.customerType || "").toLowerCase() === "office" && requiresDoctorCredentials(link.roleName),
+          )
+        : undefined,
+    [manageCustomerLinks, customerLinks],
+  )
+  const showDoctorCredentials = (isOfficeCustomer && treatingAsDoctor) || Boolean(doctorLink)
   const showAlsoDoctorCheckbox =
     isOfficeCustomer && (isOfficeAdminRole(profileRole) || isDoctorAdminRole(profileRole))
   const showAlsoAdminCheckbox =
@@ -199,12 +231,18 @@ export function UpdateUserModal({
     return backendRoles.filter((role) => allowed.has(role.name))
   }, [backendRoles, selectedLinkCustomer?.type])
 
-  const refreshCustomerLinks = async (userId: number) => {
+  const refreshCustomerLinks = async (userId: number, options?: { loadCredentials?: boolean }) => {
     setIsLoadingLinks(true)
     try {
       const result = await authContext.fetchUserById(userId)
       const detail = result?.data || result
       setCustomerLinks(extractUserCustomerRoleLinks(detail))
+      // Only on first open: later refreshes (after a role change) must not overwrite what is being typed.
+      if (options?.loadCredentials) {
+        setExistingSignatureUrl(detail?.signature_url || null)
+        setHasSignature(Boolean(detail?.signature_url))
+        form.setValue("license_number", detail?.license_number || "", { shouldDirty: false })
+      }
     } catch {
       setCustomerLinks(user?.customerRoles || [])
     } finally {
@@ -357,7 +395,7 @@ export function UpdateUserModal({
 
       if (manageCustomerLinks) {
         setCustomerLinks(user.customerRoles || [])
-        void refreshCustomerLinks(user.id)
+        void refreshCustomerLinks(user.id, { loadCredentials: true })
         void fetchBackendRoles()
           .then(setBackendRoles)
           .catch(() => setBackendRoles([]))
@@ -493,7 +531,7 @@ export function UpdateUserModal({
     if (!user) return
     setIsSubmitting(true)
     try {
-      if (isOfficeCustomer && treatingAsDoctor) {
+      if (showDoctorCredentials) {
         const hasLicense = Boolean(data.license_number?.trim())
         const hasSig = Boolean(signatureFile) || Boolean(existingSignatureUrl)
         if (!hasLicense || !hasSig) {
@@ -534,6 +572,15 @@ export function UpdateUserModal({
               is_doctor: treatingAsDoctor,
               license_number: treatingAsDoctor ? data.license_number : undefined,
               signature: treatingAsDoctor ? signatureFile : null,
+            }
+          : {}),
+        // Super Admin: the API needs the customer whose doctor role these credentials belong to.
+        // No `role` is sent, so roles stay managed per association below.
+        ...(doctorLink
+          ? {
+              customer_id: doctorLink.customerId,
+              license_number: data.license_number,
+              signature: signatureFile,
             }
           : {}),
       }
@@ -586,9 +633,14 @@ export function UpdateUserModal({
                 name="first_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>First Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter first name" {...field} />
+                      <Input
+                        label="First name *"
+                        placeholder="First name"
+                        validationState={getValidationState("first_name")}
+                        className={fieldClass}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -600,9 +652,14 @@ export function UpdateUserModal({
                 name="last_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Last Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter last name" {...field} />
+                      <Input
+                        label="Last name *"
+                        placeholder="Last name"
+                        validationState={getValidationState("last_name")}
+                        className={fieldClass}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -616,9 +673,16 @@ export function UpdateUserModal({
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email *</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="Enter email address" autoComplete="off" {...field} />
+                      <Input
+                        type="email"
+                        label="Email *"
+                        placeholder="name@example.com"
+                        autoComplete="off"
+                        validationState={getValidationState("email")}
+                        className={fieldClass}
+                        {...field}
+                      />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
                       Superadmin can change email without OTP verification.
@@ -640,9 +704,14 @@ export function UpdateUserModal({
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone Number *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter phone number" {...field} />
+                      <Input
+                        label="Phone *"
+                        placeholder="Phone number"
+                        validationState={getValidationState("phone")}
+                        className={fieldClass}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -654,9 +723,14 @@ export function UpdateUserModal({
                 name="work_number"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Work Number</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter work number" {...field} />
+                      <Input
+                        label="Work number"
+                        placeholder="Optional"
+                        validationState={getValidationState("work_number")}
+                        className={fieldClass}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -669,10 +743,10 @@ export function UpdateUserModal({
               name="status"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Status *</FormLabel>
+                  <FormLabel className="text-xs text-[#6b7280]">Status *</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className={cn(fieldClass, "border")}>
                         <SelectValue placeholder="Select a status" />
                       </SelectTrigger>
                     </FormControl>
@@ -695,10 +769,10 @@ export function UpdateUserModal({
                 name="role"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Role *</FormLabel>
+                    <FormLabel className="text-xs text-[#6b7280]">Role *</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className={cn(fieldClass, "border")}>
                           <SelectValue placeholder="Select a role" />
                         </SelectTrigger>
                       </FormControl>
@@ -830,7 +904,7 @@ export function UpdateUserModal({
               </div>
             )}
 
-            {isOfficeCustomer && treatingAsDoctor && (
+            {showDoctorCredentials && (
               <div className="space-y-3 border-t pt-4">
                 <h4 className="text-sm font-semibold">Doctor Information</h4>
                 <FormField
@@ -838,9 +912,14 @@ export function UpdateUserModal({
                   name="license_number"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>License Number *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter license number" {...field} />
+                        <Input
+                          label="License number *"
+                          placeholder="License number"
+                          validationState={getValidationState("license_number")}
+                          className={fieldClass}
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

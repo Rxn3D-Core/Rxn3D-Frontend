@@ -118,7 +118,6 @@ export default function AllUsers() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState({ total: 0, per_page: 20, current_page: 1, last_page: 1 })
   const [roleFilter, setRoleFilter] = useState("all")
-  const [departmentFilter, setDepartmentFilter] = useState("")
   const [customerFilter, setCustomerFilter] = useState("")
   const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([])
   const canCreateUser = hasPermission("create_user")
@@ -127,7 +126,7 @@ export default function AllUsers() {
     !isImpersonating &&
     Array.isArray(authUser?.roles) &&
     authUser.roles.includes("superadmin")
-  const hasActiveFilters = statusFilter !== "all" || roleFilter !== "all" || !!departmentFilter || !!customerFilter
+  const hasActiveFilters = statusFilter !== "all" || roleFilter !== "all" || !!customerFilter
   const lockedRole = resolveLockedRole(roleFilter)
   const addButtonLabel = getAddUserButtonLabel(lockedRole)
 
@@ -226,7 +225,6 @@ export default function AllUsers() {
         q: searchTerm.trim() || undefined,
         status: statusFilter === "all" ? undefined : statusFilter,
         role: roleFilter === "all" ? undefined : roleFilter,
-        department_id: departmentFilter.trim() || undefined,
         customer_id: customerFilter.trim() || undefined,
         per_page: Number(entriesPerPage),
         order_by: sortColumn,
@@ -253,7 +251,7 @@ export default function AllUsers() {
 
   useEffect(() => {
     loadUsers()
-  }, [searchTerm, statusFilter, roleFilter, departmentFilter, customerFilter, entriesPerPage, sortColumn, sortDirection, currentPage])
+  }, [searchTerm, statusFilter, roleFilter, customerFilter, entriesPerPage, sortColumn, sortDirection, currentPage])
 
   useEffect(() => {
     loadCustomerOptions()
@@ -437,7 +435,6 @@ export default function AllUsers() {
   const clearFilters = () => {
     setStatusFilter("all")
     setRoleFilter("all")
-    setDepartmentFilter("")
     setCustomerFilter("")
     setCurrentPage(1)
   }
@@ -501,87 +498,78 @@ export default function AllUsers() {
 
       {/* Filters and actions */}
       <div className="bg-white border border-gray-200 rounded-lg mb-6 shadow-sm">
-        <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">Show</span>
-            <Select value={entriesPerPage} onValueChange={setEntriesPerPage}>
-              <SelectTrigger className="w-[70px]">
-                <SelectValue placeholder="20" />
-              </SelectTrigger>
+        <div className="p-4 border-b border-gray-200">
+          {/* One line on desktop: page size, filters, then search + add pushed right. Search shrinks first; the row only wraps when it truly cannot fit. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-sm">Show</span>
+              <Select value={entriesPerPage} onValueChange={setEntriesPerPage}>
+                <SelectTrigger className="w-[70px]" aria-label="Entries per page">
+                  <SelectValue placeholder="20" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-[190px] shrink-0">
+              <SearchableSelect
+                value={customerFilter}
+                onValueChange={(value) => {
+                  setCustomerFilter(value)
+                  setCurrentPage(1)
+                }}
+                placeholder="Filter by customer"
+                searchPlaceholder="Search customer..."
+                emptyMessage="No customers found."
+                options={customerOptions}
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setCurrentPage(1) }}>
+              <SelectTrigger className="w-[140px] shrink-0"><SelectValue placeholder="All Statuses" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {USER_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <span className="text-sm">entries</span>
-          </div>
-
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
-            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <div className="w-[220px]">
-                <SearchableSelect
-                  value={customerFilter}
-                  onValueChange={(value) => {
-                    setCustomerFilter(value)
-                    setCurrentPage(1)
-                  }}
-                  placeholder="Filter by customer"
-                  searchPlaceholder="Search customer..."
-                  emptyMessage="No customers found."
-                  options={customerOptions}
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setCurrentPage(1) }}>
-                <SelectTrigger className="w-[150px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  {USER_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={roleFilter} onValueChange={(value) => { setRoleFilter(value); setCurrentPage(1) }}>
-                <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Roles" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="lab_admin">Lab Admin</SelectItem>
-                  <SelectItem value="lab_user">Lab User</SelectItem>
-                  <SelectItem value="lab_driver">Lab Driver</SelectItem>
-                  <SelectItem value="office_admin">Office Admin</SelectItem>
-                  <SelectItem value="office_user">Office User</SelectItem>
-                  <SelectItem value="doctor">Doctor</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                value={departmentFilter}
-                onChange={(e) => { setDepartmentFilter(e.target.value.replace(/[^0-9]/g, "")); setCurrentPage(1) }}
-                placeholder="Department ID"
-                className="w-[140px]"
-              />
-              {hasActiveFilters && (
-                <Button variant="outline" size="sm" onClick={clearFilters}>
-                  Clear Filters
-                </Button>
-              )}
-              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm" onClick={handleAddUser} disabled={!canCreateUser}>
-                <Plus className="h-4 w-4 mr-2" />
-                {addButtonLabel}
+            <Select value={roleFilter} onValueChange={(value) => { setRoleFilter(value); setCurrentPage(1) }}>
+              <SelectTrigger className="w-[140px] shrink-0"><SelectValue placeholder="All Roles" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="lab_admin">Lab Admin</SelectItem>
+                <SelectItem value="lab_user">Lab User</SelectItem>
+                <SelectItem value="lab_driver">Lab Driver</SelectItem>
+                <SelectItem value="office_admin">Office Admin</SelectItem>
+                <SelectItem value="office_user">Office User</SelectItem>
+                <SelectItem value="doctor">Doctor</SelectItem>
+              </SelectContent>
+            </Select>
+            {hasActiveFilters && (
+              <Button variant="outline" size="sm" onClick={clearFilters} className="shrink-0 whitespace-nowrap">
+                Clear Filters
               </Button>
-            </div>
-            <div className="relative w-full md:w-auto">
+            )}
+            <div className="relative ml-auto min-w-0 max-w-[300px] shrink grow basis-[150px]">
               <Input
                 type="text"
                 placeholder="Search User"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full md:w-[300px]"
+                className="pl-10 pr-4 py-2 w-full"
               />
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             </div>
+            <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm shrink-0 whitespace-nowrap" onClick={handleAddUser} disabled={!canCreateUser}>
+              <Plus className="h-4 w-4 mr-2" />
+              {addButtonLabel}
+            </Button>
           </div>
         </div>
 
