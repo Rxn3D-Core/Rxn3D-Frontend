@@ -30,14 +30,18 @@ export function DashboardInviteModal({
 }: DashboardInviteModalProps) {
   const [showModal, setShowModal] = useState(false)
 
-  useEffect(() => {
-    if (!INVITE_ONBOARDING_MODALS_ENABLED && isOpen) {
-      onClose()
-    }
-  }, [isOpen, onClose])
+  // INVITE_ONBOARDING_MODALS_ENABLED only switches off the automatic "Invite your first …" popups.
+  // A modal the user opens on purpose (forceOpen, e.g. the header's New Office / New Lab buttons) must always open.
+  const modalAllowed = forceOpen || INVITE_ONBOARDING_MODALS_ENABLED
 
   useEffect(() => {
-    if (!INVITE_ONBOARDING_MODALS_ENABLED) {
+    if (!modalAllowed && isOpen) {
+      onClose()
+    }
+  }, [modalAllowed, isOpen, onClose])
+
+  useEffect(() => {
+    if (!modalAllowed) {
       return
     }
 
@@ -54,7 +58,7 @@ export function DashboardInviteModal({
     if (!hasSeen) {
       setShowModal(true)
     }
-  }, [forceOpen, isOpen, type])
+  }, [modalAllowed, forceOpen, isOpen, type])
 
   const handleClose = () => {
     setShowModal(false)
@@ -68,7 +72,7 @@ export function DashboardInviteModal({
     onClose()
   }
 
-  if (!INVITE_ONBOARDING_MODALS_ENABLED) {
+  if (!modalAllowed) {
     return null
   }
 

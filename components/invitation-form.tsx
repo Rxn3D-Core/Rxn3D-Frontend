@@ -17,6 +17,10 @@ interface InvitationFormProps {
   onCancel?: () => void
   cancelLabel?: string
   actionsAlign?: "start" | "end"
+  /** Overrides the default "<type> Name" wording of the name field (placeholder and required message). */
+  nameLabel?: string
+  /** Overrides the default "Send" button text. */
+  submitLabel?: string
 }
 
 // Role options based on customer type
@@ -44,6 +48,8 @@ export function InvitationForm({
   onCancel,
   cancelLabel = "Cancel",
   actionsAlign = "start",
+  nameLabel,
+  submitLabel = "Send",
 }: InvitationFormProps) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -61,8 +67,8 @@ export function InvitationForm({
   const customerType = selectedLocation?.type || null
   const customerId = selectedLocation?.id || null
   const roleOptions = getRoleOptions(customerType)
-  const namePlaceholder = type === "User" ? "Full Name *" : `${type} Name *`
-  const nameRequiredLabel = type === "User" ? "Full Name" : `${type} Name`
+  const nameRequiredLabel = nameLabel ?? (type === "User" ? "Full Name" : `${type} Name`)
+  const namePlaceholder = `${nameRequiredLabel} *`
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -245,7 +251,7 @@ export function InvitationForm({
       )}
       <div className={`flex gap-3 ${actionsAlign === "end" ? "justify-end" : "justify-start"}`}>
         <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
-          {isSubmitting ? "Sending..." : "Send"}
+          {isSubmitting ? "Sending..." : submitLabel}
         </Button>
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} className="min-w-[120px] bg-transparent">

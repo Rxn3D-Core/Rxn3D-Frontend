@@ -43,6 +43,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
 import { UserProfileModal } from "@/components/user-profile-modal"
 import { DashboardInviteModal } from "@/components/dashboard/dashboard-invite-modal"
+import { SuperAdminInviteModal } from "@/components/dashboard/superadmin-invite-modal"
 import {
   fetchCurrentUserProfile,
   updateCurrentUserProfile,
@@ -1294,24 +1295,30 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
         </div>
       </header>
 
-      <DashboardInviteModal
-        type="Office"
-        title="Invite Your Practice"
-        description="Connect with dental practices to start receiving cases and managing your digital workflow."
-        isOpen={showNewOfficeModal}
-        forceOpen
-        onClose={() => setShowNewOfficeModal(false)}
-      />
-
-      <DashboardInviteModal
-        type="Lab"
-        title="Invite a Lab"
-        description="Connect with dental labs to start sending cases and managing your digital workflow."
-        searchPlaceholder="Search by lab name, city or email..."
-        isOpen={showNewLabModal}
-        forceOpen
-        onClose={() => setShowNewLabModal(false)}
-      />
+      {/* Super Admin invites a new Practice/Lab directly by name + email; lab admins connect with existing practices. */}
+      {isSuperAdmin ? (
+        <>
+          <SuperAdminInviteModal
+            type="Office"
+            isOpen={showNewOfficeModal}
+            onClose={() => setShowNewOfficeModal(false)}
+          />
+          <SuperAdminInviteModal
+            type="Lab"
+            isOpen={showNewLabModal}
+            onClose={() => setShowNewLabModal(false)}
+          />
+        </>
+      ) : (
+        <DashboardInviteModal
+          type="Office"
+          title="Invite Your Practice"
+          description="Connect with dental practices to start receiving cases and managing your digital workflow."
+          isOpen={showNewOfficeModal}
+          forceOpen
+          onClose={() => setShowNewOfficeModal(false)}
+        />
+      )}
 
       {/* Fullscreen scanner — avoids CSS transform centering that breaks iOS camera video */}
       <Dialog
