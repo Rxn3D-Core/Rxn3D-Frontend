@@ -51,6 +51,7 @@ export default function RegisterPage() {
     fetchRegistrationDetails,
     registrationType,
     setRegistrationType,
+    invitedBy,
     error: contextError,
   } = useRegistration()
 
@@ -484,6 +485,20 @@ export default function RegisterPage() {
         {/* Only show the registration form if there's no invitation error */}
         {!(error || contextError)?.includes("Invitation") ? (
           <div className="bg-white rounded-lg shadow-sm w-full max-w-4xl p-4 sm:p-8">
+            {/* Same inviter as the invitation email (both come from the invitation API, never from typed text) */}
+            {invitedBy && (
+              <div className="mb-4 sm:mb-6 flex flex-col items-center gap-2 border-b border-gray-100 pb-4 text-center">
+                {!invitedBy.isPlatform && invitedBy.logoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={invitedBy.logoUrl} alt={invitedBy.name} className="max-h-14 max-w-[180px] object-contain" />
+                )}
+                <p className="text-sm text-[#6b7280]">
+                  <span className="font-semibold text-[#111827]">{invitedBy.name}</span> invited you to join our dental
+                  lab platform.
+                </p>
+                {!invitedBy.isPlatform && <p className="text-xs text-[#a19d9d]">Powered by Rxn3D</p>}
+              </div>
+            )}
             {activeStep === 0 ? (
               /* Step 1: User Profiles */
               <div>

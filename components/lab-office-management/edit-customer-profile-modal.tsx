@@ -22,6 +22,7 @@ import {
   parseNotificationEmails,
   validateNotificationEmailsInput,
 } from "@/lib/notification-emails"
+import { LOGO_ACCEPT, LOGO_TYPE_ERROR, validateLogoFile } from "@/lib/logo-upload"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -354,23 +355,15 @@ export function EditCustomerProfileModal({
     const file = event.target.files?.[0]
     if (!file || !customer) return
 
-    const validTypes = ["image/png", "image/jpg", "image/jpeg", "image/svg+xml"]
-    if (!validTypes.includes(file.type)) {
+    // PNG/JPG only (SVG is not allowed) and max 1 MB: same rule as the server
+    const logoError = validateLogoFile(file)
+    if (logoError) {
       toast({
-        title: "Invalid file type",
-        description: "Please upload a PNG, JPG, JPEG, or SVG file.",
+        title: logoError === LOGO_TYPE_ERROR ? "Invalid file type" : "File too large",
+        description: logoError,
         variant: "destructive",
       })
-      return
-    }
-
-    const maxSize = 1 * 1024 * 1024
-    if (file.size > maxSize) {
-      toast({
-        title: "File too large",
-        description: "File size must not exceed 1MB.",
-        variant: "destructive",
-      })
+      event.target.value = ""
       return
     }
 
@@ -494,7 +487,7 @@ export function EditCustomerProfileModal({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/png,image/jpg,image/jpeg,image/svg+xml"
+                accept={LOGO_ACCEPT}
                 onChange={handleLogoSelect}
                 className="hidden"
               />
