@@ -173,18 +173,8 @@ export default function LoginForm() {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-6 sm:px-8 sm:py-8 md:px-12 lg:px-10 lg:py-6 xl:px-16">
           <div className="mx-auto my-auto flex min-h-0 w-full max-h-full max-w-[460px] flex-col overflow-hidden">
             <div className="shrink-0">
-            {/* Logo + welcome */}
+            {/* Welcome (the Rxn3D logo lives in AuthHeader above, so it is not repeated here) */}
             <div className="mb-4">
-              <Link href="/" className="inline-block mb-3">
-                <Image
-                  src="/images/rxn3d-logo.svg"
-                  alt="RXN3D"
-                  width={200}
-                  height={64}
-                  className="h-12 w-auto sm:h-14"
-                  priority
-                />
-              </Link>
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2 tracking-tight">
                 {t("login.welcome")}
               </h1>
