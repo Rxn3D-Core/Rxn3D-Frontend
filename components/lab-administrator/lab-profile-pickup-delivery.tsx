@@ -15,6 +15,7 @@ import { getActiveCustomerId } from "@/lib/customer-scope"
 import {
   DEFAULT_DELIVERY_TIME_12,
   DEFAULT_PICKUP_TIME_12,
+  DEFAULT_RUSH_PICKUP_TIME_12,
   parseBusinessHourTime,
 } from "@/utils/time-utils"
 
@@ -26,6 +27,8 @@ interface CasePanCutoffRow {
   code: string
   /** 12-hour display; empty string = use lab default */
   cutoffDisplay: string
+  /** Lab's rush group case pan: without its own cutoff it uses the rush pick up time */
+  isRushGroup: boolean
 }
 
 interface PickupDeliveryTabProps {
@@ -45,6 +48,8 @@ interface PickupDeliveryTabProps {
   rushSettings: {
     enabled: boolean
     description: string
+    /** 24-hour or 12-hour clock string; empty/undefined = not set yet */
+    default_rush_pickup_time?: string | null
     rush_type?: "fixed" | "flexible"
     fixed_turnaround_days?: number
     fixed_rush_fee_percentage?: string
@@ -71,6 +76,9 @@ export function PickupDeliveryTab({
   const [deliveryTime, setDeliveryTime] = useState(() =>
     parseBusinessHourTime(deliveryData.defaultTime, DEFAULT_DELIVERY_TIME_12) || DEFAULT_DELIVERY_TIME_12
   )
+  const [rushPickupTime, setRushPickupTime] = useState(() =>
+    parseBusinessHourTime(rushSettings.default_rush_pickup_time, DEFAULT_RUSH_PICKUP_TIME_12) || DEFAULT_RUSH_PICKUP_TIME_12
+  )
   const [casePanCutoffs, setCasePanCutoffs] = useState<CasePanCutoffRow[]>([])
   const [isLoadingCasePans, setIsLoadingCasePans] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -88,6 +96,10 @@ export function PickupDeliveryTab({
     if (rushSettings.fixed_rush_fee_percentage) {
       setRushFeePercent(String(rushSettings.fixed_rush_fee_percentage))
     }
+    setRushPickupTime(
+      parseBusinessHourTime(rushSettings.default_rush_pickup_time, DEFAULT_RUSH_PICKUP_TIME_12) ||
+        DEFAULT_RUSH_PICKUP_TIME_12
+    )
   }, [rushSettings])
 
   useEffect(() => {
@@ -141,7 +153,8 @@ export function PickupDeliveryTab({
         name: string
         code: string
         pickup_cutoff_time?: string | null
-        lab_case_pan?: { pickup_cutoff_time?: string | null }
+        set_as_rush_group?: boolean
+        lab_case_pan?: { pickup_cutoff_time?: string | null; set_as_rush_group?: boolean }
       }>
 
       setCasePanCutoffs(
@@ -154,6 +167,7 @@ export function PickupDeliveryTab({
             cutoffDisplay: raw
               ? parseBusinessHourTime(raw, DEFAULT_PICKUP_TIME_12) || convertTo12Hour(raw) || ""
               : "",
+            isRushGroup: !!(pan.set_as_rush_group ?? pan.lab_case_pan?.set_as_rush_group),
           }
         })
       )
@@ -305,6 +319,7 @@ export function PickupDeliveryTab({
           rush_type: rushEnabled ? turnaroundType : undefined,
           fixed_turnaround_days: rushEnabled && turnaroundType === "fixed" ? parseInt(turnaroundDays) : undefined,
           fixed_rush_fee_percentage: rushEnabled && turnaroundType === "fixed" ? rushFeePercent : undefined,
+          default_rush_pickup_time: rushEnabled ? convertTo24Hour(rushPickupTime) : undefined,
         },
       })
 
@@ -379,7 +394,7 @@ export function PickupDeliveryTab({
                       </span>
                       <div className="flex items-center gap-2 flex-wrap">
                         <TimePicker
-                          value={pan.cutoffDisplay || pickupTime}
+                          value={pan.cutoffDisplay || (pan.isRushGroup && rushEnabled ? rushPickupTime : pickupTime)}
                           onChange={(value) => handleCasePanCutoffChange(pan.id, value)}
                           className="w-36 h-9"
                         />
@@ -394,7 +409,9 @@ export function PickupDeliveryTab({
                             Use default
                           </Button>
                         ) : (
-                          <span className="text-xs text-gray-500">Using default</span>
+                          <span className="text-xs text-gray-500">
+                            {pan.isRushGroup && rushEnabled ? "Using rush pick up time" : "Using default"}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -450,6 +467,15 @@ export function PickupDeliveryTab({
             {rushEnabled && (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <h4 className="font-semibold text-gray-900 mb-6">Rush case Setting</h4>
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 mb-6">
+                  <span className="text-gray-900 text-sm font-medium sm:w-56 flex-shrink-0">Default rush pick up time:</span>
+                  <TimePicker
+                    value={rushPickupTime}
+                    onChange={(value) => setRushPickupTime(normalizeTime(value, DEFAULT_RUSH_PICKUP_TIME_12))}
+                    className="w-36 h-9"
+                  />
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-12">
                   {/* Left Column - Turnaround Time */}

@@ -212,7 +212,7 @@ export type ChangeLocationRequest = {
   notes?: string;
   /**
    * Optional drop-off proof photos keyed by slip id. Sent as multipart/form-data
-   * under `images[{slip_id}]` (jpeg/jpg/png/gif/webp, max 10MB).
+   * under `images[{slip_id}]` (jpeg/jpg/png/gif/webp/heic/heif, max 10MB).
    */
   images?: Record<number, File>;
 };

@@ -13,6 +13,7 @@ export interface BusinessHour {
   export interface CaseSchedulePayload {
     default_pickup_time: string
     default_delivery_time: string
+    default_rush_pickup_time?: string
     enable_rush_cases: boolean
     rush_type: "fixed" | "flexible"
     fixed_turnaround_days?: number
@@ -36,6 +37,7 @@ export interface BusinessHour {
   
   export interface CaseScheduleSettings {
     defaultPickupTime: string
+    defaultRushPickupTime: string
     defaultDeliveryTime: string
     enableRush: boolean
     turnaroundType: "fixed" | "flexible"

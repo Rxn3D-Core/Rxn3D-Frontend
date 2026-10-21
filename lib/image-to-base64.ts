@@ -5,7 +5,7 @@
  * We keep the original File for upload and a preview URL (data URL for images,
  * object URL for video).
  *
- * Images (default): jpeg, jpg, png, gif, webp, svg — max 10MB.
+ * Images (default): jpeg, jpg, png, gif, webp, svg, heic, heif — max 10MB.
  * Video (opt-in): mp4, mov, avi — max 500MB (matches slip attachments).
  */
 
@@ -19,6 +19,8 @@ export const ALLOWED_IMAGE_TYPES = [
   "image/gif",
   "image/webp",
   "image/svg+xml",
+  "image/heic",
+  "image/heif",
 ];
 
 const ALLOWED_IMAGE_EXTENSIONS = [
@@ -28,6 +30,8 @@ const ALLOWED_IMAGE_EXTENSIONS = [
   ".gif",
   ".webp",
   ".svg",
+  ".heic",
+  ".heif",
 ];
 
 export const ALLOWED_VIDEO_TYPES = [
@@ -54,6 +58,21 @@ export type FilesToUploadedImagesOptions = {
   /** When true, also accept mp4/mov/avi (ready-to-send proof media). */
   allowVideo?: boolean;
 };
+
+/**
+ * HEIC/HEIF (iPhone photos) upload fine, but only Safari can render them, so
+ * callers show a placeholder tile instead of an <img> for these.
+ */
+export function isHeicFile(file: { name: string; type?: string }): boolean {
+  return (
+    /\.(heic|heif)$/i.test(file.name) || /^image\/hei[cf]$/i.test(file.type ?? "")
+  );
+}
+
+export function isHeicUrl(url: string): boolean {
+  // Look at the path only — signed S3 URLs carry a query string.
+  return /\.(heic|heif)$/i.test(url.split(/[?#]/)[0]);
+}
 
 export function isAllowedImage(file: File): boolean {
   if (typeof file.type === "string" && file.type.length > 0) {

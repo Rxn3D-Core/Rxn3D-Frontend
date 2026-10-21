@@ -90,6 +90,7 @@ interface SelectedLabCustomer extends LabCustomer {
   rushSettings?: {
     enabled: boolean
     description: string
+    default_rush_pickup_time?: string | null
     rush_type?: "fixed" | "flexible"
     fixed_turnaround_days?: number
     fixed_rush_fee_percentage?: string
@@ -295,6 +296,7 @@ export default function AllLabs() {
       const rushSettings = {
         enabled: !!profileData?.business_settings?.case_schedule?.enable_rush_cases,
         description: "Allow users to request expedited processing.",
+        default_rush_pickup_time: profileData?.business_settings?.case_schedule?.default_rush_pickup_time,
         rush_type: profileData?.business_settings?.case_schedule?.rush_type as "fixed" | "flexible" | undefined,
         fixed_turnaround_days: profileData?.business_settings?.case_schedule?.fixed_turnaround_days,
         fixed_rush_fee_percentage:

@@ -67,6 +67,7 @@ export function BusinessSettingsProvider({ children }: BusinessSettingsProviderP
   // Store times in 24-hour format
   const [caseSchedule, setCaseScheduleState] = useState<CaseScheduleSettings>({
     defaultPickupTime: "10:30",
+    defaultRushPickupTime: "08:00",
     defaultDeliveryTime: "16:00",
     enableRush: false,
     turnaroundType: "fixed",
@@ -104,6 +105,9 @@ export function BusinessSettingsProvider({ children }: BusinessSettingsProviderP
       // Convert time fields to 24-hour format if they're provided
       if (settings.defaultPickupTime) {
         newSettings.defaultPickupTime = convertTo24Hour(settings.defaultPickupTime)
+      }
+      if (settings.defaultRushPickupTime) {
+        newSettings.defaultRushPickupTime = convertTo24Hour(settings.defaultRushPickupTime)
       }
       if (settings.defaultDeliveryTime) {
         newSettings.defaultDeliveryTime = convertTo24Hour(settings.defaultDeliveryTime)
@@ -155,6 +159,10 @@ export function BusinessSettingsProvider({ children }: BusinessSettingsProviderP
             default_delivery_time: caseSchedule.defaultDeliveryTime, // Already in 24-hour format
             enable_rush_cases: caseSchedule.enableRush,
             rush_type: caseSchedule.turnaroundType,
+          }
+
+          if (caseSchedule.enableRush) {
+            caseSchedulePayload.default_rush_pickup_time = caseSchedule.defaultRushPickupTime // Already in 24-hour format
           }
 
           if (caseSchedule.turnaroundType === "fixed") {

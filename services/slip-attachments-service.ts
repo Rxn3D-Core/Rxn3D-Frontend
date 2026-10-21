@@ -131,6 +131,9 @@ export const SLIP_ATTACHMENT_ALLOWED_EXTENSIONS = [
   "jpeg",
   "png",
   "gif",
+  // iPhone photos — uploaded as-is; browsers other than Safari can't preview them.
+  "heic",
+  "heif",
   "pdf",
   ...SLIP_ATTACHMENT_3D_EXTENSIONS,
   "zip",

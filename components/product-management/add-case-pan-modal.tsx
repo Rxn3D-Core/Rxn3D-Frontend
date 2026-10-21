@@ -83,6 +83,9 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
 
   // Determine if editing and is_custom is "No"
   const isEditing = !!editCasePan && !isCopying
+
+  // Only the global library's case pans can be flagged as the rush case pan
+  const canSetRush = isSuperAdmin && !editCasePan?.customer_id
   const isCustomNo = isEditing && editCasePan?.is_custom === "No"
 
   // Helper to determine if a field should be editable
@@ -115,6 +118,9 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
     status: "Active",
     quantity: "", // Add quantity field
   })
+
+  // Global rush case pan flag (superadmin, global library rows only)
+  const [isRush, setIsRush] = useState(false)
 
   const [casePanDetails, setCasePanDetails] = useState(true)
   const [linkToCategoryExpanded, setLinkToCategoryExpanded] = useState(false)
@@ -163,6 +169,7 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
       status: "Active",
       quantity: "", // Reset quantity
     })
+    setIsRush(false)
     setCasePanDetails(true)
     setLinkToCategoryExpanded(false)
     setLinkOption("no")
@@ -214,6 +221,7 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
               ? String(detail.lab_case_pan.quantity)
               : (detail.quantity !== undefined ? String(detail.quantity) : ""),
           })
+          setIsRush(!!detail.is_rush)
           setCasePanDetails(true)
           setHasChanges(false)
           setIsCommonNo(detail.is_common === "No")
@@ -233,6 +241,7 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
             ? String(editCasePan.lab_case_pan.quantity)
             : (editCasePan.quantity !== undefined ? String(editCasePan.quantity) : ""),
         })
+        setIsRush(false) // a copy is never the rush case pan
         setCasePanDetails(true)
         setHasChanges(false)
         setIsCommonNo(editCasePan.is_common === "No")
@@ -248,6 +257,7 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
           status: "Active",
           quantity: "",
         })
+        setIsRush(false)
         setCasePanDetails(true)
         setLinkToCategoryExpanded(false)
         setLinkOption("no")
@@ -322,6 +332,10 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
           payload.quantity = parseInt(formData.quantity.trim())
         }
         payload.color_code = getHexColorValue(formData.color_code)
+      }
+
+      if (canSetRush) {
+        payload.is_rush = isRush
       }
 
       // If copying, always create a new case pan (not update)
@@ -435,6 +449,30 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
                         disabled={!isFieldEditable()}
                         readOnly={!isFieldEditable()}
                       />
+
+                      {canSetRush && (
+                        <div className="flex items-center justify-between rounded-md border p-3">
+                          <div className="pr-4">
+                            <p className="text-sm font-medium text-gray-900">
+                              {t("csePanModal.rushCasePan", "Rush case pan")}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {t(
+                                "csePanModal.rushCasePanHint",
+                                "Labs get this case pan as their rush group when they finish onboarding.",
+                              )}
+                            </p>
+                          </div>
+                          <Switch
+                            className="data-[state=checked]:bg-[#1162a8]"
+                            checked={isRush}
+                            onCheckedChange={(checked) => {
+                              setIsRush(checked)
+                              setHasChanges(true)
+                            }}
+                          />
+                        </div>
+                      )}
 
                       {/* Conditionally show quantity input for lab_admin only */}
                       {isLabAdmin && (

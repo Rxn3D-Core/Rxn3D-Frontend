@@ -2,6 +2,7 @@
 export const DEFAULT_OPEN_TIME_12 = "09:00 AM"
 export const DEFAULT_CLOSE_TIME_12 = "05:00 PM"
 export const DEFAULT_PICKUP_TIME_12 = "10:30 AM"
+export const DEFAULT_RUSH_PICKUP_TIME_12 = "08:00 AM"
 export const DEFAULT_DELIVERY_TIME_12 = "04:00 PM"
 
 /** Las Vegas and Los Angeles share America/Los_Angeles (Pacific). */

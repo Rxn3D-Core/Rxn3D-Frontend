@@ -178,6 +178,7 @@ export function mapCustomerApiToProfile(data: any, fallbackType: CustomerTypePar
     rushSettings: {
       enabled: !!data?.business_settings?.case_schedule?.enable_rush_cases,
       description: "Allow users to request expedited processing.",
+      default_rush_pickup_time: data?.business_settings?.case_schedule?.default_rush_pickup_time,
       rush_type: data?.business_settings?.case_schedule?.rush_type as "fixed" | "flexible" | undefined,
       fixed_turnaround_days: data?.business_settings?.case_schedule?.fixed_turnaround_days,
       fixed_rush_fee_percentage:
