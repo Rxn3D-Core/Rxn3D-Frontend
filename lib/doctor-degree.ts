@@ -38,3 +38,14 @@ export function withDegree(name: string, degree?: string | null): string {
   const clean = normalizeDegree(degree)
   return clean ? `${name}, ${clean}` : name
 }
+
+/**
+ * A doctor record's saved degree, wherever the API put it: top-level `degree` (slip, case and user
+ * responses) or `doctor_info.degree` (office doctors list). "" when none is saved.
+ */
+export function getDoctorDegree(doctor?: unknown): string {
+  if (!doctor || typeof doctor !== "object") return ""
+  const record = doctor as { degree?: unknown; doctor_info?: { degree?: unknown } | null }
+  const raw = record.degree ?? record.doctor_info?.degree
+  return typeof raw === "string" ? normalizeDegree(raw) : ""
+}

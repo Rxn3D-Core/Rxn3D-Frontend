@@ -35,6 +35,7 @@ import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { getActiveCustomerId } from "@/lib/customer-scope";
 import { isLabCustomerContext, isOfficeCustomerContext } from "@/lib/role-utils";
 import { resolveDoctorImageUrl, getInitials, formatDoctorDisplayName, doctorDisplayImageUrl, DOCTOR_PLACEHOLDER_IMAGE } from "@/utils/avatar-utils";
+import { getDoctorDegree, withDegree } from "@/lib/doctor-degree";
 import { DoctorPhotoUploadModal } from "@/components/doctor-photo-upload-modal";
 import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
 import { PatientDemographicModal } from "@/components/case-design-center/components/PatientDemographicModal";
@@ -575,6 +576,8 @@ export interface WizardDoctorShape {
   id: number;
   name: string;
   img: string;
+  /** Saved degree (e.g. "DDS"); empty/absent when the doctor has none. */
+  degree?: string;
 }
 
 export interface WizardLabShape {
@@ -739,7 +742,7 @@ function StepDoctor({
               )}
             </div>
             <span className="text-[14px] font-weight-700 font-bold text-[#1d1d1b] text-center">
-              {doc.name}
+              {withDegree(doc.name, doc.degree)}
             </span>
             <span
               className={`text-[11px] text-[#7f7f7f] transition-opacity ${selected === doc.id
@@ -1257,7 +1260,7 @@ function StepPatientInfo({
               </div>
               <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
                 <legend className="text-[12px] sm:text-[14px] text-[#7f7f7f] px-1 leading-none">Doctor</legend>
-                <span className="text-[14px] sm:text-[18px] leading-[20px] text-[#000000] whitespace-nowrap">{doctor.name}</span>
+                <span className="text-[14px] sm:text-[18px] leading-[20px] text-[#000000] whitespace-nowrap">{withDegree(doctor.name, doctor.degree)}</span>
               </fieldset>
             </div>
           )}
@@ -1387,7 +1390,7 @@ function StepPatientInfo({
             </div>
             <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative">
               <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">Doctor</legend>
-              <span className="text-[12px] text-[#1d1d1b] whitespace-nowrap">{doctor.name}</span>
+              <span className="text-[12px] text-[#1d1d1b] whitespace-nowrap">{withDegree(doctor.name, doctor.degree)}</span>
             </fieldset>
           </div>
         )}
@@ -2211,7 +2214,7 @@ function PatientMiniHeader({
             </div>
             <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
               <legend className="text-[12px] sm:text-[14px] text-[#7f7f7f] px-1 leading-none">Doctor</legend>
-              <span className="text-[14px] sm:text-[18px] leading-[20px] text-[#000000] whitespace-nowrap">{doctor.name}</span>
+              <span className="text-[14px] sm:text-[18px] leading-[20px] text-[#000000] whitespace-nowrap">{withDegree(doctor.name, doctor.degree)}</span>
             </fieldset>
           </div>
         )}
@@ -2463,12 +2466,13 @@ export default function NewCaseWizard({
 
   const doctorsForWizard: WizardDoctorShape[] = useMemo(
     () =>
-      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string; avatar?: string; signature_url?: string }[]).map(
+      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string; avatar?: string; signature_url?: string; degree?: string | null; doctor_info?: { degree?: string | null } | null }[]).map(
         (d) => ({
           id: d.id,
           name: formatDoctorDisplayName(d.first_name, d.last_name),
           // Empty string when no photo — UI shows initials (never a placeholder image)
           img: resolveDoctorImageUrl(d) || "",
+          degree: getDoctorDegree(d),
         })
       ),
     [officeDoctorsRaw]

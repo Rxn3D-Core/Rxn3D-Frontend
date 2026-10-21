@@ -49,6 +49,7 @@ import { toProxiedFileUrl } from "@/lib/file-proxy"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import * as THREE from "three"
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+import { getDoctorDegree, withDegree } from "@/lib/doctor-degree"
 
 const areStringArraysEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, index) => value === b[index])
@@ -266,7 +267,7 @@ export default function FileAttachmentModalContent({
       if (doctorStr) {
         const doc = JSON.parse(doctorStr)
         const name = [doc.first_name, doc.last_name].filter(Boolean).join(" ")
-        if (name) return name
+        if (name) return withDegree(name, getDoctorDegree(doc))
       }
     } catch {}
     return ""

@@ -14,6 +14,7 @@ import {
   shouldShowPatientGenderField,
 } from "@/lib/patient-name-validation"
 import { resolveDoctorImageUrl, doctorDisplayImageUrl, DOCTOR_PLACEHOLDER_IMAGE } from "@/utils/avatar-utils"
+import { getDoctorDegree, withDegree } from "@/lib/doctor-degree"
 
 interface Doctor {
   id: number
@@ -24,6 +25,8 @@ interface Doctor {
   profile_image?: string
   avatar?: string
   signature_url?: string
+  degree?: string | null
+  doctor_info?: { degree?: string | null } | null
 }
 
 interface Lab {
@@ -291,7 +294,10 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
 const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; variant?: "default" | "full" }) => {
   const router = useRouter()
   const doctorImageSrc = doctorDisplayImageUrl(resolveDoctorImageUrl(doctor))
-  
+  const doctorName = `${doctor?.first_name || ""} ${doctor?.last_name || ""}`.trim()
+  // "Maria Pavlova, DDS" only when a degree is saved
+  const doctorNameWithDegree = withDegree(doctorName, getDoctorDegree(doctor))
+
   const handleEditClick = () => {
     router.push("/choose-doctor")
   }
@@ -327,7 +333,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
         </div>
         <div className="relative w-[100px] sm:w-[150px] h-[26px] sm:h-[30px]">
           <Input
-            value={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`.trim()}
+            value={doctorNameWithDegree}
             readOnly
             className="w-full h-full text-[10px] sm:text-[12px] leading-[15px] text-[#1F2937] border-[#7F7F7F] rounded-[7px] px-[8px] sm:px-[10px] py-[4px] sm:py-[6px]"
           />
@@ -366,7 +372,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
         </button>
       </div>
       <p className="text-base font-normal text-gray-900">
-        {doctor?.first_name} {doctor?.last_name}, DDS
+        {doctorNameWithDegree}
       </p>
     </div>
   )
