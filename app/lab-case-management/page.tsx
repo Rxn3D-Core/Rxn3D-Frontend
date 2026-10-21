@@ -215,7 +215,7 @@ export default function LabSlipV3Page() {
 
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [selectedCaseForAttachment, setSelectedCaseForAttachment] = useState<{
-    caseId: number; caseNumber: string; patient: string; doctor: string
+    caseId: number; slipId: number; caseNumber: string; patient: string; doctor: string
   } | null>(null)
   const [showChangeDateModal, setShowChangeDateModal] = useState(false)
   const [selectedSlipForDateChange, setSelectedSlipForDateChange] = useState<V2CaseRowData | null>(null)
@@ -1034,7 +1034,7 @@ export default function LabSlipV3Page() {
             onCallLog: (slip) => { setSelectedSlipForCallLog(slip); setShowCallLogModal(true) },
             onAddOns: (slip) => { setSelectedSlipForAddOns(slip); setShowAddOnsModal(true); void loadAddonInputsForSlip(slip.id) },
             onAttachment: (slip) => {
-              setSelectedCaseForAttachment({ caseId: slip.caseId ?? slip.id, caseNumber: slip.caseNumber ?? "", patient: slip.patient ?? "", doctor: slip.doctor ?? "" })
+              setSelectedCaseForAttachment({ caseId: slip.caseId ?? slip.id, slipId: slip.id, caseNumber: slip.caseNumber ?? "", patient: slip.patient ?? "", doctor: slip.doctor ?? "" })
               setShowAttachModal(true)
             },
             onCopy: (row) => void handleCopyCaseIdentifier(row),
@@ -1099,10 +1099,12 @@ export default function LabSlipV3Page() {
           open={showAttachModal && !!selectedCaseForAttachment}
           onClose={() => { setShowAttachModal(false); setSelectedCaseForAttachment(null) }}
           caseId={selectedCaseForAttachment?.caseId}
+          slipId={selectedCaseForAttachment?.slipId}
           caseNumber={selectedCaseForAttachment?.caseNumber}
           doctorName={selectedCaseForAttachment?.doctor}
           patientName={selectedCaseForAttachment?.patient}
           isCaseSubmitted={false}
+          onAttached={refreshCurrentListing}
         />
 
         {selectedSlipForDateChange && (

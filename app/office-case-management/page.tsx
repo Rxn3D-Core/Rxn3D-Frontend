@@ -174,7 +174,7 @@ function OfficeCaseManagementPage() {
 
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [selectedCaseForAttachment, setSelectedCaseForAttachment] = useState<{
-    caseId: number; caseNumber: string; patient: string; doctor: string
+    caseId: number; slipId: number; caseNumber: string; patient: string; doctor: string
   } | null>(null)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
   const [selectedSlipForDriverHistory, setSelectedSlipForDriverHistory] = useState<V2CaseRowData | null>(null)
@@ -753,7 +753,7 @@ function OfficeCaseManagementPage() {
             onCallLog: (slip) => { setSelectedSlipForCallLog(slip); setShowCallLogModal(true) },
             onAddOns: (slip) => { setSelectedSlipForAddOns(slip); setShowAddOnsModal(true); void loadAddonInputsForSlip(slip.id) },
             onAttachment: (slip) => {
-              setSelectedCaseForAttachment({ caseId: slip.caseId ?? slip.id, caseNumber: slip.caseNumber ?? "", patient: slip.patient ?? "", doctor: slip.doctor ?? "" })
+              setSelectedCaseForAttachment({ caseId: slip.caseId ?? slip.id, slipId: slip.id, caseNumber: slip.caseNumber ?? "", patient: slip.patient ?? "", doctor: slip.doctor ?? "" })
               setShowAttachModal(true)
             },
             onCopy: (row) => void handleCopyCaseIdentifier(row),
@@ -809,10 +809,12 @@ function OfficeCaseManagementPage() {
           open={showAttachModal && !!selectedCaseForAttachment}
           onClose={() => { setShowAttachModal(false); setSelectedCaseForAttachment(null) }}
           caseId={selectedCaseForAttachment?.caseId}
+          slipId={selectedCaseForAttachment?.slipId}
           caseNumber={selectedCaseForAttachment?.caseNumber}
           doctorName={selectedCaseForAttachment?.doctor}
           patientName={selectedCaseForAttachment?.patient}
           isCaseSubmitted={false}
+          onAttached={refreshCurrentListing}
         />
 
         <ReadyToSendModal

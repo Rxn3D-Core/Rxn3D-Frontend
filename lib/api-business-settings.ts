@@ -9,6 +9,7 @@ export interface BusinessHour {
 
 export interface CaseSchedule {
   default_pickup_time: string
+  default_rush_pickup_time?: string | null
   default_delivery_time: string
   enable_rush_cases?: boolean
   rush_type?: "fixed" | "flexible"
@@ -203,6 +204,15 @@ export async function updateBusinessSettings(data: PartialBusinessSettingsUpdate
       fixed_rush_fee_percentage: data.case_schedule?.fixed_rush_fee_percentage !== undefined 
         ? data.case_schedule.fixed_rush_fee_percentage 
         : currentCaseSchedule.fixed_rush_fee_percentage,
+    }
+
+    // Rush pickup time: only sent when there is one, so a lab without it keeps inheriting the default.
+    const rushPickupSource = data.case_schedule?.default_rush_pickup_time ?? currentCaseSchedule.default_rush_pickup_time
+    if (rushPickupSource) {
+      const converted = convertTo24Hour(String(rushPickupSource))
+      if (converted && converted.length === 5) {
+        updatePayload.case_schedule.default_rush_pickup_time = converted
+      }
     }
   }
 

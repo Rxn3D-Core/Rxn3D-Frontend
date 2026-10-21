@@ -431,12 +431,21 @@ export function RegistrationProvider({ children }: { children: React.ReactNode }
   }
   const fetchRegistrationDetails = async (invitationId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/invitations/${invitationId}`)
+      const response = await fetch(`${API_BASE_URL}/invitations/${encodeURIComponent(invitationId)}`)
 
       if (!response.ok) {
         const data = await response.json()
 
-        if (response.status === 404 || data?.status_code === 404 || data.data.status == 'Accepted') {
+        // The emailed link is only valid for a limited time (the API answers 410 once it has passed)
+        if (response.status === 410) {
+          const errorMessage =
+            data?.error_description || "Invitation has expired. Please ask the sender to send you a new invitation."
+          console.error("Invitation error:", errorMessage)
+          setError(errorMessage)
+          return
+        }
+
+        if (response.status === 404 || data?.status_code === 404 || data?.data?.status == 'Accepted') {
           const errorMessage = "Invitation not found or has expired. Please contact support for assistance."
           console.error("Invitation error:", errorMessage)
           setError(errorMessage)

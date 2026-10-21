@@ -39,6 +39,9 @@ export function buildLabOnboardCompleteBody(
     enable_rush_cases: caseSchedule.enableRush,
     rush_type: caseSchedule.turnaroundType,
   }
+  if (caseSchedule.enableRush) {
+    case_schedule.default_rush_pickup_time = caseSchedule.defaultRushPickupTime
+  }
   if (caseSchedule.turnaroundType === "fixed") {
     case_schedule.fixed_turnaround_days = caseSchedule.fixedTurnaroundDays
     case_schedule.fixed_rush_fee_percentage = caseSchedule.fixedRushFeePercent

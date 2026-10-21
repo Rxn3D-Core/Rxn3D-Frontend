@@ -152,6 +152,7 @@ export default function LabProfile() {
     rushSettings: {
       enabled: customerProfile.business_settings?.case_schedule?.enable_rush_cases || false,
       description: "Allow users to request expedited processing.",
+      default_rush_pickup_time: customerProfile.business_settings?.case_schedule?.default_rush_pickup_time,
       rush_type: customerProfile.business_settings?.case_schedule?.rush_type as "fixed" | "flexible" | undefined,
       fixed_turnaround_days: customerProfile.business_settings?.case_schedule?.fixed_turnaround_days,
       fixed_rush_fee_percentage: customerProfile.business_settings?.case_schedule?.fixed_rush_fee_percentage,

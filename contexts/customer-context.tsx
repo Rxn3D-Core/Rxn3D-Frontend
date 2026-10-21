@@ -50,6 +50,7 @@ interface CustomerProfile extends Customer {
       id: number
       customer_id: number
       default_pickup_time: string
+      default_rush_pickup_time?: string | null
       default_delivery_time: string
       enable_rush_cases: boolean
       created_at: string
