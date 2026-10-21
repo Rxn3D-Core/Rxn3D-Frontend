@@ -9,17 +9,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { getDoctorDegree, withDegree } from "@/lib/doctor-degree";
 import type { WizardDoctorShape } from "@/components/new-case-wizard";
 import { resolveDoctorImageUrl, formatDoctorDisplayName, type DoctorImageSource, doctorDisplayImageUrl, DOCTOR_PLACEHOLDER_IMAGE } from "@/utils/avatar-utils";
 
 export function mapOfficeDoctorsToWizardShape(
-  raw: (DoctorImageSource & { id: number; first_name?: string; last_name?: string })[]
+  raw: (DoctorImageSource & { id: number; first_name?: string; last_name?: string; degree?: string | null; doctor_info?: { degree?: string | null } | null })[]
 ): WizardDoctorShape[] {
   return raw.map((d) => ({
     id: d.id,
     name: formatDoctorDisplayName(d.first_name, d.last_name),
     // Empty string when no photo — UI shows initials (never a placeholder image)
     img: resolveDoctorImageUrl(d) || "",
+    degree: getDoctorDegree(d),
   }));
 }
 
@@ -100,7 +102,7 @@ export function DoctorEditModal({
                         />
                       </div>
                       <span className="text-[13px] font-bold text-[#1d1d1b] text-center leading-tight">
-                        {doc.name}
+                        {withDegree(doc.name, doc.degree)}
                       </span>
                     </button>
                   );

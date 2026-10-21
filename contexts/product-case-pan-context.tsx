@@ -20,6 +20,7 @@ const CasePanPayloadSchema = z.object({
   description: z.string().optional(),
   type: z.string().min(1, "Type is required"),
   quantity: z.number().optional(), // Add quantity field for lab_admin
+  is_rush: z.boolean().optional(), // Global rush case pan (superadmin only)
 })
 
 const CasePanResponseSchema = z.object({
@@ -55,6 +56,7 @@ export interface CasePan {
   description: string
   type: string
   quantity?: number // Add quantity field (optional for backward compatibility)
+  is_rush?: boolean
   created_at: string
   updated_at: string
 }

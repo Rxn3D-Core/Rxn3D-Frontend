@@ -14,6 +14,9 @@ import { useFormValidation } from "@/hooks/use-form-validation"
 import { AuthHeader } from "@/components/auth-header"
 import { useAuth } from "@/contexts/auth-context"
 import { Loader2 } from "lucide-react"
+import { AlreadySignedInNotice } from "@/components/registration/already-signed-in-notice"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
+import { getRegisterInvitationPath, getRegisterSessionGate } from "@/lib/auth/register-session-gate"
 import { RegistrationTypeChooser } from "@/components/registration/registration-type-chooser"
 import {
   RegistrationCard,
@@ -25,9 +28,12 @@ import Link from "next/link"
 import { Mail } from "lucide-react"
 
 export default function RegisterPage() {
-  const { user, isLoading, setAuthFromData } = useAuth()
+  const { user, isLoading, setAuthFromData, logout } = useAuth()
   const router = useRouter()
 
+  // Set once this page's own registration signed the new account in (the auth provider then redirects onward)
+  const [registrationCompleted, setRegistrationCompleted] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const {
@@ -51,6 +57,7 @@ export default function RegisterPage() {
     fetchRegistrationDetails,
     registrationType,
     setRegistrationType,
+    invitedBy,
     error: contextError,
   } = useRegistration()
 
@@ -137,8 +144,41 @@ export default function RegisterPage() {
     )
   }
 
-  // If loading or already logged in, show a loading state
-  if (isLoading || user) {
+  const sessionGate = getRegisterSessionGate({
+    isAuthLoading: isLoading,
+    hasSession: !!user,
+    registrationCompleted,
+  })
+
+  // Someone was already signed in when the link was opened (e.g. a Super Admin). Nothing redirects them
+  // away from this public page, so ask them to sign out instead of waiting on a loader that never ends.
+  if (sessionGate === "signed-in" && user) {
+    const name = [user.first_name, user.last_name].filter(Boolean).join(" ")
+    const signedInAs = name && user.email ? `${name} (${user.email})` : name || user.email || "another account"
+
+    const handleSignOutAndContinue = async () => {
+      setIsSigningOut(true)
+      try {
+        // Sign out, then come straight back to this invitation instead of the login page
+        await logout({ redirectTo: getRegisterInvitationPath(invitation_id) })
+      } finally {
+        setIsSigningOut(false)
+      }
+    }
+
+    return (
+      <AlreadySignedInNotice
+        signedInAs={signedInAs}
+        homeHref={getActiveLandingPath(user)}
+        onSignOut={handleSignOutAndContinue}
+        isSigningOut={isSigningOut}
+      />
+    )
+  }
+
+  // Auth provider still reading the stored session, or this page's registration just signed the user in
+  // and the auth provider is redirecting to onboarding — both resolve on their own.
+  if (sessionGate === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
@@ -363,11 +403,14 @@ export default function RegisterPage() {
             authData.permissions = authData.user.permissions
           }
           
+          // Flag first (same batched render as the new session) so the "already signed in" notice never flashes
+          setRegistrationCompleted(true)
           const success = setAuthFromData(authData)
           if (success) {
             // Redirect will be handled by setAuthFromData
             return response
           }
+          setRegistrationCompleted(false)
         }
         
         // Fallback if auto-login fails or data is missing
@@ -388,6 +431,7 @@ export default function RegisterPage() {
             "users.0.phone": "phone",
             "users.0.work_number": "work_number",
             "users.0.license_number": "license_number",
+            "users.0.degree": "degree",
             "users.0.signature": "signature",
             "users.0.password": "password",
             "users.0.password_confirmation": "password_confirmation",
@@ -484,6 +528,20 @@ export default function RegisterPage() {
         {/* Only show the registration form if there's no invitation error */}
         {!(error || contextError)?.includes("Invitation") ? (
           <div className="bg-white rounded-lg shadow-sm w-full max-w-4xl p-4 sm:p-8">
+            {/* Same inviter as the invitation email (both come from the invitation API, never from typed text) */}
+            {invitedBy && (
+              <div className="mb-4 sm:mb-6 flex flex-col items-center gap-2 border-b border-gray-100 pb-4 text-center">
+                {!invitedBy.isPlatform && invitedBy.logoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={invitedBy.logoUrl} alt={invitedBy.name} className="max-h-14 max-w-[180px] object-contain" />
+                )}
+                <p className="text-sm text-[#6b7280]">
+                  <span className="font-semibold text-[#111827]">{invitedBy.name}</span> invited you to join our dental
+                  lab platform.
+                </p>
+                {!invitedBy.isPlatform && <p className="text-xs text-[#a19d9d]">Powered by Rxn3D</p>}
+              </div>
+            )}
             {activeStep === 0 ? (
               /* Step 1: User Profiles */
               <div>

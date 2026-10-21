@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Camera, Loader2, Upload, X } from "lucide-react";
+import { Camera, FileImage, Loader2, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getCaseDriverHistory,
@@ -18,6 +18,8 @@ import {
 } from "@/lib/api/slip-driver-history";
 import {
   filesToUploadedImages,
+  isHeicFile,
+  isHeicUrl,
   type UploadedImage,
 } from "@/lib/image-to-base64";
 
@@ -32,6 +34,18 @@ export type DeliveryTimelineRow = {
   /** Pickup/drop photo URL for this entry, if any. */
   imageUrl?: string | null;
 };
+
+/** Chrome / Edge / Firefox can't decode HEIC, so show a tile instead of a broken <img>. */
+function HeicPlaceholder({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn("flex items-center justify-center bg-[#F3F4F6] text-[#6B7280]", className)}
+      title="HEIC photo — preview isn't available in this browser"
+    >
+      <FileImage className="h-5 w-5" aria-hidden />
+    </span>
+  );
+}
 
 /* ----------------------------- Icons ----------------------------- */
 
@@ -204,8 +218,12 @@ export function DeliveryTimeline({
                 title="View photo"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={row.imageUrl} alt="Delivery photo" className="h-full w-full object-cover" />
+                {isHeicUrl(row.imageUrl) ? (
+                  <HeicPlaceholder className="h-full w-full" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={row.imageUrl} alt="Delivery photo" className="h-full w-full object-cover" />
+                )}
               </a>
             ) : null}
           </span>
@@ -370,6 +388,8 @@ export function ImageDropzone({
               playsInline
               preload="metadata"
             />
+          ) : isHeicFile(image.file) ? (
+            <HeicPlaceholder className="h-full w-full" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={image.dataUrl} alt={image.name} className="h-full w-full object-cover" />
@@ -589,12 +609,16 @@ export function RowImageUpload({
     return (
       <div className="inline-flex flex-wrap items-center gap-1.5">
         <div className="relative inline-flex">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={image.dataUrl}
-            alt={image.name}
-            className="h-12 w-12 rounded-md border border-[#E5E7EB] object-cover"
-          />
+          {isHeicFile(image.file) ? (
+            <HeicPlaceholder className="h-12 w-12 rounded-md border border-[#E5E7EB]" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={image.dataUrl}
+              alt={image.name}
+              className="h-12 w-12 rounded-md border border-[#E5E7EB] object-cover"
+            />
+          )}
           <button
             type="button"
             onClick={() => onChange(null)}

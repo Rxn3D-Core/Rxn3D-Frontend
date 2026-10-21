@@ -49,6 +49,7 @@ import NewCaseWizard from "@/components/new-case-wizard";
 import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
 import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
 import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
+import { withDegree } from "@/lib/doctor-degree";
 
 type FlowStep = "loading" | "ineligible" | "design";
 
@@ -262,7 +263,7 @@ export function EditSlipFlow({ slipId }: Props) {
       gender: seed.gender,
       age: seed.age,
       doctor: seed.doctor
-        ? { id: seed.doctor.id, name: seed.doctor.name, img: seed.doctor.img }
+        ? { id: seed.doctor.id, name: seed.doctor.name, img: seed.doctor.img, degree: seed.doctor.degree }
         : null,
       lab: seed.lab ? { id: seed.lab.id, name: seed.lab.name, logo: seed.lab.logo } : null,
       officeId: resolveOfficeIdFromSlipDetails(virtualSlipDetails),
@@ -433,6 +434,7 @@ export function EditSlipFlow({ slipId }: Props) {
             <PatientHeader
               doctorImageUrl={wizard.completedDoctor?.img}
               doctorName={wizard.completedDoctor?.name}
+              doctorDegree={wizard.completedDoctor?.degree}
               patientName={wizard.completedPatientName}
               gender={wizard.completedGender}
               age={wizard.completedAge}
@@ -489,7 +491,7 @@ export function EditSlipFlow({ slipId }: Props) {
                 labBusinessHours={labBusinessHours}
                 attachmentSlipId={slipId}
                 attachmentCaseId={caseId ?? undefined}
-                attachmentDoctorName={wizard.completedDoctor?.name}
+                attachmentDoctorName={wizard.completedDoctor ? withDegree(wizard.completedDoctor.name, wizard.completedDoctor.degree) : undefined}
                 attachmentPatientName={wizard.completedPatientName || undefined}
               />
             )}

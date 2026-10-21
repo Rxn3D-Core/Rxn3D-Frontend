@@ -1,6 +1,7 @@
 "use client"
 
 import { Upload, X, AlertCircle } from 'lucide-react'
+import { LOGO_ACCEPT, validateLogoFile } from "@/lib/logo-upload"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { useState, useEffect, ChangeEvent } from "react"
@@ -71,10 +72,11 @@ export function LabProfileForm({
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // Check file size (1024 KB = 1 MB = 1,048,576 bytes)
-      const maxSizeInBytes = 1024 * 1024
-      if (file.size > maxSizeInBytes) {
-        setFileSizeError("Logo file size must be less than 1 MB (1024 KB)")
+      // PNG/JPG only (no SVG) and max 1 MB
+      const logoError = validateLogoFile(file)
+      if (logoError) {
+        setFileSizeError(logoError)
+        e.target.value = ""
         return
       }
 
@@ -260,7 +262,7 @@ export function LabProfileForm({
               <input
                 type="file"
                 className="hidden"
-                accept="image/png,image/jpeg,image/svg+xml"
+                accept={LOGO_ACCEPT}
                 onChange={handleLogoUpload}
               />
             </label>
@@ -272,7 +274,7 @@ export function LabProfileForm({
               </div>
             ) : (
               <div className="text-sm text-[#a19d9d] text-center mt-2 space-y-0.5">
-                <p>Logo files must be in PNG, SVG, or JPEG format, maximum of 1MB (1024KB).</p>
+                <p>Logo files must be PNG or JPG (SVG is not supported), maximum of 1MB (1024KB).</p>
                 <p>{TOP_BAR_LOGO_UPLOAD_HINT}</p>
               </div>
             )}

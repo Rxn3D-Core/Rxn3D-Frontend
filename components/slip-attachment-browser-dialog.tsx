@@ -32,6 +32,7 @@ import { toProxiedFileUrl } from "@/lib/file-proxy"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import FileAttachmentModalContent from "./file-attachment-modal-content"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { withDegree } from "@/lib/doctor-degree"
 
 const STLCanvasOnly = dynamic(() => import("@/components/stl-canvas-only"), { ssr: false })
 
@@ -615,6 +616,7 @@ export default function SlipAttachmentBrowserDialog({
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const removedStageIds = useRef<Set<string>>(new Set())
+  const uploadedSinceNotifyRef = useRef(false)
   const pendingUpload = !slipId && !!labId
 
   // ── Browser / filter state ──────────────────────────────────────────────────
@@ -756,7 +758,9 @@ export default function SlipAttachmentBrowserDialog({
     return [...stages]
   }, [caseData])
 
-  const displayedDocName = caseData?.doctor?.name ?? doctorName
+  const displayedDocName = caseData?.doctor?.name
+    ? withDegree(caseData.doctor.name, caseData.doctor.degree)
+    : doctorName
   const displayedPatientName = caseData?.patient_name ?? patientName
 
   // ── Upload handlers ─────────────────────────────────────────────────────────
@@ -810,10 +814,21 @@ export default function SlipAttachmentBrowserDialog({
         (progress) => patchStaged(localId, { status: "uploading", progress }, true)
       )
       if (removedStageIds.current.has(localId)) return
+      uploadedSinceNotifyRef.current = true
       patchStaged(localId, { status: "done", progress: 100, remoteId: res.data?.id })
     },
     [slipId, label, patchStaged]
   )
+
+  // Live uploads save as soon as they finish. Tell the host once the batch settles so the
+  // listing behind the dialog picks up the new files without waiting for "Done" — and still
+  // does if the dialog was closed (X / backdrop) while files were uploading.
+  useEffect(() => {
+    if (!uploadedSinceNotifyRef.current) return
+    if (stagedFiles.some((f) => f.status === "uploading")) return
+    uploadedSinceNotifyRef.current = false
+    onAttached?.()
+  }, [stagedFiles, onAttached])
 
   const addFiles = useCallback((files: File[]) => {
     setUploadError(null)
@@ -916,7 +931,7 @@ export default function SlipAttachmentBrowserDialog({
     if (slipId) {
       const userFiles = stagedFiles.filter((f) => !f.fromImpression)
       if (userFiles.some((f) => f.status === "uploading" || f.status === "error")) return
-      onAttached?.()
+      // Uploaded files already notified the host (effect above); Done only closes.
       onClose()
       return
     }

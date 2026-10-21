@@ -7,6 +7,7 @@ import {
   parseSplintedTeethToLinks,
 } from "@/components/case-design-center/utils/splintHelpers";
 import { formatShadeGuideWithBrand, formatShadeSystemName } from "@/components/case-design-center/utils/shadeFieldDisplay";
+import { withDegree } from "@/lib/doctor-degree";
 
 /** Slip shade label: "Brand - System - A1" (drops brand when it matches system). */
 function formatSlipShadeLabel(
@@ -1062,7 +1063,8 @@ export function buildPaperSlipPrintSlipVM(
       labLogoUrl: nonEmptyUrl(lab?.logo_url) ?? null,
       qrCodeUrl: nonEmptyUrl(data?.qr_code_url) ?? null,
       officeName: firstStr(office?.name),
-      doctorName: firstStr(doctor?.name),
+      // Optional degree after the name, as on a printed prescription: "Maria Pavlova, DDS"
+      doctorName: firstStr(doctor?.name) ? withDegree(firstStr(doctor?.name), doctor?.degree) : "",
       doctorLicenseNumber: firstStr(doctor?.license_number, doctor?.license_no),
       patientName: firstStr(caseData?.patient_name),
       gender: firstStr(caseData?.gender),

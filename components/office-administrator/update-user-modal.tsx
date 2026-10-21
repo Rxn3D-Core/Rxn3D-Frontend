@@ -34,6 +34,8 @@ import { fetchBackendRoles, type BackendRole } from "@/lib/api/role-permissions-
 import { ColorPicker } from "@/components/ui/color-picker"
 import { Check, Pencil, Plus, Trash2, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { degreeField, normalizeDegree } from "@/lib/doctor-degree"
+import { DoctorDegreeField } from "@/components/doctor-degree-field"
 
 const updateUserSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
@@ -47,6 +49,7 @@ const updateUserSchema = z.object({
   is_doctor: z.boolean().default(false),
   is_also_admin: z.boolean().default(false),
   license_number: z.string().optional(),
+  degree: degreeField,
   signature: z.any().optional(),
   pan_color: z
     .string()
@@ -125,6 +128,8 @@ export function UpdateUserModal({
   const [removingCustomerId, setRemovingCustomerId] = useState<number | null>(null)
   const [profileRole, setProfileRole] = useState<string>("")
   const [existingSignatureUrl, setExistingSignatureUrl] = useState<string | null>(null)
+  // Degree as loaded from the server: lets us send `degree` only when it is entered or changed (an empty value clears it).
+  const [initialDegree, setInitialDegree] = useState("")
   const [signatureFile, setSignatureFile] = useState<File | null>(null)
   const [hasSignature, setHasSignature] = useState(false)
   const [signatureMessage, setSignatureMessage] = useState("")
@@ -155,6 +160,7 @@ export function UpdateUserModal({
       is_doctor: false,
       is_also_admin: false,
       license_number: "",
+      degree: "",
       signature: null,
       pan_color: "",
       can_override_pan_color: false,
@@ -242,6 +248,12 @@ export function UpdateUserModal({
         setExistingSignatureUrl(detail?.signature_url || null)
         setHasSignature(Boolean(detail?.signature_url))
         form.setValue("license_number", detail?.license_number || "", { shouldDirty: false })
+        const loadedDegree = normalizeDegree(detail?.degree)
+        setInitialDegree(loadedDegree)
+        // Do not overwrite a degree the user has already started typing while this response was in flight.
+        if (!form.getFieldState("degree").isDirty) {
+          form.setValue("degree", loadedDegree, { shouldDirty: false })
+        }
       }
     } catch {
       setCustomerLinks(user?.customerRoles || [])
@@ -323,6 +335,7 @@ export function UpdateUserModal({
         is_doctor: requiresDoctorCredentials(user.role) || isDoctorRole(user.role),
         is_also_admin: isOfficeAdminRole(user.role) || isDoctorAdminRole(user.role),
         license_number: "",
+        degree: "",
         signature: null,
         pan_color: user.pan_color || "",
         can_override_pan_color: Boolean(user.can_override_pan_color),
@@ -337,6 +350,7 @@ export function UpdateUserModal({
       setSignatureFile(null)
       setHasSignature(false)
       setExistingSignatureUrl(null)
+      setInitialDegree("")
       signatureRef.current?.clear()
 
       if (isLabCustomer) {
@@ -378,6 +392,12 @@ export function UpdateUserModal({
             setExistingSignatureUrl(detail?.signature_url || null)
             setHasSignature(Boolean(detail?.signature_url))
             form.setValue("license_number", detail?.license_number || "", { shouldDirty: false })
+            const loadedDegree = normalizeDegree(detail?.degree)
+            setInitialDegree(loadedDegree)
+            // Do not overwrite a degree the user has already started typing while this response was in flight.
+            if (!form.getFieldState("degree").isDirty) {
+              form.setValue("degree", loadedDegree, { shouldDirty: false })
+            }
             form.setValue("role", roleName, { shouldDirty: false })
             form.setValue("is_doctor", requiresDoctorCredentials(roleName) || isDoctorRole(roleName), {
               shouldDirty: false,
@@ -545,6 +565,10 @@ export function UpdateUserModal({
         }
       }
 
+      // Optional degree: sent when entered, or when it changed from what was loaded (an empty value clears it).
+      const degreeValue = normalizeDegree(data.degree)
+      const sendDegree = degreeValue !== "" || initialDegree !== ""
+
       const payload = {
         first_name: data.first_name,
         last_name: data.last_name,
@@ -571,6 +595,7 @@ export function UpdateUserModal({
               role: effectiveUpdateRole,
               is_doctor: treatingAsDoctor,
               license_number: treatingAsDoctor ? data.license_number : undefined,
+              ...(treatingAsDoctor && sendDegree ? { degree: degreeValue } : {}),
               signature: treatingAsDoctor ? signatureFile : null,
             }
           : {}),
@@ -580,6 +605,7 @@ export function UpdateUserModal({
           ? {
               customer_id: doctorLink.customerId,
               license_number: data.license_number,
+              ...(sendDegree ? { degree: degreeValue } : {}),
               signature: signatureFile,
             }
           : {}),
@@ -922,6 +948,23 @@ export function UpdateUserModal({
                         />
                       </FormControl>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="degree"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <DoctorDegreeField
+                          value={field.value ?? ""}
+                          onChange={(value) => field.onChange(value)}
+                          onBlur={field.onBlur}
+                          error={form.formState.errors.degree?.message as string | undefined}
+                          className={fieldClass}
+                        />
+                      </FormControl>
                     </FormItem>
                   )}
                 />

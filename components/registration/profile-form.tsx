@@ -1,6 +1,7 @@
 "use client"
 
 import { Upload, X, AlertCircle } from "lucide-react"
+import { LOGO_ACCEPT, validateLogoFile } from "@/lib/logo-upload"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useState, useEffect } from "react"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
@@ -69,9 +70,11 @@ export function ProfileForm({
   const handleLogoUpload = (e: LogoUploadEvent): void => {
     const file: File | undefined = e.target.files?.[0]
     if (file) {
-      const maxSizeInBytes: number = 1024 * 1024
-      if (file.size > maxSizeInBytes) {
-        setFileSizeError("Logo file size must be less than 1 MB (1024 KB)")
+      // PNG/JPG only (no SVG) and max 1 MB
+      const logoError: string | null = validateLogoFile(file)
+      if (logoError) {
+        setFileSizeError(logoError)
+        e.target.value = ""
         return
       }
 
@@ -144,19 +147,19 @@ export function ProfileForm({
           <input
             type="file"
             className="hidden"
-            accept="image/png,image/jpeg,image/svg+xml"
+            accept={LOGO_ACCEPT}
             onChange={handleLogoUpload}
           />
         </label>
         {!fileSizeError && !inline ? (
           <div className={cn("text-[#a19d9d] space-y-0.5", dense ? "text-xs text-left max-w-xs" : "text-sm text-center mt-2")}>
-            <p>Note: Logo files must be in PNG, SVG, or JPEG format, maximum of 1MB (1024KB).</p>
+            <p>Note: Logo files must be PNG or JPG (SVG is not supported), maximum of 1MB (1024KB).</p>
             <p>{TOP_BAR_LOGO_UPLOAD_HINT}</p>
           </div>
         ) : null}
         {!fileSizeError && inline ? (
           <p className="text-center text-[10px] leading-tight text-[#a19d9d] px-1">
-            High-resolution rectangle logo. PNG, SVG, or JPEG. Max 1MB.
+            High-resolution rectangle logo. PNG or JPG. Max 1MB.
           </p>
         ) : null}
       </div>

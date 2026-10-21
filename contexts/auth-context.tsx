@@ -7,6 +7,7 @@ import { clearSessionStorage } from "@/lib/clear-session-storage"
 import { clearDriverQrLocalSession } from "@/lib/driver-qr-scan"
 import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 import { getActiveLandingPath, getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
+import { isSafeInternalPath } from "@/lib/auth/register-session-gate"
 import { appendCustomerIdQuery, getActiveCustomerId } from "@/lib/customer-scope"
 import { reloadAppAfterProfileSwitch } from "@/lib/profile-switch"
 import {
@@ -137,7 +138,8 @@ type AuthContextType = {
   user: User | null
   token: string | null
   login: (identifier: string, password: string) => Promise<boolean>
-  logout: () => void
+  /** `redirectTo` (same-origin path) replaces the default /login destination, e.g. to return to an invitation link. */
+  logout: (options?: { redirectTo?: string }) => void
   isLoading: boolean
   error: string | null
   clearError: () => void
@@ -153,6 +155,7 @@ type AuthContextType = {
     password_confirmation: string,
     email: string,
   ) => Promise<boolean>
+  validateResetLink: (token: string, email: string) => Promise<"valid" | "invalid" | "unknown">
   forgotPassword: (email: string) => Promise<boolean>
   setupAccount: (
     token: string,
@@ -184,6 +187,7 @@ type AuthContextType = {
     role?: string
     is_doctor?: boolean
     license_number?: string
+    degree?: string
     signature?: File | null
     pan_color?: string | null
     can_override_pan_color?: boolean
@@ -205,6 +209,7 @@ type AuthContextType = {
     is_doctor: boolean;
     department_ids: number[];
     license_number?: string;
+    degree?: string;
     signature?: any;
   }) => Promise<any>
   updateUserDetails: (userId: number, userData: {
@@ -219,6 +224,7 @@ type AuthContextType = {
     role?: string;
     is_doctor?: boolean;
     license_number?: string;
+    degree?: string;
     signature?: File | null;
     pan_color?: string | null;
     can_override_pan_color?: boolean;
@@ -933,6 +939,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
           message: result?.error_description || result?.message || "Reset password failed",
           errors: result?.errors || null,
           status: result?.status_code || response.status,
+          code: result?.code as string | undefined,
         }
         throw errorPayload
       }
@@ -941,6 +948,26 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     } catch (error: any) {
       console.error("Reset password failed:", error)
       throw error
+    }
+  }
+
+  // Asks the server whether an emailed reset link can still be used, before the form is shown.
+  // "unknown" means we could not tell (network error, older backend); the server still enforces
+  // single use when the form is submitted, so the caller may show the form.
+  const validateResetLink = async (token: string, email: string): Promise<"valid" | "invalid" | "unknown"> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/reset-password/validate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token, email }),
+      })
+
+      if (response.ok) return "valid"
+      return response.status === 422 ? "invalid" : "unknown"
+    } catch {
+      return "unknown"
     }
   }
 
@@ -984,7 +1011,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     }
   }
 
-  const logout = async () => {
+  const logout = async (options?: { redirectTo?: string }) => {
     try {
       const token = localStorage.getItem("token")
 
@@ -1018,7 +1045,8 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
       lastPermissionsFetchKeyRef.current = null
       clearSessionStorage()
 
-      router.replace("/login")
+      // Callers like onClick={logout} pass an event here, so anything but a safe path falls back to /login
+      router.replace(isSafeInternalPath(options?.redirectTo) ? options.redirectTo : "/login")
 
       toast({
         title: "Logged Out",
@@ -1142,6 +1170,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     role?: string
     is_doctor?: boolean
     license_number?: string
+    degree?: string
     signature?: File | null
     pan_color?: string | null
     can_override_pan_color?: boolean
@@ -1430,6 +1459,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     is_doctor: boolean;
     department_ids: number[];
     license_number?: string;
+    degree?: string;
     signature?: any;
   }): Promise<any> => {
     try {
@@ -1480,6 +1510,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     role?: string;
     is_doctor?: boolean;
     license_number?: string;
+    degree?: string;
     signature?: File | null;
     pan_color?: string | null;
     can_override_pan_color?: boolean;
@@ -1873,6 +1904,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         isNewUser,
         setOnboardingComplete,
         resetPasswordConfirm,
+        validateResetLink,
         forgotPassword,
         setupAccount,
         fetchUsers,

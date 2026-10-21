@@ -6,7 +6,6 @@ import { useState, type FormEvent, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTranslation } from "react-i18next"
-import { AuthHeader } from "./auth-header"
 import { SiteCopyrightFooter } from "@/components/site-copyright-footer"
 import { useLoginMutation } from "@/hooks/use-login"
 import { useSessionHistory } from "@/hooks/use-session-history"
@@ -163,9 +162,6 @@ export default function LoginForm() {
 
   return (
     <div className="min-h-screen h-screen flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Fixed Header */}
-      <AuthHeader className="shrink-0" />
-
       {/* Main Content Container - Takes remaining height */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
         {/* Left side stays fixed. Only the recent-login list scrolls. */}
@@ -173,14 +169,21 @@ export default function LoginForm() {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-6 sm:px-8 sm:py-8 md:px-12 lg:px-10 lg:py-6 xl:px-16">
           <div className="mx-auto my-auto flex min-h-0 w-full max-h-full max-w-[460px] flex-col overflow-hidden">
             <div className="shrink-0">
-            {/* Welcome (the Rxn3D logo lives in AuthHeader above, so it is not repeated here) */}
-            <div className="mb-4">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2 tracking-tight">
-                {t("login.welcome")}
-              </h1>
-              <p className="text-slate-600 text-sm sm:text-base">
+            {/* Brand + sign-in prompt */}
+            <div className="mb-6 sm:mb-8">
+              <Link href="/" className="mb-6 inline-block sm:mb-8" aria-label="Rxn3D home">
+                <Image
+                  src="/images/rxn3d-logo.svg"
+                  alt="Rxn3D"
+                  width={140}
+                  height={45}
+                  priority
+                  className="h-10 w-auto sm:h-11"
+                />
+              </Link>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-800 sm:text-2xl">
                 Sign in to your account to continue
-              </p>
+              </h1>
               {signedOutForIdle ? (
                 <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                   {t(

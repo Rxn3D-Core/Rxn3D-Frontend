@@ -338,6 +338,16 @@ export default function BusinessHoursPage() {
                         <h3 className="font-medium">Rush case Setting</h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-sm font-medium mb-2">Default Rush Pick Up Time*</label>
+                            <TimePicker
+                              value={convertTo12Hour(caseSchedule.defaultRushPickupTime)}
+                              onChange={(value) => setCaseSchedule({ defaultRushPickupTime: value })}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-4">
                             <RadioGroup
                               value={caseSchedule.turnaroundType}

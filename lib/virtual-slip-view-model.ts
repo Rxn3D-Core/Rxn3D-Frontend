@@ -1,3 +1,4 @@
+import { getDoctorDegree, withDegree } from "@/lib/doctor-degree";
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
 import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
@@ -317,6 +318,16 @@ function firstStr(...vals: Array<unknown>): string {
     if (s) return s;
   }
   return "";
+}
+
+/**
+ * Doctor name as shown on the slip: "Maria Pavlova, DDS" when a degree is saved, just the name otherwise.
+ * The degree is taken from the same record the name came from.
+ */
+function doctorNameWithDegree(...doctors: Array<{ name?: unknown } | null | undefined>): string {
+  const doctor = doctors.find((d) => firstStr(d?.name));
+  const name = firstStr(doctor?.name);
+  return name ? withDegree(name, getDoctorDegree(doctor)) : "";
 }
 
 /** True when a display string is only one or more numeric option ids. */
@@ -1046,7 +1057,7 @@ export function buildVirtualSlipVM(d: any, options?: VirtualSlipVMOptions): Virt
     officeLogo: firstStr(caseObj.office?.logo_url, caseObj.office?.image) || null,
     labName: firstStr(caseObj.lab?.name, safe.lab?.name) || "Lab",
     labLogo: firstStr(caseObj.lab?.logo_url, caseObj.lab?.image) || null,
-    doctorName: firstStr(caseObj.doctor?.name, safe.doctor?.name),
+    doctorName: doctorNameWithDegree(caseObj.doctor, safe.doctor),
     doctorImage:
       resolveDoctorImageUrl(caseObj.doctor) ||
       resolveDoctorImageUrl(safe.doctor) ||

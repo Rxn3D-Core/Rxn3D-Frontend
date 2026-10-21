@@ -97,7 +97,7 @@ export type CaseAttachmentsData = {
   };
   lab?: { id: number; name: string };
   office?: { id: number; name: string };
-  doctor?: { id: number; name: string };
+  doctor?: { id: number; name: string; degree?: string | null };
   created_by?: { id: number; name: string };
   all_attachments?: SlipAttachmentRecord[];
   case_attachments?: SlipAttachmentRecord[];
@@ -131,6 +131,9 @@ export const SLIP_ATTACHMENT_ALLOWED_EXTENSIONS = [
   "jpeg",
   "png",
   "gif",
+  // iPhone photos — uploaded as-is; browsers other than Safari can't preview them.
+  "heic",
+  "heif",
   "pdf",
   ...SLIP_ATTACHMENT_3D_EXTENSIONS,
   "zip",

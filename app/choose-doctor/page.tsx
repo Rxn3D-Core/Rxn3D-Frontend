@@ -27,6 +27,7 @@ import { useDebounce } from "@/lib/performance-utils"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { resolveDoctorImageUrl, doctorDisplayImageUrl, DOCTOR_PLACEHOLDER_IMAGE } from "@/utils/avatar-utils"
+import { getDoctorDegree, withDegree } from "@/lib/doctor-degree"
 import { DoctorPhotoUploadModal } from "@/components/doctor-photo-upload-modal"
 import {
   canUploadDoctorPhoto,
@@ -41,6 +42,8 @@ interface Doctor {
   email: string
   image?: string
   status?: string
+  /** Saved degree (e.g. "DDS"); empty when the doctor has none. */
+  degree?: string
 }
 
 interface ConnectedOffice {
@@ -363,6 +366,7 @@ export default function ChooseDoctorPage() {
         email: doctor.email || "",
         image: resolveDoctorImageUrl(doctor) || null,
         status: doctor.status || "active",
+        degree: getDoctorDegree(doctor),
       }))
 
       return doctorsList
@@ -694,7 +698,7 @@ export default function ChooseDoctorPage() {
                     )}
                   </div>
                   <p className="text-sm font-semibold text-gray-900 text-center">
-                    {doctor.first_name} {doctor.last_name}, DDS
+                    {withDegree(`${doctor.first_name} ${doctor.last_name}`.trim(), doctor.degree)}
                   </p>
                   <p 
                     className="opacity-0 group-hover:opacity-100 transition-opacity text-center"
