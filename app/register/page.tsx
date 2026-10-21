@@ -389,6 +389,7 @@ export default function RegisterPage() {
             "users.0.phone": "phone",
             "users.0.work_number": "work_number",
             "users.0.license_number": "license_number",
+            "users.0.degree": "degree",
             "users.0.signature": "signature",
             "users.0.password": "password",
             "users.0.password_confirmation": "password_confirmation",

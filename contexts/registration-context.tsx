@@ -17,6 +17,8 @@ export interface RegistrationUser {
   is_doctor?: boolean
   use_same_details?: boolean
   license_number?: string
+  /** Optional degree / credentials (e.g. DDS, DMD) shown after the doctor's name on prescriptions. */
+  degree?: string
   password?: string
   password_confirmation?: string
 }

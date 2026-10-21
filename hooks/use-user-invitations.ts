@@ -237,6 +237,8 @@ export interface AcceptUserInvitationPayload {
   password?: string
   password_confirmation?: string
   license_number?: string
+  /** Optional doctor degree / credentials (e.g. DDS, DMD). */
+  degree?: string
   signature?: string
 }
 

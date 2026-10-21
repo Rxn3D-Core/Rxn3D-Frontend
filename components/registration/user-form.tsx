@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import SignatureCanvas from "react-signature-canvas"
 import { cn } from "@/lib/utils"
+import { DoctorDegreeField } from "@/components/doctor-degree-field"
 
 type User = {
   [key: string]: any
@@ -422,6 +423,11 @@ export function UserForm({
       {isDoctorRole && (
           <>
             {renderInputField("license_number", `License Number${isDoctorRole ? "*" : ""}`)}
+            <DoctorDegreeField
+              value={user?.degree || ""}
+              onChange={(value) => handleUserFormChange({ target: { name: "degree", value } }, index)}
+              error={userValidationErrors.degree}
+            />
             {renderSignatureSection()}
           </>
         )}
