@@ -5,6 +5,8 @@ import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
+import { degreeField, normalizeDegree } from "@/lib/doctor-degree"
+import { DoctorDegreeField } from "@/components/doctor-degree-field"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -40,6 +42,7 @@ const baseUserFormSchema = z.object({
   status: z.string().min(1, "Please select a status"),
   department_ids: z.array(z.number()).optional(),
   license_number: z.string().optional(),
+  degree: degreeField,
   signature: z.any().optional(),
   avatar: z.any().optional(),
   password: z.string().optional(),
@@ -154,6 +157,7 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
       status: "Pending",
       department_ids: [],
       license_number: "",
+      degree: "",
       signature: null,
       avatar: null,
       password: "",
@@ -216,6 +220,7 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
           status: detail.status || "Active",
           department_ids: departmentIds,
           license_number: detail.license_number || "",
+          degree: normalizeDegree(detail.degree),
           signature: null,
           avatar: null,
           password: "",
@@ -412,6 +417,10 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
 
       if (treatingAsDoctor && data.license_number) {
         formData.append("license_number", data.license_number)
+      }
+      // Optional: only sent when the doctor entered a degree
+      if (treatingAsDoctor && normalizeDegree(data.degree)) {
+        formData.append("degree", normalizeDegree(data.degree))
       }
       if (treatingAsDoctor && signatureFile) {
         formData.append("signature", signatureFile)
@@ -777,6 +786,22 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                               />
                             </FormControl>
                             <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="degree"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <DoctorDegreeField
+                                value={field.value ?? ""}
+                                onChange={(value) => field.onChange(value)}
+                                onBlur={field.onBlur}
+                                error={form.formState.errors.degree?.message as string | undefined}
+                              />
+                            </FormControl>
                           </FormItem>
                         )}
                       />

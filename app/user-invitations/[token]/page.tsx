@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
+import { DoctorDegreeField } from "@/components/doctor-degree-field"
+import { normalizeDegree, validateDegree } from "@/lib/doctor-degree"
 import {
   useGetUserInvitation,
   acceptUserInvitation,
@@ -113,6 +115,8 @@ export default function UserInvitationPage() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [licenseNumber, setLicenseNumber] = useState("")
+  const [degree, setDegree] = useState("")
+  const degreeError = validateDegree(degree)
   const [signature, setSignature] = useState<string | null>(null)
   const [signatureName, setSignatureName] = useState<string>("")
   const [showPassword, setShowPassword] = useState(false)
@@ -212,6 +216,10 @@ export default function UserInvitationPage() {
       setError("License number and signature are required for doctors.")
       return
     }
+    if (requiresDoctorDocuments && degreeError) {
+      setError(degreeError)
+      return
+    }
 
     setIsSubmitting(true)
     try {
@@ -222,7 +230,12 @@ export default function UserInvitationPage() {
         password,
         password_confirmation: confirmPassword,
         ...(requiresDoctorDocuments
-          ? { license_number: licenseNumber.trim(), signature: signature || undefined }
+          ? {
+              license_number: licenseNumber.trim(),
+              // Optional: only sent when the doctor entered a degree
+              ...(normalizeDegree(degree) ? { degree: normalizeDegree(degree) } : {}),
+              signature: signature || undefined,
+            }
           : {}),
       })
       if (tryAutoLoginFromAccept(response)) {
@@ -561,6 +574,7 @@ export default function UserInvitationPage() {
               onChange={(e) => setLicenseNumber(e.target.value)}
               disabled={isSubmitting}
             />
+            <DoctorDegreeField value={degree} onChange={setDegree} error={degreeError ?? undefined} />
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">Signature *</label>
               <input

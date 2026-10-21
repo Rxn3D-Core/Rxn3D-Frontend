@@ -185,6 +185,7 @@ type AuthContextType = {
     role?: string
     is_doctor?: boolean
     license_number?: string
+    degree?: string
     signature?: File | null
     pan_color?: string | null
     can_override_pan_color?: boolean
@@ -206,6 +207,7 @@ type AuthContextType = {
     is_doctor: boolean;
     department_ids: number[];
     license_number?: string;
+    degree?: string;
     signature?: any;
   }) => Promise<any>
   updateUserDetails: (userId: number, userData: {
@@ -220,6 +222,7 @@ type AuthContextType = {
     role?: string;
     is_doctor?: boolean;
     license_number?: string;
+    degree?: string;
     signature?: File | null;
     pan_color?: string | null;
     can_override_pan_color?: boolean;
@@ -1164,6 +1167,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     role?: string
     is_doctor?: boolean
     license_number?: string
+    degree?: string
     signature?: File | null
     pan_color?: string | null
     can_override_pan_color?: boolean
@@ -1452,6 +1456,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     is_doctor: boolean;
     department_ids: number[];
     license_number?: string;
+    degree?: string;
     signature?: any;
   }): Promise<any> => {
     try {
@@ -1502,6 +1507,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     role?: string;
     is_doctor?: boolean;
     license_number?: string;
+    degree?: string;
     signature?: File | null;
     pan_color?: string | null;
     can_override_pan_color?: boolean;

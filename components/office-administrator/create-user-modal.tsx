@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { Check, Loader2, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { degreeField, normalizeDegree } from "@/lib/doctor-degree"
+import { DoctorDegreeField } from "@/components/doctor-degree-field"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import {
   getCreateUserTitle,
@@ -52,6 +54,7 @@ const createUserSchema = z
     status: z.string().default("Pending"),
     department_ids: z.array(z.number()).optional(),
     license_number: z.string().optional(),
+    degree: degreeField,
     signature: z.any().optional(),
     avatar: z.any().optional(),
     password: passwordStrengthSchema,
@@ -145,6 +148,7 @@ export function CreateUserModal({
       status: "pending",
       department_ids: [],
       license_number: "",
+      degree: "",
       signature: null,
       avatar: null,
       password: "",
@@ -346,6 +350,7 @@ export function CreateUserModal({
         status: "pending",
         department_ids: [],
         license_number: "",
+        degree: "",
         signature: null,
         avatar: null,
         password: "",
@@ -620,6 +625,10 @@ export function CreateUserModal({
 
       if (treatingAsDoctorOnSubmit && data.license_number) {
         formData.append("license_number", data.license_number)
+      }
+      // Optional: only sent when the doctor entered a degree
+      if (treatingAsDoctorOnSubmit && normalizeDegree(data.degree)) {
+        formData.append("degree", normalizeDegree(data.degree))
       }
       if (treatingAsDoctorOnSubmit && signatureFile) {
         formData.append("signature", signatureFile)
@@ -1054,6 +1063,23 @@ export function CreateUserModal({
                           />
                         </FormControl>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="degree"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <DoctorDegreeField
+                            value={field.value ?? ""}
+                            onChange={(value) => field.onChange(value)}
+                            onBlur={field.onBlur}
+                            error={form.formState.errors.degree?.message as string | undefined}
+                            className={cn(fieldClass, "bg-white")}
+                          />
+                        </FormControl>
                       </FormItem>
                     )}
                   />
