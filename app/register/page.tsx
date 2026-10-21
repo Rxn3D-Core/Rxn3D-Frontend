@@ -14,6 +14,9 @@ import { useFormValidation } from "@/hooks/use-form-validation"
 import { AuthHeader } from "@/components/auth-header"
 import { useAuth } from "@/contexts/auth-context"
 import { Loader2 } from "lucide-react"
+import { AlreadySignedInNotice } from "@/components/registration/already-signed-in-notice"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
+import { getRegisterInvitationPath, getRegisterSessionGate } from "@/lib/auth/register-session-gate"
 import { RegistrationTypeChooser } from "@/components/registration/registration-type-chooser"
 import {
   RegistrationCard,
@@ -25,9 +28,12 @@ import Link from "next/link"
 import { Mail } from "lucide-react"
 
 export default function RegisterPage() {
-  const { user, isLoading, setAuthFromData } = useAuth()
+  const { user, isLoading, setAuthFromData, logout } = useAuth()
   const router = useRouter()
 
+  // Set once this page's own registration signed the new account in (the auth provider then redirects onward)
+  const [registrationCompleted, setRegistrationCompleted] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const {
@@ -138,8 +144,41 @@ export default function RegisterPage() {
     )
   }
 
-  // If loading or already logged in, show a loading state
-  if (isLoading || user) {
+  const sessionGate = getRegisterSessionGate({
+    isAuthLoading: isLoading,
+    hasSession: !!user,
+    registrationCompleted,
+  })
+
+  // Someone was already signed in when the link was opened (e.g. a Super Admin). Nothing redirects them
+  // away from this public page, so ask them to sign out instead of waiting on a loader that never ends.
+  if (sessionGate === "signed-in" && user) {
+    const name = [user.first_name, user.last_name].filter(Boolean).join(" ")
+    const signedInAs = name && user.email ? `${name} (${user.email})` : name || user.email || "another account"
+
+    const handleSignOutAndContinue = async () => {
+      setIsSigningOut(true)
+      try {
+        // Sign out, then come straight back to this invitation instead of the login page
+        await logout({ redirectTo: getRegisterInvitationPath(invitation_id) })
+      } finally {
+        setIsSigningOut(false)
+      }
+    }
+
+    return (
+      <AlreadySignedInNotice
+        signedInAs={signedInAs}
+        homeHref={getActiveLandingPath(user)}
+        onSignOut={handleSignOutAndContinue}
+        isSigningOut={isSigningOut}
+      />
+    )
+  }
+
+  // Auth provider still reading the stored session, or this page's registration just signed the user in
+  // and the auth provider is redirecting to onboarding — both resolve on their own.
+  if (sessionGate === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
@@ -364,11 +403,14 @@ export default function RegisterPage() {
             authData.permissions = authData.user.permissions
           }
           
+          // Flag first (same batched render as the new session) so the "already signed in" notice never flashes
+          setRegistrationCompleted(true)
           const success = setAuthFromData(authData)
           if (success) {
             // Redirect will be handled by setAuthFromData
             return response
           }
+          setRegistrationCompleted(false)
         }
         
         // Fallback if auto-login fails or data is missing
