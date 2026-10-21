@@ -267,7 +267,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           gender: seed.gender,
           age: seed.age,
           doctor: seed.doctor
-            ? { id: seed.doctor.id, name: seed.doctor.name, img: seed.doctor.img }
+            ? { id: seed.doctor.id, name: seed.doctor.name, img: seed.doctor.img, degree: seed.doctor.degree }
             : null,
           lab: seed.lab
             ? { id: seed.lab.id, name: seed.lab.name, logo: seed.lab.logo }
@@ -480,6 +480,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
             <PatientHeader
               doctorImageUrl={wizard.completedDoctor?.img}
               doctorName={wizard.completedDoctor?.name}
+              doctorDegree={wizard.completedDoctor?.degree}
               patientName={wizard.completedPatientName}
               gender={wizard.completedGender}
               age={wizard.completedAge}

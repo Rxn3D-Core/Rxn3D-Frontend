@@ -32,6 +32,7 @@ import { toProxiedFileUrl } from "@/lib/file-proxy"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import FileAttachmentModalContent from "./file-attachment-modal-content"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { withDegree } from "@/lib/doctor-degree"
 
 const STLCanvasOnly = dynamic(() => import("@/components/stl-canvas-only"), { ssr: false })
 
@@ -757,7 +758,9 @@ export default function SlipAttachmentBrowserDialog({
     return [...stages]
   }, [caseData])
 
-  const displayedDocName = caseData?.doctor?.name ?? doctorName
+  const displayedDocName = caseData?.doctor?.name
+    ? withDegree(caseData.doctor.name, caseData.doctor.degree)
+    : doctorName
   const displayedPatientName = caseData?.patient_name ?? patientName
 
   // ── Upload handlers ─────────────────────────────────────────────────────────

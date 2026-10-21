@@ -6,6 +6,7 @@ import { caseDesignInter } from "../case-design-inter-font";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { isLabCustomerContext } from "@/lib/role-utils";
 import { DOCTOR_PLACEHOLDER_IMAGE, doctorDisplayImageUrl } from "@/utils/avatar-utils";
+import { withDegree } from "@/lib/doctor-degree";
 import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
 import { SubmitCutoffBanner, useIsWithinCutoffWarningWindow } from "@/components/submit-cutoff-banner";
 
@@ -16,6 +17,8 @@ export interface PatientHeaderProps {
   doctorImageUrl?: string | null;
   /** Selected doctor display name (from wizard). Falls back to placeholder when not provided. */
   doctorName?: string | null;
+  /** Saved degree of the selected doctor (e.g. "DDS"), shown after the name. Nothing is shown when empty. */
+  doctorDegree?: string | null;
   /** Patient name from the selected user in the patient name section. Updates dynamically when selection changes. */
   patientName?: string | null;
   /** Gender from the selected user in the patient name section. Updates dynamically when selection changes. */
@@ -137,6 +140,7 @@ function LogoCell({
 export function PatientHeader({
   doctorImageUrl,
   doctorName,
+  doctorDegree,
   patientName,
   gender,
   age,
@@ -158,7 +162,7 @@ export function PatientHeader({
   cutoffTime,
   cutoffTime2,
 }: PatientHeaderProps = {}) {
-  const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
+  const displayName = doctorName && doctorName.trim() !== "" ? withDegree(doctorName, doctorDegree) : DEFAULT_DOCTOR_NAME;
   const doctorImgSrc = doctorDisplayImageUrl(doctorImageUrl);
   const showCutoffWarning = useIsWithinCutoffWarningWindow(cutoffTime, cutoffTime2);
   const isEditable = !caseSubmitted;

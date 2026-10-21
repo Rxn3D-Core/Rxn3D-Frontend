@@ -97,7 +97,7 @@ export type CaseAttachmentsData = {
   };
   lab?: { id: number; name: string };
   office?: { id: number; name: string };
-  doctor?: { id: number; name: string };
+  doctor?: { id: number; name: string; degree?: string | null };
   created_by?: { id: number; name: string };
   all_attachments?: SlipAttachmentRecord[];
   case_attachments?: SlipAttachmentRecord[];

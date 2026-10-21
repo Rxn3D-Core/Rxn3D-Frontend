@@ -14,6 +14,7 @@ import {
 } from "@/lib/virtual-slip-transformer";
 import type { AddStageSelections } from "./session";
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
+import { getDoctorDegree } from "@/lib/doctor-degree";
 
 const IMPRESSION_FIELD_STEPS = new Set(["impression", "fixed_impression"]);
 
@@ -189,7 +190,7 @@ export type AddStageWizardSeed = {
   patientName: string;
   gender: string;
   age: string;
-  doctor: { id: number; name: string; img?: string } | null;
+  doctor: { id: number; name: string; img?: string; degree?: string } | null;
   lab: { id: number; name: string; logo?: string } | null;
 };
 
@@ -205,6 +206,7 @@ export function buildWizardSeedFromSlipDetails(details: unknown): AddStageWizard
       doctor?: {
         id?: number
         name?: string
+        degree?: string | null
         image?: string
         profile_image?: string
         avatar?: string
@@ -228,6 +230,7 @@ export function buildWizardSeedFromSlipDetails(details: unknown): AddStageWizard
             id: doctor.id,
             name: doctor.name,
             img: resolveDoctorImageUrl(doctor) || undefined,
+            degree: getDoctorDegree(doctor),
           }
         : null,
     lab:

@@ -23,6 +23,7 @@ import { CaseSubmissionOverlays } from "./components/CaseSubmissionOverlays";
 import { DoctorEditModal } from "./components/DoctorEditModal";
 import { caseDesignInter } from "./case-design-inter-font";
 import { useCaseEstimatedDueDate } from "./hooks/useCaseEstimatedDueDate";
+import { withDegree } from "@/lib/doctor-degree";
 
 export default function Page() {
   const { createSlip, uploadSlipAttachment } = useSlipCreation();
@@ -174,6 +175,7 @@ export default function Page() {
             <PatientHeader
               doctorImageUrl={completedDoctor?.img}
               doctorName={completedDoctor?.name}
+              doctorDegree={completedDoctor?.degree}
               patientName={completedPatientName}
               gender={completedGender}
               age={completedAge}
@@ -236,7 +238,7 @@ export default function Page() {
               rushCasesEnabled={rushCasesEnabled}
               rushCaseSchedule={rushCaseSchedule}
               labBusinessHours={labBusinessHours}
-              attachmentDoctorName={completedDoctor?.name ?? undefined}
+              attachmentDoctorName={completedDoctor ? withDegree(completedDoctor.name, completedDoctor.degree) : undefined}
               attachmentPatientName={completedPatientName || undefined}
               attachmentCaseId={slipResponseData?.id ?? undefined}
               attachmentSlipId={slipResponseData?.slips?.[0]?.id ?? undefined}
