@@ -7,6 +7,7 @@ import { clearSessionStorage } from "@/lib/clear-session-storage"
 import { clearDriverQrLocalSession } from "@/lib/driver-qr-scan"
 import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 import { getActiveLandingPath, getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
+import { isSafeInternalPath } from "@/lib/auth/register-session-gate"
 import { appendCustomerIdQuery, getActiveCustomerId } from "@/lib/customer-scope"
 import { reloadAppAfterProfileSwitch } from "@/lib/profile-switch"
 import {
@@ -137,7 +138,8 @@ type AuthContextType = {
   user: User | null
   token: string | null
   login: (identifier: string, password: string) => Promise<boolean>
-  logout: () => void
+  /** `redirectTo` (same-origin path) replaces the default /login destination, e.g. to return to an invitation link. */
+  logout: (options?: { redirectTo?: string }) => void
   isLoading: boolean
   error: string | null
   clearError: () => void
@@ -1009,7 +1011,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     }
   }
 
-  const logout = async () => {
+  const logout = async (options?: { redirectTo?: string }) => {
     try {
       const token = localStorage.getItem("token")
 
@@ -1043,7 +1045,8 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
       lastPermissionsFetchKeyRef.current = null
       clearSessionStorage()
 
-      router.replace("/login")
+      // Callers like onClick={logout} pass an event here, so anything but a safe path falls back to /login
+      router.replace(isSafeInternalPath(options?.redirectTo) ? options.redirectTo : "/login")
 
       toast({
         title: "Logged Out",
