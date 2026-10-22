@@ -1,5 +1,16 @@
 /** Letter layout cloned from portrait v5; QR stub sits at the top. Browser print only. */
+/** Family name for the full Inter file; its ss02 set slashes the zero and serifs I / tails l. */
+export const PAPER_SLIP_V6_FONT_FAMILY = "Slip Inter";
+
 export const PAPER_SLIP_V6_CSS = `
+/* Print runs in an iframe that cannot see the app's next/font faces, and the
+   bundled Inter-latin subset has no ss02, so the slip loads the full file itself. */
+@font-face {
+  font-family: "${PAPER_SLIP_V6_FONT_FAMILY}";
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+}
 @page { size: letter portrait; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -438,34 +449,22 @@ body {
   background: #eee;
   border: 1px solid #ddd;
 }
+/* Pan, case and slip numbers mix digits and letters: ss02 keeps 0 / O / 1 / I / l apart. */
+.ps-id,
+.ps-pan {
+  font-family: "${PAPER_SLIP_V6_FONT_FAMILY}", Inter, Arial, sans-serif;
+  font-feature-settings: "ss02" 1;
+}
 .ps-pan {
   min-width: 0;
-  /* Serif makes 1 / i / L distinct; zeros still use .ps-zero slash vs O. */
-  font-family: Georgia, "Times New Roman", Times, serif;
   font-size: 121px;
   line-height: 121px;
   height: 121px;
   color: #0A0B0E;
   overflow: hidden;
   white-space: nowrap;
-  /* Flex keeps .ps-zero inside the clip box (inline-block baseline was clipped). */
   display: flex;
   align-items: center;
-}
-.ps-zero {
-  position: relative;
-  display: inline-block;
-  line-height: 1;
-  flex-shrink: 0;
-}
-.ps-zero-slash {
-  position: absolute;
-  left: 50%;
-  top: 0.12em;
-  width: 0.07em;
-  height: 0.76em;
-  background: currentColor;
-  transform: translateX(-50%) rotate(25deg);
 }
 .ps-stub-office,
 .ps-stub-arches {

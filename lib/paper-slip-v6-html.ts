@@ -9,7 +9,7 @@ import { getClaspOverlayImageUrl } from "@/components/case-design-center/utils/c
 import { formatPaperSlipNotesForPrint } from "@/lib/paper-slip-notes-display";
 import type { ArchVM, ProductVM, VirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { printHtmlViaHiddenIframe } from "@/lib/print-paper-slip-v4-html";
-import { PAPER_SLIP_V6_CSS } from "@/lib/paper-slip-v6-css";
+import { PAPER_SLIP_V6_CSS, PAPER_SLIP_V6_FONT_FAMILY } from "@/lib/paper-slip-v6-css";
 
 export type PaperSlipV6Input = {
   vm: VirtualSlipVM;
@@ -75,20 +75,10 @@ function esc(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Pan numbers mix digits and letters, so zero gets a stroke to tell it apart from the letter O. */
-function panHtml(value: string): string {
-  return esc(value).replace(/0/g, `<span class="ps-zero">0<span class="ps-zero-slash"></span></span>`);
-}
-
-/** Large stub pan: equal-width centered chars so they stay aligned when the slip is rotated. */
+/** Large stub pan. Zero is slashed by the ss02 font feature (see .ps-pan), so chars need no markup beyond a wrapper. */
 function panLargeHtml(value: string): string {
   return Array.from(String(value ?? ""))
-    .map((ch) => {
-      if (ch === "0") {
-        return `<span class="ps-pan-char"><span class="ps-zero">0<span class="ps-zero-slash"></span></span></span>`;
-      }
-      return `<span class="ps-pan-char">${esc(ch)}</span>`;
-    })
+    .map((ch) => `<span class="ps-pan-char">${esc(ch)}</span>`)
     .join("");
 }
 
@@ -372,8 +362,8 @@ export function buildPaperSlipV6Html(input: PaperSlipV6Input, qrCodeUrl = ""): s
       <div class="ps-stub-bottom">
         <div class="ps-stub-office">
           <div><span class="ps-k">OFC:</span> <span class="ps-v">${esc(officeCode)}</span></div>
-          <div><span class="ps-k">CASE:</span> <span class="ps-v">${esc(header.caseNumber)}</span></div>
-          <div><span class="ps-k">SLIP:</span> <span class="ps-v">${esc(header.slipNumber)}</span></div>
+          <div><span class="ps-k">CASE:</span> <span class="ps-v ps-id">${esc(header.caseNumber)}</span></div>
+          <div><span class="ps-k">SLIP:</span> <span class="ps-v ps-id">${esc(header.slipNumber)}</span></div>
           <div><span class="ps-k">PT:</span> <span class="ps-v">${esc(limit(header.patientName, 32))}</span></div>
         </div>
         <div class="ps-stub-arches">
@@ -404,9 +394,9 @@ export function buildPaperSlipV6Html(input: PaperSlipV6Input, qrCodeUrl = ""): s
           <span class="ps-head-k">Pt:</span><span class="ps-head-v">${esc(header.patientName)}</span>
         </div>
         <div class="ps-head-col">
-          <span class="ps-head-k">Pan #</span><span class="ps-head-v">${panHtml(header.panNumber || "----")}</span>
-          <span class="ps-head-k">Case #</span><span class="ps-head-v">${esc(header.caseNumber)}</span>
-          <span class="ps-head-k">Slip #</span><span class="ps-head-v">${esc(header.slipNumber)}</span>
+          <span class="ps-head-k">Pan #</span><span class="ps-head-v ps-id">${esc(header.panNumber || "----")}</span>
+          <span class="ps-head-k">Case #</span><span class="ps-head-v ps-id">${esc(header.caseNumber)}</span>
+          <span class="ps-head-k">Slip #</span><span class="ps-head-v ps-id">${esc(header.slipNumber)}</span>
         </div>
         <div class="ps-head-col">
           <span class="ps-head-k">Pick up date</span><span class="ps-head-v">${esc(header.pickupDate)}</span>
@@ -536,6 +526,28 @@ function waitForImages(images: HTMLImageElement[]): Promise<void> {
   ).then(() => undefined);
 }
 
+const SLIP_FONT_SPEC = `400 15px "${PAPER_SLIP_V6_FONT_FAMILY}"`;
+
+function slipFontReady(): boolean {
+  try {
+    return document.fonts.check(SLIP_FONT_SPEC);
+  } catch {
+    return true;
+  }
+}
+
+/** The slip CSS is print-only here, so nothing on screen would ask for the face. */
+async function loadSlipFont(): Promise<void> {
+  try {
+    await Promise.race([
+      document.fonts.load(SLIP_FONT_SPEC),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 4000)),
+    ]);
+  } catch {
+    // Fall back to the next family in the stack rather than blocking the print.
+  }
+}
+
 /**
  * Print on this page. The slip is invisible on screen, so cancel or print
  * leaves the virtual slip in place. Slip CSS is print-only so it does not
@@ -546,7 +558,11 @@ async function printHtmlInCurrentWindow(html: string): Promise<void> {
   cleanupIosPrintRoot();
 
   const parsed = new DOMParser().parseFromString(html, "text/html");
-  const slipCss = parsed.querySelector("style")?.textContent ?? "";
+  const styleText = parsed.querySelector("style")?.textContent ?? "";
+  // @font-face stays outside @media print so the font loads before the print sheet opens.
+  const fontFaceRule = /@font-face\s*\{[^}]*\}/g;
+  const fontFaces = styleText.match(fontFaceRule)?.join("\n") ?? "";
+  const slipCss = styleText.replace(fontFaceRule, "");
   const multi = html.includes('class="ps-sheet"');
   const pageBox = multi
     ? "width: 8.5in !important; height: auto !important; max-height: none !important; overflow: visible !important;"
@@ -555,6 +571,7 @@ async function printHtmlInCurrentWindow(html: string): Promise<void> {
   const style = document.createElement("style");
   style.id = `${IOS_PRINT_ROOT_ID}-style`;
   style.textContent = `
+    ${fontFaces}
     #${IOS_PRINT_ROOT_ID} {
       position: absolute !important;
       width: 0 !important;
@@ -596,9 +613,11 @@ async function printHtmlInCurrentWindow(html: string): Promise<void> {
   document.body.appendChild(root);
   root.getBoundingClientRect();
 
-  // Print synchronously when images are already loaded so iPhone keeps the tap gesture.
+  // Print synchronously when images and the font are already loaded so iPhone keeps the tap gesture.
   const pending = pendingImages(root);
-  if (pending.length > 0) await waitForImages(pending);
+  if (pending.length > 0 || !slipFontReady()) {
+    await Promise.all([waitForImages(pending), loadSlipFont()]);
+  }
   window.print();
 }
 
