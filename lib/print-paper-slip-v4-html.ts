@@ -105,11 +105,23 @@ export function printHtmlViaHiddenIframe(html: string): Promise<void> {
     ).then(() => undefined);
   };
 
+  // Web fonts declared in the slip load lazily; printing early swaps in the fallback face.
+  const waitForFonts = (): Promise<void> => {
+    const fonts = doc.fonts;
+    if (!fonts) return Promise.resolve();
+    // Force layout so the faces this page uses are queued before asking if they are ready.
+    void doc.body?.offsetHeight;
+    return Promise.race([
+      fonts.ready.then(() => undefined),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 4000)),
+    ]);
+  };
+
   let started = false;
   const start = () => {
     if (started) return;
     started = true;
-    waitForImages().then(() => {
+    Promise.all([waitForImages(), waitForFonts()]).then(() => {
       window.setTimeout(doPrint, 200);
     });
   };
