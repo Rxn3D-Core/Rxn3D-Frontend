@@ -95,6 +95,17 @@ const EMAIL_TAKEN_MSG =
 const PRIMARY_BTN =
   "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
 
+/**
+ * The single error line for a field. `Input` must not also get `errorMessage`, or the
+ * message renders twice. Space for `lines` is held even with no error so the form does
+ * not jump when one appears; 0 renders nothing until there is an error.
+ */
+function FieldError({ lines = 1 }: { lines?: 0 | 1 | 2 }) {
+  const message = <FormMessage className="px-1 text-xs font-normal leading-4 text-[#CF0202]" />
+  if (lines === 0) return message
+  return <div className={lines === 2 ? "min-h-8" : "min-h-4"}>{message}</div>
+}
+
 export function CreateUserModal({
   isOpen,
   onClose,
@@ -693,7 +704,7 @@ export function CreateUserModal({
                           className="h-10"
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FieldError />
                     </FormItem>
                   )}
                 />
@@ -757,12 +768,11 @@ export function CreateUserModal({
                             label="First name *"
                             placeholder="First name"
                             validationState={getValidationState("first_name")}
-                            errorMessage={form.formState.errors.first_name?.message as string}
                             className={fieldClass}
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FieldError />
                       </FormItem>
                     )}
                   />
@@ -776,12 +786,11 @@ export function CreateUserModal({
                             label="Last name *"
                             placeholder="Last name"
                             validationState={getValidationState("last_name")}
-                            errorMessage={form.formState.errors.last_name?.message as string}
                             className={fieldClass}
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FieldError />
                       </FormItem>
                     )}
                   />
@@ -813,7 +822,7 @@ export function CreateUserModal({
                           )}
                         </div>
                       </FormControl>
-                      <FormMessage />
+                      <FieldError />
                     </FormItem>
                   )}
                 />
@@ -827,7 +836,6 @@ export function CreateUserModal({
                           label="Phone *"
                           placeholder="Phone number"
                           validationState={getValidationState("phone")}
-                          errorMessage={form.formState.errors.phone?.message as string}
                           className={fieldClass}
                           {...field}
                           onChange={(e) => {
@@ -835,7 +843,7 @@ export function CreateUserModal({
                           }}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FieldError />
                     </FormItem>
                   )}
                 />
@@ -856,7 +864,7 @@ export function CreateUserModal({
                           }}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FieldError />
                     </FormItem>
                   )}
                 />
@@ -927,7 +935,7 @@ export function CreateUserModal({
                               </SelectContent>
                             </Select>
                           </FormControl>
-                          <FormMessage />
+                          <FieldError />
                         </FormItem>
                       )}
                     />
@@ -1009,7 +1017,7 @@ export function CreateUserModal({
                           {...field}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FieldError lines={2} />
                     </FormItem>
                   )}
                 />
@@ -1032,7 +1040,7 @@ export function CreateUserModal({
                           {...field}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FieldError lines={2} />
                     </FormItem>
                   )}
                 />
@@ -1051,7 +1059,6 @@ export function CreateUserModal({
                             label="License number *"
                             placeholder="License number"
                             validationState={getValidationState("license_number")}
-                            errorMessage={form.formState.errors.license_number?.message as string}
                             className={cn(fieldClass, "bg-white")}
                             {...field}
                             onChange={(e) => {
@@ -1062,7 +1069,7 @@ export function CreateUserModal({
                             }}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FieldError />
                       </FormItem>
                     )}
                   />
@@ -1155,7 +1162,7 @@ export function CreateUserModal({
                             </label>
                           </div>
                         </FormControl>
-                        <FormMessage />
+                        <FieldError lines={0} />
                       </FormItem>
                     )}
                   />
