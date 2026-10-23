@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, type RefObject } from "react"
 import SignatureCanvas from "react-signature-canvas"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form"
+import { FieldError } from "@/components/ui/field-error"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { Check, Loader2, Upload, X } from "lucide-react"
@@ -82,6 +83,11 @@ interface CreateUserModalProps {
   customerOptions?: CustomerOption[]
   /** Prefill from invite-search “Create new instead”. */
   initialPrefill?: CreateUserPrefill
+  /**
+   * Element to focus when the form closes (the page's Add button). Needed because this form
+   * opens from the invite-search dialog, so Radix has no trigger to restore focus to.
+   */
+  returnFocusRef?: RefObject<HTMLElement>
 }
 
 interface Department {
@@ -95,17 +101,6 @@ const EMAIL_TAKEN_MSG =
 const PRIMARY_BTN =
   "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
 
-/**
- * The single error line for a field. `Input` must not also get `errorMessage`, or the
- * message renders twice. Space for `lines` is held even with no error so the form does
- * not jump when one appears; 0 renders nothing until there is an error.
- */
-function FieldError({ lines = 1 }: { lines?: 0 | 1 | 2 }) {
-  const message = <FormMessage className="px-1 text-xs font-normal leading-4 text-[#CF0202]" />
-  if (lines === 0) return message
-  return <div className={lines === 2 ? "min-h-8" : "min-h-4"}>{message}</div>
-}
-
 export function CreateUserModal({
   isOpen,
   onClose,
@@ -114,6 +109,7 @@ export function CreateUserModal({
   requireCustomerSelection = false,
   customerOptions = [],
   initialPrefill,
+  returnFocusRef,
 }: CreateUserModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -672,7 +668,15 @@ export function CreateUserModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[calc(100%-1.5rem)] sm:max-w-xl max-h-[min(92dvh,720px)] p-0 gap-0 overflow-hidden rounded-2xl flex flex-col">
+      <DialogContent
+        className="w-[calc(100%-1.5rem)] sm:max-w-xl max-h-[min(92dvh,720px)] p-0 gap-0 overflow-hidden rounded-2xl flex flex-col"
+        onCloseAutoFocus={(event) => {
+          const target = returnFocusRef?.current
+          if (!target) return
+          event.preventDefault()
+          target.focus()
+        }}
+      >
         <DialogHeader className="px-5 pt-4 pb-3 border-b border-[#f0f0f0] flex-shrink-0">
           <DialogTitle className="text-[15px] font-semibold tracking-tight">
             {getCreateUserTitle(lockedRole || selectedRole)}

@@ -10,6 +10,7 @@ import { getActiveLandingPath, getPostLoginLandingPath } from "@/lib/auth/post-l
 import { isSafeInternalPath } from "@/lib/auth/register-session-gate"
 import { appendCustomerIdQuery, getActiveCustomerId } from "@/lib/customer-scope"
 import { reloadAppAfterProfileSwitch } from "@/lib/profile-switch"
+import { sanitizeStoredRole } from "@/lib/role-utils"
 import {
   hasAnyPermission as checkAnyPermission,
   hasPermission as checkPermission,
@@ -303,7 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   })
   const [profileRole, setProfileRole] = useState<string | null>(() => {
     if (typeof window === "undefined") return null
-    return localStorage.getItem("role")
+    return sanitizeStoredRole(localStorage.getItem("role"))
   })
   const [rolePermissions, setRolePermissions] = useState<string[]>([])
   const [overridePermissions, setOverridePermissions] = useState<string[]>([])
@@ -312,7 +313,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /** After a successful POST /set-customer-id, skip duplicate calls for the same id. */
   const syncedCustomerIdRef = useRef<number | null>(null)
-  const setCustomerIdInFlightRef = useRef<Promise<boolean> | null>(null)
+  const setCustomerIdInFlightRef = useRef<{ id: number; promise: Promise<boolean> } | null>(null)
   const userRef = useRef(user)
   const lastPermissionsFetchKeyRef = useRef<string | null>(null)
 
@@ -1521,20 +1522,29 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
 
   const setCustomerId = useCallback(
     async (
-      customerId: number,
+      rawCustomerId: number,
       options?: { reload?: boolean; redirectTo?: string },
     ): Promise<boolean> => {
+      // Some callers pass the id from a <select> or a profile payload as a string.
+      const customerId = Number(rawCustomerId)
+      if (!Number.isFinite(customerId)) {
+        throw new Error("Invalid customer ID")
+      }
       const shouldReload = options?.reload === true
 
       if (!shouldReload && syncedCustomerIdRef.current === customerId) {
         return true
       }
 
-      if (setCustomerIdInFlightRef.current) {
-        return setCustomerIdInFlightRef.current
+      const inFlight = setCustomerIdInFlightRef.current
+      if (inFlight) {
+        // Same target: share the request. Different target (A -> B -> A in quick
+        // succession): let the first finish so the last switch wins, not the first.
+        if (inFlight.id === customerId) return inFlight.promise
+        await inFlight.promise.catch(() => undefined)
       }
 
-      const run = (async (): Promise<boolean> => {
+      const run: Promise<boolean> = (async (): Promise<boolean> => {
         try {
           const authToken = token ?? localStorage.getItem("token")
           if (!authToken) {
@@ -1618,11 +1628,17 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
 
           return true
         } finally {
-          setCustomerIdInFlightRef.current = null
+          // Deferred: a throw before the first await runs this synchronously, before
+          // `run` exists and before the in-flight entry below is registered.
+          queueMicrotask(() => {
+            if (setCustomerIdInFlightRef.current?.promise === run) {
+              setCustomerIdInFlightRef.current = null
+            }
+          })
         }
       })()
 
-      setCustomerIdInFlightRef.current = run
+      setCustomerIdInFlightRef.current = { id: customerId, promise: run }
       return run
     },
     [token, handleUnauthorized, refreshProfilePermissions],

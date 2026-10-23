@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Filter, Search, Plus, ChevronDown, ChevronUp, Pencil, Lock, UserMinus } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -50,6 +50,7 @@ export default function UserOfficeManagement() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all")
+  const addButtonRef = useRef<HTMLButtonElement>(null)
   const [showSearchInvite, setShowSearchInvite] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
   const [createPrefill, setCreatePrefill] = useState<{ first_name?: string; last_name?: string; email?: string }>({})
@@ -548,7 +549,7 @@ export default function UserOfficeManagement() {
                 </PopoverContent>
               </Popover>
 
-              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white" onClick={handleAddUser}>
+              <Button ref={addButtonRef} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white" onClick={handleAddUser}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add User
               </Button>
@@ -837,6 +838,7 @@ export default function UserOfficeManagement() {
         }}
         onSuccess={handleAddUserSuccess}
         initialPrefill={createPrefill}
+        returnFocusRef={addButtonRef}
       />
 
       <UpdateUserModal

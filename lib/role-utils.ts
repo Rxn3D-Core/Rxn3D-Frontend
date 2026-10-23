@@ -12,15 +12,52 @@ const ROLE_LABEL_TO_SLUG: Record<string, string> = {
 
 const LAB_ROLE_SLUGS = new Set(["lab_admin", "lab_user", "lab_driver"])
 
+/**
+ * Pull a role name out of whatever the API sent: a slug string, a `{ id, name }`
+ * object (UserProfileResource / UserResource), or an array of either (first usable wins).
+ * Returns "" for anything else so callers can safely run string operations on it.
+ */
+export function extractRoleName(role: unknown): string {
+  if (typeof role === "string") return role
+  if (Array.isArray(role)) {
+    for (const item of role) {
+      const name = extractRoleName(item)
+      if (name.trim()) return name
+    }
+    return ""
+  }
+  if (role && typeof role === "object") {
+    const { name, slug } = role as { name?: unknown; slug?: unknown }
+    if (typeof name === "string") return name
+    if (typeof slug === "string") return slug
+  }
+  return ""
+}
+
 /** Normalize role from API objects, labels, or snake_case strings. */
-export function normalizeRoleSlug(role?: string | null): string {
-  if (!role) return ""
-  const trimmed = role.trim()
+export function normalizeRoleSlug(role?: unknown): string {
+  const trimmed = extractRoleName(role).trim()
   if (!trimmed) return ""
   if (trimmed.includes("_")) return trimmed.toLowerCase()
   const labelKey = trimmed.toLowerCase()
   if (ROLE_LABEL_TO_SLUG[labelKey]) return ROLE_LABEL_TO_SLUG[labelKey]
   return trimmed.toLowerCase().replace(/\s+/g, "_")
+}
+
+/** Role for auth state: a normalized slug, or null when the value is missing or unusable. */
+export function toProfileRole(role: unknown): string | null {
+  return normalizeRoleSlug(role) || null
+}
+
+/**
+ * Read back a role persisted in localStorage. Earlier builds could persist an object
+ * as "[object Object]"; treat that (and other placeholder strings) as no role.
+ */
+export function sanitizeStoredRole(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim()
+  if (!trimmed) return null
+  if (trimmed === "[object Object]" || trimmed === "undefined" || trimmed === "null") return null
+  return trimmed
 }
 
 export function getActiveCustomerType(): string | null {

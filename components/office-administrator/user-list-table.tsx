@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
@@ -99,6 +99,7 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const addButtonRef = useRef<HTMLButtonElement>(null)
   const [showSearchInvite, setShowSearchInvite] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
   const [createPrefill, setCreatePrefill] = useState<{ first_name?: string; last_name?: string; email?: string }>({})
@@ -567,7 +568,7 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
                 </PopoverContent>
               </Popover>
 
-              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm" onClick={() => setShowSearchInvite(true)}>
+              <Button ref={addButtonRef} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm" onClick={() => setShowSearchInvite(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 {addButtonLabel}
               </Button>
@@ -858,6 +859,7 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
         onSuccess={handleCreateUserSuccess}
         lockedRole={lockedRole}
         initialPrefill={createPrefill}
+        returnFocusRef={addButtonRef}
       />
 
 
