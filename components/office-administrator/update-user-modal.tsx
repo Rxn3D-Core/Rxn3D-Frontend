@@ -35,6 +35,7 @@ import { ColorPicker } from "@/components/ui/color-picker"
 import { Check, Pencil, Plus, Trash2, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { degreeField, normalizeDegree } from "@/lib/doctor-degree"
+import { normalizeRoleSlug } from "@/lib/role-utils"
 import { DoctorDegreeField } from "@/components/doctor-degree-field"
 
 const updateUserSchema = z.object({
@@ -140,7 +141,7 @@ export function UpdateUserModal({
 
   const authContext = useAuth()
   const { assignCustomerRoleToUser, removeCustomerRoleFromUser } = useCustomer()
-  const actorRole = (authContext.profileRole || "").toLowerCase()
+  const actorRole = normalizeRoleSlug(authContext.profileRole)
   /** Only lab admins (including superadmin acting as lab admin) may change role on edit. */
   const canChangeUserRole =
     isLabCustomer && (actorRole === "lab_admin" || authContext.isActingAsLabAdmin)

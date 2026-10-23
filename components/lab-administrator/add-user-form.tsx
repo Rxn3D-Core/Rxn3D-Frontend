@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form"
+import { FieldError } from "@/components/ui/field-error"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ChevronLeft, Upload, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -526,11 +527,10 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                               label="First Name *"
                               placeholder="Enter first name"
                               validationState={getValidationState("first_name")}
-                              errorMessage={form.formState.errors.first_name?.message as string}
                               {...field}
                             />
                           </FormControl>
-                          <FormMessage />
+                          <FieldError />
                         </FormItem>
                       )}
                     />
@@ -544,11 +544,10 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                               label="Last Name *"
                               placeholder="Enter last name"
                               validationState={getValidationState("last_name")}
-                              errorMessage={form.formState.errors.last_name?.message as string}
                               {...field}
                             />
                           </FormControl>
-                          <FormMessage />
+                          <FieldError />
                         </FormItem>
                       )}
                     />
@@ -568,12 +567,11 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                             data-1p-ignore
                             data-lpignore="true"
                             validationState={getValidationState("email")}
-                            errorMessage={form.formState.errors.email?.message as string}
                             disabled={isEditMode}
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FieldError />
                       </FormItem>
                     )}
                   />
@@ -595,11 +593,10 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                                 data-1p-ignore
                                 data-lpignore="true"
                                 validationState={getValidationState("password")}
-                                errorMessage={form.formState.errors.password?.message as string}
                                 {...field}
                               />
                             </FormControl>
-                            <FormMessage />
+                            <FieldError lines={2} />
                           </FormItem>
                         )}
                       />
@@ -618,11 +615,10 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                                 data-1p-ignore
                                 data-lpignore="true"
                                 validationState={getValidationState("password_confirmation")}
-                                errorMessage={form.formState.errors.password_confirmation?.message as string}
                                 {...field}
                               />
                             </FormControl>
-                            <FormMessage />
+                            <FieldError lines={2} />
                           </FormItem>
                         )}
                       />
@@ -640,12 +636,11 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                               label="Phone Number *"
                               placeholder="Enter phone number"
                               validationState={getValidationState("phone")}
-                              errorMessage={form.formState.errors.phone?.message as string}
                               {...field}
                               onChange={(e) => field.onChange(e.target.value.replace(/[^0-9+]/g, ""))}
                             />
                           </FormControl>
-                          <FormMessage />
+                          <FieldError />
                         </FormItem>
                       )}
                     />
@@ -663,7 +658,7 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                               onChange={(e) => field.onChange(e.target.value.replace(/[^0-9+]/g, ""))}
                             />
                           </FormControl>
-                          <FormMessage />
+                          <FieldError />
                         </FormItem>
                       )}
                     />
@@ -694,7 +689,7 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                                 ))}
                               </SelectContent>
                             </Select>
-                            <FormMessage />
+                            <FieldError />
                           </FormItem>
                         )}
                       />
@@ -718,7 +713,7 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                               ))}
                             </SelectContent>
                           </Select>
-                          <FormMessage />
+                          <FieldError />
                         </FormItem>
                       )}
                     />
@@ -775,7 +770,6 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                                 label="License Number *"
                                 placeholder="Enter license number"
                                 validationState={getValidationState("license_number")}
-                                errorMessage={form.formState.errors.license_number?.message as string}
                                 {...field}
                                 onChange={(e) => {
                                   field.onChange(e)
@@ -785,7 +779,7 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                                 }}
                               />
                             </FormControl>
-                            <FormMessage />
+                            <FieldError />
                           </FormItem>
                         )}
                       />

@@ -7,6 +7,7 @@ import {
   getActiveCustomerType,
   isLabCustomerContext,
   isOfficeCustomerContext,
+  toProfileRole,
 } from "@/lib/role-utils"
 
 export type CustomerProfile = {
@@ -129,12 +130,7 @@ export function parsePermissionsProfile(payload: unknown): PermissionsProfileSna
         : typeof root.customer_id === "number"
           ? root.customer_id
           : undefined,
-    role:
-      typeof data.role === "string"
-        ? data.role
-        : typeof root.role === "string"
-          ? root.role
-          : null,
+    role: toProfileRole(data.role) ?? toProfileRole(root.role),
     permissions: normalizePermissionsResponse(payload as PermissionsApiPayload),
     role_permissions: stringList(data.role_permissions),
     override_permissions: override,
@@ -246,12 +242,17 @@ export function canAccessAclManagement(
   return hasPermission(permissions, "update_role", false) && role === "lab_admin"
 }
 
+/**
+ * Role slug for one of the user's customer profiles, or null if it has none.
+ * Login sends `role` as a string, but profile endpoints send `{ id, name }`, so
+ * the value is normalized rather than trusted to be a string.
+ */
 export function roleOnCustomer(
-  customers: Array<{ id: number; role?: string }> | undefined,
-  customerId: number,
+  customers: Array<{ id: number | string; role?: unknown }> | undefined,
+  customerId: number | string,
 ): string | null {
-  const match = customers?.find((c) => c.id === customerId)
-  return match?.role ?? null
+  const match = customers?.find((c) => Number(c.id) === Number(customerId))
+  return toProfileRole(match?.role)
 }
 
 export type UserCustomerProfileOption = {
