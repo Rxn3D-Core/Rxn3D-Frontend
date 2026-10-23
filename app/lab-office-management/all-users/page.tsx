@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, type MouseEvent as ReactMouseEvent } from "react"
+import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react"
 import Link from "next/link"
 import { Eye, Search, Plus, ChevronDown, Edit, Trash2, Lock, ShieldCheck, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -97,6 +97,7 @@ export default function AllUsers() {
   )
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
   const [showSearchInvite, setShowSearchInvite] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
   const [createPrefill, setCreatePrefill] = useState<{ first_name?: string; last_name?: string; email?: string }>({})
@@ -566,7 +567,7 @@ export default function AllUsers() {
               />
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             </div>
-            <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm shrink-0 whitespace-nowrap" onClick={handleAddUser} disabled={!canCreateUser}>
+            <Button ref={addButtonRef} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm shrink-0 whitespace-nowrap" onClick={handleAddUser} disabled={!canCreateUser}>
               <Plus className="h-4 w-4 mr-2" />
               {addButtonLabel}
             </Button>
@@ -883,6 +884,7 @@ export default function AllUsers() {
         requireCustomerSelection
         customerOptions={customerOptions}
         initialPrefill={createPrefill}
+        returnFocusRef={addButtonRef}
       />
 
       <UpdateUserModal

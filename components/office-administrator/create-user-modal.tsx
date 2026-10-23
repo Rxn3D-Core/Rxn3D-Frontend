@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, type RefObject } from "react"
 import SignatureCanvas from "react-signature-canvas"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form"
+import { FieldError } from "@/components/ui/field-error"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { Check, Loader2, Upload, X } from "lucide-react"
@@ -82,6 +83,11 @@ interface CreateUserModalProps {
   customerOptions?: CustomerOption[]
   /** Prefill from invite-search “Create new instead”. */
   initialPrefill?: CreateUserPrefill
+  /**
+   * Element to focus when the form closes (the page's Add button). Needed because this form
+   * opens from the invite-search dialog, so Radix has no trigger to restore focus to.
+   */
+  returnFocusRef?: RefObject<HTMLElement>
 }
 
 interface Department {
@@ -103,6 +109,7 @@ export function CreateUserModal({
   requireCustomerSelection = false,
   customerOptions = [],
   initialPrefill,
+  returnFocusRef,
 }: CreateUserModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -661,7 +668,15 @@ export function CreateUserModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[calc(100%-1.5rem)] sm:max-w-xl max-h-[min(92dvh,720px)] p-0 gap-0 overflow-hidden rounded-2xl flex flex-col">
+      <DialogContent
+        className="w-[calc(100%-1.5rem)] sm:max-w-xl max-h-[min(92dvh,720px)] p-0 gap-0 overflow-hidden rounded-2xl flex flex-col"
+        onCloseAutoFocus={(event) => {
+          const target = returnFocusRef?.current
+          if (!target) return
+          event.preventDefault()
+          target.focus()
+        }}
+      >
         <DialogHeader className="px-5 pt-4 pb-3 border-b border-[#f0f0f0] flex-shrink-0">
           <DialogTitle className="text-[15px] font-semibold tracking-tight">
             {getCreateUserTitle(lockedRole || selectedRole)}
@@ -693,7 +708,7 @@ export function CreateUserModal({
                           className="h-10"
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FieldError />
                     </FormItem>
                   )}
                 />
@@ -757,12 +772,11 @@ export function CreateUserModal({
                             label="First name *"
                             placeholder="First name"
                             validationState={getValidationState("first_name")}
-                            errorMessage={form.formState.errors.first_name?.message as string}
                             className={fieldClass}
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FieldError />
                       </FormItem>
                     )}
                   />
@@ -776,12 +790,11 @@ export function CreateUserModal({
                             label="Last name *"
                             placeholder="Last name"
                             validationState={getValidationState("last_name")}
-                            errorMessage={form.formState.errors.last_name?.message as string}
                             className={fieldClass}
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FieldError />
                       </FormItem>
                     )}
                   />
@@ -813,7 +826,7 @@ export function CreateUserModal({
                           )}
                         </div>
                       </FormControl>
-                      <FormMessage />
+                      <FieldError />
                     </FormItem>
                   )}
                 />
@@ -827,7 +840,6 @@ export function CreateUserModal({
                           label="Phone *"
                           placeholder="Phone number"
                           validationState={getValidationState("phone")}
-                          errorMessage={form.formState.errors.phone?.message as string}
                           className={fieldClass}
                           {...field}
                           onChange={(e) => {
@@ -835,7 +847,7 @@ export function CreateUserModal({
                           }}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FieldError />
                     </FormItem>
                   )}
                 />
@@ -856,7 +868,7 @@ export function CreateUserModal({
                           }}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FieldError />
                     </FormItem>
                   )}
                 />
@@ -927,7 +939,7 @@ export function CreateUserModal({
                               </SelectContent>
                             </Select>
                           </FormControl>
-                          <FormMessage />
+                          <FieldError />
                         </FormItem>
                       )}
                     />
@@ -1009,7 +1021,7 @@ export function CreateUserModal({
                           {...field}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FieldError lines={2} />
                     </FormItem>
                   )}
                 />
@@ -1032,7 +1044,7 @@ export function CreateUserModal({
                           {...field}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FieldError lines={2} />
                     </FormItem>
                   )}
                 />
@@ -1051,7 +1063,6 @@ export function CreateUserModal({
                             label="License number *"
                             placeholder="License number"
                             validationState={getValidationState("license_number")}
-                            errorMessage={form.formState.errors.license_number?.message as string}
                             className={cn(fieldClass, "bg-white")}
                             {...field}
                             onChange={(e) => {
@@ -1062,7 +1073,7 @@ export function CreateUserModal({
                             }}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FieldError />
                       </FormItem>
                     )}
                   />
@@ -1155,7 +1166,7 @@ export function CreateUserModal({
                             </label>
                           </div>
                         </FormControl>
-                        <FormMessage />
+                        <FieldError lines={0} />
                       </FormItem>
                     )}
                   />

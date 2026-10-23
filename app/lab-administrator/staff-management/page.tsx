@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Filter, Search, Plus, ChevronDown, Pencil, Trash2, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -100,6 +100,7 @@ export default function StaffManagementPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [showFilterPanel, setShowFilterPanel] = useState(false)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
   const [showSearchInvite, setShowSearchInvite] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
   const [createPrefill, setCreatePrefill] = useState<{ first_name?: string; last_name?: string; email?: string }>({})
@@ -422,6 +423,7 @@ export default function StaffManagementPage() {
               </Button>
 
               <Button
+                ref={addButtonRef}
                 variant="ghost"
                 className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110"
                 onClick={handleAddUser}
@@ -745,6 +747,7 @@ export default function StaffManagementPage() {
         }}
         onSuccess={handleAddUserSuccess}
         initialPrefill={createPrefill}
+        returnFocusRef={addButtonRef}
       />
 
       <UpdateUserModal
