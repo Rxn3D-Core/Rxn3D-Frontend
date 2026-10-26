@@ -2,6 +2,60 @@
 
 End-to-end tests for critical user journeys in the RXN3D Laboratory Management System.
 
+## Running the device matrix (read this first)
+
+`playwright.config.ts` defines six projects and has no default target: `E2E_BASE_URL` is required, and the run stops with an error if it is not set.
+
+| Project | Playwright device | What runs |
+|---|---|---|
+| `chromium` | Desktop Chrome | the full suite |
+| `firefox` | Desktop Firefox | `@smoke` only |
+| `webkit` | Desktop Safari | `@smoke` only |
+| `mobile-chrome` | Pixel 7 | `@smoke` only |
+| `mobile-safari` | iPhone 14 | `@smoke` only |
+| `tablet` | iPad (gen 7) | `@smoke` only |
+
+These are emulations on Playwright's own engines, not real devices. A test is smoke when `@smoke` is in its title.
+
+### Steps
+
+1. Install the browsers once per machine (a large download, several hundred MB):
+
+   ```bash
+   npx playwright install chromium firefox webkit
+   ```
+
+2. Start the app on a port that is yours for this task, never `:3000` (a developer's own dev server) and never against the Docker backend on `:8080`. Pass the API address on the command line, which beats any `.env` value, so no `.env` file is touched:
+
+   ```bash
+   NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8190 npx next dev -p 3190
+   ```
+
+   Point the API address at a mock server, or at an unused port for pages that need no API (the login screen).
+
+3. In a second terminal, run the tests against that port:
+
+   ```bash
+   # Smoke tier on all six projects
+   E2E_BASE_URL=http://localhost:3190 npx playwright test --grep @smoke --workers=2
+
+   # Full suite, Chromium only
+   E2E_BASE_URL=http://localhost:3190 npx playwright test --project=chromium --workers=2
+
+   # One project
+   E2E_BASE_URL=http://localhost:3190 npx playwright test --project=mobile-safari --workers=2
+   ```
+
+4. Stop the app when the run is done.
+
+### Rules
+
+- Always pass `--workers=2` on a laptop. Six projects at the default worker count exhaust memory.
+- Never set `E2E_BASE_URL` to `http://localhost:3000` or anything on `:8080`. Both are live systems used for daily work.
+- The two billing specs need a signed-in account and a real API, so they fail against a mock. Do not run them against `:8080`; leave them out with `--grep @smoke`.
+- The HTML report does not open by itself. View it with `npm run e2e:report`.
+- Write tests with roles, labels and real attributes, and wait on visible state, not `waitForTimeout`.
+
 ## Setup
 
 ### Install Dependencies
@@ -15,8 +69,8 @@ npm install
 ### Configuration
 
 All tests use the configuration in `playwright.config.ts`:
-- Base URL: `http://localhost:3000`
-- Browser: Chromium
+- Base URL: the `E2E_BASE_URL` environment variable (required, see above)
+- Browsers: six projects (see above)
 - Trace: `on-first-retry` (captures traces on failures)
 - Screenshots: Only on failure
 - Reports: HTML + JUnit XML
@@ -25,13 +79,7 @@ All tests use the configuration in `playwright.config.ts`:
 
 ### Start the Frontend Server
 
-Before running tests, start the Next.js dev server:
-
-```bash
-npm run dev
-```
-
-This runs on `http://localhost:3000` by default.
+The config no longer starts a server. Start the app yourself on your task's own port, as described in "Running the device matrix" above, and set `E2E_BASE_URL` to it. Do not use `npm run dev` on `:3000` for tests.
 
 ### Run All Tests
 
