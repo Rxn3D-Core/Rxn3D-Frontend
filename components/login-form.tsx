@@ -178,7 +178,7 @@ export default function LoginForm() {
                   width={140}
                   height={45}
                   priority
-                  className="h-10 w-auto sm:h-11"
+                  className="h-14 w-auto sm:h-16"
                 />
               </Link>
               <h1 className="text-xl font-semibold tracking-tight text-slate-800 sm:text-2xl">
