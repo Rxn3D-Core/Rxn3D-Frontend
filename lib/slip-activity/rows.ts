@@ -23,7 +23,7 @@ export function toSlipActivityRow(event: SlipActivityEvent): SlipActivityRow {
     slipNumber: event.slip.slip_number,
     slipHref: buildVirtualSlipPath(event.slip.case_id, event.slip.id),
     patientName: event.patient_name?.trim() ?? "",
-    officeName: event.office_name?.trim() ?? "",
+    officeName: event.office?.name?.trim() ?? "",
     fromStatus: event.from_status.name,
     toStatus: event.to_status.name,
     userName: event.actor?.name?.trim() ?? "",
