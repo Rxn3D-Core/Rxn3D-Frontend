@@ -86,3 +86,8 @@ graphify-out/
 
 .cursor/
 .claude/
+
+# Playwright output
+/test-results/
+/playwright-report/
+/e2e/reports/

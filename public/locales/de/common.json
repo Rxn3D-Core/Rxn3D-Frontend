@@ -119,5 +119,61 @@
     "completeSetup": "Bitte schließen Sie zuerst den 2FA-Einrichtungsprozess ab, um Ihre Backup-Codes zu generieren.",
     "returnToSetup": "Zurück zur Einrichtung",
     "securityLayer": "Die Zwei-Faktor-Authentifizierung fügt Ihrem Konto eine zusätzliche Sicherheitsebene hinzu"
+  },
+  "slipActivity": {
+    "title": "Auftragsaktivitäts-Monitor",
+    "subtitle": "Abhol- und Lieferstatusänderungen der Aufträge Ihres Labors, neueste zuerst.",
+    "loading": "Aktivität wird geladen...",
+    "error": "Aktivität konnte nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "statusesError": "Statusliste konnte nicht geladen werden.",
+    "empty": "Keine Statusänderungen entsprechen diesen Filtern.",
+    "emptySearch": "Keine Statusänderungen entsprechen \"{{search}}\" mit diesen Filtern.",
+    "accessDenied": {
+      "title": "Zugriff verweigert",
+      "body": "Diese Seite ist nur für Laborbenutzer verfügbar."
+    },
+    "filters": {
+      "from": "Von",
+      "to": "Bis",
+      "status": "Status",
+      "allStatuses": "Alle Status",
+      "statusesSelected": "{{count}} Status ausgewählt",
+      "loadingStatuses": "Status werden geladen...",
+      "clearStatuses": "Status zurücksetzen",
+      "apply": "Anwenden",
+      "errorFromAfterTo": "Das Startdatum muss vor oder am Enddatum liegen.",
+      "errorRangeTooLong": "Wählen Sie einen Zeitraum von höchstens 365 Tagen.",
+      "errorInvalidDate": "Geben Sie ein gültiges Start- und Enddatum ein.",
+      "search": "Suche",
+      "searchPlaceholder": "Auftrag, Patient, Praxis oder Benutzer suchen",
+      "clearSearch": "Suche löschen"
+    },
+    "table": {
+      "dateTime": "Datum/Uhrzeit",
+      "slip": "Auftrag",
+      "patient": "Patient",
+      "office": "Praxis",
+      "statusChange": "Von -> Nach",
+      "user": "Benutzer",
+      "to": "nach",
+      "sort": {
+        "none": "Nach {{column}} sortieren",
+        "ascending": "Nach {{column}} aufsteigend sortiert. Auswählen, um absteigend zu sortieren.",
+        "descending": "Nach {{column}} absteigend sortiert. Auswählen, um aufsteigend zu sortieren."
+      }
+    },
+    "pagination": {
+      "label": "Seitennavigation",
+      "summary": "{{from}}-{{to}} von {{total}}",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "page": "Seite {{page}} von {{lastPage}}"
+    },
+    "export": {
+      "csv": "CSV exportieren",
+      "xlsx": "Excel exportieren",
+      "error": "Export fehlgeschlagen. Bitte erneut versuchen."
+    }
   }
 }

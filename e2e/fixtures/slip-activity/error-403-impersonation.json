@@ -1,0 +1,4 @@
+{
+  "success": false,
+  "message": "This action is not allowed during an impersonation session. Exit support mode first."
+}

@@ -119,5 +119,61 @@
     "completeSetup": "Veuillez d'abord terminer le processus de configuration A2F pour générer vos codes de secours.",
     "returnToSetup": "Retour à la configuration",
     "securityLayer": "L'authentification à deux facteurs ajoute une couche supplémentaire de sécurité à votre compte"
+  },
+  "slipActivity": {
+    "title": "Suivi de l'activité des bons",
+    "subtitle": "Changements de statut de collecte et de livraison des bons de votre laboratoire, les plus récents en premier.",
+    "loading": "Chargement de l'activité...",
+    "error": "Impossible de charger l'activité.",
+    "retry": "Réessayer",
+    "statusesError": "Impossible de charger la liste des statuts.",
+    "empty": "Aucun changement de statut ne correspond à ces filtres.",
+    "emptySearch": "Aucun changement de statut ne correspond à « {{search}} » avec ces filtres.",
+    "accessDenied": {
+      "title": "Accès refusé",
+      "body": "Cette page est réservée aux utilisateurs du laboratoire."
+    },
+    "filters": {
+      "from": "Du",
+      "to": "Au",
+      "status": "Statut",
+      "allStatuses": "Tous les statuts",
+      "statusesSelected": "{{count}} statuts sélectionnés",
+      "loadingStatuses": "Chargement des statuts...",
+      "clearStatuses": "Effacer les statuts",
+      "apply": "Appliquer",
+      "errorFromAfterTo": "La date de début doit être antérieure ou égale à la date de fin.",
+      "errorRangeTooLong": "Choisissez une période de 365 jours maximum.",
+      "errorInvalidDate": "Saisissez une date de début et de fin valides.",
+      "search": "Rechercher",
+      "searchPlaceholder": "Rechercher un bon, patient, cabinet ou utilisateur",
+      "clearSearch": "Effacer la recherche"
+    },
+    "table": {
+      "dateTime": "Date/heure",
+      "slip": "Bon",
+      "patient": "Patient",
+      "office": "Cabinet",
+      "statusChange": "De -> À",
+      "user": "Utilisateur",
+      "to": "à",
+      "sort": {
+        "none": "Trier par {{column}}",
+        "ascending": "Trié par {{column}}, ordre croissant. Sélectionnez pour trier par ordre décroissant.",
+        "descending": "Trié par {{column}}, ordre décroissant. Sélectionnez pour trier par ordre croissant."
+      }
+    },
+    "pagination": {
+      "label": "Pagination",
+      "summary": "{{from}}-{{to}} sur {{total}}",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "page": "Page {{page}} sur {{lastPage}}"
+    },
+    "export": {
+      "csv": "Exporter CSV",
+      "xlsx": "Exporter Excel",
+      "error": "L'exportation a échoué. Veuillez réessayer."
+    }
   }
 }
