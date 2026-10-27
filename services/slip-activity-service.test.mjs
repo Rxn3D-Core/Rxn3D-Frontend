@@ -13,6 +13,7 @@ const filters = {
   fromDate: "2026-10-01",
   toDate: "2026-10-27",
   locationIds: [3],
+  search: "Smile Dental",
   page: 2,
   perPage: 25,
   sort: "office_name",
@@ -45,6 +46,7 @@ test("statuses and events hit the contract paths with the filter query", async (
   assert.equal(url.searchParams.get("page"), "2")
   assert.equal(url.searchParams.get("sort"), "office_name")
   assert.equal(url.searchParams.get("direction"), "asc")
+  assert.equal(url.searchParams.get("search"), "Smile Dental")
   assert.equal(calls[1].init.method, "GET")
 })
 
@@ -79,6 +81,7 @@ test("export returns the file body as a blob", async () => {
   assert.equal(url.searchParams.get("format"), "csv")
   assert.equal(url.searchParams.get("sort"), "office_name")
   assert.equal(url.searchParams.get("direction"), "asc")
+  assert.equal(url.searchParams.get("search"), "Smile Dental")
   assert.equal(url.searchParams.get("tz"), null)
 })
 

@@ -516,6 +516,7 @@
     "retry": "Try again",
     "statusesError": "Could not load the status list.",
     "empty": "No status changes match these filters.",
+    "emptySearch": "No status changes match \"{{search}}\" with these filters.",
     "accessDenied": {
       "title": "Access denied",
       "body": "This page is only available to lab users."
@@ -531,7 +532,10 @@
       "apply": "Apply",
       "errorFromAfterTo": "The start date must be on or before the end date.",
       "errorRangeTooLong": "Choose a range of 365 days or less.",
-      "errorInvalidDate": "Enter a valid start and end date."
+      "errorInvalidDate": "Enter a valid start and end date.",
+      "search": "Search",
+      "searchPlaceholder": "Search slip, patient, office or user",
+      "clearSearch": "Clear search"
     },
     "table": {
       "dateTime": "Date/time",

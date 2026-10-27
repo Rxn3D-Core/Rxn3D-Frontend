@@ -22,6 +22,8 @@ interface SlipActivityTableProps {
   onPageChange: (page: number) => void
   sort: SlipActivitySort
   onSortChange: (column: SlipActivitySortColumn) => void
+  /** Applied search, shown in the empty state. */
+  search?: string
 }
 
 export function SlipActivityTable({
@@ -31,6 +33,7 @@ export function SlipActivityTable({
   onPageChange,
   sort,
   onSortChange,
+  search = "",
 }: SlipActivityTableProps) {
   const { t, i18n } = useTranslation()
   const rows = events.map(toSlipActivityRow)
@@ -41,7 +44,9 @@ export function SlipActivityTable({
         data-testid="slip-activity-empty"
         className="rounded-lg border-[1.5px] border-dashed border-[#E0E0E0] bg-white p-8 text-center text-sm text-gray-600"
       >
-        {t("slipActivity.empty", "No status changes match these filters.")}
+        {search
+          ? t("slipActivity.emptySearch", "No status changes match \"{{search}}\" with these filters.", { search })
+          : t("slipActivity.empty", "No status changes match these filters.")}
       </div>
     )
   }

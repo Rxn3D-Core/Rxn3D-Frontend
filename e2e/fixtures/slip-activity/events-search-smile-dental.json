@@ -1,0 +1,223 @@
+{
+  "success": true,
+  "message": "Slip activity retrieved successfully",
+  "data": [
+    {
+      "id": 90412,
+      "action_at": "2026-10-27T08:14:03-07:00",
+      "slip": {
+        "id": 5531,
+        "slip_number": "S-004812",
+        "case_id": 2207
+      },
+      "patient_name": "John Doe",
+      "office": {
+        "id": 41,
+        "name": "Smile Dental"
+      },
+      "from_status": {
+        "id": 1,
+        "name": "In office ready to pickup"
+      },
+      "to_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "actor": {
+        "id": 88,
+        "name": "Maria Lopez"
+      }
+    },
+    {
+      "id": 90391,
+      "action_at": "2026-10-26T22:53:03-07:00",
+      "slip": {
+        "id": 5528,
+        "slip_number": "S-004809",
+        "case_id": 2204
+      },
+      "patient_name": "Emily Chen",
+      "office": {
+        "id": 41,
+        "name": "Smile Dental"
+      },
+      "from_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "to_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "actor": null
+    },
+    {
+      "id": 90349,
+      "action_at": "2026-10-26T04:11:03-07:00",
+      "slip": {
+        "id": 5522,
+        "slip_number": "S-004803",
+        "case_id": 2198
+      },
+      "patient_name": "Ahmed Khan",
+      "office": {
+        "id": 41,
+        "name": "Smile Dental"
+      },
+      "from_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "to_status": {
+        "id": 6,
+        "name": "In office"
+      },
+      "actor": {
+        "id": 91,
+        "name": "James Carter"
+      }
+    },
+    {
+      "id": 90328,
+      "action_at": "2026-10-25T18:50:03-07:00",
+      "slip": {
+        "id": 5519,
+        "slip_number": "S-004800",
+        "case_id": 2195
+      },
+      "patient_name": "Carlos Mendez",
+      "office": {
+        "id": 41,
+        "name": "Smile Dental"
+      },
+      "from_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "to_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "actor": {
+        "id": 88,
+        "name": "Maria Lopez"
+      }
+    },
+    {
+      "id": 90307,
+      "action_at": "2026-10-25T09:29:03-07:00",
+      "slip": {
+        "id": 5516,
+        "slip_number": "S-004797",
+        "case_id": 2192
+      },
+      "patient_name": "John Doe",
+      "office": {
+        "id": 41,
+        "name": "Smile Dental"
+      },
+      "from_status": {
+        "id": 1,
+        "name": "In office ready to pickup"
+      },
+      "to_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "actor": null
+    },
+    {
+      "id": 90286,
+      "action_at": "2026-10-25T00:08:03-07:00",
+      "slip": {
+        "id": 5513,
+        "slip_number": "S-004794",
+        "case_id": 2189
+      },
+      "patient_name": "Emily Chen",
+      "office": {
+        "id": 41,
+        "name": "Smile Dental"
+      },
+      "from_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "to_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "actor": {
+        "id": 102,
+        "name": "Aiko Tanaka"
+      }
+    },
+    {
+      "id": 90265,
+      "action_at": "2026-10-24T14:47:03-07:00",
+      "slip": {
+        "id": 5510,
+        "slip_number": "S-004791",
+        "case_id": 2186
+      },
+      "patient_name": "Priya Shah",
+      "office": {
+        "id": 41,
+        "name": "Smile Dental"
+      },
+      "from_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "to_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "actor": {
+        "id": 91,
+        "name": "James Carter"
+      }
+    },
+    {
+      "id": 90244,
+      "action_at": "2026-10-24T05:26:03-07:00",
+      "slip": {
+        "id": 5507,
+        "slip_number": "S-004788",
+        "case_id": 2183
+      },
+      "patient_name": "Ahmed Khan",
+      "office": {
+        "id": 41,
+        "name": "Smile Dental"
+      },
+      "from_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "to_status": {
+        "id": 6,
+        "name": "In office"
+      },
+      "actor": {
+        "id": 88,
+        "name": "Maria Lopez"
+      }
+    }
+  ],
+  "pagination": {
+    "total": 8,
+    "per_page": 25,
+    "current_page": 1,
+    "last_page": 1,
+    "from": 1,
+    "to": 8
+  },
+  "filters": {
+    "from": "2026-09-27T00:00:00-07:00",
+    "to": "2026-10-27T23:59:59-07:00",
+    "location_ids": [],
+    "match": "either",
+    "search": "smile dental"
+  }
+}
