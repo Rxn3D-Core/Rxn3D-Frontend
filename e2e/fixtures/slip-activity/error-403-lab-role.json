@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "message": "This page is only available to lab users.",
+  "error": "lab_role_required"
+}

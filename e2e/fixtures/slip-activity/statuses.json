@@ -1,0 +1,36 @@
+{
+  "success": true,
+  "message": "Slip statuses retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "name": "In office ready to pickup",
+      "sequence": 1
+    },
+    {
+      "id": 2,
+      "name": "On route to the lab",
+      "sequence": 2
+    },
+    {
+      "id": 3,
+      "name": "In lab",
+      "sequence": 3
+    },
+    {
+      "id": 4,
+      "name": "In lab ready to pickup",
+      "sequence": 4
+    },
+    {
+      "id": 5,
+      "name": "On route to the office",
+      "sequence": 5
+    },
+    {
+      "id": 6,
+      "name": "In office",
+      "sequence": 6
+    }
+  ]
+}

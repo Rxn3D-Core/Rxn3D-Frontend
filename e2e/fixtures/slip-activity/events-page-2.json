@@ -1,0 +1,527 @@
+{
+  "success": true,
+  "message": "Slip activity retrieved successfully",
+  "data": [
+    {
+      "id": 90237,
+      "action_at": "2026-10-24T05:14:03-07:00",
+      "slip": {
+        "id": 5506,
+        "slip_number": "S-004787",
+        "case_id": 2182
+      },
+      "from_status": {
+        "id": 1,
+        "name": "In office ready to pickup"
+      },
+      "to_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "actor": {
+        "id": 91,
+        "name": "James Carter"
+      }
+    },
+    {
+      "id": 90230,
+      "action_at": "2026-10-24T02:07:03-07:00",
+      "slip": {
+        "id": 5505,
+        "slip_number": "S-004786",
+        "case_id": 2181
+      },
+      "from_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "to_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "actor": {
+        "id": 102,
+        "name": "Aiko Tanaka"
+      }
+    },
+    {
+      "id": 90223,
+      "action_at": "2026-10-23T23:00:03-07:00",
+      "slip": {
+        "id": 5504,
+        "slip_number": "S-004785",
+        "case_id": 2180
+      },
+      "from_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "to_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "actor": null
+    },
+    {
+      "id": 90216,
+      "action_at": "2026-10-23T19:53:03-07:00",
+      "slip": {
+        "id": 5503,
+        "slip_number": "S-004784",
+        "case_id": 2179
+      },
+      "from_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "to_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "actor": {
+        "id": 88,
+        "name": "Maria Lopez"
+      }
+    },
+    {
+      "id": 90209,
+      "action_at": "2026-10-23T16:46:03-07:00",
+      "slip": {
+        "id": 5502,
+        "slip_number": "S-004783",
+        "case_id": 2178
+      },
+      "from_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "to_status": {
+        "id": 6,
+        "name": "In office"
+      },
+      "actor": {
+        "id": 91,
+        "name": "James Carter"
+      }
+    },
+    {
+      "id": 90202,
+      "action_at": "2026-10-23T13:39:03-07:00",
+      "slip": {
+        "id": 5501,
+        "slip_number": "S-004782",
+        "case_id": 2177
+      },
+      "from_status": {
+        "id": 1,
+        "name": "In office ready to pickup"
+      },
+      "to_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "actor": {
+        "id": 102,
+        "name": "Aiko Tanaka"
+      }
+    },
+    {
+      "id": 90195,
+      "action_at": "2026-10-23T10:32:03-07:00",
+      "slip": {
+        "id": 5500,
+        "slip_number": "S-004781",
+        "case_id": 2176
+      },
+      "from_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "to_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "actor": null
+    },
+    {
+      "id": 90188,
+      "action_at": "2026-10-23T07:25:03-07:00",
+      "slip": {
+        "id": 5499,
+        "slip_number": "S-004780",
+        "case_id": 2175
+      },
+      "from_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "to_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "actor": {
+        "id": 88,
+        "name": "Maria Lopez"
+      }
+    },
+    {
+      "id": 90181,
+      "action_at": "2026-10-23T04:18:03-07:00",
+      "slip": {
+        "id": 5498,
+        "slip_number": "S-004779",
+        "case_id": 2174
+      },
+      "from_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "to_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "actor": {
+        "id": 91,
+        "name": "James Carter"
+      }
+    },
+    {
+      "id": 90174,
+      "action_at": "2026-10-23T01:11:03-07:00",
+      "slip": {
+        "id": 5497,
+        "slip_number": "S-004778",
+        "case_id": 2173
+      },
+      "from_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "to_status": {
+        "id": 6,
+        "name": "In office"
+      },
+      "actor": {
+        "id": 102,
+        "name": "Aiko Tanaka"
+      }
+    },
+    {
+      "id": 90167,
+      "action_at": "2026-10-22T22:04:03-07:00",
+      "slip": {
+        "id": 5496,
+        "slip_number": "S-004777",
+        "case_id": 2172
+      },
+      "from_status": {
+        "id": 1,
+        "name": "In office ready to pickup"
+      },
+      "to_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "actor": null
+    },
+    {
+      "id": 90160,
+      "action_at": "2026-10-22T18:57:03-07:00",
+      "slip": {
+        "id": 5495,
+        "slip_number": "S-004776",
+        "case_id": 2171
+      },
+      "from_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "to_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "actor": {
+        "id": 88,
+        "name": "Maria Lopez"
+      }
+    },
+    {
+      "id": 90153,
+      "action_at": "2026-10-22T15:50:03-07:00",
+      "slip": {
+        "id": 5494,
+        "slip_number": "S-004775",
+        "case_id": 2170
+      },
+      "from_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "to_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "actor": {
+        "id": 91,
+        "name": "James Carter"
+      }
+    },
+    {
+      "id": 90146,
+      "action_at": "2026-10-22T12:43:03-07:00",
+      "slip": {
+        "id": 5493,
+        "slip_number": "S-004774",
+        "case_id": 2169
+      },
+      "from_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "to_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "actor": {
+        "id": 102,
+        "name": "Aiko Tanaka"
+      }
+    },
+    {
+      "id": 90139,
+      "action_at": "2026-10-22T09:36:03-07:00",
+      "slip": {
+        "id": 5492,
+        "slip_number": "S-004773",
+        "case_id": 2168
+      },
+      "from_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "to_status": {
+        "id": 6,
+        "name": "In office"
+      },
+      "actor": null
+    },
+    {
+      "id": 90132,
+      "action_at": "2026-10-22T06:29:03-07:00",
+      "slip": {
+        "id": 5491,
+        "slip_number": "S-004772",
+        "case_id": 2167
+      },
+      "from_status": {
+        "id": 1,
+        "name": "In office ready to pickup"
+      },
+      "to_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "actor": {
+        "id": 88,
+        "name": "Maria Lopez"
+      }
+    },
+    {
+      "id": 90125,
+      "action_at": "2026-10-22T03:22:03-07:00",
+      "slip": {
+        "id": 5490,
+        "slip_number": "S-004771",
+        "case_id": 2166
+      },
+      "from_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "to_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "actor": {
+        "id": 91,
+        "name": "James Carter"
+      }
+    },
+    {
+      "id": 90118,
+      "action_at": "2026-10-22T00:15:03-07:00",
+      "slip": {
+        "id": 5489,
+        "slip_number": "S-004770",
+        "case_id": 2165
+      },
+      "from_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "to_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "actor": {
+        "id": 102,
+        "name": "Aiko Tanaka"
+      }
+    },
+    {
+      "id": 90111,
+      "action_at": "2026-10-21T21:08:03-07:00",
+      "slip": {
+        "id": 5488,
+        "slip_number": "S-004769",
+        "case_id": 2164
+      },
+      "from_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "to_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "actor": null
+    },
+    {
+      "id": 90104,
+      "action_at": "2026-10-21T18:01:03-07:00",
+      "slip": {
+        "id": 5487,
+        "slip_number": "S-004768",
+        "case_id": 2163
+      },
+      "from_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "to_status": {
+        "id": 6,
+        "name": "In office"
+      },
+      "actor": {
+        "id": 88,
+        "name": "Maria Lopez"
+      }
+    },
+    {
+      "id": 90097,
+      "action_at": "2026-10-21T14:54:03-07:00",
+      "slip": {
+        "id": 5486,
+        "slip_number": "S-004767",
+        "case_id": 2162
+      },
+      "from_status": {
+        "id": 1,
+        "name": "In office ready to pickup"
+      },
+      "to_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "actor": {
+        "id": 91,
+        "name": "James Carter"
+      }
+    },
+    {
+      "id": 90090,
+      "action_at": "2026-10-21T11:47:03-07:00",
+      "slip": {
+        "id": 5485,
+        "slip_number": "S-004766",
+        "case_id": 2161
+      },
+      "from_status": {
+        "id": 2,
+        "name": "On route to the lab"
+      },
+      "to_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "actor": {
+        "id": 102,
+        "name": "Aiko Tanaka"
+      }
+    },
+    {
+      "id": 90083,
+      "action_at": "2026-10-21T08:40:03-07:00",
+      "slip": {
+        "id": 5484,
+        "slip_number": "S-004765",
+        "case_id": 2160
+      },
+      "from_status": {
+        "id": 3,
+        "name": "In lab"
+      },
+      "to_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "actor": null
+    },
+    {
+      "id": 90076,
+      "action_at": "2026-10-21T05:33:03-07:00",
+      "slip": {
+        "id": 5483,
+        "slip_number": "S-004764",
+        "case_id": 2159
+      },
+      "from_status": {
+        "id": 4,
+        "name": "In lab ready to pickup"
+      },
+      "to_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "actor": {
+        "id": 88,
+        "name": "Maria Lopez"
+      }
+    },
+    {
+      "id": 90069,
+      "action_at": "2026-10-21T02:26:03-07:00",
+      "slip": {
+        "id": 5482,
+        "slip_number": "S-004763",
+        "case_id": 2158
+      },
+      "from_status": {
+        "id": 5,
+        "name": "On route to the office"
+      },
+      "to_status": {
+        "id": 6,
+        "name": "In office"
+      },
+      "actor": {
+        "id": 91,
+        "name": "James Carter"
+      }
+    }
+  ],
+  "pagination": {
+    "total": 137,
+    "per_page": 25,
+    "current_page": 2,
+    "last_page": 6,
+    "from": 26,
+    "to": 50
+  },
+  "filters": {
+    "from": "2026-09-27T00:00:00-07:00",
+    "to": "2026-10-27T23:59:59-07:00",
+    "location_ids": [],
+    "match": "either"
+  }
+}
