@@ -20,7 +20,8 @@ import type {
 } from "@/types/slip-activity"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
-const BASE = "/v1/slip-activity"
+// NEXT_PUBLIC_API_BASE_URL already ends in /v1 (see .env.example), so no /v1 here.
+const BASE = "/slip-activity"
 
 export class SlipActivityApiError extends Error {
   readonly status: number
