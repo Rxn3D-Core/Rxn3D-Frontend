@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toSlipActivityRow } from "@/lib/slip-activity/rows"
+import { formatSlipActivityDateTime } from "@/lib/slip-activity/time-zone"
 import type { SlipActivityEvent, SlipActivityPagination } from "@/types/slip-activity"
 
 interface SlipActivityTableProps {
@@ -17,7 +18,6 @@ interface SlipActivityTableProps {
 
 export function SlipActivityTable({ events, pagination, isFetching, onPageChange }: SlipActivityTableProps) {
   const { t, i18n } = useTranslation()
-  const formatter = new Intl.DateTimeFormat(i18n.language || undefined, { dateStyle: "medium", timeStyle: "short" })
   const rows = events.map(toSlipActivityRow)
 
   if (!rows.length) {
@@ -50,11 +50,10 @@ export function SlipActivityTable({ events, pagination, isFetching, onPageChange
           </TableHeader>
           <TableBody>
             {rows.map((row) => {
-              const date = new Date(row.actionAt)
               return (
                 <TableRow key={row.id} data-testid="slip-activity-row">
                   <TableCell className="whitespace-nowrap">
-                    <time dateTime={row.actionAt}>{Number.isNaN(date.getTime()) ? row.actionAt : formatter.format(date)}</time>
+                    <time dateTime={row.actionAt}>{formatSlipActivityDateTime(row.actionAt, i18n.language)}</time>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <Link

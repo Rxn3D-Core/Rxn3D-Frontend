@@ -8,14 +8,6 @@ import { slipActivityExportFilename } from "@/lib/slip-activity/query-params"
 import { fetchSlipActivityExport } from "@/services/slip-activity-service"
 import type { SlipActivityExportFormat, SlipActivityFilters } from "@/types/slip-activity"
 
-function browserTimeZone(): string | null {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || null
-  } catch {
-    return null
-  }
-}
-
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
@@ -36,7 +28,7 @@ export function SlipActivityExportButtons({ filters, disabled }: { filters: Slip
     setPending(format)
     setError(null)
     try {
-      const blob = await fetchSlipActivityExport(filters, format, browserTimeZone())
+      const blob = await fetchSlipActivityExport(filters, format)
       saveBlob(blob, slipActivityExportFilename(filters, format))
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : t("slipActivity.export.error", "Export failed. Please try again."))
