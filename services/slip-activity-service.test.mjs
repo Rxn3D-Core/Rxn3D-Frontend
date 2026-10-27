@@ -62,12 +62,12 @@ test("422 export cap is not forbidden and keeps its message", async () => {
 
 test("export returns the file body as a blob", async () => {
   const calls = stubFetch(200, "Date/time,Slip number\n", "text/csv; charset=UTF-8")
-  const blob = await fetchSlipActivityExport(filters, "csv", "America/New_York")
+  const blob = await fetchSlipActivityExport(filters, "csv")
   assert.equal(await blob.text(), "Date/time,Slip number\n")
   const url = new URL(calls[0].url, "http://x")
   assert.equal(url.pathname.endsWith("/slip-activity/events/export"), true)
   assert.equal(url.searchParams.get("format"), "csv")
-  assert.equal(url.searchParams.get("tz"), "America/New_York")
+  assert.equal(url.searchParams.get("tz"), null)
 })
 
 test("non-JSON error body falls back to the status text", async () => {

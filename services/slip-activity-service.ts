@@ -76,8 +76,7 @@ export async function fetchSlipActivityEvents(filters: SlipActivityFilters): Pro
 export async function fetchSlipActivityExport(
   filters: SlipActivityFilters,
   format: SlipActivityExportFormat,
-  tz?: string | null,
 ): Promise<Blob> {
-  const response = await slipActivityFetch(`${BASE}/events/export?${buildSlipActivityExportQuery(filters, format, tz)}`)
+  const response = await slipActivityFetch(`${BASE}/events/export?${buildSlipActivityExportQuery(filters, format)}`)
   return response.blob()
 }
