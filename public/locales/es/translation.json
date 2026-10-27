@@ -546,7 +546,12 @@
       "office": "Consultorio",
       "statusChange": "De -> A",
       "user": "Usuario",
-      "to": "a"
+      "to": "a",
+      "sort": {
+        "none": "Ordenar por {{column}}",
+        "ascending": "Ordenado por {{column}}, ascendente. Seleccione para ordenar de forma descendente.",
+        "descending": "Ordenado por {{column}}, descendente. Seleccione para ordenar de forma ascendente."
+      }
     },
     "pagination": {
       "label": "Paginación",

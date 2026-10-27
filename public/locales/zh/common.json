@@ -152,7 +152,12 @@
       "office": "诊所",
       "statusChange": "从 -> 至",
       "user": "用户",
-      "to": "至"
+      "to": "至",
+      "sort": {
+        "none": "按{{column}}排序",
+        "ascending": "已按{{column}}升序排序。选择以降序排序。",
+        "descending": "已按{{column}}降序排序。选择以升序排序。"
+      }
     },
     "pagination": {
       "label": "分页",

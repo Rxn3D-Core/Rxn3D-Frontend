@@ -9,7 +9,15 @@ import {
   SlipActivityApiError,
 } from "./slip-activity-service.ts"
 
-const filters = { fromDate: "2026-10-01", toDate: "2026-10-27", locationIds: [3], page: 2, perPage: 25 }
+const filters = {
+  fromDate: "2026-10-01",
+  toDate: "2026-10-27",
+  locationIds: [3],
+  page: 2,
+  perPage: 25,
+  sort: "office_name",
+  direction: "asc",
+}
 const realFetch = globalThis.fetch
 
 function stubFetch(status, body, contentType = "application/json") {
@@ -35,6 +43,8 @@ test("statuses and events hit the contract paths with the filter query", async (
   assert.equal(url.pathname.endsWith("/slip-activity/events"), true)
   assert.deepEqual(url.searchParams.getAll("location_ids[]"), ["3"])
   assert.equal(url.searchParams.get("page"), "2")
+  assert.equal(url.searchParams.get("sort"), "office_name")
+  assert.equal(url.searchParams.get("direction"), "asc")
   assert.equal(calls[1].init.method, "GET")
 })
 
@@ -67,6 +77,8 @@ test("export returns the file body as a blob", async () => {
   const url = new URL(calls[0].url, "http://x")
   assert.equal(url.pathname.endsWith("/slip-activity/events/export"), true)
   assert.equal(url.searchParams.get("format"), "csv")
+  assert.equal(url.searchParams.get("sort"), "office_name")
+  assert.equal(url.searchParams.get("direction"), "asc")
   assert.equal(url.searchParams.get("tz"), null)
 })
 

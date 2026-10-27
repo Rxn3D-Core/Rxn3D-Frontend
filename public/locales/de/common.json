@@ -152,7 +152,12 @@
       "office": "Praxis",
       "statusChange": "Von -> Nach",
       "user": "Benutzer",
-      "to": "nach"
+      "to": "nach",
+      "sort": {
+        "none": "Nach {{column}} sortieren",
+        "ascending": "Nach {{column}} aufsteigend sortiert. Auswählen, um absteigend zu sortieren.",
+        "descending": "Nach {{column}} absteigend sortiert. Auswählen, um aufsteigend zu sortieren."
+      }
     },
     "pagination": {
       "label": "Seitennavigation",
