@@ -154,6 +154,7 @@
       "slip": "工单",
       "patient": "患者",
       "office": "诊所",
+      "fileType": "文件类型",
       "statusChange": "从 -> 至",
       "user": "用户",
       "to": "至",

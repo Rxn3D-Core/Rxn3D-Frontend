@@ -542,6 +542,7 @@
       "slip": "Slip",
       "patient": "Patient",
       "office": "Office",
+      "fileType": "File type",
       "statusChange": "From -> To",
       "user": "User",
       "to": "to",
