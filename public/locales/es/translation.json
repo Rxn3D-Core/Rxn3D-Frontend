@@ -513,5 +513,52 @@
     "Go to Home": "Ir al inicio",
     "If you believe this is an error, please": "Si crees que esto es un error, por favor",
     "contact support": "contacta con soporte",
-    "All rights reserved.": "Todos los derechos reservados."
+    "All rights reserved.": "Todos los derechos reservados.",
+  "slipActivity": {
+    "title": "Monitor de actividad de órdenes",
+    "subtitle": "Cambios de estado de recogida y entrega de las órdenes de su laboratorio, los más recientes primero.",
+    "loading": "Cargando actividad...",
+    "error": "No se pudo cargar la actividad.",
+    "retry": "Reintentar",
+    "statusesError": "No se pudo cargar la lista de estados.",
+    "empty": "Ningún cambio de estado coincide con estos filtros.",
+    "accessDenied": {
+      "title": "Acceso denegado",
+      "body": "Esta página solo está disponible para usuarios de laboratorio."
+    },
+    "filters": {
+      "from": "Desde",
+      "to": "Hasta",
+      "status": "Estado",
+      "allStatuses": "Todos los estados",
+      "statusesSelected": "{{count}} estados seleccionados",
+      "loadingStatuses": "Cargando estados...",
+      "clearStatuses": "Borrar estados",
+      "apply": "Aplicar",
+      "errorFromAfterTo": "La fecha de inicio debe ser igual o anterior a la fecha de fin.",
+      "errorRangeTooLong": "Elija un rango de 365 días o menos.",
+      "errorInvalidDate": "Introduzca una fecha de inicio y de fin válidas."
+    },
+    "table": {
+      "dateTime": "Fecha/hora",
+      "slip": "Orden",
+      "patient": "Paciente",
+      "office": "Consultorio",
+      "statusChange": "De -> A",
+      "user": "Usuario",
+      "to": "a"
+    },
+    "pagination": {
+      "label": "Paginación",
+      "summary": "Mostrando {{from}}-{{to}} de {{total}}",
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "page": "Página {{page}} de {{lastPage}}"
+    },
+    "export": {
+      "csv": "Exportar CSV",
+      "xlsx": "Exportar Excel",
+      "error": "La exportación falló. Inténtelo de nuevo."
+    }
+  }
 }

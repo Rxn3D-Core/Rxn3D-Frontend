@@ -1,0 +1,8 @@
+{
+  "message": "The to field must be a date after or equal to from.",
+  "errors": {
+    "to": [
+      "The to field must be a date after or equal to from."
+    ]
+  }
+}

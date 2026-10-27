@@ -507,5 +507,52 @@
     "Are you sure you want to delete this product? This action cannot be undone.": "Are you sure you want to delete this product? This action cannot be undone.",
     "product": "Product",
     "Delete": "Delete",
-    "Cancel": "Cancel"
+    "Cancel": "Cancel",
+  "slipActivity": {
+    "title": "Slip Activity Monitor",
+    "subtitle": "Slip pickup and delivery status changes for your lab, newest first.",
+    "loading": "Loading slip activity...",
+    "error": "Could not load slip activity.",
+    "retry": "Try again",
+    "statusesError": "Could not load the status list.",
+    "empty": "No status changes match these filters.",
+    "accessDenied": {
+      "title": "Access denied",
+      "body": "This page is only available to lab users."
+    },
+    "filters": {
+      "from": "From",
+      "to": "To",
+      "status": "Status",
+      "allStatuses": "All statuses",
+      "statusesSelected": "{{count}} statuses selected",
+      "loadingStatuses": "Loading statuses...",
+      "clearStatuses": "Clear statuses",
+      "apply": "Apply",
+      "errorFromAfterTo": "The start date must be on or before the end date.",
+      "errorRangeTooLong": "Choose a range of 365 days or less.",
+      "errorInvalidDate": "Enter a valid start and end date."
+    },
+    "table": {
+      "dateTime": "Date/time",
+      "slip": "Slip",
+      "patient": "Patient",
+      "office": "Office",
+      "statusChange": "From -> To",
+      "user": "User",
+      "to": "to"
+    },
+    "pagination": {
+      "label": "Pagination",
+      "summary": "Showing {{from}}-{{to}} of {{total}}",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {{page}} of {{lastPage}}"
+    },
+    "export": {
+      "csv": "Export CSV",
+      "xlsx": "Export Excel",
+      "error": "Export failed. Please try again."
+    }
+  }
 }
