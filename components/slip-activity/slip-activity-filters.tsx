@@ -1,20 +1,24 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ChevronsUpDown } from "lucide-react"
+import { ChevronsUpDown, Search, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { validateSlipActivityRange } from "@/lib/slip-activity/query-params"
+import {
+  normalizeSlipActivitySearch,
+  SLIP_ACTIVITY_SEARCH_MAX_LENGTH,
+  validateSlipActivityRange,
+} from "@/lib/slip-activity/query-params"
 import type { SlipActivityFilters, SlipActivityStatus } from "@/types/slip-activity"
 
 interface SlipActivityFiltersProps {
   value: SlipActivityFilters
   statuses: SlipActivityStatus[]
   statusesLoading: boolean
-  onApply: (next: Pick<SlipActivityFilters, "fromDate" | "toDate" | "locationIds">) => void
+  onApply: (next: Pick<SlipActivityFilters, "fromDate" | "toDate" | "locationIds" | "search">) => void
 }
 
 export function SlipActivityFiltersBar({ value, statuses, statusesLoading, onApply }: SlipActivityFiltersProps) {
@@ -22,13 +26,15 @@ export function SlipActivityFiltersBar({ value, statuses, statusesLoading, onApp
   const [fromDate, setFromDate] = useState(value.fromDate)
   const [toDate, setToDate] = useState(value.toDate)
   const [locationIds, setLocationIds] = useState<number[]>(value.locationIds)
+  const [search, setSearch] = useState(value.search)
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
     setFromDate(value.fromDate)
     setToDate(value.toDate)
     setLocationIds(value.locationIds)
-  }, [value.fromDate, value.toDate, value.locationIds])
+    setSearch(value.search)
+  }, [value.fromDate, value.toDate, value.locationIds, value.search])
 
   const rangeError = validateSlipActivityRange(fromDate, toDate)
   const rangeMessage =
@@ -57,7 +63,8 @@ export function SlipActivityFiltersBar({ value, statuses, statusesLoading, onApp
       onSubmit={(e) => {
         e.preventDefault()
         if (rangeError) return
-        onApply({ fromDate, toDate, locationIds })
+        // Enter in the search box submits this form, so search applies exactly like the Apply button.
+        onApply({ fromDate, toDate, locationIds, search: normalizeSlipActivitySearch(search) })
       }}
     >
       <div className="md:w-44">
@@ -138,6 +145,43 @@ export function SlipActivityFiltersBar({ value, statuses, statusesLoading, onApp
             )}
           </PopoverContent>
         </Popover>
+      </div>
+      <div className="relative md:min-w-[16rem] md:flex-1">
+        <Search
+          className="pointer-events-none absolute left-3 top-9 z-10 h-4 w-4 -translate-y-1/2 text-gray-400"
+          aria-hidden="true"
+        />
+        <Input
+          id="slip-activity-search"
+          data-testid="slip-activity-search"
+          type="search"
+          enterKeyHint="search"
+          autoComplete="off"
+          label={t("slipActivity.filters.search", "Search")}
+          placeholder={t("slipActivity.filters.searchPlaceholder", "Search slip, patient, office or user")}
+          value={search}
+          maxLength={SLIP_ACTIVITY_SEARCH_MAX_LENGTH}
+          onChange={(e) => setSearch(e.target.value)}
+          showValidIcon={false}
+          className="pl-9 pr-11 [&_input::-webkit-search-cancel-button]:appearance-none"
+        />
+        {search && (
+          <button
+            type="button"
+            data-testid="slip-activity-search-clear"
+            aria-label={t("slipActivity.filters.clearSearch", "Clear search")}
+            title={t("slipActivity.filters.clearSearch", "Clear search")}
+            onClick={() => {
+              setSearch("")
+              // Clearing drops an applied search at once; other unapplied edits stay as drafts.
+              if (value.search) onApply({ fromDate: value.fromDate, toDate: value.toDate, locationIds: value.locationIds, search: "" })
+              document.getElementById("slip-activity-search")?.focus()
+            }}
+            className="absolute right-1 top-9 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-md text-gray-500 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
       </div>
       <Button
         type="submit"

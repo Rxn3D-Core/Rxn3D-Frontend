@@ -15,6 +15,8 @@ export const SLIP_ACTIVITY_DEFAULT_PER_PAGE = 25
 export const SLIP_ACTIVITY_DEFAULT_RANGE_DAYS = 30
 /** Backend refuses `to - from` over 366 days; stay one day inside that. */
 export const SLIP_ACTIVITY_MAX_RANGE_DAYS = 365
+/** Backend rule for `search` (RXN-12): trimmed string, at most 100 characters. */
+export const SLIP_ACTIVITY_SEARCH_MAX_LENGTH = 100
 
 function pad(n: number): string {
   return String(n).padStart(2, "0")
@@ -29,10 +31,16 @@ export function defaultSlipActivityFilters(now: Date = new Date()): SlipActivity
     fromDate: `${from.getUTCFullYear()}-${pad(from.getUTCMonth() + 1)}-${pad(from.getUTCDate())}`,
     toDate,
     locationIds: [],
+    search: "",
     page: 1,
     perPage: SLIP_ACTIVITY_DEFAULT_PER_PAGE,
     ...SLIP_ACTIVITY_DEFAULT_SORT,
   }
+}
+
+/** Trim, cap at 100 characters, trim again (the cut may end on a space). Empty means "no search". */
+export function normalizeSlipActivitySearch(raw: string | null | undefined): string {
+  return (raw ?? "").trim().slice(0, SLIP_ACTIVITY_SEARCH_MAX_LENGTH).trim()
 }
 
 export type SlipActivityRangeError = "invalidDate" | "fromAfterTo" | "rangeTooLong"
@@ -57,6 +65,9 @@ function appendFilterParams(params: URLSearchParams, filters: SlipActivityFilter
   for (const id of ids) params.append("location_ids[]", String(id))
   // A row matches when its from- OR to-status is selected (user decision, RXN-7).
   if (ids.length) params.append("match", "either")
+  // Matches slip number, patient, office and user name (RXN-12); omitted when empty.
+  const search = normalizeSlipActivitySearch(filters.search)
+  if (search) params.append("search", search)
   // Server-side sort across all pages (RXN-13); always sent so the export matches the table.
   params.append("sort", filters.sort)
   params.append("direction", filters.direction)

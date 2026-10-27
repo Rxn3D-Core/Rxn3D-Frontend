@@ -52,6 +52,8 @@ export interface SlipActivityEventsResponse {
     to: string
     location_ids: number[]
     match: SlipActivityMatch
+    /** Echo of the applied search (RXN-12); absent or null when none. */
+    search?: string | null
   }
 }
 
@@ -71,11 +73,13 @@ export interface SlipActivitySort {
   direction: SlipActivitySortDirection
 }
 
-/** UI filter state. Dates are local calendar days (`YYYY-MM-DD`). Sort is not kept in the URL. */
+/** UI filter state. Dates are local calendar days (`YYYY-MM-DD`). Sort and search are not kept in the URL. */
 export interface SlipActivityFilters extends SlipActivitySort {
   fromDate: string
   toDate: string
   locationIds: number[]
+  /** Applied search, already normalized; "" means no search. */
+  search: string
   page: number
   perPage: number
 }

@@ -128,6 +128,7 @@
     "retry": "Erneut versuchen",
     "statusesError": "Statusliste konnte nicht geladen werden.",
     "empty": "Keine Statusänderungen entsprechen diesen Filtern.",
+    "emptySearch": "Keine Statusänderungen entsprechen \"{{search}}\" mit diesen Filtern.",
     "accessDenied": {
       "title": "Zugriff verweigert",
       "body": "Diese Seite ist nur für Laborbenutzer verfügbar."
@@ -143,7 +144,10 @@
       "apply": "Anwenden",
       "errorFromAfterTo": "Das Startdatum muss vor oder am Enddatum liegen.",
       "errorRangeTooLong": "Wählen Sie einen Zeitraum von höchstens 365 Tagen.",
-      "errorInvalidDate": "Geben Sie ein gültiges Start- und Enddatum ein."
+      "errorInvalidDate": "Geben Sie ein gültiges Start- und Enddatum ein.",
+      "search": "Suche",
+      "searchPlaceholder": "Auftrag, Patient, Praxis oder Benutzer suchen",
+      "clearSearch": "Suche löschen"
     },
     "table": {
       "dateTime": "Datum/Uhrzeit",

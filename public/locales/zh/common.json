@@ -128,6 +128,7 @@
     "retry": "重试",
     "statusesError": "无法加载状态列表。",
     "empty": "没有符合这些筛选条件的状态变更。",
+    "emptySearch": "没有符合“{{search}}”及这些筛选条件的状态变更。",
     "accessDenied": {
       "title": "拒绝访问",
       "body": "此页面仅供实验室用户使用。"
@@ -143,7 +144,10 @@
       "apply": "应用",
       "errorFromAfterTo": "开始日期必须早于或等于结束日期。",
       "errorRangeTooLong": "请选择不超过 365 天的范围。",
-      "errorInvalidDate": "请输入有效的开始和结束日期。"
+      "errorInvalidDate": "请输入有效的开始和结束日期。",
+      "search": "搜索",
+      "searchPlaceholder": "搜索单号、患者、诊所或用户",
+      "clearSearch": "清除搜索"
     },
     "table": {
       "dateTime": "日期/时间",

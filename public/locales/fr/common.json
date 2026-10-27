@@ -128,6 +128,7 @@
     "retry": "Réessayer",
     "statusesError": "Impossible de charger la liste des statuts.",
     "empty": "Aucun changement de statut ne correspond à ces filtres.",
+    "emptySearch": "Aucun changement de statut ne correspond à « {{search}} » avec ces filtres.",
     "accessDenied": {
       "title": "Accès refusé",
       "body": "Cette page est réservée aux utilisateurs du laboratoire."
@@ -143,7 +144,10 @@
       "apply": "Appliquer",
       "errorFromAfterTo": "La date de début doit être antérieure ou égale à la date de fin.",
       "errorRangeTooLong": "Choisissez une période de 365 jours maximum.",
-      "errorInvalidDate": "Saisissez une date de début et de fin valides."
+      "errorInvalidDate": "Saisissez une date de début et de fin valides.",
+      "search": "Rechercher",
+      "searchPlaceholder": "Rechercher un bon, patient, cabinet ou utilisateur",
+      "clearSearch": "Effacer la recherche"
     },
     "table": {
       "dateTime": "Date/heure",

@@ -522,6 +522,7 @@
     "retry": "Reintentar",
     "statusesError": "No se pudo cargar la lista de estados.",
     "empty": "Ningún cambio de estado coincide con estos filtros.",
+    "emptySearch": "Ningún cambio de estado coincide con \"{{search}}\" y estos filtros.",
     "accessDenied": {
       "title": "Acceso denegado",
       "body": "Esta página solo está disponible para usuarios de laboratorio."
@@ -537,7 +538,10 @@
       "apply": "Aplicar",
       "errorFromAfterTo": "La fecha de inicio debe ser igual o anterior a la fecha de fin.",
       "errorRangeTooLong": "Elija un rango de 365 días o menos.",
-      "errorInvalidDate": "Introduzca una fecha de inicio y de fin válidas."
+      "errorInvalidDate": "Introduzca una fecha de inicio y de fin válidas.",
+      "search": "Buscar",
+      "searchPlaceholder": "Buscar orden, paciente, consultorio o usuario",
+      "clearSearch": "Borrar búsqueda"
     },
     "table": {
       "dateTime": "Fecha/hora",
