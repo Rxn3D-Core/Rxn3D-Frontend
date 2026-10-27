@@ -10,6 +10,8 @@
         "slip_number": "S-004812",
         "case_id": 2207
       },
+      "patient_name": "John Doe",
+      "office_name": "Smile Dental",
       "from_status": {
         "id": 1,
         "name": "In office ready to pickup"
@@ -31,6 +33,8 @@
         "slip_number": "S-004811",
         "case_id": 2206
       },
+      "patient_name": "Priya Shah",
+      "office_name": "Bright Teeth Clinic",
       "from_status": {
         "id": 2,
         "name": "On route to the lab"
@@ -52,6 +56,8 @@
         "slip_number": "S-004810",
         "case_id": 2205
       },
+      "patient_name": "Carlos Mendez",
+      "office_name": "Downtown Family Dentistry",
       "from_status": {
         "id": 3,
         "name": "In lab"
@@ -73,6 +79,8 @@
         "slip_number": "S-004809",
         "case_id": 2204
       },
+      "patient_name": "Emily Chen",
+      "office_name": "Smile Dental",
       "from_status": {
         "id": 4,
         "name": "In lab ready to pickup"
@@ -91,6 +99,8 @@
         "slip_number": "S-004808",
         "case_id": 2203
       },
+      "patient_name": "Ahmed Khan",
+      "office_name": "Bright Teeth Clinic",
       "from_status": {
         "id": 5,
         "name": "On route to the office"
@@ -112,6 +122,8 @@
         "slip_number": "S-004807",
         "case_id": 2202
       },
+      "patient_name": null,
+      "office_name": "Downtown Family Dentistry",
       "from_status": {
         "id": 1,
         "name": "In office ready to pickup"
@@ -133,6 +145,8 @@
         "slip_number": "S-004806",
         "case_id": 2201
       },
+      "patient_name": "Priya Shah",
+      "office_name": null,
       "from_status": {
         "id": 2,
         "name": "On route to the lab"
@@ -154,6 +168,8 @@
         "slip_number": "S-004805",
         "case_id": 2200
       },
+      "patient_name": "Carlos Mendez",
+      "office_name": "Bright Teeth Clinic",
       "from_status": {
         "id": 3,
         "name": "In lab"
@@ -172,6 +188,8 @@
         "slip_number": "S-004804",
         "case_id": 2199
       },
+      "patient_name": "Emily Chen",
+      "office_name": "Downtown Family Dentistry",
       "from_status": {
         "id": 4,
         "name": "In lab ready to pickup"
@@ -193,6 +211,8 @@
         "slip_number": "S-004803",
         "case_id": 2198
       },
+      "patient_name": "Ahmed Khan",
+      "office_name": "Smile Dental",
       "from_status": {
         "id": 5,
         "name": "On route to the office"
@@ -214,6 +234,8 @@
         "slip_number": "S-004802",
         "case_id": 2197
       },
+      "patient_name": "John Doe",
+      "office_name": "Bright Teeth Clinic",
       "from_status": {
         "id": 1,
         "name": "In office ready to pickup"
@@ -235,6 +257,8 @@
         "slip_number": "S-004801",
         "case_id": 2196
       },
+      "patient_name": "Priya Shah",
+      "office_name": "Downtown Family Dentistry",
       "from_status": {
         "id": 2,
         "name": "On route to the lab"
@@ -253,6 +277,8 @@
         "slip_number": "S-004800",
         "case_id": 2195
       },
+      "patient_name": "Carlos Mendez",
+      "office_name": "Smile Dental",
       "from_status": {
         "id": 3,
         "name": "In lab"
@@ -274,6 +300,8 @@
         "slip_number": "S-004799",
         "case_id": 2194
       },
+      "patient_name": "Emily Chen",
+      "office_name": "Bright Teeth Clinic",
       "from_status": {
         "id": 4,
         "name": "In lab ready to pickup"
@@ -295,6 +323,8 @@
         "slip_number": "S-004798",
         "case_id": 2193
       },
+      "patient_name": "Ahmed Khan",
+      "office_name": "Downtown Family Dentistry",
       "from_status": {
         "id": 5,
         "name": "On route to the office"
@@ -316,6 +346,8 @@
         "slip_number": "S-004797",
         "case_id": 2192
       },
+      "patient_name": "John Doe",
+      "office_name": "Smile Dental",
       "from_status": {
         "id": 1,
         "name": "In office ready to pickup"
@@ -334,6 +366,8 @@
         "slip_number": "S-004796",
         "case_id": 2191
       },
+      "patient_name": "Priya Shah",
+      "office_name": "Bright Teeth Clinic",
       "from_status": {
         "id": 2,
         "name": "On route to the lab"
@@ -355,6 +389,8 @@
         "slip_number": "S-004795",
         "case_id": 2190
       },
+      "patient_name": "Carlos Mendez",
+      "office_name": "Downtown Family Dentistry",
       "from_status": {
         "id": 3,
         "name": "In lab"
@@ -376,6 +412,8 @@
         "slip_number": "S-004794",
         "case_id": 2189
       },
+      "patient_name": "Emily Chen",
+      "office_name": "Smile Dental",
       "from_status": {
         "id": 4,
         "name": "In lab ready to pickup"
@@ -397,6 +435,8 @@
         "slip_number": "S-004793",
         "case_id": 2188
       },
+      "patient_name": "Ahmed Khan",
+      "office_name": "Bright Teeth Clinic",
       "from_status": {
         "id": 5,
         "name": "On route to the office"
@@ -415,6 +455,8 @@
         "slip_number": "S-004792",
         "case_id": 2187
       },
+      "patient_name": "John Doe",
+      "office_name": "Downtown Family Dentistry",
       "from_status": {
         "id": 1,
         "name": "In office ready to pickup"
@@ -436,6 +478,8 @@
         "slip_number": "S-004791",
         "case_id": 2186
       },
+      "patient_name": "Priya Shah",
+      "office_name": "Smile Dental",
       "from_status": {
         "id": 2,
         "name": "On route to the lab"
@@ -457,6 +501,8 @@
         "slip_number": "S-004790",
         "case_id": 2185
       },
+      "patient_name": "Carlos Mendez",
+      "office_name": "Bright Teeth Clinic",
       "from_status": {
         "id": 3,
         "name": "In lab"
@@ -478,6 +524,8 @@
         "slip_number": "S-004789",
         "case_id": 2184
       },
+      "patient_name": "Emily Chen",
+      "office_name": "Downtown Family Dentistry",
       "from_status": {
         "id": 4,
         "name": "In lab ready to pickup"
@@ -496,6 +544,8 @@
         "slip_number": "S-004788",
         "case_id": 2183
       },
+      "patient_name": "Ahmed Khan",
+      "office_name": "Smile Dental",
       "from_status": {
         "id": 5,
         "name": "On route to the office"

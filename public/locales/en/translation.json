@@ -536,6 +536,8 @@
     "table": {
       "dateTime": "Date/time",
       "slip": "Slip",
+      "patient": "Patient",
+      "office": "Office",
       "statusChange": "From -> To",
       "user": "User",
       "to": "to"

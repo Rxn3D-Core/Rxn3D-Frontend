@@ -148,6 +148,8 @@
     "table": {
       "dateTime": "日期/时间",
       "slip": "工单",
+      "patient": "患者",
+      "office": "诊所",
       "statusChange": "从 -> 至",
       "user": "用户",
       "to": "至"

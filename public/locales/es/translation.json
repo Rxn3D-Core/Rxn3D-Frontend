@@ -542,6 +542,8 @@
     "table": {
       "dateTime": "Fecha/hora",
       "slip": "Orden",
+      "patient": "Paciente",
+      "office": "Consultorio",
       "statusChange": "De -> A",
       "user": "Usuario",
       "to": "a"

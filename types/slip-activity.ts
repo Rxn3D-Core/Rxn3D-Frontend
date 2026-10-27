@@ -16,6 +16,10 @@ export interface SlipActivityEvent {
   /** ISO 8601 with offset. */
   action_at: string
   slip: { id: number; slip_number: string; case_id: number | null }
+  /** Provisional name (RXN-7 scope addition); confirm against Blake's final contract. */
+  patient_name: string | null
+  /** Provisional name (RXN-7 scope addition); confirm against Blake's final contract. */
+  office_name: string | null
   from_status: SlipActivityStatusRef
   to_status: SlipActivityStatusRef
   actor: { id: number; name: string } | null

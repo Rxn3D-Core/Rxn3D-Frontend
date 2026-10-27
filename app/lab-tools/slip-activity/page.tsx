@@ -27,7 +27,7 @@ export default function SlipActivityPage() {
   const pagination = eventsQuery.data?.pagination
 
   return (
-    <main data-testid="slip-activity-page" className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 md:px-6">
+    <main data-testid="slip-activity-page" className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 md:px-6">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">{t("slipActivity.title", "Slip Activity Monitor")}</h1>

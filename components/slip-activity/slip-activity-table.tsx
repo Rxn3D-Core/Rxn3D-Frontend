@@ -37,11 +37,13 @@ export function SlipActivityTable({ events, pagination, isFetching, onPageChange
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border-[1.5px] border-[#E0E0E0] bg-white" aria-busy={isFetching}>
-        <Table data-testid="slip-activity-table" className="min-w-[640px]">
+        <Table data-testid="slip-activity-table" className="min-w-[880px]">
           <TableHeader>
             <TableRow>
               <TableHead>{t("slipActivity.table.dateTime", "Date/time")}</TableHead>
               <TableHead>{t("slipActivity.table.slip", "Slip")}</TableHead>
+              <TableHead>{t("slipActivity.table.patient", "Patient")}</TableHead>
+              <TableHead>{t("slipActivity.table.office", "Office")}</TableHead>
               <TableHead>{t("slipActivity.table.statusChange", "From -> To")}</TableHead>
               <TableHead>{t("slipActivity.table.user", "User")}</TableHead>
             </TableRow>
@@ -63,6 +65,8 @@ export function SlipActivityTable({ events, pagination, isFetching, onPageChange
                       {row.slipNumber}
                     </Link>
                   </TableCell>
+                  <TableCell className="min-w-[120px]" data-testid="slip-activity-patient">{row.patientName}</TableCell>
+                  <TableCell className="min-w-[140px]" data-testid="slip-activity-office">{row.officeName}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
                       <span>{row.fromStatus}</span>

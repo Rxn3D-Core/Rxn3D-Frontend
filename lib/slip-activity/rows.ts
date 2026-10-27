@@ -6,6 +6,10 @@ export interface SlipActivityRow {
   actionAt: string
   slipNumber: string
   slipHref: string
+  /** Blank when absent. */
+  patientName: string
+  /** Blank when absent. */
+  officeName: string
   fromStatus: string
   toStatus: string
   /** Blank when the actor no longer resolves. */
@@ -18,6 +22,8 @@ export function toSlipActivityRow(event: SlipActivityEvent): SlipActivityRow {
     actionAt: event.action_at,
     slipNumber: event.slip.slip_number,
     slipHref: buildVirtualSlipPath(event.slip.case_id, event.slip.id),
+    patientName: event.patient_name?.trim() ?? "",
+    officeName: event.office_name?.trim() ?? "",
     fromStatus: event.from_status.name,
     toStatus: event.to_status.name,
     userName: event.actor?.name?.trim() ?? "",

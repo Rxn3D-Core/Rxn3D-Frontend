@@ -148,6 +148,8 @@
     "table": {
       "dateTime": "Datum/Uhrzeit",
       "slip": "Auftrag",
+      "patient": "Patient",
+      "office": "Praxis",
       "statusChange": "Von -> Nach",
       "user": "Benutzer",
       "to": "nach"

@@ -148,6 +148,8 @@
     "table": {
       "dateTime": "Date/heure",
       "slip": "Bon",
+      "patient": "Patient",
+      "office": "Cabinet",
       "statusChange": "De -> À",
       "user": "Utilisateur",
       "to": "à"
