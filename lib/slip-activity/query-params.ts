@@ -8,6 +8,7 @@ import type {
   SlipActivityExportFormat,
   SlipActivityFilters,
 } from "@/types/slip-activity"
+import { SLIP_ACTIVITY_DEFAULT_SORT } from "./sort"
 import { parseCalendarDay, slipActivityDayBoundary, slipActivityToday } from "./time-zone"
 
 export const SLIP_ACTIVITY_DEFAULT_PER_PAGE = 25
@@ -30,6 +31,7 @@ export function defaultSlipActivityFilters(now: Date = new Date()): SlipActivity
     locationIds: [],
     page: 1,
     perPage: SLIP_ACTIVITY_DEFAULT_PER_PAGE,
+    ...SLIP_ACTIVITY_DEFAULT_SORT,
   }
 }
 
@@ -55,6 +57,9 @@ function appendFilterParams(params: URLSearchParams, filters: SlipActivityFilter
   for (const id of ids) params.append("location_ids[]", String(id))
   // A row matches when its from- OR to-status is selected (user decision, RXN-7).
   if (ids.length) params.append("match", "either")
+  // Server-side sort across all pages (RXN-13); always sent so the export matches the table.
+  params.append("sort", filters.sort)
+  params.append("direction", filters.direction)
 }
 
 /** Query string (no leading `?`) for `GET /v1/slip-activity/events`. */

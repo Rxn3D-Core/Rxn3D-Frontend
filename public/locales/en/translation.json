@@ -540,7 +540,12 @@
       "office": "Office",
       "statusChange": "From -> To",
       "user": "User",
-      "to": "to"
+      "to": "to",
+      "sort": {
+        "none": "Sort by {{column}}",
+        "ascending": "Sorted by {{column}}, ascending. Select to sort descending.",
+        "descending": "Sorted by {{column}}, descending. Select to sort ascending."
+      }
     },
     "pagination": {
       "label": "Pagination",

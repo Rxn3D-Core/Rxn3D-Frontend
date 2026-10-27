@@ -1,22 +1,37 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toSlipActivityRow } from "@/lib/slip-activity/rows"
+import { slipActivityAriaSort } from "@/lib/slip-activity/sort"
 import { formatSlipActivityDateTime } from "@/lib/slip-activity/time-zone"
-import type { SlipActivityEvent, SlipActivityPagination } from "@/types/slip-activity"
+import type {
+  SlipActivityEvent,
+  SlipActivityPagination,
+  SlipActivitySort,
+  SlipActivitySortColumn,
+} from "@/types/slip-activity"
 
 interface SlipActivityTableProps {
   events: SlipActivityEvent[]
   pagination: SlipActivityPagination | undefined
   isFetching: boolean
   onPageChange: (page: number) => void
+  sort: SlipActivitySort
+  onSortChange: (column: SlipActivitySortColumn) => void
 }
 
-export function SlipActivityTable({ events, pagination, isFetching, onPageChange }: SlipActivityTableProps) {
+export function SlipActivityTable({
+  events,
+  pagination,
+  isFetching,
+  onPageChange,
+  sort,
+  onSortChange,
+}: SlipActivityTableProps) {
   const { t, i18n } = useTranslation()
   const rows = events.map(toSlipActivityRow)
 
@@ -34,18 +49,49 @@ export function SlipActivityTable({ events, pagination, isFetching, onPageChange
   const page = pagination?.current_page ?? 1
   const lastPage = pagination?.last_page ?? 1
 
+  const sortableHead = (column: SlipActivitySortColumn, label: string) => {
+    const ariaSort = slipActivityAriaSort(sort, column)
+    const hint =
+      ariaSort === "ascending"
+        ? t("slipActivity.table.sort.ascending", "Sorted by {{column}}, ascending. Select to sort descending.", { column: label })
+        : ariaSort === "descending"
+          ? t("slipActivity.table.sort.descending", "Sorted by {{column}}, descending. Select to sort ascending.", { column: label })
+          : t("slipActivity.table.sort.none", "Sort by {{column}}", { column: label })
+    const Icon = ariaSort === "ascending" ? ArrowUp : ariaSort === "descending" ? ArrowDown : ArrowUpDown
+    return (
+      <TableHead aria-sort={ariaSort} data-testid={`slip-activity-head-${column}`} className="whitespace-nowrap">
+        <button
+          type="button"
+          data-testid={`slip-activity-sort-${column}`}
+          title={hint}
+          onClick={() => onSortChange(column)}
+          className={`-mx-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-md px-2 font-medium hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] focus-visible:ring-offset-1 ${
+            ariaSort === "none" ? "" : "text-gray-900"
+          }`}
+        >
+          <span>{label}</span>
+          <Icon
+            className={`h-4 w-4 shrink-0 ${ariaSort === "none" ? "text-gray-300" : "text-[#1162A8]"}`}
+            aria-hidden="true"
+            data-testid={`slip-activity-sort-icon-${ariaSort}`}
+          />
+        </button>
+      </TableHead>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border-[1.5px] border-[#E0E0E0] bg-white" aria-busy={isFetching}>
         <Table data-testid="slip-activity-table" className="min-w-[880px]">
           <TableHeader>
             <TableRow>
-              <TableHead>{t("slipActivity.table.dateTime", "Date/time")}</TableHead>
-              <TableHead>{t("slipActivity.table.slip", "Slip")}</TableHead>
-              <TableHead>{t("slipActivity.table.patient", "Patient")}</TableHead>
-              <TableHead>{t("slipActivity.table.office", "Office")}</TableHead>
-              <TableHead>{t("slipActivity.table.statusChange", "From -> To")}</TableHead>
-              <TableHead>{t("slipActivity.table.user", "User")}</TableHead>
+              {sortableHead("action_at", t("slipActivity.table.dateTime", "Date/time"))}
+              {sortableHead("slip_number", t("slipActivity.table.slip", "Slip"))}
+              {sortableHead("patient_name", t("slipActivity.table.patient", "Patient"))}
+              {sortableHead("office_name", t("slipActivity.table.office", "Office"))}
+              {sortableHead("status", t("slipActivity.table.statusChange", "From -> To"))}
+              {sortableHead("user_name", t("slipActivity.table.user", "User"))}
             </TableRow>
           </TableHeader>
           <TableBody>

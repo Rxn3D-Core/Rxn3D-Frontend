@@ -152,7 +152,12 @@
       "office": "Cabinet",
       "statusChange": "De -> À",
       "user": "Utilisateur",
-      "to": "à"
+      "to": "à",
+      "sort": {
+        "none": "Trier par {{column}}",
+        "ascending": "Trié par {{column}}, ordre croissant. Sélectionnez pour trier par ordre décroissant.",
+        "descending": "Trié par {{column}}, ordre décroissant. Sélectionnez pour trier par ordre croissant."
+      }
     },
     "pagination": {
       "label": "Pagination",

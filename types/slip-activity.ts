@@ -55,8 +55,24 @@ export interface SlipActivityEventsResponse {
   }
 }
 
-/** UI filter state. Dates are local calendar days (`YYYY-MM-DD`). */
-export interface SlipActivityFilters {
+/** `sort` values accepted by the events and export endpoints (contract: RXN-13). */
+export type SlipActivitySortColumn =
+  | "action_at"
+  | "slip_number"
+  | "patient_name"
+  | "office_name"
+  | "status"
+  | "user_name"
+
+export type SlipActivitySortDirection = "asc" | "desc"
+
+export interface SlipActivitySort {
+  sort: SlipActivitySortColumn
+  direction: SlipActivitySortDirection
+}
+
+/** UI filter state. Dates are local calendar days (`YYYY-MM-DD`). Sort is not kept in the URL. */
+export interface SlipActivityFilters extends SlipActivitySort {
   fromDate: string
   toDate: string
   locationIds: number[]

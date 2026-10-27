@@ -10,6 +10,7 @@ import { SlipActivityFiltersBar } from "@/components/slip-activity/slip-activity
 import { SlipActivityTable } from "@/components/slip-activity/slip-activity-table"
 import { useSlipActivityEvents, useSlipActivityStatuses } from "@/hooks/use-slip-activity"
 import { defaultSlipActivityFilters } from "@/lib/slip-activity/query-params"
+import { nextSlipActivitySort } from "@/lib/slip-activity/sort"
 import { isSlipActivityForbidden } from "@/services/slip-activity-service"
 import type { SlipActivityFilters } from "@/types/slip-activity"
 
@@ -76,6 +77,9 @@ export default function SlipActivityPage() {
           pagination={pagination}
           isFetching={eventsQuery.isFetching}
           onPageChange={(page) => setFilters((prev) => ({ ...prev, page }))}
+          sort={{ sort: filters.sort, direction: filters.direction }}
+          // A new sort starts again at page 1; it is kept in state only, not in the URL.
+          onSortChange={(column) => setFilters((prev) => ({ ...prev, ...nextSlipActivitySort(prev, column), page: 1 }))}
         />
       )}
     </main>
