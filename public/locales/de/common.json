@@ -154,7 +154,7 @@
       "slip": "Auftrag",
       "patient": "Patient",
       "office": "Praxis",
-      "fileType": "Dateityp",
+      "digitalImpression": "Digitaler Abdruck",
       "statusChange": "Von -> Nach",
       "user": "Benutzer",
       "to": "nach",
