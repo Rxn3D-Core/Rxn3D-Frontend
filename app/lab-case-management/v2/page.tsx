@@ -1253,7 +1253,6 @@ export default function LabSlipPage() {
             }}
             patient={selectedSlipForDateChange.patient}
             stage={selectedSlipForDateChange.product || "Unknown Stage"}
-            currentDate={new Date().toLocaleDateString()}
             deliveryDate={selectedSlipForDateChange.dueDate}
             deliveryTime={selectedSlipForDateChange.dueTime || "17:00"}
             deliveryTimeRaw={selectedSlipForDateChange.dueTime}
