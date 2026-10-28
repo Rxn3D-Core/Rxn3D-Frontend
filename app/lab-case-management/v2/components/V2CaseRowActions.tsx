@@ -83,6 +83,11 @@ export function V2CaseRowActions({ row, actions, canPrintStatement, canSendBack,
       <button aria-label="Add-ons" className={btn} title="Add-ons" type="button" onClick={(e) => { stop(e); actions.onAddOns(row) }}>
         <MonoImg src={`${VS}/add-general.svg`} />
       </button>
+      {actions.onViewDriverHistory && (
+        <button aria-label="Driver history" className={btn} data-testid="slip-row-driver-history" title="Driver history" type="button" onClick={(e) => { stop(e); actions.onViewDriverHistory?.(row) }}>
+          <MonoImg src={`${VS}/driver-history.svg`} />
+        </button>
+      )}
       <button aria-label="Call log" className={btn} title="Call log" type="button" onClick={(e) => { stop(e); actions.onCallLog(row) }}>
         <MonoImg src={`${VS}/call-log.svg`} />
       </button>

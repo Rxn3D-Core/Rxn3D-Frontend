@@ -12,6 +12,8 @@ import { useSlipCreation } from "@/contexts/slip-creation-context";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
 import ChangeDateModal from "@/components/change-date-modal"
 import DriverHistoryModal from "@/components/driver-history-modal"
+import { SlipDriverHistoryViewModal } from "@/components/slip-driver-history-view-modal"
+import type { V2CaseRowData } from "./case-table-types"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 import AddOnsModal from "@/components/add-ons-modal"
@@ -120,6 +122,7 @@ export default function LabSlipPage() {
   const [showChangeDateModal, setShowChangeDateModal] = useState(false)
   const [selectedSlipForDateChange, setSelectedSlipForDateChange] = useState<any>(null)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
+  const [slipForDriverHistoryView, setSlipForDriverHistoryView] = useState<V2CaseRowData | null>(null)
   const [selectedSlipForDriverHistory, setSelectedSlipForDriverHistory] = useState<any>(null)
   const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
@@ -1185,6 +1188,7 @@ export default function LabSlipPage() {
             onHold: handleOpenHoldCase,
             onChangeDueDate: handleDateIconClick,
             onDriverHistory: handleLocationIconClick,
+            onViewDriverHistory: (slip) => setSlipForDriverHistoryView(slip),
             onReadyToSend: handleOpenReadyToSend,
             onAddStage: (slip) => router.push(`/add-new-stage?sourceSlipId=${slip.id}`),
             onSendBack: handleOpenSendBackToOffice,
@@ -1437,6 +1441,18 @@ export default function LabSlipPage() {
           enableScopePicker
           officeName={selectedSlipForHold?.officeCode}
           patientName={selectedSlipForHold?.patient}
+        />
+
+        <SlipDriverHistoryViewModal
+          open={slipForDriverHistoryView != null}
+          onClose={() => setSlipForDriverHistoryView(null)}
+          slipId={slipForDriverHistoryView?.id ?? 0}
+          caseId={slipForDriverHistoryView?.caseId}
+          office={slipForDriverHistoryView?.officeCode}
+          code={slipForDriverHistoryView?.officeCode}
+          patient={slipForDriverHistoryView?.patient}
+          pan={slipForDriverHistoryView?.pan}
+          caseNo={slipForDriverHistoryView?.caseNumber}
         />
 
         {/* Driver History Modal */}

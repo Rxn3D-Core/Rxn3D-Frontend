@@ -89,6 +89,8 @@ export interface V2RowActions {
   onHold: (row: V2CaseRowData) => void
   onChangeDueDate: (row: V2CaseRowData) => void
   onDriverHistory: (row: V2CaseRowData) => void
+  /** Opens the slip's driver history modal (same one as the virtual slip). */
+  onViewDriverHistory?: (row: V2CaseRowData) => void
   onReadyToSend: (row: V2CaseRowData) => void
   onAddStage: (row: V2CaseRowData) => void
   onSendBack: (row: V2CaseRowData) => void

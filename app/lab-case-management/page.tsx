@@ -17,6 +17,7 @@ import { useSlipCreation } from "@/contexts/slip-creation-context"
 import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog"
 import ChangeDateModal from "@/components/change-date-modal"
 import DriverHistoryModal from "@/components/driver-history-modal"
+import { SlipDriverHistoryViewModal } from "@/components/slip-driver-history-view-modal"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 import AddOnsModal from "@/components/add-ons-modal"
@@ -220,6 +221,7 @@ export default function LabSlipV3Page() {
   const [showChangeDateModal, setShowChangeDateModal] = useState(false)
   const [selectedSlipForDateChange, setSelectedSlipForDateChange] = useState<V2CaseRowData | null>(null)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
+  const [slipForDriverHistoryView, setSlipForDriverHistoryView] = useState<V2CaseRowData | null>(null)
   const [selectedSlipForDriverHistory, setSelectedSlipForDriverHistory] = useState<V2CaseRowData | null>(null)
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
   const [selectedSlipForAddOns, setSelectedSlipForAddOns] = useState<V2CaseRowData | null>(null)
@@ -1042,6 +1044,7 @@ export default function LabSlipV3Page() {
             onHold: handleOpenHoldCase,
             onChangeDueDate: (slip) => { setSelectedSlipForDateChange(slip); setShowChangeDateModal(true) },
             onDriverHistory: (slip) => { setSelectedSlipForDriverHistory(slip); setShowDriverHistoryModal(true) },
+            onViewDriverHistory: (slip) => setSlipForDriverHistoryView(slip),
             onReadyToSend: handleOpenReadyToSend,
             onAddStage: (slip) => router.push(`/add-new-stage?sourceSlipId=${slip.id}`),
             onSendBack: (slip) => { setSelectedSlipForSendBackToOffice(slip); setShowSendBackToOfficeModal(true) },
@@ -1268,6 +1271,18 @@ export default function LabSlipV3Page() {
           reasonPlaceholder="Please provide a reason for putting case on hold."
           officeName={selectedSlipForHold?.officeCode}
           patientName={selectedSlipForHold?.patient}
+        />
+
+        <SlipDriverHistoryViewModal
+          open={slipForDriverHistoryView != null}
+          onClose={() => setSlipForDriverHistoryView(null)}
+          slipId={slipForDriverHistoryView?.id ?? 0}
+          caseId={slipForDriverHistoryView?.caseId}
+          office={slipForDriverHistoryView?.officeCode}
+          code={slipForDriverHistoryView?.officeCode}
+          patient={slipForDriverHistoryView?.patient}
+          pan={slipForDriverHistoryView?.pan}
+          caseNo={slipForDriverHistoryView?.caseNumber}
         />
 
         <DriverHistoryModal
