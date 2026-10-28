@@ -23,6 +23,8 @@ export interface SlipActivityEvent {
   from_status: SlipActivityStatusRef
   to_status: SlipActivityStatusRef
   actor: { id: number; name: string } | null
+  /** True when the slip has at least one STL file (RXN-15). Never null per contract. */
+  has_stl: boolean
 }
 
 export interface SlipActivityPagination {

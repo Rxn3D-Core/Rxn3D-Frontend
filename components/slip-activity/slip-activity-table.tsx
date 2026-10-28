@@ -88,13 +88,16 @@ export function SlipActivityTable({
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border-[1.5px] border-[#E0E0E0] bg-white" aria-busy={isFetching}>
-        <Table data-testid="slip-activity-table" className="min-w-[880px]">
+        <Table data-testid="slip-activity-table" className="min-w-[960px]">
           <TableHeader>
             <TableRow>
               {sortableHead("action_at", t("slipActivity.table.dateTime", "Date/time"))}
               {sortableHead("slip_number", t("slipActivity.table.slip", "Slip"))}
               {sortableHead("patient_name", t("slipActivity.table.patient", "Patient"))}
               {sortableHead("office_name", t("slipActivity.table.office", "Office"))}
+              <TableHead data-testid="slip-activity-head-file_type" className="w-[1%] whitespace-nowrap">
+                {t("slipActivity.table.fileType", "File type")}
+              </TableHead>
               {sortableHead("status", t("slipActivity.table.statusChange", "From -> To"))}
               {sortableHead("user_name", t("slipActivity.table.user", "User"))}
             </TableRow>
@@ -117,6 +120,20 @@ export function SlipActivityTable({
                   </TableCell>
                   <TableCell className="min-w-[120px]" data-testid="slip-activity-patient">{row.patientName}</TableCell>
                   <TableCell className="min-w-[140px]" data-testid="slip-activity-office">{row.officeName}</TableCell>
+                  <TableCell className="whitespace-nowrap" data-testid="slip-activity-file-type">
+                    {row.hasStl ? (
+                      <span
+                        data-testid="slip-activity-stl-badge"
+                        className="inline-flex items-center rounded border border-[#1162A8]/30 bg-[#1162A8]/10 px-1.5 py-0.5 text-xs font-semibold text-[#1162A8]"
+                      >
+                        STL
+                      </span>
+                    ) : (
+                      <span className="text-gray-300" aria-hidden="true">
+                        -
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
                       <span>{row.fromStatus}</span>
