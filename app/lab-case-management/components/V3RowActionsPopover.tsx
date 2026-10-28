@@ -69,14 +69,15 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
 
   // Location (ready-to-send / pick up / drop off / add stage) and Schedule are
   // omitted here — they already live in the Location and Due Date columns.
-  const btns: { label: string; icon: string; onClick: (e: React.MouseEvent) => void; loading?: boolean }[] = [
+  const btns: { label: string; icon: string; onClick: (e: React.MouseEvent) => void; loading?: boolean; testId?: string; wide?: boolean }[] = [
     visibility.print ? { label: "Print", icon: `${LI}/print.png`, onClick: act(printPaperSlip), loading: printing } : null,
     visibility.printDriverLabel ? { label: "Print driver slip", icon: `${LI}/driver-slip.svg`, onClick: act(() => actions.onPrintDriverLabel(row)) } : null,
     visibility.invoice ? { label: "Invoice", icon: `/icons/virtual-slip-actions/print-invoice.svg`, onClick: act(() => actions.onPrintStatement(row)) } : null,
     visibility.attach ? { label: "Attach", icon: `${LI}/attachment.png`, onClick: act(() => actions.onAttachment(row)) } : null,
     visibility.addOns ? { label: "Add", icon: `${LI}/add.png`, onClick: act(() => actions.onAddOns(row)) } : null,
+    actions.onViewDriverHistory ? { label: "Driver history", icon: `${VS}/driver-history.svg`, onClick: act(() => actions.onViewDriverHistory?.(row)), testId: "slip-row-driver-history", wide: true } : null,
     visibility.rush ? { label: "Rush", icon: `${VS}/rush.svg`, onClick: act(() => actions.onRush(row)) } : null,
-  ].filter((btn): btn is { label: string; icon: string; onClick: (e: React.MouseEvent) => void; loading?: boolean } => btn != null)
+  ].filter((btn): btn is NonNullable<typeof btn> => btn != null)
 
   const visibleBtns = btns
 
@@ -112,9 +113,10 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {visibleBtns.map(({ label, icon, onClick, loading }) => (
+      {visibleBtns.map(({ label, icon, onClick, loading, testId, wide }) => (
         <button
           key={label}
+          data-testid={testId}
           aria-label={label}
           aria-busy={loading || undefined}
           title={loading ? "Preparing print…" : label}
@@ -126,7 +128,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 25,
+            width: wide ? 34 : 25,
             height: 25,
             border: "none",
             background: "none",
@@ -137,7 +139,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
           {loading ? (
             <Loader2 className="animate-spin text-[#1162A8]" style={{ width: 20, height: 20 }} />
           ) : (
-            <img src={icon} alt={label} style={{ width: 25, height: 25, objectFit: "contain" }} />
+            <img src={icon} alt={label} style={{ width: wide ? 34 : 25, height: 25, objectFit: "contain" }} />
           )}
         </button>
       ))}
