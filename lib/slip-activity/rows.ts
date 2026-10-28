@@ -14,6 +14,8 @@ export interface SlipActivityRow {
   toStatus: string
   /** Blank when the actor no longer resolves. */
   userName: string
+  /** False when absent (backend older than RXN-15). */
+  hasStl: boolean
 }
 
 export function toSlipActivityRow(event: SlipActivityEvent): SlipActivityRow {
@@ -27,5 +29,6 @@ export function toSlipActivityRow(event: SlipActivityEvent): SlipActivityRow {
     fromStatus: event.from_status.name,
     toStatus: event.to_status.name,
     userName: event.actor?.name?.trim() ?? "",
+    hasStl: event.has_stl === true,
   }
 }

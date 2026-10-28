@@ -548,6 +548,7 @@
       "slip": "Orden",
       "patient": "Paciente",
       "office": "Consultorio",
+      "fileType": "Tipo de archivo",
       "statusChange": "De -> A",
       "user": "Usuario",
       "to": "a",
