@@ -95,8 +95,8 @@ export function SlipActivityTable({
               {sortableHead("slip_number", t("slipActivity.table.slip", "Slip"))}
               {sortableHead("patient_name", t("slipActivity.table.patient", "Patient"))}
               {sortableHead("office_name", t("slipActivity.table.office", "Office"))}
-              <TableHead data-testid="slip-activity-head-file_type" className="w-[1%] whitespace-nowrap">
-                {t("slipActivity.table.fileType", "File type")}
+              <TableHead data-testid="slip-activity-head-digital_impression" className="min-w-[140px]">
+                {t("slipActivity.table.digitalImpression", "Digital impression")}
               </TableHead>
               {sortableHead("status", t("slipActivity.table.statusChange", "From -> To"))}
               {sortableHead("user_name", t("slipActivity.table.user", "User"))}
@@ -120,19 +120,8 @@ export function SlipActivityTable({
                   </TableCell>
                   <TableCell className="min-w-[120px]" data-testid="slip-activity-patient">{row.patientName}</TableCell>
                   <TableCell className="min-w-[140px]" data-testid="slip-activity-office">{row.officeName}</TableCell>
-                  <TableCell className="whitespace-nowrap" data-testid="slip-activity-file-type">
-                    {row.hasStl ? (
-                      <span
-                        data-testid="slip-activity-stl-badge"
-                        className="inline-flex items-center rounded border border-[#1162A8]/30 bg-[#1162A8]/10 px-1.5 py-0.5 text-xs font-semibold text-[#1162A8]"
-                      >
-                        STL
-                      </span>
-                    ) : (
-                      <span className="text-gray-300" aria-hidden="true">
-                        -
-                      </span>
-                    )}
+                  <TableCell className="min-w-[140px]" data-testid="slip-activity-digital-impression">
+                    {row.digitalImpressions}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">

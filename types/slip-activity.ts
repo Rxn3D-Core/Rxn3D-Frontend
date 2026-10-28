@@ -23,8 +23,10 @@ export interface SlipActivityEvent {
   from_status: SlipActivityStatusRef
   to_status: SlipActivityStatusRef
   actor: { id: number; name: string } | null
-  /** True when the slip has at least one STL file (RXN-15). Never null per contract. */
-  has_stl: boolean
+  /** Distinct digital impression names of the slip, [] if none (RXN-15). Never null per contract. */
+  digital_impressions: string[]
+  /** True when digital_impressions is not empty (RXN-15). */
+  has_digital_impression: boolean
 }
 
 export interface SlipActivityPagination {
