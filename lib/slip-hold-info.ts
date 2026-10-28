@@ -165,3 +165,35 @@ export function resolveSlipCancelDetail(
   const fromNote = findSlipCancelNote(notes, slipId)
   return fromNote ? holdDetailFromNote(fromNote) : null
 }
+
+/** Newest soft-delete note for the slip (notes are expected newest-first). */
+export function findSlipDeleteNote(
+  notes: SlipNoteDetail[],
+  slipId?: number | null
+): SlipNoteDetail | null {
+  for (const note of notes) {
+    if (noteActionType(note) !== "soft_delete") continue
+    if (!noteMatchesSlip(note, slipId ?? null)) continue
+    return note
+  }
+  return null
+}
+
+/**
+ * Resolve who/when/why the slip was deleted for the deleted banner. Falls back
+ * to the slip payload's `deleted_at` when no soft-delete note is available.
+ */
+export function resolveSlipDeleteDetail(
+  notes: SlipNoteDetail[],
+  slipId?: number | null,
+  slipPayload?: unknown
+): SlipHoldDetail | null {
+  const fromNote = findSlipDeleteNote(notes, slipId)
+  if (fromNote) return holdDetailFromNote(fromNote)
+  const deletedAt =
+    slipPayload && typeof slipPayload === "object"
+      ? readString((slipPayload as Record<string, unknown>).deleted_at)
+      : null
+  if (!deletedAt) return null
+  return { authorName: "Unknown", heldAt: deletedAt, reason: "" }
+}
