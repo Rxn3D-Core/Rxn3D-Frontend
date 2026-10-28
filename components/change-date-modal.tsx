@@ -73,7 +73,8 @@ interface ChangeDateModalProps {
   onClose: () => void;
   patient: string;
   stage: string;
-  currentDate: string;
+  /** Display text for the "Current:" chip; defaults to the formatted delivery date. */
+  currentDate?: string;
   deliveryDate: string;
   deliveryTime: string;
   slipId?: number;
@@ -111,6 +112,13 @@ export default function ChangeDateModal({
     const date = new Date(today);
     date.setDate(today.getDate() + 2);
     return date.toISOString().split("T")[0];
+  }, [deliveryDate]);
+
+  // The slip's saved delivery date (not today); null when absent or unparseable.
+  const currentDeliveryDate = useMemo(() => {
+    if (!deliveryDate) return null;
+    const parsed = parse(deliveryDate, "yyyy-MM-dd", new Date());
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }, [deliveryDate]);
 
   const [date, setDate] = useState(defaultDate);
@@ -289,10 +297,13 @@ export default function ChangeDateModal({
               <Layers className="h-3 w-3 shrink-0 text-gray-400" />
               <span className="truncate">{stage || "—"}</span>
             </span>
-            {currentDate ? (
+            {currentDate || currentDeliveryDate ? (
               <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-1 text-xs text-violet-800">
                 <CalendarIcon className="h-3 w-3 shrink-0 text-violet-500" />
-                <span className="truncate">Current: {currentDate}</span>
+                <span className="truncate">Current:{" "}
+                  {currentDate ||
+                    (currentDeliveryDate &&
+                      format(currentDeliveryDate, "dd/MM/yyyy"))}</span>
               </span>
             ) : null}
           </div>
@@ -355,9 +366,22 @@ export default function ChangeDateModal({
                 >
                   <Calendar
                     mode="single"
+                    // Open on the slip's delivery month, not today's month.
+                    defaultMonth={
+                      date
+                        ? parse(date, "yyyy-MM-dd", new Date())
+                        : currentDeliveryDate ?? undefined
+                    }
                     selected={
                       date ? parse(date, "yyyy-MM-dd", new Date()) : undefined
                     }
+                    // Today is not highlighted; the slip's current delivery date is.
+                    modifiers={{ currentDelivery: currentDeliveryDate ?? [] }}
+                    modifiersClassNames={{
+                      currentDelivery:
+                        "ring-2 ring-inset ring-[#82298D]/40 rounded-md",
+                    }}
+                    classNames={{ day_today: "" }}
                     onSelect={(d) => {
                       if (!d) return;
                       setDate(format(d, "yyyy-MM-dd"));
