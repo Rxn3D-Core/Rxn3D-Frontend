@@ -542,7 +542,7 @@
       "slip": "Slip",
       "patient": "Patient",
       "office": "Office",
-      "fileType": "File type",
+      "digitalImpression": "Digital impression",
       "statusChange": "From -> To",
       "user": "User",
       "to": "to",
