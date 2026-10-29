@@ -113,6 +113,9 @@ export default function Page() {
     slipHeaderLoading,
     slipResponseData,
     submit,
+    attachmentUpload,
+    retryAttachmentUploads,
+    continueWithoutFailedAttachments,
   } = useCaseSubmissionFlow({
     createSlip,
     uploadSlipAttachment,
@@ -265,7 +268,12 @@ export default function Page() {
         />
       )}
 
-      <CaseSubmissionOverlays submissionState={submissionState} />
+      <CaseSubmissionOverlays
+        submissionState={submissionState}
+        attachmentUpload={attachmentUpload}
+        onRetryAttachments={retryAttachmentUploads}
+        onContinueWithoutAttachments={continueWithoutFailedAttachments}
+      />
 
       <PatientDemographicModal
         open={demographicModalOpen}
