@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { SlipAttachmentsService, validateSlipAttachmentFile, SLIP_ATTACHMENT_ACCEPT } from "@/services/slip-attachments-service"
 import {
+  cacheStagedFiles,
   forgetPendingAttachment,
   rememberPendingAttachment,
 } from "@/lib/case-design-attachment-cache"
@@ -776,7 +777,13 @@ export default function SlipAttachmentBrowserDialog({
 
   const startPendingUpload = useCallback(
     async (localId: string, file: File, url: string) => {
-      if (!labId) return
+      if (!labId) {
+        // Never leave the file spinning on "uploading" with nothing in flight.
+        const message = "Cannot upload yet: the lab for this case is not known. Remove the file and add it again."
+        patchStaged(localId, { status: "error", error: message })
+        setUploadError(message)
+        return
+      }
       patchStaged(localId, { status: "uploading", progress: 0, error: undefined })
       try {
         const res = await SlipAttachmentsService.uploadPendingAttachment(
@@ -937,18 +944,8 @@ export default function SlipAttachmentBrowserDialog({
     }
     if (!slipId) {
       // No slip and no lab — keep files locally until submit (impression STLs stay in the cache).
-      if (typeof window !== "undefined") {
-        const existing = ((window as any).__caseDesignAttachments ?? []) as any[]
-        const existingNames = new Set(
-          existing.filter((i: any) => i.file instanceof File).map((i: any) => (i.file as File).name)
-        )
-        const newFiles = stagedFiles
-          .filter((f) => !f.fromImpression && !existingNames.has(f.file.name))
-          .map((f) => ({ file: f.file, url: f.url, type: "stl" as const, archived: false }))
-        if (newFiles.length > 0) {
-          ;(window as any).__caseDesignAttachments = [...existing, ...newFiles]
-        }
-      }
+      // De-dupe by name+size+lastModified: same-name scans are different files.
+      cacheStagedFiles(stagedFiles.filter((f) => !f.fromImpression))
       onAttached?.()
       onClose()
     }
