@@ -160,6 +160,7 @@ function StatusPill({ status }: { status: string }) {
   if (status === "On hold" || status === "On Hold") return <SlipListingStatusBadge tone="on-hold">On Hold</SlipListingStatusBadge>
   if (isSlipCaseCancelled(status)) return <SlipListingStatusBadge tone="cancelled">Cancelled</SlipListingStatusBadge>
   if (isSlipCaseFinished(status)) return <SlipListingStatusBadge tone="finished">Done</SlipListingStatusBadge>
+  if (status.trim().toLowerCase() === "deleted") return <SlipListingStatusBadge tone="deleted">Deleted</SlipListingStatusBadge>
   return <SlipListingStatusBadge tone="draft">{status || "Unknown"}</SlipListingStatusBadge>
 }
 

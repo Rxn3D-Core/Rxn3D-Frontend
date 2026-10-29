@@ -1,4 +1,5 @@
 import { ApiService } from "@/lib/api-service";
+import { friendlySlipAttachmentError } from "@/lib/slip-attachment-error";
 
 export type SlipAttachmentType =
   | "global"
@@ -204,7 +205,9 @@ async function uploadFormData<T>(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      throw new Error(
+        friendlySlipAttachmentError(errorData.message || `HTTP error! status: ${response.status}`)
+      );
     }
 
     return response.json();
@@ -234,7 +237,11 @@ async function uploadFormData<T>(
         body = {};
       }
       if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new Error(body.message || `HTTP error! status: ${xhr.status}`));
+        reject(
+          new Error(
+            friendlySlipAttachmentError(body.message || `HTTP error! status: ${xhr.status}`)
+          )
+        );
         return;
       }
       resolve(body as T);
