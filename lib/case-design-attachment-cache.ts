@@ -61,6 +61,83 @@ export function dropLinkedPendingAttachments(ids: number[]) {
   );
 }
 
+/**
+ * Identity of a picked file. Name alone is not enough: two different scans can
+ * share a name (e.g. `upper.stl` exported from two folders).
+ */
+export function attachmentFileKey(file: Pick<File, "name" | "size" | "lastModified">): string {
+  return `${file.name}\u0000${file.size}\u0000${file.lastModified}`;
+}
+
+/**
+ * Adds files staged in the attachment dialog (no slip yet) to the cache, skipping
+ * files that are already cached or repeated in the batch. Returns how many were added.
+ */
+export function cacheStagedFiles(files: Array<{ file: File; url: string }>): number {
+  const existing = readCache();
+  const seen = new Set(
+    existing.filter((item) => item.file instanceof File).map((item) => attachmentFileKey(item.file as File))
+  );
+  const additions: CachedCaseDesignAttachment[] = [];
+  for (const { file, url } of files) {
+    const key = attachmentFileKey(file);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    additions.push({ file, url, type: "stl", archived: false });
+  }
+  if (additions.length > 0) writeCache([...existing, ...additions]);
+  return additions.length;
+}
+
+/** Local files still waiting to be uploaded to the slip once it exists. */
+export function localUploadsFromCache(): CachedCaseDesignAttachment[] {
+  return readCache().filter(
+    (item) =>
+      typeof File !== "undefined" &&
+      item.file instanceof File &&
+      !item.remoteId &&
+      !item.generatedPath &&
+      item.source !== "attachment"
+  );
+}
+
+export type AttachmentUploadFailure = { name: string; error: string };
+
+export type AttachmentUploadProgress = {
+  total: number;
+  completed: number;
+  failed: AttachmentUploadFailure[];
+};
+
+/**
+ * Uploads every local cached file to the slip, one at a time. Each file leaves
+ * the cache as soon as it is saved, so a retry only sends the files that failed;
+ * failed files stay in the cache. Never throws.
+ */
+export async function uploadCachedAttachmentsToSlip(
+  slipId: number,
+  upload: (slipId: number, file: File, options?: { notes?: string }) => Promise<unknown>,
+  onProgress?: (progress: AttachmentUploadProgress) => void
+): Promise<AttachmentUploadProgress & { uploaded: number }> {
+  const pending = localUploadsFromCache();
+  const failed: AttachmentUploadFailure[] = [];
+  let uploaded = 0;
+  onProgress?.({ total: pending.length, completed: 0, failed: [] });
+  for (const item of pending) {
+    const file = item.file as File;
+    try {
+      const notes = item.notes ?? item.description;
+      await upload(slipId, file, notes ? { notes } : undefined);
+      writeCache(readCache().filter((cached) => cached !== item));
+      uploaded += 1;
+    } catch (error) {
+      failed.push({ name: file.name, error: error instanceof Error ? error.message : "Upload failed" });
+    }
+    onProgress?.({ total: pending.length, completed: uploaded + failed.length, failed: [...failed] });
+  }
+  return { total: pending.length, completed: uploaded + failed.length, failed, uploaded };
+}
+
 /** Clears all staged/pending create-slip attachments from the window cache. */
 export function clearCaseDesignAttachmentCache(): number[] {
   const pendingIds = pendingAttachmentIdsFromCache();

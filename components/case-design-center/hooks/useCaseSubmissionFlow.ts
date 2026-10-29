@@ -17,7 +17,10 @@ import {
 import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
 import {
   dropLinkedPendingAttachments,
+  localUploadsFromCache,
   pendingAttachmentIdsFromCache,
+  uploadCachedAttachmentsToSlip,
+  type AttachmentUploadProgress,
 } from "@/lib/case-design-attachment-cache";
 import {
   isSlipLimitExceededError,
@@ -29,60 +32,9 @@ interface ToastApi {
   (options: { title: string; description: string; variant?: "destructive" }): void;
 }
 
-interface CachedAttachment {
-  file?: unknown;
-  url?: string;
-  notes?: string;
-  description?: string;
-  remoteId?: unknown;
-  generatedPath?: string;
-  source?: string;
-}
-
-/**
- * Reads attachments cached during slip creation (window.__caseDesignAttachments)
- * and uploads any local files to the freshly created slip. Already-remote files
- * (remoteId/generatedPath set) are skipped. Failures are collected, not thrown,
- * so a bad attachment never blocks the successful submit redirect.
- */
-async function uploadCachedAttachmentsToSlip(
-  slipId: number,
-  upload: (slipId: number, file: File, options?: { notes?: string }) => Promise<any>,
-): Promise<{ uploaded: number; failed: number }> {
-  if (typeof window === "undefined") return { uploaded: 0, failed: 0 };
-
-  const cached = (window as any).__caseDesignAttachments as CachedAttachment[] | undefined;
-  if (!Array.isArray(cached) || cached.length === 0) return { uploaded: 0, failed: 0 };
-
-  const pending = cached.filter(
-    (item) =>
-      item.file instanceof File &&
-      !item.remoteId &&
-      !item.generatedPath &&
-      item.source !== "attachment",
-  );
-  if (pending.length === 0) return { uploaded: 0, failed: 0 };
-
-  let uploaded = 0;
-  let failed = 0;
-  for (const item of pending) {
-    try {
-      const notes = item.notes ?? item.description;
-      await upload(slipId, item.file as File, notes ? { notes } : undefined);
-      uploaded += 1;
-    } catch (error) {
-      failed += 1;
-      console.error("Failed to upload cached attachment:", error);
-    }
-  }
-
-  // Clear the cache so a later submit doesn't re-upload the same files.
-  if (failed === 0) {
-    (window as any).__caseDesignAttachments = [];
-  }
-
-  return { uploaded, failed };
-}
+export type AttachmentUploadState =
+  | { phase: "idle" }
+  | ({ phase: "uploading" | "failed" } & AttachmentUploadProgress);
 
 interface UseCaseSubmissionFlowParams {
   createSlip: (
@@ -133,7 +85,10 @@ export function useCaseSubmissionFlow({
   const [slipResponseData, setSlipResponseData] = useState<SlipCreationResponse["data"] | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionResult, setSubmissionResult] = useState<CaseSubmissionResult | null>(null);
+  const [attachmentUpload, setAttachmentUpload] = useState<AttachmentUploadState>({ phase: "idle" });
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uploadTargetRef = useRef<{ slipId: number; redirectPath: string } | null>(null);
+  const uploadInFlightRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -142,6 +97,68 @@ export function useCaseSubmissionFlow({
       }
     };
   }, []);
+
+  // Staged files live only in this tab's memory: warn before a reload or close
+  // while they are uploading or waiting for a retry.
+  const attachmentsAtRisk = attachmentUpload.phase !== "idle";
+  useEffect(() => {
+    if (!attachmentsAtRisk || typeof window === "undefined") return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [attachmentsAtRisk]);
+
+  const scheduleRedirect = useCallback(
+    (redirectPath: string) => {
+      redirectTimerRef.current = setTimeout(() => {
+        router.push(redirectPath);
+      }, successRedirectDelayMs);
+    },
+    [router, successRedirectDelayMs]
+  );
+
+  /**
+   * Uploads the locally staged files to the new slip and keeps the user on the
+   * page until every file is saved. Failures stay in the cache and show a
+   * persistent panel with Retry; the redirect only runs once nothing is left.
+   */
+  const runAttachmentUploads = useCallback(async () => {
+    const target = uploadTargetRef.current;
+    if (!target || !uploadSlipAttachment || uploadInFlightRef.current) return;
+    uploadInFlightRef.current = true;
+    const result = await uploadCachedAttachmentsToSlip(target.slipId, uploadSlipAttachment, (progress) =>
+      setAttachmentUpload({ phase: "uploading", ...progress })
+    ).finally(() => {
+      uploadInFlightRef.current = false;
+    });
+    if (result.failed.length > 0) {
+      setAttachmentUpload({ phase: "failed", total: result.total, completed: result.completed, failed: result.failed });
+      toast({
+        title: "Some attachments failed",
+        description: `${result.failed.length} file(s) could not be uploaded. Retry before leaving this page.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setAttachmentUpload({ phase: "idle" });
+    scheduleRedirect(target.redirectPath);
+  }, [uploadSlipAttachment, toast, scheduleRedirect]);
+
+  const retryAttachmentUploads = useCallback(() => {
+    if (attachmentUpload.phase !== "failed") return;
+    void runAttachmentUploads();
+  }, [attachmentUpload.phase, runAttachmentUploads]);
+
+  /** Leaves for the slip page without the failed files (the user chose to re-attach later). */
+  const continueWithoutFailedAttachments = useCallback(() => {
+    const target = uploadTargetRef.current;
+    if (attachmentUpload.phase !== "failed" || !target) return;
+    setAttachmentUpload({ phase: "idle" });
+    router.push(target.redirectPath);
+  }, [attachmentUpload.phase, router]);
 
   const submit = useCallback(async () => {
     if (submissionState === "submitting" || submissionState === "success-transition") {
@@ -200,28 +217,14 @@ export function useCaseSubmissionFlow({
       // paper slip print window exactly once for the new slip.
       markSlipForAutoPrint(result.slipId);
 
-      // Start redirect timer immediately — attachment uploads happen in the background
-      // so they never delay or block the success redirect.
-      redirectTimerRef.current = setTimeout(() => {
-        router.push(redirectPath);
-      }, successRedirectDelayMs);
-
-      // Fire attachment uploads in background after slip creation.
-      // The slip ID is now known so each file is posted to /slip/attachments/{slipId}/upload.
-      if (uploadSlipAttachment) {
-        uploadCachedAttachmentsToSlip(result.slipId, uploadSlipAttachment)
-          .then(({ failed }) => {
-            if (failed > 0) {
-              toast({
-                title: "Some attachments failed",
-                description: `${failed} file(s) could not be uploaded. You can re-attach them on the slip.`,
-                variant: "destructive",
-              });
-            }
-          })
-          .catch((attachmentError) => {
-            console.error("Attachment upload step failed:", attachmentError);
-          });
+      // Local files staged before the slip existed are posted to
+      // /slip/attachments/{slipId}/upload now. The redirect waits for them so
+      // leaving the page can't drop files that are still in memory.
+      uploadTargetRef.current = { slipId: result.slipId, redirectPath };
+      if (uploadSlipAttachment && localUploadsFromCache().length > 0) {
+        await runAttachmentUploads();
+      } else {
+        scheduleRedirect(redirectPath);
       }
     } catch (error: any) {
       if (redirectTimerRef.current) {
@@ -254,8 +257,8 @@ export function useCaseSubmissionFlow({
     labCustomerId,
     createSlip,
     uploadSlipAttachment,
-    router,
-    successRedirectDelayMs,
+    runAttachmentUploads,
+    scheduleRedirect,
     toast,
   ]);
 
@@ -267,5 +270,8 @@ export function useCaseSubmissionFlow({
     submissionError,
     submissionResult,
     submit,
+    attachmentUpload,
+    retryAttachmentUploads,
+    continueWithoutFailedAttachments,
   };
 }
