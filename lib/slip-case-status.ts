@@ -29,7 +29,16 @@ export function isSlipCaseCancelled(status: string | undefined | null): boolean 
   );
 }
 
-/** True when users may create or edit slip notes (not Finished / cancelled). */
+/** True when the slip is soft-deleted (APIs report status "Deleted"). Read-only. */
+export function isSlipCaseDeleted(status: string | undefined | null): boolean {
+  return normalizeSlipCaseStatus(status) === "deleted";
+}
+
+/** True when users may create or edit slip notes (not Finished / cancelled / deleted). */
 export function canAddSlipNotes(status: string | undefined | null): boolean {
-  return !isSlipCaseFinished(status) && !isSlipCaseCancelled(status);
+  return (
+    !isSlipCaseFinished(status) &&
+    !isSlipCaseCancelled(status) &&
+    !isSlipCaseDeleted(status)
+  );
 }

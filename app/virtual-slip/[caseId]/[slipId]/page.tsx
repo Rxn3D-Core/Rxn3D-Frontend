@@ -5,7 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { Play, X } from "lucide-react";
 import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPauseIcon";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
-import { isSlipCaseCancelled, isSlipCaseOnHold } from "@/lib/slip-case-status";
+import {
+  isSlipCaseCancelled,
+  isSlipCaseDeleted,
+  isSlipCaseOnHold,
+} from "@/lib/slip-case-status";
 import { catalogAddonsFromProductPayload } from "@/lib/slip-product-addon-catalog";
 import { virtualSlipSlotsToAddonArchSlots } from "@/lib/virtual-slip-addon-slots";
 import { buildVirtualSlipRushArchSlots } from "@/lib/virtual-slip-rush-slots";
@@ -58,7 +62,11 @@ import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
 import { collectStageSeedsFromVirtualSlip } from "@/lib/api/slip-notes";
 import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
-import { resolveSlipCancelDetail, resolveSlipHoldDetail } from "@/lib/slip-hold-info";
+import {
+  resolveSlipCancelDetail,
+  resolveSlipDeleteDetail,
+  resolveSlipHoldDetail,
+} from "@/lib/slip-hold-info";
 import { VirtualSlipHoldBanner } from "@/components/virtual-slip/VirtualSlipHoldBanner";
 import {
   canSubmitSlipRush,
@@ -415,6 +423,11 @@ export default function VirtualSlipV2Page() {
   // slipStatus already falls back to case_status when the slip status is empty.
   const caseOnHold = isSlipCaseOnHold(vm.header.slipStatus);
   const caseCancelled = isSlipCaseCancelled(vm.header.slipStatus);
+  // Soft-deleted slips come back with status "Deleted" and `deleted_at`.
+  // Read-only: no upload, edit or status actions (the API rejects them).
+  const slipDeleted =
+    isSlipCaseDeleted(vm.header.slipStatus) ||
+    Boolean((virtualSlipDetails as { deleted_at?: unknown } | null)?.deleted_at);
 
   const archesOnHold = useMemo(() => {
     const labels: Array<"Upper" | "Lower"> = [];
@@ -473,7 +486,8 @@ export default function VirtualSlipV2Page() {
 
   const { notes: caseNotes } = useCaseSlipNotes(caseId, {
     refreshKey: notesRefreshKey,
-    enabled: (caseOnHold || caseCancelled || archOnlyOnHold) && caseId != null,
+    enabled:
+      (caseOnHold || caseCancelled || slipDeleted || archOnlyOnHold) && caseId != null,
   });
 
   const holdDetail = useMemo(() => {
@@ -486,8 +500,13 @@ export default function VirtualSlipV2Page() {
     return resolveSlipCancelDetail(caseNotes, slipId);
   }, [caseCancelled, caseNotes, slipId]);
 
-  /** Either blocked state (hold or cancelled) overlays + disables the slip body. */
-  const caseBlocked = caseOnHold || caseCancelled;
+  const deleteDetail = useMemo(() => {
+    if (!slipDeleted) return null;
+    return resolveSlipDeleteDetail(caseNotes, slipId, virtualSlipDetails);
+  }, [slipDeleted, caseNotes, slipId, virtualSlipDetails]);
+
+  /** Any blocked state (hold, cancelled or deleted) overlays + disables the slip body. */
+  const caseBlocked = caseOnHold || caseCancelled || slipDeleted;
 
   const slipLocationRef = useMemo(
     () => ({
@@ -505,7 +524,8 @@ export default function VirtualSlipV2Page() {
   const canUndoLocation =
     canUndoSlipLocation(userRole) &&
     slipCanUndoLocation(slipLocationRef) &&
-    !caseCancelled;
+    !caseCancelled &&
+    !slipDeleted;
 
   const handleConfirmUndoLocation = async () => {
     if (!slipId || isNaN(slipId)) return;
@@ -777,7 +797,8 @@ export default function VirtualSlipV2Page() {
           pickupDropoffLabel: slipPickupDropoffLabel(pickupDropoffAction),
           onPickupDropoff:
             canRunLabDriverActions ? () => setPickupDropoffOpen(true) : undefined,
-          showReadyToSend: canRunLabDriverActions && showReadyToSendFab && !caseCancelled,
+          showReadyToSend:
+            canRunLabDriverActions && showReadyToSendFab && !caseCancelled && !slipDeleted,
           onReadyToSend:
             canRunLabDriverActions
               ? () => {
@@ -814,29 +835,33 @@ export default function VirtualSlipV2Page() {
                 tints it (yellow on hold, red on cancelled; faded, not blurred). */}
             <div
               className={`absolute inset-0 z-20 ${
-                caseCancelled ? "bg-[#FEE2E2]/70" : "bg-[#FBEFC9]/70"
+                caseCancelled || slipDeleted ? "bg-[#FEE2E2]/70" : "bg-[#FBEFC9]/70"
               }`}
               aria-hidden
             />
             {/* Full-width floating status banner sits above the overlay.
-                Cancelled is read-only — no resume/cancel actions. */}
+                Cancelled and deleted are read-only — no resume/cancel actions. */}
             <div className="absolute inset-x-0 top-0 z-30">
               <VirtualSlipHoldBanner
-                variant={caseCancelled ? "cancelled" : "hold"}
+                variant={slipDeleted ? "deleted" : caseCancelled ? "cancelled" : "hold"}
                 holdDetail={
-                  (caseCancelled ? cancelDetail : holdDetail) ?? {
+                  (slipDeleted
+                    ? deleteDetail
+                    : caseCancelled
+                      ? cancelDetail
+                      : holdDetail) ?? {
                     authorName: "Unknown",
                     heldAt: "",
                     reason: "No reason provided",
                   }
                 }
                 onResume={
-                  caseCancelled || !canResumeCase
+                  caseCancelled || slipDeleted || !canResumeCase
                     ? undefined
                     : () => openCaseStatusModal("resume")
                 }
                 onCancel={
-                  caseCancelled || slipInOffice || !canCancelCase
+                  caseCancelled || slipDeleted || slipInOffice || !canCancelCase
                     ? undefined
                     : () => openCaseStatusModal("cancel")
                 }
@@ -858,7 +883,7 @@ export default function VirtualSlipV2Page() {
             </button>
           </div>
         ) : null}
-        {canRunLabDriverActions && slipInLab && hasPendingLabImplants ? (
+        {canRunLabDriverActions && slipInLab && hasPendingLabImplants && !slipDeleted ? (
           <div className="relative z-10 mx-6 mt-3 flex items-center justify-between gap-3 rounded-md border border-[#f3d48a] bg-[#fff8e8] px-4 py-3">
             <p className="text-sm text-[#4C4D55]">
               Lab recommendation requested. Select implant details before sending this case.
@@ -1019,12 +1044,15 @@ export default function VirtualSlipV2Page() {
           hasMandibular={hasMandibular}
           visibleArches={visibleArches}
           showEditSlip={
-            (slipInLab || allowEditSlipAllLocations) && !caseCancelled && canEditSlip
+            (slipInLab || allowEditSlipAllLocations) &&
+            !caseCancelled &&
+            !slipDeleted &&
+            canEditSlip
           }
-          caseOnHold={caseOnHold}
+          caseOnHold={caseOnHold || slipDeleted}
           rushCaseSchedule={rushCaseSchedule}
           labBusinessHours={labBusinessHours}
-          onAttachments={() => setShowAttachModal(true)}
+          onAttachments={slipDeleted ? undefined : () => setShowAttachModal(true)}
           onDriverHistory={() => setDriverHistoryViewOpen(true)}
           onChangeDate={
             canRunLabDriverActions && !caseBlocked
@@ -1043,7 +1071,7 @@ export default function VirtualSlipV2Page() {
               : () => openCaseStatusModal("cancel")
           }
           onSendBackToOffice={
-            canRunLabDriverActions && canSendBackToOffice && !caseCancelled
+            canRunLabDriverActions && canSendBackToOffice && !caseCancelled && !slipDeleted
               ? () => {
                   if (hasPendingLabImplants) {
                     toast({

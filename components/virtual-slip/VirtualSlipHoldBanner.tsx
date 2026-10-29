@@ -11,7 +11,7 @@ const CANCEL_ICON = "/icons/virtual-slip-center/cancel.svg";
 const ACTION_ICON_CLASS =
   "h-12 w-12 max-w-none object-contain transition-opacity hover:opacity-90";
 
-export type VirtualSlipBannerVariant = "hold" | "cancelled";
+export type VirtualSlipBannerVariant = "hold" | "cancelled" | "deleted";
 
 const BANNER_THEME: Record<
   VirtualSlipBannerVariant,
@@ -27,11 +27,16 @@ const BANNER_THEME: Record<
     title: "Case Cancelled",
     prefix: "Cancelled by",
   },
+  deleted: {
+    container: "border-[#EF4444] bg-[#FEE2E2]/85",
+    title: "Slip Deleted",
+    prefix: "Deleted by",
+  },
 };
 
 export interface VirtualSlipHoldBannerProps {
   holdDetail: SlipHoldDetail;
-  /** "hold" (default) shows resume/cancel actions; "cancelled" is read-only and red. */
+  /** "hold" (default) shows resume/cancel actions; "cancelled" and "deleted" are read-only and red. */
   variant?: VirtualSlipBannerVariant;
   /** Override default title (e.g. "Upper on Hold"). */
   title?: string;
