@@ -233,9 +233,9 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
     }
   }, [user?.id, updateSessionUser])
 
-  // Fetch all labs for superadmin location dropdown (also when acting as lab admin so the switcher still works)
+  // Fetch all labs for the lab switcher, shown only while a superadmin is acting as lab admin
   useEffect(() => {
-    if (!isSuperAdmin && !isActingAsLabAdmin) return
+    if (!isActingAsLabAdmin) return
     let cancelled = false
     searchSuperadminLabCustomers({ per_page: 100, order_by: "name", sort_by: "asc" })
       .then((res) => {
@@ -244,7 +244,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [isSuperAdmin])
+  }, [isActingAsLabAdmin])
 
   // Load persisted driver session + active batch on mount (expired sessions are cleared).
   useEffect(() => {
@@ -1093,7 +1093,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 </Button>
               )}
               {/* Location Selector - Desktop */}
-              {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
+              {isActingAsLabAdmin && superAdminLabs.length > 0 && (
                 <div className="hidden md:block min-w-0">
                   <Select
                     value={selectedCustomerId !== null ? selectedCustomerId!.toString() : ""}
@@ -1207,7 +1207,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                     </div>
                   </DropdownMenuLabel>
                   {/* Location Selector - Mobile */}
-                  {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
+                  {isActingAsLabAdmin && superAdminLabs.length > 0 && (
                     <div className="px-2 pb-2 sm:hidden" onKeyDown={(e) => e.stopPropagation()}>
                       <Select
                         value={selectedCustomerId !== null ? selectedCustomerId!.toString() : ""}
