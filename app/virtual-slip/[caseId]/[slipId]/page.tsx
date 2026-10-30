@@ -41,6 +41,7 @@ import {
 } from "@/lib/virtual-slip-view-model";
 import { resolveSlipDeliveryDates } from "@/lib/virtual-slip-rush-dates";
 import { useToast } from "@/components/ui/use-toast";
+import { isVirtualSlipUnavailable } from "@/lib/virtual-slip-routes";
 import { useBetaFeature } from "@/hooks/use-beta-feature";
 import { BETA_FEATURE_KEYS } from "@/lib/api/beta-features";
 import { VirtualSlipHeader } from "@/components/virtual-slip/VirtualSlipHeader";
@@ -313,6 +314,25 @@ export default function VirtualSlipV2Page() {
       : "/office-case-management";
     router.replace(route);
   };
+
+  // Invalid/unknown case or slip id: tell the user and return to Case Management
+  // instead of rendering an empty slip.
+  const slipUnavailable = isVirtualSlipUnavailable({
+    caseIdParam: params.caseId,
+    slipIdParam: params.slipId,
+    loading,
+    details: virtualSlipDetails,
+  });
+  useEffect(() => {
+    if (!slipUnavailable) return;
+    toast({
+      title: "Virtual slip not found",
+      description: "The case or slip in this link is invalid. Returning to Case Management.",
+      variant: "destructive",
+    });
+    goToCaseList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slipUnavailable]);
 
   const handlePrintInvoice = useCallback(() => {
     void (async () => {
@@ -762,7 +782,7 @@ export default function VirtualSlipV2Page() {
     return arches.length > 0 ? arches : (["Upper", "Lower"] as Array<"Upper" | "Lower">);
   }, [hasMaxillary, hasMandibular]);
 
-  if (loading) {
+  if (loading || slipUnavailable) {
     return (
       <div className="min-h-full animate-pulse space-y-4 p-6">
         <div className="h-[110px] rounded bg-gray-100" />
