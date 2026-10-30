@@ -477,6 +477,14 @@ export const officeAdminMenu: MenuItem[] = [
     permission: ["view_case_details_status", "submit_new_case", "edit_slip"],
   },
   {
+    // Labs the office is connected to, plus sent and received lab invitations.
+    id: "office-connections",
+    title: "All Connections",
+    icon: <Link className="h-5 w-5" />,
+    path: "/office-administrator/all-connections",
+    permission: ["get_connections"],
+  },
+  {
     // Read-only view of statements the office has received from its labs.
     id: "office-statements",
     title: "Statements",
