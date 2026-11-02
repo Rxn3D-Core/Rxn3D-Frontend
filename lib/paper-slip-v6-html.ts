@@ -431,6 +431,21 @@ export function buildPaperSlipV6Html(input: PaperSlipV6Input, qrCodeUrl = ""): s
 
 const IOS_PRINT_ROOT_ID = "paper-slip-v6-print-root";
 
+/** Tags app/globals.css gives a fixed body size (17px); kept in step by paper-slip-v6-html.test.mjs. */
+export const APP_TEXT_SCALE_TAGS = ["p", "span", "div", "li", "td", "th", "label", "input", "textarea", "select"];
+
+/**
+ * The iPhone print puts the slip in the app page, where globals.css sets
+ * `span, div, … { font-size: 17px }`. That beats inheritance, so the pan
+ * letters (spans inside the 121px .ps-pan) printed at 17px. Same-specificity
+ * selectors placed after the app CSS restore inheritance; slip class rules
+ * still win because they are more specific.
+ */
+export function iosPrintRootFontResetCss(rootId: string = IOS_PRINT_ROOT_ID): string {
+  const selectors = APP_TEXT_SCALE_TAGS.map((tag) => `:where(#${rootId}) ${tag}`).join(", ");
+  return `${selectors} { font-size: inherit; }`;
+}
+
 function qrTarget(caseId: number, slipId: number): string {
   if (!caseId || !slipId || typeof window === "undefined") return "";
   return `${window.location.origin}/case/${caseId}?slips=${slipId}`;
@@ -601,7 +616,9 @@ async function printHtmlInCurrentWindow(html: string): Promise<void> {
         clip: auto !important;
         visibility: visible !important;
         pointer-events: auto !important;
+        font-size: medium !important;
       }
+      ${iosPrintRootFontResetCss()}
     }
   `;
   document.head.appendChild(style);
