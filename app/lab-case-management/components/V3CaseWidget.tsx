@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { V3FilterBar, DEFAULT_VISIBLE, type ColumnKey } from "./V3FilterBar"
 import { V3CaseTable, type SortDirection } from "./V3CaseTable"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
+import type { SlipListingBusinessHour } from "@/lib/slip-listing-due-date"
 import {
   loadSlipListingVisibleColumns,
   saveSlipListingVisibleColumns,
@@ -31,6 +32,7 @@ interface Props {
   onClearQuickFilters: () => void
   // table
   rows: V2CaseRowData[]
+  businessHours?: readonly SlipListingBusinessHour[] | null
   loading: boolean
   selected: number[]
   selectAllChecked: boolean | "indeterminate"
@@ -133,6 +135,7 @@ export function V3CaseWidget(props: Props) {
       )}
       <V3CaseTable
         rows={props.rows}
+        businessHours={props.businessHours}
         loading={props.loading}
         visibleColumns={visibleColumns}
         selected={props.selected}

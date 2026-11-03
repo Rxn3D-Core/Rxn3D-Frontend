@@ -16,6 +16,7 @@ import { SlipDriverHistoryViewModal } from "@/components/slip-driver-history-vie
 import type { V2CaseRowData } from "./case-table-types"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
+import { useBusinessSettingsQuery } from "@/hooks/use-business-settings"
 import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
 import { virtualSlipRushSlotsShareProduct } from "@/lib/virtual-slip-rush-slots"
@@ -72,6 +73,7 @@ function canPrintStatement(row: { billingId?: number | null }): boolean {
 
 export default function LabSlipPage() {
   const { toast } = useToast();
+  const { data: listingBusinessSettings } = useBusinessSettingsQuery(resolveListingCustomerId())
   const searchParams = useSearchParams();
   // Get customerType from localStorage and use as userRole
   let userRole = 'lab';
@@ -1107,6 +1109,7 @@ export default function LabSlipPage() {
     <div className="min-h-screen">
       <main className="w-full px-4 pb-8">
         <V2CaseWidget
+          businessHours={listingBusinessSettings?.business_hours}
           attachmentsOnly={showWithAttachments}
           bulkCanPrintStatement={Boolean(selectedStatementRow && canPrintStatement(selectedStatementRow))}
           canPrintStatement={canPrintStatement}
