@@ -570,5 +570,10 @@
       "xlsx": "Exportar Excel",
       "error": "La exportación falló. Inténtelo de nuevo."
     }
+  },
+  "planUpgrade": {
+    "title": "Actualización requerida",
+    "description": "Esta función no está disponible en su plan actual.",
+    "action": "Ver planes"
   }
 }
