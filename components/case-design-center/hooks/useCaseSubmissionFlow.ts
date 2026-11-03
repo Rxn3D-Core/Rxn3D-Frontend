@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import type { SlipProductSnapshot } from "../types";
 import type { WizardDoctorShape, WizardLabShape } from "@/components/new-case-wizard";
@@ -23,6 +25,7 @@ import {
   type AttachmentUploadProgress,
 } from "@/lib/case-design-attachment-cache";
 import {
+  isConnectionOnHoldError,
   isSlipLimitExceededError,
   LAB_SLIP_LIMIT_MESSAGE,
   OFFICE_LAB_UNAVAILABLE_MESSAGE,
@@ -79,6 +82,8 @@ export function useCaseSubmissionFlow({
   labCustomerId = null,
   successRedirectDelayMs = 2500,
 }: UseCaseSubmissionFlowParams) {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const [submissionState, setSubmissionState] = useState<CaseSubmissionState>("idle");
   const [caseSubmitted, setCaseSubmitted] = useState(false);
   const [slipHeaderLoading, setSlipHeaderLoading] = useState(false);
@@ -232,6 +237,21 @@ export function useCaseSubmissionFlow({
         redirectTimerRef.current = null;
       }
 
+      if (isConnectionOnHoldError(error)) {
+        // 409 connection_on_hold: show the API message (not the plan-limit text) and drop the
+        // cached partner lists so the held partner is no longer offered for new slips.
+        const message = error?.message || t("connections.hold.slipCreateBlockedTitle");
+        for (const key of ["slip-data", "connected-offices", "connected-offices-or-labs", "labs", "connections"]) {
+          queryClient.invalidateQueries({ queryKey: [key] });
+        }
+        setSubmissionError(message);
+        setSlipHeaderLoading(false);
+        setCaseSubmitted(false);
+        setSubmissionState("error");
+        toast({ title: t("connections.hold.slipCreateBlockedTitle"), description: message, variant: "destructive" });
+        return;
+      }
+
       const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
       const limitHit = isSlipLimitExceededError(error);
       const message = limitHit
@@ -260,6 +280,8 @@ export function useCaseSubmissionFlow({
     runAttachmentUploads,
     scheduleRedirect,
     toast,
+    queryClient,
+    t,
   ]);
 
   return {

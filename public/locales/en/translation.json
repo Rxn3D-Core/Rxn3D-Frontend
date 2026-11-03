@@ -569,5 +569,36 @@
     "title": "Upgrade required",
     "description": "This feature is not available on your current plan.",
     "action": "View plans"
+  },
+  "connections": {
+    "hold": {
+      "badgeConnected": "Connected",
+      "badgeOnHold": "On Hold",
+      "badgeOnHoldByYou": "On Hold by you",
+      "badgeOnHoldByLab": "On Hold by Lab",
+      "badgeOnHoldByOffice": "On Hold by Office",
+      "hold": "Hold",
+      "resume": "Resume",
+      "requestResume": "Request to Resume",
+      "requested": "Requested {{date}}",
+      "requestAvailableAt": "You can send another request after {{date}}.",
+      "holdTitle": "Hold connection: no new slips",
+      "changeStatus": "Change connection status",
+      "confirmHold": "Put this {{partner}} connection on hold?\n\nNo new slips can be created for this connection until you resume it. Existing slips, billing and history stay available.",
+      "holdSuccessTitle": "Connection on hold",
+      "holdSuccessDescription": "No new slips can be created with this {{partner}} until you resume.",
+      "holdErrorTitle": "Could not hold connection",
+      "resumeSuccessTitle": "Connection resumed",
+      "resumeSuccessDescription": "New slips can be created with this {{partner}} again.",
+      "resumeErrorTitle": "Could not resume connection",
+      "requestSuccessTitle": "Resume request sent",
+      "requestSuccessDescription": "The {{partner}} has been asked to resume the connection.",
+      "requestErrorTitle": "Could not send resume request",
+      "tryAgain": "Please try again.",
+      "partnerLab": "lab",
+      "partnerOffice": "office",
+      "partnerGeneric": "partner",
+      "slipCreateBlockedTitle": "Connection on hold"
+    }
   }
 }

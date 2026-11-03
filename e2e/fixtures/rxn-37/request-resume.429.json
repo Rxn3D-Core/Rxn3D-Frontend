@@ -1,0 +1,7 @@
+{
+  "success": false,
+  "message": "A resume request was already sent. You can send another after 2026-11-04 12:00 UTC.",
+  "error": "resume_request_throttled",
+  "code": "resume_request_throttled",
+  "retry_after_seconds": 79200
+}

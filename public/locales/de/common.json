@@ -176,5 +176,36 @@
       "xlsx": "Excel exportieren",
       "error": "Export fehlgeschlagen. Bitte erneut versuchen."
     }
+  },
+  "connections": {
+    "hold": {
+      "badgeConnected": "Verbunden",
+      "badgeOnHold": "Pausiert",
+      "badgeOnHoldByYou": "Von Ihnen pausiert",
+      "badgeOnHoldByLab": "Vom Labor pausiert",
+      "badgeOnHoldByOffice": "Von der Praxis pausiert",
+      "hold": "Pausieren",
+      "resume": "Fortsetzen",
+      "requestResume": "Fortsetzung anfragen",
+      "requested": "Angefragt {{date}}",
+      "requestAvailableAt": "Sie können nach {{date}} eine weitere Anfrage senden.",
+      "holdTitle": "Verbindung pausieren: keine neuen Aufträge",
+      "changeStatus": "Verbindungsstatus ändern",
+      "confirmHold": "Diese Verbindung ({{partner}}) pausieren?\n\nFür diese Verbindung können keine neuen Aufträge erstellt werden, bis Sie sie fortsetzen. Bestehende Aufträge, Abrechnung und Verlauf bleiben verfügbar.",
+      "holdSuccessTitle": "Verbindung pausiert",
+      "holdSuccessDescription": "Mit diesem Partner ({{partner}}) können keine neuen Aufträge erstellt werden, bis Sie fortsetzen.",
+      "holdErrorTitle": "Verbindung konnte nicht pausiert werden",
+      "resumeSuccessTitle": "Verbindung fortgesetzt",
+      "resumeSuccessDescription": "Mit diesem Partner ({{partner}}) können wieder neue Aufträge erstellt werden.",
+      "resumeErrorTitle": "Verbindung konnte nicht fortgesetzt werden",
+      "requestSuccessTitle": "Anfrage zur Fortsetzung gesendet",
+      "requestSuccessDescription": "Der Partner ({{partner}}) wurde gebeten, die Verbindung fortzusetzen.",
+      "requestErrorTitle": "Anfrage zur Fortsetzung konnte nicht gesendet werden",
+      "tryAgain": "Bitte erneut versuchen.",
+      "partnerLab": "Labor",
+      "partnerOffice": "Praxis",
+      "partnerGeneric": "Partner",
+      "slipCreateBlockedTitle": "Verbindung pausiert"
+    }
   }
 }

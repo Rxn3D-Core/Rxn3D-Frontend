@@ -64,14 +64,37 @@ export const connectedOfficesQueryKey = ["connected-offices"] as const
 export const connectedOfficesOrLabsQueryKey = (role: string | null) =>
   ["connected-offices-or-labs", role] as const
 
-async function fetchConnectedOffices(): Promise<ConnectedOfficesApiResponse> {
+/**
+ * Billing and case-management filters pass `includeOnHold` so held partners stay listed
+ * (RXN-37). Slip-create pickers keep the default (Active only) and the original keys.
+ */
+export function connectedOfficesQueryKeyFor(includeOnHold = false) {
+  return includeOnHold ? ([...connectedOfficesQueryKey, { includeOnHold: true }] as const) : connectedOfficesQueryKey
+}
+
+export function connectedOfficesOrLabsQueryKeyFor(role: string | null, includeOnHold = false) {
+  return includeOnHold
+    ? ([...connectedOfficesOrLabsQueryKey(role), { includeOnHold: true }] as const)
+    : connectedOfficesOrLabsQueryKey(role)
+}
+
+export function buildConnectedListUrl(
+  path: "/v1/slip/connected-offices" | "/v1/slip/connected-labs",
+  baseUrl: string,
+  includeOnHold = false,
+): string {
+  const url = new URL(path, baseUrl)
+  if (includeOnHold) url.searchParams.set("include_on_hold", "1")
+  return url.toString()
+}
+
+async function fetchConnectedOffices(includeOnHold = false): Promise<ConnectedOfficesApiResponse> {
   const token = localStorage.getItem("token")
   if (!token) {
     throw new Error("No authentication token found")
   }
 
-  const url = new URL("/v1/slip/connected-offices", API_BASE_URL)
-  const res = await fetch(url.toString(), {
+  const res = await fetch(buildConnectedListUrl("/v1/slip/connected-offices", API_BASE_URL, includeOnHold), {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -96,14 +119,13 @@ async function fetchConnectedOffices(): Promise<ConnectedOfficesApiResponse> {
 }
 
 /** Fetch connected labs (for office_admin). Same shape as choose-lab page. */
-async function fetchConnectedLabs(): Promise<ConnectedOfficeLabShape[]> {
+async function fetchConnectedLabs(includeOnHold = false): Promise<ConnectedOfficeLabShape[]> {
   const token = localStorage.getItem("token")
   if (!token) {
     throw new Error("No authentication token found")
   }
 
-  const url = new URL("/v1/slip/connected-labs", API_BASE_URL)
-  const res = await fetch(url.toString(), {
+  const res = await fetch(buildConnectedListUrl("/v1/slip/connected-labs", API_BASE_URL, includeOnHold), {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -159,14 +181,15 @@ function mapToLabShape(item: ConnectedOfficeApiItem): ConnectedOfficeLabShape {
  * - data: full API response
  * - officesAsLabs: array shaped for UI (id, name, logo, location) e.g. for wizard lab picker
  */
-export function useConnectedOffices(options?: { enabled?: boolean }) {
+export function useConnectedOffices(options?: { enabled?: boolean; includeOnHold?: boolean }) {
+  const includeOnHold = options?.includeOnHold ?? false
   const enabled =
     options?.enabled ??
     (typeof window !== "undefined" && !!localStorage.getItem("token"))
 
   const query = useQuery({
-    queryKey: connectedOfficesQueryKey,
-    queryFn: fetchConnectedOffices,
+    queryKey: connectedOfficesQueryKeyFor(includeOnHold),
+    queryFn: () => fetchConnectedOffices(includeOnHold),
     enabled,
     retry: 1,
     ...FRESH_LIST_QUERY_OPTIONS,
@@ -189,18 +212,22 @@ export function useConnectedOffices(options?: { enabled?: boolean }) {
  * - office_admin (and others) → GET /v1/slip/connected-labs (list of labs)
  * Returns a unified shape (id, name, logo, location) for the wizard step.
  */
-export function useConnectedOfficesOrLabs(role: string | null, options?: { enabled?: boolean }) {
+export function useConnectedOfficesOrLabs(
+  role: string | null,
+  options?: { enabled?: boolean; includeOnHold?: boolean },
+) {
+  const includeOnHold = options?.includeOnHold ?? false
   const hasToken = typeof window !== "undefined" && !!localStorage.getItem("token")
   const enabled = (options?.enabled ?? true) && hasToken && role != null
 
   const query = useQuery({
-    queryKey: connectedOfficesOrLabsQueryKey(role),
+    queryKey: connectedOfficesOrLabsQueryKeyFor(role, includeOnHold),
     queryFn: async () => {
       if (role === "lab_admin") {
-        const res = await fetchConnectedOffices()
+        const res = await fetchConnectedOffices(includeOnHold)
         return res.data.map(mapToLabShape)
       }
-      return fetchConnectedLabs()
+      return fetchConnectedLabs(includeOnHold)
     },
     enabled,
     retry: 1,

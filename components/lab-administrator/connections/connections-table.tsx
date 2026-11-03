@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Eye, Phone, Mail, Trash2, Check, X, Info, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -12,8 +13,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useToast } from "@/components/ui/use-toast"
-import { useHoldConnection, useResumeConnection } from "@/hooks/use-connections"
+import { useConnectionHoldActions } from "@/components/dashboard/connection-hold-button"
+import type { ConnectionHold } from "@/contexts/connection-context"
 
 interface Connection {
   id: string
@@ -26,6 +27,8 @@ interface Connection {
   emailAddress: string
   date: string
   status: "Connected" | "OnHold" | "Requested" | "Pending"
+  /** API `hold` block for the Connected tab (absent on an old backend). */
+  hold?: ConnectionHold | null
 }
 
 interface ConnectionsTableProps {
@@ -48,10 +51,6 @@ export function ConnectionsTable({
   onResendInvitation,
 }: ConnectionsTableProps) {
   const [selectedConnections, setSelectedConnections] = useState<string[]>([])
-  const [busyConnectionId, setBusyConnectionId] = useState<number | null>(null)
-  const { toast } = useToast()
-  const holdMutation = useHoldConnection()
-  const resumeMutation = useResumeConnection()
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -82,85 +81,11 @@ export function ConnectionsTable({
     }
   }
 
-  const handleHold = async (connection: Connection) => {
-    if (!connection.connectionId) return
-    const ok = window.confirm(
-      `Put this connection on hold?\n\nYou will stop receiving slips for this connection until you resume it.`,
-    )
-    if (!ok) return
-
-    setBusyConnectionId(connection.connectionId)
-    try {
-      await holdMutation.mutateAsync({ connectionId: connection.connectionId })
-      toast({
-        title: "Connection on hold",
-        description: "This partner is hidden when creating slips until you resume.",
-      })
-    } catch (error) {
-      toast({
-        title: "Could not hold connection",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setBusyConnectionId(null)
-    }
-  }
-
-  const handleResume = async (connection: Connection) => {
-    if (!connection.connectionId) return
-
-    setBusyConnectionId(connection.connectionId)
-    try {
-      await resumeMutation.mutateAsync(connection.connectionId)
-      toast({
-        title: "Connection resumed",
-        description: "This partner can appear again when creating slips.",
-      })
-    } catch (error) {
-      toast({
-        title: "Could not resume connection",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setBusyConnectionId(null)
-    }
-  }
-
   const renderConnectedStatus = (connection: Connection) => {
-    const busy = busyConnectionId === connection.connectionId
-    const onHold = connection.status === "OnHold"
-
     if (!connection.connectionId) {
       return getStatusBadge(connection.status)
     }
-
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild disabled={busy}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-            aria-label={onHold ? "Change on-hold status" : "Change connected status"}
-          >
-            {getStatusBadge(onHold ? "OnHold" : "Connected")}
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {onHold ? (
-            <DropdownMenuItem disabled={busy} onSelect={() => handleResume(connection)}>
-              Resume
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem disabled={busy} onSelect={() => handleHold(connection)}>
-              Hold
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
+    return <ConnectedStatusMenu connection={connection} connectionId={connection.connectionId} />
   }
 
   const renderActionButtons = (connection: Connection) => {
@@ -289,5 +214,74 @@ export function ConnectionsTable({
         </TableBody>
       </Table>
     </div>
+  )
+}
+
+/** Status badge + Hold / Resume / Request to Resume dropdown for one connected row. */
+function ConnectedStatusMenu({ connection, connectionId }: { connection: Connection; connectionId: number }) {
+  const actions = useConnectionHoldActions(
+    { id: connectionId, status: connection.status, hold: connection.hold },
+    connection.type === "Lab" ? "lab" : connection.type === "Practice" ? "office" : "partner",
+  )
+  const { t } = useTranslation()
+  const onHold = actions.state.onHold
+  const badge = (
+    <Badge
+      data-testid="connections-table-status-badge"
+      className={
+        onHold
+          ? "bg-orange-100 text-orange-800 hover:bg-orange-100 whitespace-nowrap"
+          : "bg-green-100 text-green-800 hover:bg-green-100 whitespace-nowrap"
+      }
+    >
+      {actions.badgeLabel}
+    </Badge>
+  )
+
+  const hasActions = onHold
+    ? actions.canResume || actions.requestPending || actions.canRequestResume
+    : actions.canHold
+  if (!hasActions) return badge
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={actions.busy}>
+        <button
+          type="button"
+          data-testid="connections-table-status-trigger"
+          className="inline-flex items-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          aria-label={t("connections.hold.changeStatus")}
+        >
+          {badge}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {!onHold && (
+          <DropdownMenuItem data-testid="connections-table-hold" disabled={actions.busy} onSelect={actions.hold}>
+            {t("connections.hold.hold")}
+          </DropdownMenuItem>
+        )}
+        {onHold && actions.canResume && (
+          <DropdownMenuItem data-testid="connections-table-resume" disabled={actions.busy} onSelect={actions.resume}>
+            {t("connections.hold.resume")}
+          </DropdownMenuItem>
+        )}
+        {onHold && !actions.canResume && actions.requestPending && (
+          <DropdownMenuItem data-testid="connections-table-requested" disabled title={actions.requestAvailableLabel}>
+            {actions.requestedLabel}
+          </DropdownMenuItem>
+        )}
+        {onHold && !actions.canResume && !actions.requestPending && actions.canRequestResume && (
+          <DropdownMenuItem
+            data-testid="connections-table-request-resume"
+            disabled={actions.busy}
+            onSelect={actions.requestResume}
+          >
+            {t("connections.hold.requestResume")}
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

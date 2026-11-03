@@ -1,0 +1,21 @@
+{
+  "success": false,
+  "message": "This connection is already on hold by Downtown Dental Group.",
+  "error": "connection_already_on_hold",
+  "code": "connection_already_on_hold",
+  "data": {
+    "hold": {
+      "is_on_hold": true,
+      "held_by_side": "office",
+      "held_at": "2026-11-03T10:00:00Z",
+      "reason": null,
+      "my_side": "lab",
+      "is_mine": false,
+      "can_hold": false,
+      "can_resume": false,
+      "can_request_resume": true,
+      "resume_requested_at": null,
+      "request_resume_available_at": null
+    }
+  }
+}

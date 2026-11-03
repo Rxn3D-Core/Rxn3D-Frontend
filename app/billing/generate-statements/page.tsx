@@ -361,6 +361,7 @@ export default function GenerateStatementsPage() {
 
   const { officesAsLabs, isLoading: officesLoading } = useConnectedOffices({
     enabled: typeof window !== "undefined" && !!localStorage.getItem("token"),
+    includeOnHold: true,
   })
 
   // Reset to the first page whenever the active filters or sort change.

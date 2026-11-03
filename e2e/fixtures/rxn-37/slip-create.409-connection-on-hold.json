@@ -1,0 +1,14 @@
+{
+  "success": false,
+  "status_code": 409,
+  "message": "HMC Lab and Smile Dental are on hold. New cases cannot be sent until the connection is resumed. Existing cases are not affected.",
+  "error_description": "HMC Lab and Smile Dental are on hold. New cases cannot be sent until the connection is resumed. Existing cases are not affected.",
+  "error": "connection_on_hold",
+  "code": "connection_on_hold",
+  "data": {
+    "connection_id": 12,
+    "lab_id": 7,
+    "office_id": 31,
+    "held_by_side": "lab"
+  }
+}
