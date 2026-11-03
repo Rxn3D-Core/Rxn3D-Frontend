@@ -210,6 +210,7 @@ function OfficeCaseManagementPage() {
   // Office listing always loads connected labs (non-lab_admin role path).
   const { officesAsLabs: connectedLabs } = useConnectedOfficesOrLabs("office_admin", {
     enabled: showAdvancedFilter,
+    includeOnHold: true,
   })
 
   const { slips: officeSlips, loading, pagination, fetchOfficeSlips } = useOfficeSlipContext()

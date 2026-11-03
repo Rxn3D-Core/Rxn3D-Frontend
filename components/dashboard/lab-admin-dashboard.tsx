@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react"
 import { KpiCard } from "./kpi-card"
 import { PlanCard } from "./plan-card"
 import { Search, X, Eye, MoreHorizontal, Plus, Mail, Trash2, Menu, Loader2 } from 'lucide-react'
-import { ConnectionHoldButton } from "@/components/dashboard/connection-hold-button"
+import { ConnectionHoldBadgeLabel, ConnectionHoldButton } from "@/components/dashboard/connection-hold-button"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { Input } from "@/components/ui/input"
@@ -515,7 +515,7 @@ export function LabAdminDashboard() {
                           </div>
                           <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
                             <span className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium ${getStatusBadgeClass(practice.status || '')}`}>
-                              {getStatusLabel(practice.status || '')}
+                              <ConnectionHoldBadgeLabel connection={practice} />
                             </span>
                             <ConnectionHoldButton connection={practice} partnerLabel="office" />
                           </div>

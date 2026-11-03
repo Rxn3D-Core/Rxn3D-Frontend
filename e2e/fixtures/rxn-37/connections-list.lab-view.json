@@ -1,0 +1,85 @@
+{
+  "success": true,
+  "message": "Connections retrieved successfully",
+  "data": [
+    {
+      "id": 12,
+      "connected_since": "2025-06-01T09:00:00Z",
+      "status": "Active",
+      "partner": {
+        "id": 31,
+        "name": "Smile Dental",
+        "email": "office31@example.com",
+        "logo_url": null,
+        "city": "Austin",
+        "state": "TX"
+      },
+      "hold": {
+        "is_on_hold": false,
+        "held_by_side": null,
+        "held_at": null,
+        "reason": null,
+        "my_side": "lab",
+        "is_mine": false,
+        "can_hold": true,
+        "can_resume": false,
+        "can_request_resume": false,
+        "resume_requested_at": null,
+        "request_resume_available_at": null
+      }
+    },
+    {
+      "id": 13,
+      "connected_since": "2025-06-01T09:00:00Z",
+      "status": "OnHold",
+      "partner": {
+        "id": 32,
+        "name": "Bright Smiles Dental",
+        "email": "office32@example.com",
+        "logo_url": null,
+        "city": "Austin",
+        "state": "TX"
+      },
+      "hold": {
+        "is_on_hold": true,
+        "held_by_side": "lab",
+        "held_at": "2026-11-03T10:00:00Z",
+        "reason": "Unpaid invoices",
+        "my_side": "lab",
+        "is_mine": true,
+        "can_hold": false,
+        "can_resume": true,
+        "can_request_resume": false,
+        "resume_requested_at": null,
+        "request_resume_available_at": null
+      }
+    },
+    {
+      "id": 14,
+      "connected_since": "2025-06-01T09:00:00Z",
+      "status": "OnHold",
+      "partner": {
+        "id": 33,
+        "name": "Downtown Dental Group",
+        "email": "office33@example.com",
+        "logo_url": null,
+        "city": "Austin",
+        "state": "TX"
+      },
+      "hold": {
+        "is_on_hold": true,
+        "held_by_side": "office",
+        "held_at": "2026-11-03T10:00:00Z",
+        "reason": null,
+        "my_side": "lab",
+        "is_mine": false,
+        "can_hold": false,
+        "can_resume": false,
+        "can_request_resume": true,
+        "resume_requested_at": null,
+        "request_resume_available_at": null
+      }
+    }
+  ],
+  "total_connections": 3
+}

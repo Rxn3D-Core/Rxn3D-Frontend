@@ -1,0 +1,6 @@
+{
+  "success": false,
+  "message": "This connection is not on hold.",
+  "error": "connection_not_on_hold",
+  "code": "connection_not_on_hold"
+}
