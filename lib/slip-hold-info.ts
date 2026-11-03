@@ -131,6 +131,26 @@ export function holdDetailFromNote(note: SlipNoteDetail): SlipHoldDetail {
   }
 }
 
+/**
+ * True while the slip notes are still loading and the detail we have so far is
+ * incomplete, so the banner shows a skeleton instead of the "Unknown" /
+ * "No reason provided" fallbacks. Once loading ends the fallbacks apply.
+ */
+export function isSlipBannerDetailLoading(
+  notesLoading: boolean,
+  detail: SlipHoldDetail | null
+): boolean {
+  if (!notesLoading) return false
+  if (!detail) return true
+  const author = detail.authorName?.trim()
+  return (
+    !author ||
+    author === "Unknown" ||
+    !detail.reason?.trim() ||
+    !detail.heldAt?.trim()
+  )
+}
+
 /** Resolve who/when/why the slip was put on hold for the banner. */
 export function resolveSlipHoldDetail(
   notes: SlipNoteDetail[],
