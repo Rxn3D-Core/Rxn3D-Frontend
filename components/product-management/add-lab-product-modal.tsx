@@ -60,6 +60,7 @@ import {
 } from "@/lib/product-retention-links-form"
 import { applyReleasingStageFlagsToStages } from "@/lib/product-releasing-stages"
 import { useAdvanceFields, ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE } from "@/lib/api/advance-mode-query"
+import { useAdvanceModeAccess } from "@/hooks/use-advance-mode-access"
 import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
 import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
 import { useQueryClient } from "@tanstack/react-query"
@@ -289,6 +290,9 @@ export function AddLabProductModal({
 
   const customerId = useMemo(() => getCustomerId(user), [user])
 
+  /** `/library/advance/*` needs plan feature `product.advance_mode`. */
+  const advanceModeAllowed = useAdvanceModeAccess()
+
   /** Warm advance-field catalog cache when modal opens (tab content mounts lazily). */
   useAdvanceFields(
     {
@@ -297,7 +301,7 @@ export function AddLabProductModal({
       status: "Active",
       ...(typeof customerId === "number" && customerId > 0 ? { customer_id: customerId } : {}),
     },
-    { enabled: isOpen },
+    { enabled: isOpen && advanceModeAllowed },
   )
 
   const retentionOptionsCatalogCustomerId = useMemo((): number | null => {
@@ -3614,7 +3618,7 @@ export function AddLabProductModal({
                 </TabsContent>
 
                 <TabsContent value="advanceFields" className="mt-0 p-0 focus-visible:outline-none">
-                  <AdvanceFieldsSection
+                  {advanceModeAllowed && <AdvanceFieldsSection
                     watch={watch}
                     setValue={setValue}
                     sections={sections}
@@ -3623,7 +3627,7 @@ export function AddLabProductModal({
                     sectionHasErrors={sectionHasErrors}
                     listCustomerId={customerId}
                     onRequestAdvanceFieldEditor={handleRequestAdvanceFieldEditor}
-                  />
+                  />}
                 </TabsContent>
 
                 <TabsContent value="visibility" className="mt-0 p-6 focus-visible:outline-none">
@@ -3752,7 +3756,7 @@ export function AddLabProductModal({
         }}
       />
       <AddFieldModal
-        isOpen={advanceFieldHost.open}
+        isOpen={advanceFieldHost.open && advanceModeAllowed}
         onClose={() => setAdvanceFieldHost({ open: false })}
         isEditing={advanceFieldHost.open && advanceFieldHost.mode === "edit"}
         field={

@@ -1,6 +1,11 @@
 import { clearSessionStorage } from "./clear-session-storage"
-import { PLAN_ERROR_CODES } from "./entitlements"
 import { PLAN_SUBSCRIPTIONS_PATH } from "./plan-guard"
+import {
+  createNoticeDeduper,
+  PLAN_UPGRADE_NOTICE_EVENT,
+  planErrorReaction,
+  readPlanError,
+} from "./plan-error-reaction"
 import {
   getRequestUrl,
   isAuthExemptUrl,
@@ -16,7 +21,10 @@ type InterceptorWindow = Window & {
 }
 
 /** Bump so HMR re-wraps fetch when this file changes. */
-const INTERCEPTOR_VERSION = 7
+const INTERCEPTOR_VERSION = 8
+
+/** One upgrade toast per burst of failing plan-gated requests. */
+const allowPlanNotice = createNoticeDeduper(8000)
 
 function restoreImpersonatorSessionOrNull(): string | null {
   try {
@@ -142,11 +150,14 @@ export function setupGlobalFetchInterceptor() {
       const requestUrl = getRequestUrl(args[0])
       if (!requestUrl.includes("/entitlements")) {
         const body = await response.clone().json().catch(() => null)
-        const code = String(body?.error ?? body?.code ?? "").toLowerCase()
-        if (PLAN_ERROR_CODES.includes(code as (typeof PLAN_ERROR_CODES)[number])) {
+        const planError = readPlanError(response.status, requestUrl, body)
+        if (planError) {
           window.dispatchEvent(new Event("plan-entitlement-changed"))
-          if (!window.location.pathname.startsWith(PLAN_SUBSCRIPTIONS_PATH)) {
+          const reaction = planErrorReaction(planError, window.location.pathname, PLAN_SUBSCRIPTIONS_PATH)
+          if (reaction === "redirect") {
             window.location.assign(PLAN_SUBSCRIPTIONS_PATH)
+          } else if (reaction === "notify" && allowPlanNotice(Date.now())) {
+            window.dispatchEvent(new CustomEvent(PLAN_UPGRADE_NOTICE_EVENT, { detail: planError }))
           }
         }
       }

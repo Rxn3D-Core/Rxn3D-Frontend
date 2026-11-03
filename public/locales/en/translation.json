@@ -564,5 +564,10 @@
       "xlsx": "Export Excel",
       "error": "Export failed. Please try again."
     }
+  },
+  "planUpgrade": {
+    "title": "Upgrade required",
+    "description": "This feature is not available on your current plan.",
+    "action": "View plans"
   }
 }
