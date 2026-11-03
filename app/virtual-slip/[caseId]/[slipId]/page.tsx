@@ -1204,7 +1204,7 @@ export default function VirtualSlipV2Page() {
         open={caseStatusModal === "hold"}
         onClose={closeCaseStatusModal}
         onSubmitAction={(payload) =>
-          void submitCaseStatusAction("hold", payload.reason, {
+          submitCaseStatusAction("hold", payload.reason, {
             scope: payload.scope,
             arch: payload.arch,
           })
@@ -1231,7 +1231,7 @@ export default function VirtualSlipV2Page() {
         open={caseStatusModal === "resume"}
         onClose={closeCaseStatusModal}
         onSubmitAction={(payload) =>
-          void submitCaseStatusAction("resume", payload.reason, {
+          submitCaseStatusAction("resume", payload.reason, {
             scope: payload.scope,
             arch: payload.arch,
           })
@@ -1260,7 +1260,7 @@ export default function VirtualSlipV2Page() {
         open={caseStatusModal === "cancel"}
         onClose={closeCaseStatusModal}
         onSubmitAction={(payload) =>
-          void submitCaseStatusAction("cancel", payload.reason, {
+          submitCaseStatusAction("cancel", payload.reason, {
             scope: payload.scope,
             arch: payload.arch,
           })
