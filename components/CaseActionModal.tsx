@@ -1,7 +1,7 @@
 // components/CaseActionModal.tsx
 // Hold / Cancel / Delete scope picker: Case | Arch (Figma)
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { X, Info } from "lucide-react";
 import clsx from "clsx";
 import type { SlipActionScope, SlipArchType } from "@/lib/api/slip-case-actions";
+import { runModalSubmit } from "@/lib/modal-submit";
 
 type CaseActionType = "hold" | "resume" | "cancel" | "cancelled" | "delete" | "restore";
 
@@ -22,9 +23,13 @@ export type CaseActionSubmitPayload = {
 interface CaseActionModalProps {
   open: boolean;
   onClose: () => void;
-  /** @deprecated Prefer onSubmitAction for scoped Case/Arch actions */
-  onSubmit?: (reason: string) => void;
-  onSubmitAction?: (payload: CaseActionSubmitPayload) => void;
+  /**
+   * @deprecated Prefer onSubmitAction for scoped Case/Arch actions.
+   * Return the request promise to keep the form and show a busy submit button
+   * until it settles; with no promise the reason is cleared at once (legacy).
+   */
+  onSubmit?: (reason: string) => void | Promise<unknown>;
+  onSubmitAction?: (payload: CaseActionSubmitPayload) => void | Promise<unknown>;
   actionType: CaseActionType;
   title: string;
   description: string;
@@ -97,6 +102,8 @@ const CaseActionModal: React.FC<CaseActionModalProps> = ({
   const [arch, setArch] = useState<SlipArchType>(
     initialArch ?? availableArches[0] ?? "Upper"
   );
+  const [submitting, setSubmitting] = useState(false);
+  const submitInFlight = useRef(false);
 
   const scopesForAction = useMemo((): SlipActionScope[] => {
     if (actionType === "restore" || actionType === "cancelled") return ["case"];
@@ -139,19 +146,18 @@ const CaseActionModal: React.FC<CaseActionModalProps> = ({
     return true;
   }, [actionType, reason, enableScopePicker, scope, arch, availableArches]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit) return;
     const payload: CaseActionSubmitPayload = {
       reason: reason.trim(),
       scope: enableScopePicker ? scope : "case",
       arch: enableScopePicker && scope === "arch" ? arch : undefined,
     };
-    if (onSubmitAction) {
-      onSubmitAction(payload);
-    } else if (onSubmit) {
-      onSubmit(payload.reason);
-    }
-    setReason("");
+    // Keep the form while the request runs; it resets on the next open.
+    const outcome = await runModalSubmit(submitInFlight, setSubmitting, () =>
+      onSubmitAction ? onSubmitAction(payload) : onSubmit?.(payload.reason)
+    );
+    if (outcome === "sync") setReason("");
   };
 
   // "Case Cancelled" special modal (success state)
@@ -333,8 +339,9 @@ const CaseActionModal: React.FC<CaseActionModalProps> = ({
                 backgroundColor: buttonColor ? buttonClassMap[buttonColor].bg : '#6B7280',
                 borderColor: buttonColor ? buttonClassMap[buttonColor].bg : '#6B7280'
               }}
-              onClick={handleSubmit}
-              disabled={!canSubmit}
+              onClick={() => void handleSubmit()}
+              disabled={!canSubmit || submitting}
+              aria-busy={submitting}
             >
               {buttonText}
             </Button>
