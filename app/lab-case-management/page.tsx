@@ -25,6 +25,7 @@ import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/
 import { virtualSlipRushSlotsShareProduct } from "@/lib/virtual-slip-rush-slots"
 import { parseSlipListingDueDate } from "@/lib/slip-listing-due-date"
 import { getBusinessSettings, type CaseSchedule, type BusinessHour } from "@/lib/api-business-settings"
+import { useBusinessSettingsQuery } from "@/hooks/use-business-settings"
 import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state"
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
 import CallLogModal from "@/components/call-log-modal"
@@ -182,6 +183,7 @@ function normalizeStatusFilterValue(status: string): string {
 export default function LabSlipV3Page() {
   const { toast } = useToast()
   const { user } = useAuth()
+  const { data: listingBusinessSettings } = useBusinessSettingsQuery(resolveListingCustomerId())
   const searchParams = useSearchParams()
   const initialLocation = parseLocationFilterFromUrl(searchParams.get("location"))
   const urlLocationParam = searchParams.get("location")
@@ -999,6 +1001,7 @@ export default function LabSlipV3Page() {
       <main className="w-full px-4 pb-4">
         <V3CaseWidget
           listingProfile="lab"
+          businessHours={listingBusinessSettings?.business_hours}
           search={search}
           onSearchChange={setSearch}
           onSearchEnter={() => {

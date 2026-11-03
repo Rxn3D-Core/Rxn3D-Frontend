@@ -7,7 +7,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
-import { parseSlipListingDueDate } from "@/lib/slip-listing-due-date"
+import {
+  formatCaseManagementDueDate,
+  parseSlipListingDueDate,
+  type SlipListingBusinessHour,
+} from "@/lib/slip-listing-due-date"
 import { slipIsInOffice, slipShowsPickupDropoff } from "@/lib/slip-location"
 import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
@@ -63,6 +67,7 @@ export type SortDirection = "asc" | "desc"
 
 interface Props {
   rows: V2CaseRowData[]
+  businessHours?: readonly SlipListingBusinessHour[] | null
   loading: boolean
   visibleColumns: Set<ColumnKey>
   selected: number[]
@@ -381,7 +386,7 @@ export function V3CaseTable(props: Props) {
                         <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">DUE DATE</div>
                         {officeProfile ? (
                           <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
-                            {formatDueDate(row)}
+                            {formatDueDate(row, props.businessHours)}
                           </span>
                         ) : (
                           <button
@@ -392,7 +397,7 @@ export function V3CaseTable(props: Props) {
                           >
                             <img src={`${LI}/calendar.png`} alt="" className="h-[25px] w-[25px] shrink-0" />
                             <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
-                              {formatDueDate(row)}
+                              {formatDueDate(row, props.businessHours)}
                             </span>
                           </button>
                         )}
@@ -710,6 +715,7 @@ export function V3CaseTable(props: Props) {
                     <DesktopCell
                       key={column.key}
                       column={column}
+                      businessHours={props.businessHours}
                       dueDateColor={dueDateColor}
                       row={row}
                       rowActions={props.rowActions}
@@ -759,6 +765,7 @@ export function V3CaseTable(props: Props) {
 
 function DesktopCell({
   column,
+  businessHours,
   dueDateColor,
   row,
   rowActions,
@@ -774,6 +781,7 @@ function DesktopCell({
   openSlipLabel,
 }: {
   column: DesktopColumn
+  businessHours?: readonly SlipListingBusinessHour[] | null
   dueDateColor: string
   showTimestamp: boolean
   allowDriverActions: boolean
@@ -967,11 +975,11 @@ function DesktopCell({
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); rowActions.onChangeDueDate(row) }}
             >
               <img src={`${LI}/calendar.png`} alt="" className="h-[25px] w-[25px] shrink-0" />
-              <span className="min-w-0 truncate">{formatDueDate(row)}</span>
+              <span className="min-w-0 truncate">{formatDueDate(row, businessHours)}</span>
             </button>
           ) : (
             <span className="min-w-0 truncate" style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
-              {formatDueDate(row)}
+              {formatDueDate(row, businessHours)}
             </span>
           )}
         </div>
@@ -1147,7 +1155,10 @@ function dueDateTextColor(row: V2CaseRowData): string {
   return due.getTime() === today.getTime() ? "#347B4E" : "#2BA5DE"
 }
 
-function formatDueDate(row: V2CaseRowData): string {
+function formatDueDate(
+  row: V2CaseRowData,
+  businessHours?: readonly SlipListingBusinessHour[] | null,
+): string {
   const { dueDate } = row
   // Parse as calendar day (YYYY-MM-DD) so MM/DD matches the API date on every device.
   const due = dueDate ? parseSlipListingDueDate(dueDate) : null
@@ -1159,10 +1170,5 @@ function formatDueDate(row: V2CaseRowData): string {
   }
   if (!dueDate) return "—"
   if (!due) return dueDate
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const days = Math.round((due.getTime() - today.getTime()) / 86_400_000)
-  const mmdd = formatDueMmDd(due)
-  const label = days === 0 ? "Today" : days < 0 ? `${Math.abs(days)}d ago` : `${days}d`
-  return `${label} · ${mmdd}`
+  return formatCaseManagementDueDate(due, new Date(), businessHours)
 }
