@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   formatHoldBannerTimestamp,
   type SlipHoldDetail,
@@ -40,6 +41,8 @@ export interface VirtualSlipHoldBannerProps {
   variant?: VirtualSlipBannerVariant;
   /** Override default title (e.g. "Upper on Hold"). */
   title?: string;
+  /** Show a skeleton instead of author/time/reason while they are loading. */
+  loading?: boolean;
   onResume?: () => void;
   onCancel?: () => void;
 }
@@ -48,6 +51,7 @@ export function VirtualSlipHoldBanner({
   holdDetail,
   variant = "hold",
   title,
+  loading = false,
   onResume,
   onCancel,
 }: VirtualSlipHoldBannerProps) {
@@ -68,17 +72,27 @@ export function VirtualSlipHoldBanner({
         {title ?? theme.title}
       </p>
 
-      <p className="min-w-0 flex-1 text-center font-sans text-xl leading-snug text-[#374151]">
-        {theme.prefix} <strong className="font-bold text-[#111827]">{author}</strong>
-        {when ? (
-          <>
-            {" "}
-            • <strong className="font-bold text-[#111827]">{when}</strong>
-          </>
-        ) : null}
-        {" "}
-        • <strong className="font-bold text-[#111827]">Reason:</strong> {reason}
-      </p>
+      {loading ? (
+        <div
+          className="flex min-w-0 flex-1 justify-center"
+          aria-busy="true"
+          data-testid="virtual-slip-banner-loading"
+        >
+          <Skeleton className="h-7 w-full max-w-xl bg-[#111827]/10" />
+        </div>
+      ) : (
+        <p className="min-w-0 flex-1 text-center font-sans text-xl leading-snug text-[#374151]">
+          {theme.prefix} <strong className="font-bold text-[#111827]">{author}</strong>
+          {when ? (
+            <>
+              {" "}
+              • <strong className="font-bold text-[#111827]">{when}</strong>
+            </>
+          ) : null}
+          {" "}
+          • <strong className="font-bold text-[#111827]">Reason:</strong> {reason}
+        </p>
+      )}
 
       <div className="flex shrink-0 items-center gap-2">
         {onResume ? (
