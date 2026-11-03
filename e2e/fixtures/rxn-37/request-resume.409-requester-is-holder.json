@@ -1,0 +1,6 @@
+{
+  "success": false,
+  "message": "You placed this hold. Resume it instead.",
+  "error": "requester_is_holder",
+  "code": "requester_is_holder"
+}

@@ -112,3 +112,12 @@ export function isSlipLimitExceededError(error: unknown): boolean {
   const msg = typeof maybeError.message === "string" ? maybeError.message.toLowerCase() : ""
   return msg.includes("slip_limit_exceeded")
 }
+
+/** POST /slip/create 409 `connection_on_hold` (RXN-37): the lab–office connection is on hold. Not a plan-limit (402) error. */
+export function isConnectionOnHoldError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false
+  const maybeError = error as { status?: unknown; code?: unknown }
+  const code = typeof maybeError.code === "string" ? maybeError.code.toLowerCase() : ""
+  if (code !== "connection_on_hold") return false
+  return maybeError.status === undefined || maybeError.status === 409
+}

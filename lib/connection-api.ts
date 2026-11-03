@@ -137,13 +137,41 @@ async function connectionMutation<T>(
 
   const json = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(
-      (json as { message?: string; error?: string }).message ||
-        (json as { error?: string }).error ||
-        `Request failed (${response.status})`
-    )
+    const body = json as { message?: string; error?: string; code?: string; retry_after_seconds?: number }
+    throw new ConnectionApiError(body.message || body.error || `Request failed (${response.status})`, {
+      status: response.status,
+      code: body.code || body.error,
+      retryAfterSeconds: typeof body.retry_after_seconds === "number" ? body.retry_after_seconds : undefined,
+    })
   }
   return json as T
+}
+
+/** Error from a connection mutation; `message` is the API message, `code` its error code. */
+export class ConnectionApiError extends Error {
+  status: number
+  code?: string
+  retryAfterSeconds?: number
+
+  constructor(message: string, options: { status: number; code?: string; retryAfterSeconds?: number }) {
+    super(message)
+    this.name = "ConnectionApiError"
+    this.status = options.status
+    this.code = options.code
+    this.retryAfterSeconds = options.retryAfterSeconds
+  }
+}
+
+/** POST /connections/{id}/request-resume — asks the holder side to resume (202; 429 when throttled). */
+export async function requestResumeConnectionApi(
+  connectionId: number,
+  message?: string
+): Promise<{ success?: boolean; message?: string; data?: Connection }> {
+  return connectionMutation(
+    `/connections/${connectionId}/request-resume`,
+    "POST",
+    message ? { message } : undefined
+  )
 }
 
 /** PUT /connections/{id}/hold — pauses lab↔office link (slips require Active). */

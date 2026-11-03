@@ -1,0 +1,46 @@
+{
+  "success": true,
+  "message": "Connections retrieved successfully",
+  "data": [
+    {
+      "id": 12,
+      "connected_since": "2025-06-01T09:00:00Z",
+      "status": "Active",
+      "partner": {
+        "id": 7,
+        "name": "HMC Lab",
+        "email": "lab7@example.com",
+        "logo_url": null,
+        "city": "Dallas",
+        "state": "TX"
+      }
+    },
+    {
+      "id": 15,
+      "connected_since": "2025-06-01T09:00:00Z",
+      "status": "OnHold",
+      "partner": {
+        "id": 8,
+        "name": "Precision Dental Lab",
+        "email": "lab8@example.com",
+        "logo_url": null,
+        "city": "Dallas",
+        "state": "TX"
+      }
+    },
+    {
+      "id": 16,
+      "connected_since": "2025-06-01T09:00:00Z",
+      "status": "OnHold",
+      "partner": {
+        "id": 9,
+        "name": "Coastal Ceramics",
+        "email": "lab9@example.com",
+        "logo_url": null,
+        "city": "Dallas",
+        "state": "TX"
+      }
+    }
+  ],
+  "total_connections": 3
+}

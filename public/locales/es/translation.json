@@ -575,5 +575,36 @@
     "title": "Actualización requerida",
     "description": "Esta función no está disponible en su plan actual.",
     "action": "Ver planes"
+  },
+  "connections": {
+    "hold": {
+      "badgeConnected": "Conectado",
+      "badgeOnHold": "En espera",
+      "badgeOnHoldByYou": "En espera por usted",
+      "badgeOnHoldByLab": "En espera por el laboratorio",
+      "badgeOnHoldByOffice": "En espera por la clínica",
+      "hold": "Poner en espera",
+      "resume": "Reanudar",
+      "requestResume": "Solicitar reanudación",
+      "requested": "Solicitado {{date}}",
+      "requestAvailableAt": "Puede enviar otra solicitud después de {{date}}.",
+      "holdTitle": "Poner la conexión en espera: sin nuevas órdenes",
+      "changeStatus": "Cambiar el estado de la conexión",
+      "confirmHold": "¿Poner en espera la conexión con este {{partner}}?\n\nNo se podrán crear nuevas órdenes para esta conexión hasta que la reanude. Las órdenes existentes, la facturación y el historial siguen disponibles.",
+      "holdSuccessTitle": "Conexión en espera",
+      "holdSuccessDescription": "No se podrán crear nuevas órdenes con este {{partner}} hasta que la reanude.",
+      "holdErrorTitle": "No se pudo poner la conexión en espera",
+      "resumeSuccessTitle": "Conexión reanudada",
+      "resumeSuccessDescription": "Ya se pueden crear nuevas órdenes con este {{partner}}.",
+      "resumeErrorTitle": "No se pudo reanudar la conexión",
+      "requestSuccessTitle": "Solicitud de reanudación enviada",
+      "requestSuccessDescription": "Se ha pedido al {{partner}} que reanude la conexión.",
+      "requestErrorTitle": "No se pudo enviar la solicitud de reanudación",
+      "tryAgain": "Inténtelo de nuevo.",
+      "partnerLab": "laboratorio",
+      "partnerOffice": "consultorio",
+      "partnerGeneric": "socio",
+      "slipCreateBlockedTitle": "Conexión en espera"
+    }
   }
 }

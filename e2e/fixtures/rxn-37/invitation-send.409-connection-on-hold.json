@@ -1,0 +1,9 @@
+{
+  "success": false,
+  "message": "You are already connected with Smile Dental. The connection is on hold. Use Request to Resume.",
+  "error": "connection_on_hold",
+  "code": "connection_on_hold",
+  "data": {
+    "connection_id": 12
+  }
+}

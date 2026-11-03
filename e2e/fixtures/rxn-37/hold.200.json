@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "message": "Connection put on hold successfully",
+  "data": {
+    "id": 12,
+    "connected_since": "2025-06-01T09:00:00Z",
+    "status": "OnHold",
+    "partner": {
+      "id": 31,
+      "name": "Smile Dental",
+      "email": "office31@example.com",
+      "logo_url": null,
+      "city": "Austin",
+      "state": "TX"
+    },
+    "hold": {
+      "is_on_hold": true,
+      "held_by_side": "lab",
+      "held_at": "2026-11-03T10:00:00Z",
+      "reason": "Paused from dashboard",
+      "my_side": "lab",
+      "is_mine": true,
+      "can_hold": false,
+      "can_resume": true,
+      "can_request_resume": false,
+      "resume_requested_at": null,
+      "request_resume_available_at": null
+    }
+  }
+}

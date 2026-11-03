@@ -23,6 +23,23 @@ export interface Partner {
   state: string
 }
 
+export type ConnectionSide = "lab" | "office"
+
+/** `hold` block on every connection item (RXN-37 contract, single hold). Absent on an old backend. */
+export interface ConnectionHold {
+  is_on_hold: boolean
+  held_by_side: ConnectionSide | null
+  held_at: string | null
+  reason: string | null
+  my_side: ConnectionSide | null
+  is_mine: boolean
+  can_hold: boolean
+  can_resume: boolean
+  can_request_resume: boolean
+  resume_requested_at: string | null
+  request_resume_available_at: string | null
+}
+
 export interface Connection {
   id: number
   name: string
@@ -34,6 +51,7 @@ export interface Connection {
   created_at?: string
   updated_at?: string
   partner: Partner
+  hold?: ConnectionHold | null
 }
 
 export interface ConnectionsResponse {

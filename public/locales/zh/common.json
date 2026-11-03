@@ -176,5 +176,36 @@
       "xlsx": "导出 Excel",
       "error": "导出失败，请重试。"
     }
+  },
+  "connections": {
+    "hold": {
+      "badgeConnected": "已连接",
+      "badgeOnHold": "已暂停",
+      "badgeOnHoldByYou": "已由您暂停",
+      "badgeOnHoldByLab": "已由技工所暂停",
+      "badgeOnHoldByOffice": "已由诊所暂停",
+      "hold": "暂停",
+      "resume": "恢复",
+      "requestResume": "请求恢复",
+      "requested": "已请求 {{date}}",
+      "requestAvailableAt": "您可以在 {{date}} 之后再次发送请求。",
+      "holdTitle": "暂停连接：不再创建新工单",
+      "changeStatus": "更改连接状态",
+      "confirmHold": "要暂停与该{{partner}}的连接吗？\n\n在您恢复之前，此连接无法创建新工单。现有工单、账单和历史记录仍可使用。",
+      "holdSuccessTitle": "连接已暂停",
+      "holdSuccessDescription": "在您恢复之前，无法与该{{partner}}创建新工单。",
+      "holdErrorTitle": "无法暂停连接",
+      "resumeSuccessTitle": "连接已恢复",
+      "resumeSuccessDescription": "现在可以再次与该{{partner}}创建新工单。",
+      "resumeErrorTitle": "无法恢复连接",
+      "requestSuccessTitle": "已发送恢复请求",
+      "requestSuccessDescription": "已请求该{{partner}}恢复连接。",
+      "requestErrorTitle": "无法发送恢复请求",
+      "tryAgain": "请重试。",
+      "partnerLab": "技工所",
+      "partnerOffice": "诊所",
+      "partnerGeneric": "合作方",
+      "slipCreateBlockedTitle": "连接已暂停"
+    }
   }
 }
