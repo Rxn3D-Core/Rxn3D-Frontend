@@ -1,0 +1,10 @@
+{
+  "success": false,
+  "message": "The given data was invalid.",
+  "error": "validation_failed",
+  "errors": {
+    "default_target_doctor_id": [
+      "Choose an active doctor in this office."
+    ]
+  }
+}
