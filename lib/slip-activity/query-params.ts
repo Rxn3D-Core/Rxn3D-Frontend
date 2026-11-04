@@ -33,6 +33,7 @@ export function defaultSlipActivityFilters(now: Date = new Date()): SlipActivity
     fromDate: `${from.getUTCFullYear()}-${pad(from.getUTCMonth() + 1)}-${pad(from.getUTCDate())}`,
     toDate,
     locationIds: [],
+    officeIds: [],
     search: "",
     page: 1,
     perPage: SLIP_ACTIVITY_DEFAULT_PER_PAGE,
@@ -65,6 +66,8 @@ function appendFilterParams(params: URLSearchParams, filters: SlipActivityFilter
   if (to) params.append("to", to)
   const ids = [...new Set(filters.locationIds)].sort((a, b) => a - b)
   for (const id of ids) params.append("location_ids[]", String(id))
+  const officeIds = [...new Set(filters.officeIds ?? [])].sort((a, b) => a - b)
+  for (const id of officeIds) params.append("office_ids[]", String(id))
   // A row matches when its from- OR to-status is selected (user decision, RXN-7).
   if (ids.length) params.append("match", "either")
   // Matches slip number, patient, office and user name (RXN-12); omitted when empty.

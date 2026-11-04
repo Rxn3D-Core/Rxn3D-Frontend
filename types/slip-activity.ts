@@ -21,12 +21,14 @@ export interface SlipActivityEvent {
   /** Backend RXN-8 (f961d879). Treated as possibly null/blank defensively. */
   patient_name: string | null
   /** Ordering office; null when the case has none. */
-  office: SlipActivityStatusRef | null
+  office: (SlipActivityStatusRef & { code?: string | null }) | null
   from_status: SlipActivityStatusRef
   to_status: SlipActivityStatusRef
   actor: { id: number; name: string } | null
   /** Distinct digital impression names of the slip, [] if none (RXN-15). Never null per contract. */
   digital_impressions: string[]
+  /** Short tag per impression (STL, 3SHP...), same order as digital_impressions. Absent on an older backend (RXN-46). */
+  digital_impression_codes?: string[]
   /** True when digital_impressions is not empty (RXN-15). */
   has_digital_impression: boolean
 }
@@ -85,6 +87,8 @@ export interface SlipActivityFilters extends SlipActivitySort {
   fromDate: string
   toDate: string
   locationIds: number[]
+  /** Ordering offices to keep (RXN-46); [] = all offices. */
+  officeIds: number[]
   /** Applied search, already normalized; "" means no search. */
   search: string
   page: number
