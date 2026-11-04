@@ -11,7 +11,9 @@ import type {
 import { SLIP_ACTIVITY_DEFAULT_SORT } from "./sort"
 import { parseCalendarDay, slipActivityDayBoundary, slipActivityToday } from "./time-zone"
 
-export const SLIP_ACTIVITY_DEFAULT_PER_PAGE = 25
+/** Page sizes offered in the table footer (RXN-46); the backend accepts up to 1000. */
+export const SLIP_ACTIVITY_PER_PAGE_OPTIONS = [20, 50, 100, 1000] as const
+export const SLIP_ACTIVITY_DEFAULT_PER_PAGE = 20
 export const SLIP_ACTIVITY_DEFAULT_RANGE_DAYS = 30
 /** Backend refuses `to - from` over 366 days; stay one day inside that. */
 export const SLIP_ACTIVITY_MAX_RANGE_DAYS = 365

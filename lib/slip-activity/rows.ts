@@ -4,6 +4,8 @@ import type { SlipActivityEvent } from "@/types/slip-activity"
 export interface SlipActivityRow {
   id: number
   actionAt: string
+  /** ISO 8601, or "" when the backend does not send it. */
+  slipCreatedAt: string
   slipNumber: string
   slipHref: string
   /** Blank when absent. */
@@ -22,6 +24,7 @@ export function toSlipActivityRow(event: SlipActivityEvent): SlipActivityRow {
   return {
     id: event.id,
     actionAt: event.action_at,
+    slipCreatedAt: event.slip_created_at ?? "",
     slipNumber: event.slip.slip_number,
     slipHref: buildVirtualSlipPath(event.slip.case_id, event.slip.id),
     patientName: event.patient_name?.trim() ?? "",

@@ -77,6 +77,8 @@ export default function SlipActivityPage() {
           pagination={pagination}
           isFetching={eventsQuery.isFetching}
           onPageChange={(page) => setFilters((prev) => ({ ...prev, page }))}
+          perPage={filters.perPage}
+          onPerPageChange={(perPage) => setFilters((prev) => ({ ...prev, perPage, page: 1 }))}
           search={filters.search}
           sort={{ sort: filters.sort, direction: filters.direction }}
           // A new sort starts again at page 1; it is kept in state only, not in the URL.
