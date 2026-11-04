@@ -765,6 +765,7 @@ export default function ChargeManagementPage() {
 
   const { officesAsLabs, isLoading: officesLoading } = useConnectedOffices({
     enabled: typeof window !== "undefined" && !!localStorage.getItem("token") && isLabScope,
+    includeOnHold: true,
   })
   const officesAsLabsRef = useRef(officesAsLabs)
   officesAsLabsRef.current = officesAsLabs

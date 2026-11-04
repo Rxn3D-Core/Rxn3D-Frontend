@@ -274,7 +274,7 @@ export default function LabSlipV3Page() {
     readyToSendPhotoRequired,
   } = useSignatureRequirementSettings(showReadyToSendModal)
 
-  const { officesAsLabs: connectedOffices } = useConnectedOffices({ enabled: showAdvancedFilter })
+  const { officesAsLabs: connectedOffices } = useConnectedOffices({ enabled: showAdvancedFilter, includeOnHold: true })
 
   const {
     slips, loading, fetchLabSlips, fetchDriverPrintData,

@@ -7,6 +7,7 @@ import {
   getActiveCustomerId,
   holdConnectionApi,
   normalizeConnectionsPagination,
+  requestResumeConnectionApi,
   resumeConnectionApi,
   type ConnectionsQueryParams,
   DEFAULT_CONNECTIONS_PER_PAGE,
@@ -92,7 +93,20 @@ export function useHoldConnection() {
   return useMutation({
     mutationFn: ({ connectionId, reason }: { connectionId: number; reason?: string }) =>
       holdConnectionApi(connectionId, reason),
-    onSuccess: async () => {
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: connectionKeys.all })
+    },
+  })
+}
+
+/** Ask the side that placed the hold to resume it (emails the holder; one per 24 h). */
+export function useRequestResumeConnection() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ connectionId, message }: { connectionId: number; message?: string }) =>
+      requestResumeConnectionApi(connectionId, message),
+    onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: connectionKeys.all })
     },
   })
@@ -104,7 +118,7 @@ export function useResumeConnection() {
 
   return useMutation({
     mutationFn: (connectionId: number) => resumeConnectionApi(connectionId),
-    onSuccess: async () => {
+    onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: connectionKeys.all })
     },
   })

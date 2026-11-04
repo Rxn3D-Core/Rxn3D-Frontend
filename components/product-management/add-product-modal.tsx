@@ -66,6 +66,8 @@ import {
 } from "@/lib/product-retention-links-form"
 import { applyReleasingStageFlagsToStages } from "@/lib/product-releasing-stages"
 import { useAdvanceFields, ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE } from "@/lib/api/advance-mode-query"
+import { useAdvanceModeAccess } from "@/hooks/use-advance-mode-access"
+import { withoutAdvanceFieldsTab } from "@/lib/advance-mode-access"
 import { useQueryClient } from "@tanstack/react-query"
 import {
   retentionOptionsCatalogQueryKey,
@@ -242,6 +244,9 @@ export function AddProductModal({
     return undefined
   }, [pricingScope, customerId])
 
+  /** Advance Field tab and `/library/advance/*` calls need plan feature `product.advance_mode`. */
+  const advanceModeAllowed = useAdvanceModeAccess()
+
   useAdvanceFields(
     {
       page: 1,
@@ -249,7 +254,7 @@ export function AddProductModal({
       status: "Active",
       ...(catalogAdvanceFieldsCustomerId !== undefined ? { customer_id: catalogAdvanceFieldsCustomerId } : {}),
     },
-    { enabled: isOpen },
+    { enabled: isOpen && advanceModeAllowed },
   )
 
   const retentionOptionsCatalogCustomerId = useMemo((): number | null => {
@@ -380,7 +385,10 @@ export function AddProductModal({
     visibilityManagement: true,
   })
 
-  const tabs = ADD_PRODUCT_MODAL_TABS
+  const tabs = useMemo(
+    () => withoutAdvanceFieldsTab(ADD_PRODUCT_MODAL_TABS, advanceModeAllowed),
+    [advanceModeAllowed],
+  )
 
   // Show all tabs when editing, progressive reveal when creating
   useEffect(() => {
@@ -564,11 +572,11 @@ export function AddProductModal({
 
   /** Skip Variation when not per-tooth; skip Stages when product is single-stage (no workflow). */
   const tabsForNavigation = useMemo(() => {
-    let tabs = [...ADD_PRODUCT_MODAL_TABS]
+    let tabs = withoutAdvanceFieldsTab([...ADD_PRODUCT_MODAL_TABS], advanceModeAllowed)
     if (watchedIsTeethBased !== "Yes") tabs = tabs.filter((t) => t.id !== "variation")
     if (watchedIsSingleStage === "Yes") tabs = tabs.filter((t) => t.id !== "stages")
     return tabs
-  }, [watchedIsTeethBased, watchedIsSingleStage])
+  }, [watchedIsTeethBased, watchedIsSingleStage, advanceModeAllowed])
 
   const currentTabIndex = tabsForNavigation.findIndex((tab) => tab.id === activeTab)
   const safeTabIndex = currentTabIndex >= 0 ? currentTabIndex : 0
@@ -1639,7 +1647,7 @@ export function AddProductModal({
       payload.has_retention = sections.retention ? "Yes" : "No"
       payload.has_material = sections.material ? "Yes" : "No"
       payload.has_addon = sections.addOns ? "Yes" : "No"
-      payload.has_advance_field = sections.advanceField ? "Yes" : "No"
+      payload.has_advance_field = advanceModeAllowed && sections.advanceField ? "Yes" : "No"
 
       // When section is off: send empty arrays so backend deletes relations
       if (!sections.stages) payload.stages = []
@@ -1659,6 +1667,8 @@ export function AddProductModal({
       payload.advance_fields = serializeAdvanceFieldsForApi(
         (data.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
       )
+      // Plan without Advance Mode: omit links (backend keeps existing ones when has_advance_field is No).
+      if (!advanceModeAllowed) delete payload.advance_fields
       if (!sections.extractions) {
         payload.extractions = []
         payload.opposite_extractions = []
@@ -1719,7 +1729,7 @@ export function AddProductModal({
       payload.has_retention = sections.retention ? "Yes" : "No"
       payload.has_material = sections.material ? "Yes" : "No"
       payload.has_addon = sections.addOns ? "Yes" : "No"
-      payload.has_advance_field = sections.advanceField ? "Yes" : "No"
+      payload.has_advance_field = advanceModeAllowed && sections.advanceField ? "Yes" : "No"
 
       if (!sections.stages) payload.stages = []
       if (!sections.grades) payload.grades = []
@@ -1738,6 +1748,7 @@ export function AddProductModal({
           typeof serializeAdvanceFieldsForApi
         >[0],
       )
+      if (!advanceModeAllowed) delete payload.advance_fields
       if (!sections.extractions) {
         payload.extractions = []
         payload.opposite_extractions = []
@@ -2401,18 +2412,20 @@ export function AddProductModal({
                   />
                 </TabsContent>
 
-                <TabsContent value="advanceFields" className="mt-0 p-0 focus-visible:outline-none">
-                  <AdvanceFieldsSection
-                    watch={watch}
-                    setValue={setValue}
-                    sections={sections}
-                    toggleSection={toggleSection}
-                    getValidationError={getValidationError}
-                    sectionHasErrors={sectionHasErrors}
-                    listCustomerId={pricingScope === "lab" ? (customerId ?? null) : null}
-                    onRequestAdvanceFieldEditor={onRequestAdvanceFieldEditor}
-                  />
-                </TabsContent>
+                {advanceModeAllowed && (
+                  <TabsContent value="advanceFields" className="mt-0 p-0 focus-visible:outline-none">
+                    <AdvanceFieldsSection
+                      watch={watch}
+                      setValue={setValue}
+                      sections={sections}
+                      toggleSection={toggleSection}
+                      getValidationError={getValidationError}
+                      sectionHasErrors={sectionHasErrors}
+                      listCustomerId={pricingScope === "lab" ? (customerId ?? null) : null}
+                      onRequestAdvanceFieldEditor={onRequestAdvanceFieldEditor}
+                    />
+                  </TabsContent>
+                )}
               </div>
 
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-t bg-white flex-shrink-0 mt-auto">

@@ -176,5 +176,36 @@
       "xlsx": "Exporter Excel",
       "error": "L'exportation a échoué. Veuillez réessayer."
     }
+  },
+  "connections": {
+    "hold": {
+      "badgeConnected": "Connecté",
+      "badgeOnHold": "En pause",
+      "badgeOnHoldByYou": "Mis en pause par vous",
+      "badgeOnHoldByLab": "Mis en pause par le laboratoire",
+      "badgeOnHoldByOffice": "Mis en pause par le cabinet",
+      "hold": "Mettre en pause",
+      "resume": "Reprendre",
+      "requestResume": "Demander la reprise",
+      "requested": "Demandé {{date}}",
+      "requestAvailableAt": "Vous pourrez envoyer une autre demande après {{date}}.",
+      "holdTitle": "Mettre la connexion en pause : aucune nouvelle fiche",
+      "changeStatus": "Modifier le statut de la connexion",
+      "confirmHold": "Mettre en pause la connexion avec ce {{partner}} ?\n\nAucune nouvelle fiche ne peut être créée pour cette connexion tant que vous ne l'avez pas reprise. Les fiches existantes, la facturation et l'historique restent disponibles.",
+      "holdSuccessTitle": "Connexion en pause",
+      "holdSuccessDescription": "Aucune nouvelle fiche ne peut être créée avec ce {{partner}} tant que vous n'avez pas repris.",
+      "holdErrorTitle": "Impossible de mettre la connexion en pause",
+      "resumeSuccessTitle": "Connexion reprise",
+      "resumeSuccessDescription": "De nouvelles fiches peuvent à nouveau être créées avec ce {{partner}}.",
+      "resumeErrorTitle": "Impossible de reprendre la connexion",
+      "requestSuccessTitle": "Demande de reprise envoyée",
+      "requestSuccessDescription": "Le {{partner}} a été invité à reprendre la connexion.",
+      "requestErrorTitle": "Impossible d'envoyer la demande de reprise",
+      "tryAgain": "Veuillez réessayer.",
+      "partnerLab": "laboratoire",
+      "partnerOffice": "cabinet",
+      "partnerGeneric": "partenaire",
+      "slipCreateBlockedTitle": "Connexion en pause"
+    }
   }
 }

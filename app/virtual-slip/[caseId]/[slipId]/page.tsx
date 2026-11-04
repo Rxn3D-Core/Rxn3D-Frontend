@@ -64,6 +64,7 @@ import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
 import { collectStageSeedsFromVirtualSlip } from "@/lib/api/slip-notes";
 import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
 import {
+  isSlipBannerDetailLoading,
   resolveSlipCancelDetail,
   resolveSlipDeleteDetail,
   resolveSlipHoldDetail,
@@ -504,7 +505,11 @@ export default function VirtualSlipV2Page() {
     return vm.arches.mandibular?.products?.find((p) => p.status === "On hold")?.stage ?? null;
   }, [vm.arches.mandibular?.products]);
 
-  const { notes: caseNotes } = useCaseSlipNotes(caseId, {
+  const {
+    notes: caseNotes,
+    isLoading: notesPending,
+    isFetching: notesFetching,
+  } = useCaseSlipNotes(caseId, {
     refreshKey: notesRefreshKey,
     enabled:
       (caseOnHold || caseCancelled || slipDeleted || archOnlyOnHold) && caseId != null,
@@ -527,6 +532,18 @@ export default function VirtualSlipV2Page() {
 
   /** Any blocked state (hold, cancelled or deleted) overlays + disables the slip body. */
   const caseBlocked = caseOnHold || caseCancelled || slipDeleted;
+
+  // First load of the notes (no data yet for the current key, e.g. right after a
+  // Hold bumps notesRefreshKey): show a skeleton instead of the fallbacks.
+  const bannerDetail = slipDeleted
+    ? deleteDetail
+    : caseCancelled
+      ? cancelDetail
+      : holdDetail;
+  const bannerDetailLoading = isSlipBannerDetailLoading(
+    notesPending && notesFetching,
+    bannerDetail
+  );
 
   const slipLocationRef = useMemo(
     () => ({
@@ -865,16 +882,13 @@ export default function VirtualSlipV2Page() {
               <VirtualSlipHoldBanner
                 variant={slipDeleted ? "deleted" : caseCancelled ? "cancelled" : "hold"}
                 holdDetail={
-                  (slipDeleted
-                    ? deleteDetail
-                    : caseCancelled
-                      ? cancelDetail
-                      : holdDetail) ?? {
+                  bannerDetail ?? {
                     authorName: "Unknown",
                     heldAt: "",
                     reason: "No reason provided",
                   }
                 }
+                loading={bannerDetailLoading}
                 onResume={
                   caseCancelled || slipDeleted || !canResumeCase
                     ? undefined
@@ -1204,7 +1218,7 @@ export default function VirtualSlipV2Page() {
         open={caseStatusModal === "hold"}
         onClose={closeCaseStatusModal}
         onSubmitAction={(payload) =>
-          void submitCaseStatusAction("hold", payload.reason, {
+          submitCaseStatusAction("hold", payload.reason, {
             scope: payload.scope,
             arch: payload.arch,
           })
@@ -1231,7 +1245,7 @@ export default function VirtualSlipV2Page() {
         open={caseStatusModal === "resume"}
         onClose={closeCaseStatusModal}
         onSubmitAction={(payload) =>
-          void submitCaseStatusAction("resume", payload.reason, {
+          submitCaseStatusAction("resume", payload.reason, {
             scope: payload.scope,
             arch: payload.arch,
           })
@@ -1260,7 +1274,7 @@ export default function VirtualSlipV2Page() {
         open={caseStatusModal === "cancel"}
         onClose={closeCaseStatusModal}
         onSubmitAction={(payload) =>
-          void submitCaseStatusAction("cancel", payload.reason, {
+          submitCaseStatusAction("cancel", payload.reason, {
             scope: payload.scope,
             arch: payload.arch,
           })

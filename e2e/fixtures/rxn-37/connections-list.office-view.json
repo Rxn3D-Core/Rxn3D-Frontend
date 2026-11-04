@@ -1,0 +1,111 @@
+{
+  "success": true,
+  "message": "Connections retrieved successfully",
+  "data": [
+    {
+      "id": 12,
+      "connected_since": "2025-06-01T09:00:00Z",
+      "status": "Active",
+      "partner": {
+        "id": 7,
+        "name": "HMC Lab",
+        "email": "lab7@example.com",
+        "logo_url": null,
+        "city": "Dallas",
+        "state": "TX"
+      },
+      "hold": {
+        "is_on_hold": false,
+        "held_by_side": null,
+        "held_at": null,
+        "reason": null,
+        "my_side": "office",
+        "is_mine": false,
+        "can_hold": true,
+        "can_resume": false,
+        "can_request_resume": false,
+        "resume_requested_at": null,
+        "request_resume_available_at": null
+      }
+    },
+    {
+      "id": 15,
+      "connected_since": "2025-06-01T09:00:00Z",
+      "status": "OnHold",
+      "partner": {
+        "id": 8,
+        "name": "Precision Dental Lab",
+        "email": "lab8@example.com",
+        "logo_url": null,
+        "city": "Dallas",
+        "state": "TX"
+      },
+      "hold": {
+        "is_on_hold": true,
+        "held_by_side": "lab",
+        "held_at": "2026-11-03T10:00:00Z",
+        "reason": null,
+        "my_side": "office",
+        "is_mine": false,
+        "can_hold": false,
+        "can_resume": false,
+        "can_request_resume": true,
+        "resume_requested_at": null,
+        "request_resume_available_at": null
+      }
+    },
+    {
+      "id": 16,
+      "connected_since": "2025-06-01T09:00:00Z",
+      "status": "OnHold",
+      "partner": {
+        "id": 9,
+        "name": "Coastal Ceramics",
+        "email": "lab9@example.com",
+        "logo_url": null,
+        "city": "Dallas",
+        "state": "TX"
+      },
+      "hold": {
+        "is_on_hold": true,
+        "held_by_side": "office",
+        "held_at": "2026-11-03T10:00:00Z",
+        "reason": "Quality review",
+        "my_side": "office",
+        "is_mine": true,
+        "can_hold": false,
+        "can_resume": true,
+        "can_request_resume": false,
+        "resume_requested_at": null,
+        "request_resume_available_at": null
+      }
+    },
+    {
+      "id": 17,
+      "connected_since": "2025-06-01T09:00:00Z",
+      "status": "OnHold",
+      "partner": {
+        "id": 10,
+        "name": "Summit Dental Studio",
+        "email": "lab10@example.com",
+        "logo_url": null,
+        "city": "Dallas",
+        "state": "TX"
+      },
+      "hold": {
+        "is_on_hold": true,
+        "held_by_side": "lab",
+        "held_at": "2026-11-03T10:00:00Z",
+        "reason": null,
+        "my_side": "office",
+        "is_mine": false,
+        "can_hold": false,
+        "can_resume": false,
+        "can_request_resume": false,
+        "resume_requested_at": "2026-11-03T12:00:00Z",
+        "request_resume_available_at": "2026-11-04T12:00:00Z"
+      }
+    }
+  ],
+  "total_connections": 4
+}

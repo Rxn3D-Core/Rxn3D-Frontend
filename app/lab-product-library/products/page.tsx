@@ -23,6 +23,7 @@ import { TableNameWithImage } from "@/components/product-management/table-image-
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/components/ui/use-toast"
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities"
+import { useAdvanceModeAccess } from "@/hooks/use-advance-mode-access"
 
 export default function ProductsPage() {
   const {
@@ -93,6 +94,7 @@ export default function ProductsPage() {
     open: false,
   })
   const advanceFieldPersistRef = useRef<(field: AdvanceField) => void>(() => {})
+  const advanceModeAllowed = useAdvanceModeAccess()
 
   const handleRequestAdvanceFieldEditor = useCallback((req: AdvanceFieldEditorRequest) => {
     advanceFieldPersistRef.current = req.onPersisted
@@ -783,7 +785,7 @@ export default function ProductsPage() {
       />
 
       <AddFieldModal
-        isOpen={advanceFieldHost.open}
+        isOpen={advanceFieldHost.open && advanceModeAllowed}
         onClose={() => setAdvanceFieldHost({ open: false })}
         isEditing={advanceFieldHost.open && advanceFieldHost.mode === "edit"}
         field={

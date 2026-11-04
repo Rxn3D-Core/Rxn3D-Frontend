@@ -161,6 +161,7 @@ export default function AllConnections() {
           .toISOString()
           .split("T")[0],
         status: (isOnHoldConnection(connection) ? "OnHold" : "Connected") as "Connected" | "OnHold",
+        hold: connection.hold,
       }))
     }
 

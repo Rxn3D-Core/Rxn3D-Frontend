@@ -4,7 +4,7 @@ import React from "react"
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { Search, Info, Eye, MoreHorizontal, Plus, Mail, Trash2, Loader2 } from 'lucide-react'
-import { ConnectionHoldButton } from "@/components/dashboard/connection-hold-button"
+import { ConnectionHoldBadgeLabel, ConnectionHoldButton } from "@/components/dashboard/connection-hold-button"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -550,7 +550,7 @@ export function OfficeAdminDashboard() {
                           </div>
                           <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
                             <span className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium ${getStatusBadgeClass(lab.status || '')}`}>
-                              {getStatusLabel(lab.status || '')}
+                              <ConnectionHoldBadgeLabel connection={lab} />
                             </span>
                             <ConnectionHoldButton connection={lab} partnerLabel="lab" />
                           </div>
