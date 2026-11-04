@@ -5,6 +5,7 @@ import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SLIP_ACTIVITY_PER_PAGE_OPTIONS } from "@/lib/slip-activity/query-params"
 import { toSlipActivityRow } from "@/lib/slip-activity/rows"
 import { slipActivityAriaSort } from "@/lib/slip-activity/sort"
 import { formatSlipActivityDateTime } from "@/lib/slip-activity/time-zone"
@@ -20,6 +21,8 @@ interface SlipActivityTableProps {
   pagination: SlipActivityPagination | undefined
   isFetching: boolean
   onPageChange: (page: number) => void
+  perPage: number
+  onPerPageChange: (perPage: number) => void
   sort: SlipActivitySort
   onSortChange: (column: SlipActivitySortColumn) => void
   /** Applied search, shown in the empty state. */
@@ -31,6 +34,8 @@ export function SlipActivityTable({
   pagination,
   isFetching,
   onPageChange,
+  perPage,
+  onPerPageChange,
   sort,
   onSortChange,
   search = "",
@@ -88,11 +93,12 @@ export function SlipActivityTable({
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border-[1.5px] border-[#E0E0E0] bg-white" aria-busy={isFetching}>
-        <Table data-testid="slip-activity-table" className="min-w-[960px]">
+        <Table data-testid="slip-activity-table" className="min-w-[1100px]">
           <TableHeader>
             <TableRow>
               {sortableHead("action_at", t("slipActivity.table.dateTime", "Date/time"))}
               {sortableHead("slip_number", t("slipActivity.table.slip", "Slip"))}
+              {sortableHead("slip_created_at", t("slipActivity.table.slipCreated", "Slip created"))}
               {sortableHead("patient_name", t("slipActivity.table.patient", "Patient"))}
               {sortableHead("office_name", t("slipActivity.table.office", "Office"))}
               <TableHead data-testid="slip-activity-head-digital_impression" className="min-w-[140px]">
@@ -117,6 +123,11 @@ export function SlipActivityTable({
                     >
                       {row.slipNumber}
                     </Link>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap" data-testid="slip-activity-slip-created">
+                    {row.slipCreatedAt ? (
+                      <time dateTime={row.slipCreatedAt}>{formatSlipActivityDateTime(row.slipCreatedAt, i18n.language)}</time>
+                    ) : null}
                   </TableCell>
                   <TableCell className="min-w-[120px]" data-testid="slip-activity-patient">{row.patientName}</TableCell>
                   <TableCell className="min-w-[140px]" data-testid="slip-activity-office">{row.officeName}</TableCell>
@@ -150,7 +161,23 @@ export function SlipActivityTable({
               total: pagination.total,
             })}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2">
+              <span>{t("slipActivity.pagination.perPage", "Rows per page")}</span>
+              <select
+                data-testid="slip-activity-per-page"
+                value={perPage}
+                disabled={isFetching}
+                onChange={(e) => onPerPageChange(Number(e.target.value))}
+                className="h-9 rounded-md border border-[#E0E0E0] bg-white px-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
+              >
+                {SLIP_ACTIVITY_PER_PAGE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
             <Button
               type="button"
               variant="outline"

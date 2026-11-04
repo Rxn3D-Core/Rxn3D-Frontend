@@ -15,6 +15,8 @@ export interface SlipActivityEvent {
   id: number
   /** ISO 8601 with offset. */
   action_at: string
+  /** When the slip entered the system (RXN-46). Absent or null on an older backend. */
+  slip_created_at?: string | null
   slip: { id: number; slip_number: string; case_id: number | null }
   /** Backend RXN-8 (f961d879). Treated as possibly null/blank defensively. */
   patient_name: string | null
@@ -67,6 +69,7 @@ export type SlipActivitySortColumn =
   | "slip_number"
   | "patient_name"
   | "office_name"
+  | "slip_created_at"
   | "status"
   | "user_name"
 
