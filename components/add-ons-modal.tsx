@@ -191,6 +191,7 @@ export default function AddOnsModal({
   const [pageBySlotKey, setPageBySlotKey] = useState<Record<string, number>>({})
   // Legacy: `${productId}_${arch}_${addonId}` · Slots: `${rushKey}_${addonId}`
   const [selectedQtys, setSelectedQtys] = useState<Record<string, number>>({})
+  const [qtyAnnouncement, setQtyAnnouncement] = useState("")
 
   const visibleArchesKey = visibleArches.join("|")
 
@@ -1027,6 +1028,11 @@ export default function AddOnsModal({
     const resolveSetQty =
       overrides?.setQty ?? ((addonId: number, qty: number) => setQty(archVal, addonId, qty))
     const columnLoading = overrides?.loading ?? (isSlipMode ? slipCatalogLoading : loading)
+    const archName = archVal === "maxillary" ? "Upper" : "Lower"
+    const changeQty = (addon: ApiAddon, next: number) => {
+      resolveSetQty(addon.id, next)
+      setQtyAnnouncement(`${addon.name} quantity for ${archName}: ${next}`)
+    }
     const SortIcon = () => (
       <svg width="8" height="12" viewBox="0 0 8 12" fill="none" className="shrink-0">
         <path d="M4 0L7.5 4H0.5L4 0Z" fill="#9CA3AF"/>
@@ -1090,8 +1096,9 @@ export default function AddOnsModal({
                     <button
                       type="button"
                       className="w-[22px] h-[22px] flex items-center justify-center rounded-sm border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-30 cursor-pointer"
-                      onClick={() => resolveSetQty(addon.id, qty + 1)}
+                      onClick={() => changeQty(addon, qty + 1)}
                       disabled={qty >= 10}
+                      aria-label={`Increase ${addon.name} quantity for ${archName}`}
                     >
                       <Plus size={12} strokeWidth={2} />
                     </button>
@@ -1101,8 +1108,9 @@ export default function AddOnsModal({
                     <button
                       type="button"
                       className="w-[22px] h-[22px] flex items-center justify-center rounded-sm border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-30 cursor-pointer"
-                      onClick={() => resolveSetQty(addon.id, qty - 1)}
+                      onClick={() => changeQty(addon, qty - 1)}
                       disabled={qty === 0}
+                      aria-label={`Decrease ${addon.name} quantity for ${archName}`}
                     >
                       <Minus size={12} strokeWidth={2} />
                     </button>
@@ -1285,6 +1293,9 @@ export default function AddOnsModal({
           <Button variant="ghost" size="icon" onClick={onClose} className="cursor-pointer">
             <X className="h-5 w-5" />
           </Button>
+        </div>
+        <div role="status" aria-live="polite" className="sr-only">
+          {qtyAnnouncement}
         </div>
 
         {useSlotColumns && multipleSlotsOnOneArch ? (
