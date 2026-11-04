@@ -13,6 +13,7 @@ const filters = {
   fromDate: "2026-10-01",
   toDate: "2026-10-27",
   locationIds: [3],
+  officeIds: [],
   search: "Smile Dental",
   page: 2,
   perPage: 25,

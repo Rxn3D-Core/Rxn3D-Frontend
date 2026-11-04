@@ -8,6 +8,7 @@ import { SlipActivityAccessDenied } from "@/components/slip-activity/lab-side-ro
 import { SlipActivityExportButtons } from "@/components/slip-activity/slip-activity-export-button"
 import { SlipActivityFiltersBar } from "@/components/slip-activity/slip-activity-filters"
 import { SlipActivityTable } from "@/components/slip-activity/slip-activity-table"
+import { useConnectedOffices } from "@/hooks/use-connected-offices"
 import { useSlipActivityEvents, useSlipActivityStatuses } from "@/hooks/use-slip-activity"
 import { defaultSlipActivityFilters } from "@/lib/slip-activity/query-params"
 import { nextSlipActivitySort } from "@/lib/slip-activity/sort"
@@ -18,6 +19,7 @@ export default function SlipActivityPage() {
   const { t } = useTranslation()
   const [filters, setFilters] = useState<SlipActivityFilters>(() => defaultSlipActivityFilters())
   const statusesQuery = useSlipActivityStatuses()
+  const { officesAsLabs, isLoading: officesLoading } = useConnectedOffices({ includeOnHold: true })
   const eventsQuery = useSlipActivityEvents(filters)
 
   if (isSlipActivityForbidden(statusesQuery.error) || isSlipActivityForbidden(eventsQuery.error)) {
@@ -43,6 +45,8 @@ export default function SlipActivityPage() {
         value={filters}
         statuses={statusesQuery.data ?? []}
         statusesLoading={statusesQuery.isLoading}
+        offices={officesAsLabs}
+        officesLoading={officesLoading}
         onApply={(next) => setFilters((prev) => ({ ...prev, ...next, page: 1 }))}
       />
       {statusesQuery.isError && (

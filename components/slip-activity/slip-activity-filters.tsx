@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ChevronsUpDown, Search, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
@@ -14,27 +14,56 @@ import {
 } from "@/lib/slip-activity/query-params"
 import type { SlipActivityFilters, SlipActivityStatus } from "@/types/slip-activity"
 
+/** Wait this long after the last keystroke before the search is applied. */
+const SEARCH_DEBOUNCE_MS = 400
+
+type AppliedFilters = Pick<SlipActivityFilters, "fromDate" | "toDate" | "locationIds" | "officeIds" | "search">
+
 interface SlipActivityFiltersProps {
   value: SlipActivityFilters
   statuses: SlipActivityStatus[]
   statusesLoading: boolean
-  onApply: (next: Pick<SlipActivityFilters, "fromDate" | "toDate" | "locationIds" | "search">) => void
+  /** Connected offices for the Office filter (RXN-46). */
+  offices: Array<{ id: number; name: string }>
+  officesLoading: boolean
+  onApply: (next: AppliedFilters) => void
 }
 
-export function SlipActivityFiltersBar({ value, statuses, statusesLoading, onApply }: SlipActivityFiltersProps) {
+const controlClass =
+  "h-8 rounded-md border border-[#e5e7eb] bg-white px-2 text-[13px] text-gray-900 shadow-none focus-visible:border-[#9ca3af] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#9ca3af]"
+
+/** Filters apply as soon as they change (RXN-46): no Apply button. Search waits briefly after typing. */
+export function SlipActivityFiltersBar({ value, statuses, statusesLoading, offices, officesLoading, onApply }: SlipActivityFiltersProps) {
   const { t } = useTranslation()
+  // Dates are drafts only so a half-typed or invalid range is shown, not sent.
   const [fromDate, setFromDate] = useState(value.fromDate)
   const [toDate, setToDate] = useState(value.toDate)
-  const [locationIds, setLocationIds] = useState<number[]>(value.locationIds)
   const [search, setSearch] = useState(value.search)
   const [open, setOpen] = useState(false)
+  const [officeOpen, setOfficeOpen] = useState(false)
+  const [officeQuery, setOfficeQuery] = useState("")
+  const latest = useRef(value)
+  latest.current = value
 
   useEffect(() => {
     setFromDate(value.fromDate)
     setToDate(value.toDate)
-    setLocationIds(value.locationIds)
     setSearch(value.search)
-  }, [value.fromDate, value.toDate, value.locationIds, value.search])
+  }, [value.fromDate, value.toDate, value.search])
+
+  const apply = (patch: Partial<AppliedFilters>) => {
+    const v = latest.current
+    onApply({ fromDate: v.fromDate, toDate: v.toDate, locationIds: v.locationIds, officeIds: v.officeIds, search: v.search, ...patch })
+  }
+
+  // Debounced search.
+  useEffect(() => {
+    const next = normalizeSlipActivitySearch(search)
+    if (next === latest.current.search) return
+    const timer = setTimeout(() => apply({ search: next }), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
 
   const rangeError = validateSlipActivityRange(fromDate, toDate)
   const rangeMessage =
@@ -46,10 +75,31 @@ export function SlipActivityFiltersBar({ value, statuses, statusesLoading, onApp
           ? t("slipActivity.filters.errorInvalidDate", "Enter a valid start and end date.")
           : undefined
 
-  const toggle = (id: number, checked: boolean) =>
-    setLocationIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)))
+  const changeDates = (from: string, to: string) => {
+    setFromDate(from)
+    setToDate(to)
+    if (!validateSlipActivityRange(from, to)) apply({ fromDate: from, toDate: to })
+  }
 
-  const selectedNames = statuses.filter((s) => locationIds.includes(s.id)).map((s) => s.name)
+  const toggle = (id: number, checked: boolean) => {
+    const ids = latest.current.locationIds
+    apply({ locationIds: checked ? [...new Set([...ids, id])] : ids.filter((x) => x !== id) })
+  }
+
+  const toggleOffice = (id: number, checked: boolean) => {
+    const ids = latest.current.officeIds
+    apply({ officeIds: checked ? [...new Set([...ids, id])] : ids.filter((x) => x !== id) })
+  }
+
+  const selectedOfficeNames = offices.filter((o) => value.officeIds.includes(o.id)).map((o) => o.name)
+  const officeLabel = !value.officeIds.length
+    ? t("slipActivity.filters.allOffices", "All offices")
+    : selectedOfficeNames.length === 1
+      ? selectedOfficeNames[0]
+      : t("slipActivity.filters.officesSelected", "{{count}} offices selected", { count: value.officeIds.length })
+  const visibleOffices = offices.filter((o) => o.name.toLowerCase().includes(officeQuery.trim().toLowerCase()))
+
+  const selectedNames = statuses.filter((s) => value.locationIds.includes(s.id)).map((s) => s.name)
   const statusLabel = !selectedNames.length
     ? t("slipActivity.filters.allStatuses", "All statuses")
     : selectedNames.length === 1
@@ -57,113 +107,29 @@ export function SlipActivityFiltersBar({ value, statuses, statusesLoading, onApp
       : t("slipActivity.filters.statusesSelected", "{{count}} statuses selected", { count: selectedNames.length })
 
   return (
-    <form
+    <div
       data-testid="slip-activity-filters"
-      className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-start"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (rangeError) return
-        // Enter in the search box submits this form, so search applies exactly like the Apply button.
-        onApply({ fromDate, toDate, locationIds, search: normalizeSlipActivitySearch(search) })
-      }}
+      role="search"
+      className="flex flex-wrap items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2"
     >
-      <div className="md:w-44">
-        <Input
-          id="slip-activity-date-from"
-          data-testid="slip-activity-date-from"
-          type="date"
-          label={t("slipActivity.filters.from", "From")}
-          value={fromDate}
-          max={toDate || undefined}
-          onChange={(e) => setFromDate(e.target.value)}
-          validationState={rangeError ? "error" : "default"}
-          showValidIcon={false}
-        />
-      </div>
-      <div className="md:w-44">
-        <Input
-          id="slip-activity-date-to"
-          data-testid="slip-activity-date-to"
-          type="date"
-          label={t("slipActivity.filters.to", "To")}
-          value={toDate}
-          min={fromDate || undefined}
-          onChange={(e) => setToDate(e.target.value)}
-          validationState={rangeError ? "error" : "default"}
-          showValidIcon={false}
-        />
-      </div>
-      <div className="md:w-64">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              role="combobox"
-              aria-expanded={open}
-              aria-label={t("slipActivity.filters.status", "Status")}
-              data-testid="slip-activity-status-select"
-              disabled={statusesLoading}
-              className="h-10 w-full justify-between rounded-lg border-[1.5px] border-[#E0E0E0] bg-white px-4 font-normal"
-            >
-              <span className="truncate">
-                {statusesLoading ? t("slipActivity.filters.loadingStatuses", "Loading statuses...") : statusLabel}
-              </span>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-[240px] p-2">
-            <ul className="max-h-72 overflow-auto" data-testid="slip-activity-status-options">
-              {statuses.map((status) => {
-                const id = `slip-activity-status-${status.id}`
-                return (
-                  <li key={status.id}>
-                    <label htmlFor={id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50">
-                      <Checkbox
-                        id={id}
-                        data-testid="slip-activity-status-option"
-                        checked={locationIds.includes(status.id)}
-                        onCheckedChange={(checked) => toggle(status.id, checked === true)}
-                      />
-                      <span>{status.name}</span>
-                    </label>
-                  </li>
-                )
-              })}
-            </ul>
-            {locationIds.length > 0 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="mt-1 w-full"
-                data-testid="slip-activity-status-clear"
-                onClick={() => setLocationIds([])}
-              >
-                {t("slipActivity.filters.clearStatuses", "Clear statuses")}
-              </Button>
-            )}
-          </PopoverContent>
-        </Popover>
-      </div>
-      <div className="relative md:min-w-[16rem] md:flex-1">
-        <Search
-          className="pointer-events-none absolute left-3 top-9 z-10 h-4 w-4 -translate-y-1/2 text-gray-400"
-          aria-hidden="true"
-        />
+      <div className="relative min-w-0 flex-1 md:w-64 md:flex-none">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" aria-hidden="true" />
         <Input
           id="slip-activity-search"
           data-testid="slip-activity-search"
           type="search"
           enterKeyHint="search"
           autoComplete="off"
-          label={t("slipActivity.filters.search", "Search")}
+          aria-label={t("slipActivity.filters.search", "Search")}
           placeholder={t("slipActivity.filters.searchPlaceholder", "Search slip, patient, office or user")}
           value={search}
           maxLength={SLIP_ACTIVITY_SEARCH_MAX_LENGTH}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") apply({ search: normalizeSlipActivitySearch(search) })
+          }}
           showValidIcon={false}
-          className="pl-9 pr-11 [&_input::-webkit-search-cancel-button]:appearance-none"
+          className={`${controlClass} pl-9 pr-8 placeholder:text-[#9ca3af] [&::-webkit-search-cancel-button]:appearance-none`}
         />
         {search && (
           <button
@@ -173,29 +139,166 @@ export function SlipActivityFiltersBar({ value, statuses, statusesLoading, onApp
             title={t("slipActivity.filters.clearSearch", "Clear search")}
             onClick={() => {
               setSearch("")
-              // Clearing drops an applied search at once; other unapplied edits stay as drafts.
-              if (value.search) onApply({ fromDate: value.fromDate, toDate: value.toDate, locationIds: value.locationIds, search: "" })
+              apply({ search: "" })
               document.getElementById("slip-activity-search")?.focus()
             }}
-            className="absolute right-1 top-9 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-md text-gray-500 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
+            className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-gray-500 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9ca3af]"
           >
-            <X className="h-4 w-4" aria-hidden="true" />
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         )}
       </div>
-      <Button
-        type="submit"
-        data-testid="slip-activity-apply"
-        disabled={!!rangeError}
-        className="h-10 bg-[#1162A8] hover:bg-[#0f5594] disabled:opacity-40"
-      >
-        {t("slipActivity.filters.apply", "Apply")}
-      </Button>
+
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            aria-label={t("slipActivity.filters.status", "Status")}
+            data-testid="slip-activity-status-select"
+            disabled={statusesLoading}
+            className={`${controlClass} w-48 justify-between font-normal`}
+          >
+            <span className="truncate">
+              {statusesLoading ? t("slipActivity.filters.loadingStatuses", "Loading statuses...") : statusLabel}
+            </span>
+            <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden="true" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-[240px] p-2">
+          <ul className="max-h-72 overflow-auto" data-testid="slip-activity-status-options">
+            {statuses.map((status) => {
+              const id = `slip-activity-status-${status.id}`
+              return (
+                <li key={status.id}>
+                  <label htmlFor={id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50">
+                    <Checkbox
+                      id={id}
+                      data-testid="slip-activity-status-option"
+                      checked={value.locationIds.includes(status.id)}
+                      onCheckedChange={(checked) => toggle(status.id, checked === true)}
+                    />
+                    <span>{status.name}</span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+          {value.locationIds.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-1 w-full"
+              data-testid="slip-activity-status-clear"
+              onClick={() => apply({ locationIds: [] })}
+            >
+              {t("slipActivity.filters.clearStatuses", "Clear statuses")}
+            </Button>
+          )}
+        </PopoverContent>
+      </Popover>
+
+      <Popover open={officeOpen} onOpenChange={(next) => { setOfficeOpen(next); if (!next) setOfficeQuery("") }}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={officeOpen}
+            aria-label={t("slipActivity.filters.office", "Office")}
+            data-testid="slip-activity-office-select"
+            disabled={officesLoading}
+            className={`${controlClass} w-48 justify-between font-normal`}
+          >
+            <span className="truncate">
+              {officesLoading ? t("slipActivity.filters.loadingOffices", "Loading offices...") : officeLabel}
+            </span>
+            <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden="true" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-[260px] p-2">
+          <Input
+            data-testid="slip-activity-office-search"
+            type="search"
+            autoComplete="off"
+            aria-label={t("slipActivity.filters.searchOffices", "Search offices")}
+            placeholder={t("slipActivity.filters.searchOffices", "Search offices")}
+            value={officeQuery}
+            onChange={(e) => setOfficeQuery(e.target.value)}
+            showValidIcon={false}
+            className={`${controlClass} mb-1 w-full`}
+          />
+          <ul className="max-h-72 overflow-auto" data-testid="slip-activity-office-options">
+            {visibleOffices.map((office) => {
+              const id = `slip-activity-office-${office.id}`
+              return (
+                <li key={office.id}>
+                  <label htmlFor={id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50">
+                    <Checkbox
+                      id={id}
+                      data-testid="slip-activity-office-option"
+                      checked={value.officeIds.includes(office.id)}
+                      onCheckedChange={(checked) => toggleOffice(office.id, checked === true)}
+                    />
+                    <span>{office.name}</span>
+                  </label>
+                </li>
+              )
+            })}
+            {!visibleOffices.length && (
+              <li className="px-2 py-2 text-sm text-gray-500">{t("slipActivity.filters.noOffices", "No offices found")}</li>
+            )}
+          </ul>
+          {value.officeIds.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-1 w-full"
+              data-testid="slip-activity-office-clear"
+              onClick={() => apply({ officeIds: [] })}
+            >
+              {t("slipActivity.filters.clearOffices", "Clear offices")}
+            </Button>
+          )}
+        </PopoverContent>
+      </Popover>
+
+      <label className="flex items-center gap-1.5 text-[12px] font-medium text-gray-600">
+        {t("slipActivity.filters.from", "From")}
+        <input
+          id="slip-activity-date-from"
+          data-testid="slip-activity-date-from"
+          type="date"
+          value={fromDate}
+          max={toDate || undefined}
+          aria-invalid={rangeError ? true : undefined}
+          onChange={(e) => changeDates(e.target.value, toDate)}
+          className={`${controlClass} ${rangeError ? "border-[#CF0202]" : ""}`}
+        />
+      </label>
+      <label className="flex items-center gap-1.5 text-[12px] font-medium text-gray-600">
+        {t("slipActivity.filters.to", "To")}
+        <input
+          id="slip-activity-date-to"
+          data-testid="slip-activity-date-to"
+          type="date"
+          value={toDate}
+          min={fromDate || undefined}
+          aria-invalid={rangeError ? true : undefined}
+          onChange={(e) => changeDates(fromDate, e.target.value)}
+          className={`${controlClass} ${rangeError ? "border-[#CF0202]" : ""}`}
+        />
+      </label>
+
       {rangeMessage && (
         <p role="alert" data-testid="slip-activity-range-error" className="w-full text-sm text-[#CF0202]">
           {rangeMessage}
         </p>
       )}
-    </form>
+    </div>
   )
 }
