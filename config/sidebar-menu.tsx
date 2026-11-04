@@ -19,6 +19,8 @@ import {
   Settings2,
   LayoutDashboard,
   ShieldCheck,
+  Activity,
+  Wrench,
 } from "lucide-react"
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
@@ -339,6 +341,21 @@ export const labAdminMenu: MenuItem[] = [
         id: "slip-notes",
         title: "Slip notes",
         path: "/lab-case-management/slip-notes",
+        permission: ["view_case_details_status"],
+      },
+    ],
+  },
+  {
+    id: "lab-tools",
+    title: "Lab tools",
+    icon: <Wrench className="h-5 w-5" />,
+    children: [
+      {
+        id: "slip-activity",
+        title: "Slip activity",
+        icon: <Activity className="h-5 w-5" />,
+        path: "/lab-tools/slip-activity",
+        // Page itself is lab-role only (LabSideRoute); this just ties the menu item to a lab permission.
         permission: ["view_case_details_status"],
       },
     ],
