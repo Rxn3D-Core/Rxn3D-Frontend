@@ -5,7 +5,7 @@ import { Header } from "@/components/header"
 import { ProtectedRoute } from "@/components/protected-route"
 import { LabSideRoute } from "@/components/slip-activity/lab-side-route"
 
-// Hidden page (RXN-7): reachable only by URL. Do not add it to any menu, sidebar or sitemap.
+// RXN-7 built this page; RXN-46 added it to the lab main menu (Lab tools > Slip activity).
 export const metadata: Metadata = {
   title: "Slip Activity Monitor - RXn3D LMS",
   robots: { index: false, follow: false },
