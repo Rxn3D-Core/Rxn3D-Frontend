@@ -10,13 +10,13 @@ export const SLIP_ACTIVITY_DEFAULT_SORT: SlipActivitySort = { sort: "action_at",
 
 /**
  * Header click: the same column toggles asc/desc; a new column starts ascending, except
- * Date/time, which starts newest first (descending) like the default.
+ * the two date columns, which start newest first (descending) like the default.
  */
 export function nextSlipActivitySort(current: SlipActivitySort, column: SlipActivitySortColumn): SlipActivitySort {
   if (current.sort === column) {
     return { sort: column, direction: current.direction === "asc" ? "desc" : "asc" }
   }
-  return { sort: column, direction: column === "action_at" ? "desc" : "asc" }
+  return { sort: column, direction: column === "action_at" || column === "slip_created_at" ? "desc" : "asc" }
 }
 
 /** Value for the header cell's `aria-sort`. */

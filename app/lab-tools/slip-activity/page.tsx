@@ -8,6 +8,7 @@ import { SlipActivityAccessDenied } from "@/components/slip-activity/lab-side-ro
 import { SlipActivityExportButtons } from "@/components/slip-activity/slip-activity-export-button"
 import { SlipActivityFiltersBar } from "@/components/slip-activity/slip-activity-filters"
 import { SlipActivityTable } from "@/components/slip-activity/slip-activity-table"
+import { useConnectedOffices } from "@/hooks/use-connected-offices"
 import { useSlipActivityEvents, useSlipActivityStatuses } from "@/hooks/use-slip-activity"
 import { defaultSlipActivityFilters } from "@/lib/slip-activity/query-params"
 import { nextSlipActivitySort } from "@/lib/slip-activity/sort"
@@ -18,6 +19,7 @@ export default function SlipActivityPage() {
   const { t } = useTranslation()
   const [filters, setFilters] = useState<SlipActivityFilters>(() => defaultSlipActivityFilters())
   const statusesQuery = useSlipActivityStatuses()
+  const { officesAsLabs, isLoading: officesLoading } = useConnectedOffices({ includeOnHold: true })
   const eventsQuery = useSlipActivityEvents(filters)
 
   if (isSlipActivityForbidden(statusesQuery.error) || isSlipActivityForbidden(eventsQuery.error)) {
@@ -28,7 +30,7 @@ export default function SlipActivityPage() {
   const pagination = eventsQuery.data?.pagination
 
   return (
-    <main data-testid="slip-activity-page" className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 md:px-6">
+    <main data-testid="slip-activity-page" className="flex w-full flex-col gap-4 px-3 py-3">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">{t("slipActivity.title", "Slip Activity Monitor")}</h1>
@@ -43,6 +45,8 @@ export default function SlipActivityPage() {
         value={filters}
         statuses={statusesQuery.data ?? []}
         statusesLoading={statusesQuery.isLoading}
+        offices={officesAsLabs}
+        officesLoading={officesLoading}
         onApply={(next) => setFilters((prev) => ({ ...prev, ...next, page: 1 }))}
       />
       {statusesQuery.isError && (
@@ -77,6 +81,8 @@ export default function SlipActivityPage() {
           pagination={pagination}
           isFetching={eventsQuery.isFetching}
           onPageChange={(page) => setFilters((prev) => ({ ...prev, page }))}
+          perPage={filters.perPage}
+          onPerPageChange={(perPage) => setFilters((prev) => ({ ...prev, perPage, page: 1 }))}
           search={filters.search}
           sort={{ sort: filters.sort, direction: filters.direction }}
           // A new sort starts again at page 1; it is kept in state only, not in the URL.
