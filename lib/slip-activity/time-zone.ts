@@ -106,3 +106,18 @@ export function formatSlipActivityDateTime(iso: string, locale?: string): string
   })
   return `${formatter.format(date)} ${slipActivityZoneAbbreviation(date)}`.trim()
 }
+
+/** Compact form for the table, e.g. "09/03/26, 9:24 AM" (lab zone, US order). The full form stays in the tooltip. */
+export function formatSlipActivityCompactDateTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: SLIP_ACTIVITY_TIME_ZONE,
+  }).format(date)
+}

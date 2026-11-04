@@ -11,7 +11,9 @@ import type {
 import { SLIP_ACTIVITY_DEFAULT_SORT } from "./sort"
 import { parseCalendarDay, slipActivityDayBoundary, slipActivityToday } from "./time-zone"
 
-export const SLIP_ACTIVITY_DEFAULT_PER_PAGE = 25
+/** Page sizes offered in the table footer (RXN-46); the backend accepts up to 1000. */
+export const SLIP_ACTIVITY_PER_PAGE_OPTIONS = [20, 50, 100, 1000] as const
+export const SLIP_ACTIVITY_DEFAULT_PER_PAGE = 20
 export const SLIP_ACTIVITY_DEFAULT_RANGE_DAYS = 30
 /** Backend refuses `to - from` over 366 days; stay one day inside that. */
 export const SLIP_ACTIVITY_MAX_RANGE_DAYS = 365
@@ -31,6 +33,7 @@ export function defaultSlipActivityFilters(now: Date = new Date()): SlipActivity
     fromDate: `${from.getUTCFullYear()}-${pad(from.getUTCMonth() + 1)}-${pad(from.getUTCDate())}`,
     toDate,
     locationIds: [],
+    officeIds: [],
     search: "",
     page: 1,
     perPage: SLIP_ACTIVITY_DEFAULT_PER_PAGE,
@@ -63,6 +66,8 @@ function appendFilterParams(params: URLSearchParams, filters: SlipActivityFilter
   if (to) params.append("to", to)
   const ids = [...new Set(filters.locationIds)].sort((a, b) => a - b)
   for (const id of ids) params.append("location_ids[]", String(id))
+  const officeIds = [...new Set(filters.officeIds ?? [])].sort((a, b) => a - b)
+  for (const id of officeIds) params.append("office_ids[]", String(id))
   // A row matches when its from- OR to-status is selected (user decision, RXN-7).
   if (ids.length) params.append("match", "either")
   // Matches slip number, patient, office and user name (RXN-12); omitted when empty.
