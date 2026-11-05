@@ -8,7 +8,7 @@ import {
 } from "lucide-react"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js"
+import { loadStlGeometry } from "@/lib/stl-load"
 
 type LayoutStyle = "default" | "vertical-thumbs" | "horizontal-thumbs" | "grid"
 
@@ -35,32 +35,20 @@ export default function SimpleSTLViewer({
 
   // Helper to load STL and add to scene
   const loadSTL = useCallback(async (url: string, color: string, wire: boolean, addToScene: (mesh: THREE.Mesh) => void) => {
-    return new Promise<void>((resolve, reject) => {
-      const loader = new STLLoader()
-      loader.load(
-        url,
-        (geometry) => {
-          geometry.computeVertexNormals()
-          geometry.computeBoundingBox()
-          const mat = new THREE.MeshStandardMaterial({
-            color,
-            wireframe: wire,
-            roughness: 0.55,
-            metalness: 0.15,
-            transparent: false,
-          })
-          const mesh = new THREE.Mesh(geometry, mat)
-          mesh.castShadow = true
-          mesh.receiveShadow = true
-          addToScene(mesh)
-          resolve()
-        },
-        undefined,
-        (err) => {
-          reject(err)
-        }
-      )
+    const geometry = await loadStlGeometry(url)
+    geometry.computeVertexNormals()
+    geometry.computeBoundingBox()
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      wireframe: wire,
+      roughness: 0.55,
+      metalness: 0.15,
+      transparent: false,
     })
+    const mesh = new THREE.Mesh(geometry, mat)
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    addToScene(mesh)
   }, [])
 
   // Viewer initialization and STL loading

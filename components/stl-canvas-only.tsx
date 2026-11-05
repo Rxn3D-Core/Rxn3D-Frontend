@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js"
+import { getStlSourceUrls } from "@/lib/file-proxy"
+import { loadStlGeometry } from "@/lib/stl-load"
 
 interface STLCanvasOnlyProps {
   src: string
@@ -126,6 +127,8 @@ interface SceneHandles {
 // Module-level cache: parsed BufferGeometry keyed by src URL
 // Avoids re-downloading + re-parsing the same 20MB STL on layout changes
 const geoCache = new Map<string, THREE.BufferGeometry>()
+// In-flight loads, so two viewers of the same file share one download
+const geoPending = new Map<string, Promise<THREE.BufferGeometry>>()
 
 function mountScene(
   container: HTMLDivElement,
@@ -236,25 +239,27 @@ function mountScene(
     onLoaded?.()
   }
 
-  const cached = geoCache.get(src)
+  // Direct S3 and proxied URLs for one file share a cache key
+  const cacheKey = getStlSourceUrls(src)[0]
+  const cached = geoCache.get(cacheKey)
   if (cached) {
     addMesh(cached)
   } else {
-    new STLLoader().load(
-      src,
-      (geo) => {
-        if (destroyed) { geo.dispose(); return }
+    let pending = geoPending.get(cacheKey)
+    if (!pending) {
+      pending = loadStlGeometry(src).then((geo) => {
         geo.computeVertexNormals()
         geo.computeBoundingBox()
-        geoCache.set(src, geo)
-        addMesh(geo)
-      },
-      undefined,
-      (err) => {
-        console.error("[STLCanvasOnly] LOAD FAILED →", src, err)
-        onLoaded?.()
-      }
-    )
+        geoCache.set(cacheKey, geo)
+        return geo
+      })
+      pending.catch(() => {}).finally(() => geoPending.delete(cacheKey))
+      geoPending.set(cacheKey, pending)
+    }
+    pending.then(addMesh, (err) => {
+      console.error("[STLCanvasOnly] LOAD FAILED →", src, err)
+      onLoaded?.()
+    })
   }
 
   // ── ResizeObserver ───────────────────────────────────────────────────────
@@ -288,7 +293,7 @@ function mountScene(
     renderer.dispose()
     if (mesh) {
       // Only dispose geometry if it's not in the cache (cache owns it)
-      if (!geoCache.has(src)) mesh.geometry.dispose()
+      if (!geoCache.has(cacheKey)) mesh.geometry.dispose()
       ;(mesh.material as THREE.Material).dispose()
     }
     if (container.contains(renderer.domElement)) {
