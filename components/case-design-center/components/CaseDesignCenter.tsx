@@ -1245,7 +1245,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   );
 
   const { dates: rushSlotDeliveryDates, isLoading: rushSlotDeliveryDatesLoading } =
-    useRushSlotDeliveryDates(rushArchSlots);
+    useRushSlotDeliveryDates(rushArchSlots, props.labCustomerId);
 
   const rushArchSlotsWithDelivery = useMemo(
     () =>
