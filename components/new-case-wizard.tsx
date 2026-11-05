@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { Filter, Plus, Search, ChevronDown, Camera, Pencil } from "lucide-react";
 import { Check } from "@/components/ui/custom-check";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
@@ -957,7 +957,7 @@ function StepPatientInfo({
   setPatientName: (v: string) => void;
   gender: string;
   setGender: (v: string) => void;
-  onComplete?: () => void;
+  onComplete?: (opts?: { keepNameFocus?: boolean }) => void;
   fieldSettings?: WizardPatientFieldSettings;
   canEditDoctor?: boolean;
   onEditDoctorClick?: () => void;
@@ -1013,18 +1013,21 @@ function StepPatientInfo({
     }
   }, [isGenderFocused]);
 
-  // Auto-advance to category selection once the patient name is valid and the
-  // user has left the name field. Never advance while the input is focused:
-  // slow typists (mobile) would be cut off mid-name and lose the keyboard.
-  // Enter (see handlePatientNameKeyDown) advances immediately.
+  // Auto-advance to category selection once the patient name is valid. If the
+  // user is still typing in the name field, tell the next step so it hands
+  // focus to its own name input and typing continues uninterrupted.
   useEffect(() => {
-    if (isNameFocused) return;
     if (!isValidPatientName(patientName)) return;
     const timer = setTimeout(() => {
-      onComplete?.();
+      const active = document.activeElement;
+      const keepNameFocus =
+        active != null &&
+        (active === patientNameInputRef.current ||
+          active === patientNameDesktopRef.current);
+      onComplete?.({ keepNameFocus });
     }, 600);
     return () => clearTimeout(timer);
-  }, [patientName, nameInteractionTick, onComplete, isNameFocused]);
+  }, [patientName, nameInteractionTick, onComplete]);
 
   const getGenderDisplay = (g?: string) => {
     if (g === "Male" || g === "male") return "Male";
@@ -1176,11 +1179,6 @@ function StepPatientInfo({
   };
 
   const handlePatientNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && isValidPatientName(e.currentTarget.value)) {
-      e.preventDefault();
-      onComplete?.();
-      return;
-    }
     if (e.key === "Tab" && !e.shiftKey && showGenderField) {
       e.preventDefault();
       focusGenderDropdown();
@@ -1529,6 +1527,7 @@ function StepCategory({
   onAgeChange,
   fieldSettings,
   patientInfoComplete = true,
+  focusNameOnMount = false,
   productSearch,
   onProductSearchChange,
   searchResults,
@@ -1553,6 +1552,8 @@ function StepCategory({
   fieldSettings?: WizardPatientFieldSettings;
   /** When false, category selection is blocked until required patient fields are filled. */
   patientInfoComplete?: boolean;
+  /** Focus the patient name input on mount (auto-advanced while typing). */
+  focusNameOnMount?: boolean;
   canEditDoctor?: boolean;
   onEditDoctorClick?: () => void;
 } & ProductSearchProps) {
@@ -1567,7 +1568,7 @@ function StepCategory({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} canEditDoctor={canEditDoctor} onEditDoctorClick={onEditDoctorClick} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} canEditDoctor={canEditDoctor} onEditDoctorClick={onEditDoctorClick} focusNameOnMount={focusNameOnMount} />
         <CaseDesignCenterToolbar
           productSearch={productSearch}
           onProductSearchChange={onProductSearchChange}
@@ -1594,6 +1595,7 @@ function StepCategory({
         fieldSettings={fieldSettings}
         canEditDoctor={canEditDoctor}
         onEditDoctorClick={onEditDoctorClick}
+        focusNameOnMount={focusNameOnMount}
       />
 
       {/* Case design center is revealed only once required patient details are filled */}
@@ -2157,6 +2159,7 @@ function PatientMiniHeader({
   fieldSettings = DEFAULT_WIZARD_FIELD_SETTINGS,
   canEditDoctor = false,
   onEditDoctorClick,
+  focusNameOnMount = false,
 }: {
   doctor: WizardDoctorShape | undefined;
   patientName: string;
@@ -2168,12 +2171,27 @@ function PatientMiniHeader({
   fieldSettings?: WizardPatientFieldSettings;
   canEditDoctor?: boolean;
   onEditDoctorClick?: () => void;
+  /** Focus the patient name input on mount, caret at the end (keeps typing uninterrupted). */
+  focusNameOnMount?: boolean;
 }) {
   const { showGender, showAge, genderRequired, ageRequired } = fieldSettings;
   const showGenderField = Boolean(gender?.trim());
   const showAgeField = Boolean(age?.toString().trim());
   const { createdByName, createdByImageUrl: createdByImage } = useCreatedByUser();
   const ageInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Runs synchronously with the commit that removes the previous step's focused
+  // input, so the mobile keyboard stays open across the step change.
+  useLayoutEffect(() => {
+    if (!focusNameOnMount) return;
+    const el = nameInputRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    const end = el.value.length;
+    el.setSelectionRange(end, end);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // After gender is selected (or on entry with gender already set), move focus
   // to the age field when age is shown and still empty.
@@ -2192,7 +2210,7 @@ function PatientMiniHeader({
   );
 
   useEffect(() => {
-    if (showAgeField && gender && !(age ?? "").trim()) {
+    if (!focusNameOnMount && showAgeField && gender && !(age ?? "").trim()) {
       focusAge();
     }
     // Only on mount — auto-focus age when arriving with gender already chosen.
@@ -2231,7 +2249,7 @@ function PatientMiniHeader({
         {/* Form fields — Patient name row 1, Gender + Age row 2 (same total width as patient name) */}
         <div className="flex-1 w-full lg:w-auto flex flex-col gap-3 justify-center lg:justify-start">
           <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
-            <FieldInput label="Patient name" value={patientName} onChange={onPatientNameChange} className="w-[330px]" smartPatientLabel />
+            <FieldInput label="Patient name" value={patientName} onChange={onPatientNameChange} className="w-[330px]" smartPatientLabel inputRef={nameInputRef} />
           </div>
           {(showGenderField || showAgeField) && (
             <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start w-[330px]">
@@ -2340,6 +2358,9 @@ export default function NewCaseWizard({
   onEditDone?: () => void;
 }) {
   const [step, setStep] = useState(startStep);
+  // True when the wizard auto-advanced from the patient name step while the
+  // user was still typing; the category step then keeps the name input focused.
+  const [focusNameOnCategory, setFocusNameOnCategory] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<number | null>(initialDoctor?.id ?? null);
   const [selectedLab, setSelectedLab] = useState<number | null>(initialLabId);
   const [patientName, setPatientName] = useState(initialPatientName);
@@ -2939,7 +2960,10 @@ export default function NewCaseWizard({
             setPatientName={setPatientName}
             gender={gender}
             setGender={setGender}
-            onComplete={() => setStep(4)}
+            onComplete={(opts) => {
+              setFocusNameOnCategory(!!opts?.keepNameFocus);
+              setStep(4);
+            }}
             fieldSettings={patientFieldSettings}
             canEditDoctor={canEditDoctor}
             onEditDoctorClick={handleEditDoctorClick}
@@ -2966,6 +2990,7 @@ export default function NewCaseWizard({
             onAgeChange={setAge}
             fieldSettings={patientFieldSettings}
             patientInfoComplete={patientInfoComplete}
+            focusNameOnMount={focusNameOnCategory}
             canEditDoctor={canEditDoctor}
             onEditDoctorClick={handleEditDoctorClick}
             {...productSearchProps}
