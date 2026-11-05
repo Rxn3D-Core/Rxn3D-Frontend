@@ -34,6 +34,7 @@ import { fetchBackendRoles, type BackendRole } from "@/lib/api/role-permissions-
 import { ColorPicker } from "@/components/ui/color-picker"
 import { Check, Pencil, Plus, Trash2, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { OffboardMemberDialog } from "@/components/offboarding/offboard-member-dialog"
 import { degreeField, normalizeDegree } from "@/lib/doctor-degree"
 import { normalizeRoleSlug } from "@/lib/role-utils"
 import { DoctorDegreeField } from "@/components/doctor-degree-field"
@@ -126,7 +127,7 @@ export function UpdateUserModal({
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null)
   const [editRoleId, setEditRoleId] = useState("")
   const [isSavingRole, setIsSavingRole] = useState(false)
-  const [removingCustomerId, setRemovingCustomerId] = useState<number | null>(null)
+  const [linkToRemove, setLinkToRemove] = useState<{ customerId: number; name?: string } | null>(null)
   const [profileRole, setProfileRole] = useState<string>("")
   const [existingSignatureUrl, setExistingSignatureUrl] = useState<string | null>(null)
   // Degree as loaded from the server: lets us send `degree` only when it is entered or changed (an empty value clears it).
@@ -140,7 +141,7 @@ export function UpdateUserModal({
   const isOfficeCustomer = customerType === "office" && !manageCustomerLinks
 
   const authContext = useAuth()
-  const { assignCustomerRoleToUser, removeCustomerRoleFromUser } = useCustomer()
+  const { assignCustomerRoleToUser } = useCustomer()
   const actorRole = normalizeRoleSlug(authContext.profileRole)
   /** Only lab admins (including superadmin acting as lab admin) may change role on edit. */
   const canChangeUserRole =
@@ -532,19 +533,6 @@ export function UpdateUserModal({
       await refreshCustomerLinks(user.id)
     } finally {
       setIsSavingRole(false)
-    }
-  }
-
-  const handleRemoveLink = async (customerId: number) => {
-    if (!user) return
-    setRemovingCustomerId(customerId)
-    try {
-      const ok = await removeCustomerRoleFromUser(customerId, user.id)
-      if (!ok) return
-      toast({ title: "Unlinked", description: "User removed from customer." })
-      await refreshCustomerLinks(user.id)
-    } finally {
-      setRemovingCustomerId(null)
     }
   }
 
@@ -1172,8 +1160,8 @@ export function UpdateUserModal({
                                 variant="ghost"
                                 className="text-red-600"
                                 title="Unlink customer"
-                                disabled={removingCustomerId === link.customerId}
-                                onClick={() => handleRemoveLink(link.customerId)}
+                                data-testid={`update-user-unlink-${link.customerId}`}
+                                onClick={() => setLinkToRemove({ customerId: link.customerId, name: link.customerName })}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1233,6 +1221,18 @@ export function UpdateUserModal({
           </form>
         </Form>
       </DialogContent>
+      <OffboardMemberDialog
+        open={linkToRemove !== null}
+        onOpenChange={(open) => !open && setLinkToRemove(null)}
+        customerId={linkToRemove?.customerId ?? null}
+        userId={user?.id ?? null}
+        memberName={user?.name}
+        organizationName={linkToRemove?.name}
+        onCompleted={() => {
+          setLinkToRemove(null)
+          if (user) void refreshCustomerLinks(user.id)
+        }}
+      />
     </Dialog>
   )
 }

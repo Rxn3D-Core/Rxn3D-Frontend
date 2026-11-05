@@ -3,28 +3,18 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Filter, Search, Plus, ChevronDown, ChevronUp, Pencil, Lock, UserMinus } from "lucide-react"
+import { OffboardMemberDialog } from "@/components/offboarding/offboard-member-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { CreateUserModal } from "@/components/office-administrator/create-user-modal"
 import { SearchInviteUserModal } from "@/components/office-administrator/search-invite-user-modal"
 import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
 import { ResetUserPasswordModal } from "@/components/office-administrator/reset-user-password-modal"
 import { useAuth } from "@/contexts/auth-context"
-import { useCustomer } from "@/contexts/customer-context"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { normalizeUserStatus, type UserStatus } from "@/lib/user-status"
@@ -45,7 +35,6 @@ interface StaffUser {
 export default function UserOfficeManagement() {
   const router = useRouter()
   const { user, fetchUsers, updateUser, updateMembershipStatus, hasPermission } = useAuth()
-  const { removeCustomerRoleFromUser } = useCustomer()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -59,7 +48,6 @@ export default function UserOfficeManagement() {
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
   const [userToOffboard, setUserToOffboard] = useState<StaffUser | null>(null)
-  const [isOffboarding, setIsOffboarding] = useState(false)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
@@ -336,34 +324,6 @@ export default function UserOfficeManagement() {
     loadStaffUsers()
   }
 
-  const handleOffboardUser = async () => {
-    if (!userToOffboard || !hasPermission("delete_user")) return
-    const customerId = Number(localStorage.getItem("customerId") || 0)
-    if (!customerId) {
-      toast({
-        title: "Error",
-        description: "No organization selected.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsOffboarding(true)
-    try {
-      const success = await removeCustomerRoleFromUser(customerId, userToOffboard.id)
-      if (success) {
-        toast({
-          title: "Offboarded",
-          description: `${userToOffboard.name} is marked Offboarded for this organization. History stays intact.`,
-        })
-        loadStaffUsers()
-        setUserToOffboard(null)
-      }
-    } finally {
-      setIsOffboarding(false)
-    }
-  }
-
   // Get status badge class
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -399,6 +359,13 @@ export default function UserOfficeManagement() {
 
   // Per-organization membership status only (not global users.status)
   const handleStatusChange = async (userId: number, newStatus: string) => {
+    if (newStatus === "Offboarded") {
+      const target = staffUsers.find((u) => u.id === userId)
+      setShowStatusDropdown(null)
+      setDropdownPosition(null)
+      if (target) setUserToOffboard(target)
+      return
+    }
     const customerId = Number(localStorage.getItem("customerId") || 0)
     if (!customerId) {
       toast({
@@ -712,6 +679,7 @@ export default function UserOfficeManagement() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setUserToOffboard(user)}
+                          data-testid={`user-offboard-${user.id}`}
                           className="text-red-600 hover:text-red-800"
                           title="Offboard from this organization"
                           disabled={!hasPermission("delete_user")}
@@ -851,30 +819,17 @@ export default function UserOfficeManagement() {
         user={userToUpdate}
       />
 
-      <AlertDialog open={!!userToOffboard} onOpenChange={(open) => !open && setUserToOffboard(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark as Offboarded?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {userToOffboard?.name} will be marked Offboarded for this organization. Their profile
-              connection and history stay intact, and they can be invited again later.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isOffboarding}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                void handleOffboardUser()
-              }}
-              disabled={isOffboarding}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {isOffboarding ? "Offboarding…" : "Offboard"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <OffboardMemberDialog
+        open={!!userToOffboard}
+        onOpenChange={(open) => !open && setUserToOffboard(null)}
+        customerId={typeof window !== "undefined" ? Number(localStorage.getItem("customerId") || 0) || null : null}
+        userId={userToOffboard?.id ?? null}
+        memberName={userToOffboard?.name}
+        onCompleted={() => {
+          setUserToOffboard(null)
+          loadStaffUsers()
+        }}
+      />
 
       <ResetUserPasswordModal
         isOpen={showResetPassword}

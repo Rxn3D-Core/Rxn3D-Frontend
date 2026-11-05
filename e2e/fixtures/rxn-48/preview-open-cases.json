@@ -1,0 +1,113 @@
+{
+  "success": true,
+  "message": "Offboarding preview",
+  "data": {
+    "customer": {
+      "id": 55,
+      "name": "Smile Dental",
+      "type": "office"
+    },
+    "member": {
+      "user_id": 812,
+      "name": "Ana Ruiz",
+      "role": "doctor",
+      "membership_status": "Active"
+    },
+    "is_self": false,
+    "requires_transfer": true,
+    "can_offboard": true,
+    "blockers": [],
+    "transferable_cases": [
+      {
+        "case_id": 9001,
+        "case_number": "C01234",
+        "patient_name": "J. Smith",
+        "lab": {
+          "id": 7,
+          "name": "Precision Lab"
+        },
+        "slips": [
+          {
+            "slip_id": 15001,
+            "slip_number": "S0001",
+            "status": "In Progress",
+            "location": "In lab"
+          },
+          {
+            "slip_id": 15002,
+            "slip_number": "S0002",
+            "status": "Draft",
+            "location": "In office"
+          }
+        ]
+      },
+      {
+        "case_id": 9003,
+        "case_number": "C01250",
+        "patient_name": "M. Garcia",
+        "lab": {
+          "id": 7,
+          "name": "Precision Lab"
+        },
+        "slips": [
+          {
+            "slip_id": 15020,
+            "slip_number": "S0020",
+            "status": "On hold",
+            "location": "In office"
+          }
+        ]
+      },
+      {
+        "case_id": 9004,
+        "case_number": "C01255",
+        "patient_name": "R. Chen",
+        "lab": {
+          "id": 7,
+          "name": "Precision Lab"
+        },
+        "slips": [
+          {
+            "slip_id": 15030,
+            "slip_number": "S0030",
+            "status": "In Progress",
+            "location": "On route to the lab"
+          }
+        ]
+      }
+    ],
+    "staying_cases": [
+      {
+        "case_id": 9002,
+        "case_number": "C01240",
+        "patient_name": "K. Lee",
+        "reason": "late_stage",
+        "slips": [
+          {
+            "slip_id": 15010,
+            "slip_number": "S0010",
+            "status": "Finished",
+            "location": "On route to the office"
+          }
+        ]
+      }
+    ],
+    "staying_counts": {
+      "late_stage": 1,
+      "mixed": 0,
+      "closed": 14
+    },
+    "eligible_targets": [
+      {
+        "user_id": 813,
+        "name": "Ben Ortiz",
+        "role": "doctor"
+      },
+      {
+        "user_id": 814,
+        "name": "Carla Mendes",
+        "role": "doctor_admin"
+      }
+    ]
+  }
+}

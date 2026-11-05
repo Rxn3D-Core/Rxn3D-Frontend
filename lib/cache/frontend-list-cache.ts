@@ -33,6 +33,7 @@ export const TRANSACTIONAL_QUERY_KEY_PREFIXES = [
   "labs",
   "products",
   "connections",
+  "offboarding-preview",
   "invitations",
   "product-teeth-shades",
   "product-gum-shades",

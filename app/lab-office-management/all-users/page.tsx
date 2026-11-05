@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 
 import Link from "next/link"
 import { Eye, Search, Plus, ChevronDown, Edit, Trash2, Lock, ShieldCheck, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { OffboardMemberDialog } from "@/components/offboarding/offboard-member-dialog"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -107,6 +108,7 @@ export default function AllUsers() {
   const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
   const [loginAsUser, setLoginAsUser] = useState<StaffUser | null>(null)
   const [loginAsBusy, setLoginAsBusy] = useState(false)
+  const [offboardTarget, setOffboardTarget] = useState<{ userId: number; userName: string; customerId: number; customerName?: string } | null>(null)
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
   const [allSelected, setAllSelected] = useState(false)
@@ -404,6 +406,15 @@ export default function AllUsers() {
     newStatus: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded",
   ) => {
     if (!canEditUser) return
+
+    if (newStatus === "Offboarded") {
+      const target = users.find((u) => u.id === userId)
+      const customerName = target?.customerRoles?.find((r) => r.customerId === customerId)?.customerName
+      setShowStatusDropdown(null)
+      setDropdownPosition(null)
+      setOffboardTarget({ userId, userName: target?.name ?? "", customerId, customerName })
+      return
+    }
 
     try {
       await updateMembershipStatus(userId, customerId, newStatus)
@@ -885,6 +896,19 @@ export default function AllUsers() {
         customerOptions={customerOptions}
         initialPrefill={createPrefill}
         returnFocusRef={addButtonRef}
+      />
+
+      <OffboardMemberDialog
+        open={offboardTarget !== null}
+        onOpenChange={(open) => !open && setOffboardTarget(null)}
+        customerId={offboardTarget?.customerId ?? null}
+        userId={offboardTarget?.userId ?? null}
+        memberName={offboardTarget?.userName}
+        organizationName={offboardTarget?.customerName}
+        onCompleted={() => {
+          setOffboardTarget(null)
+          loadUsers()
+        }}
       />
 
       <UpdateUserModal

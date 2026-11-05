@@ -1,0 +1,49 @@
+{
+  "success": true,
+  "message": "Offboarding preview",
+  "data": {
+    "customer": {
+      "id": 55,
+      "name": "Smile Dental",
+      "type": "office"
+    },
+    "member": {
+      "user_id": 812,
+      "name": "Ana Ruiz",
+      "role": "doctor",
+      "membership_status": "Active"
+    },
+    "is_self": false,
+    "requires_transfer": true,
+    "can_offboard": false,
+    "blockers": [
+      "no_eligible_target"
+    ],
+    "transferable_cases": [
+      {
+        "case_id": 9001,
+        "case_number": "C01234",
+        "patient_name": "J. Smith",
+        "lab": {
+          "id": 7,
+          "name": "Precision Lab"
+        },
+        "slips": [
+          {
+            "slip_id": 15001,
+            "slip_number": "S0001",
+            "status": "In Progress",
+            "location": "In lab"
+          }
+        ]
+      }
+    ],
+    "staying_cases": [],
+    "staying_counts": {
+      "late_stage": 0,
+      "mixed": 0,
+      "closed": 0
+    },
+    "eligible_targets": []
+  }
+}

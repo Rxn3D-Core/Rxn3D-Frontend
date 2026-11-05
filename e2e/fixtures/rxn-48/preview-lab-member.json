@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "message": "Offboarding preview",
+  "data": {
+    "customer": {
+      "id": 7,
+      "name": "Precision Lab",
+      "type": "lab"
+    },
+    "member": {
+      "user_id": 900,
+      "name": "Lena Vogel",
+      "role": "lab_user",
+      "membership_status": "Active"
+    },
+    "is_self": false,
+    "requires_transfer": false,
+    "can_offboard": true,
+    "blockers": [],
+    "transferable_cases": [],
+    "staying_cases": [],
+    "staying_counts": {
+      "late_stage": 0,
+      "mixed": 0,
+      "closed": 0
+    },
+    "eligible_targets": []
+  }
+}
