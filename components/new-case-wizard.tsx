@@ -1013,14 +1013,18 @@ function StepPatientInfo({
     }
   }, [isGenderFocused]);
 
-  // Auto-advance to category selection once the patient name is valid.
+  // Auto-advance to category selection once the patient name is valid and the
+  // user has left the name field. Never advance while the input is focused:
+  // slow typists (mobile) would be cut off mid-name and lose the keyboard.
+  // Enter (see handlePatientNameKeyDown) advances immediately.
   useEffect(() => {
+    if (isNameFocused) return;
     if (!isValidPatientName(patientName)) return;
     const timer = setTimeout(() => {
       onComplete?.();
     }, 600);
     return () => clearTimeout(timer);
-  }, [patientName, nameInteractionTick, onComplete]);
+  }, [patientName, nameInteractionTick, onComplete, isNameFocused]);
 
   const getGenderDisplay = (g?: string) => {
     if (g === "Male" || g === "male") return "Male";
@@ -1172,6 +1176,11 @@ function StepPatientInfo({
   };
 
   const handlePatientNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && isValidPatientName(e.currentTarget.value)) {
+      e.preventDefault();
+      onComplete?.();
+      return;
+    }
     if (e.key === "Tab" && !e.shiftKey && showGenderField) {
       e.preventDefault();
       focusGenderDropdown();
