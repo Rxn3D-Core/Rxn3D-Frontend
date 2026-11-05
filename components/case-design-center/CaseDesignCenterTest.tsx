@@ -23,6 +23,12 @@ import { CaseSubmissionOverlays } from "./components/CaseSubmissionOverlays";
 import { DoctorEditModal } from "./components/DoctorEditModal";
 import { caseDesignInter } from "./case-design-inter-font";
 import { useCaseEstimatedDueDate } from "./hooks/useCaseEstimatedDueDate";
+import {
+  nextStageAwareDueDate,
+  pickHeaderDueDate,
+  type EstimatedDueDateReport,
+  type StageAwareDueDate,
+} from "./utils/headerEstimatedDueDate";
 import { withDegree } from "@/lib/doctor-degree";
 
 export default function Page() {
@@ -111,6 +117,14 @@ export default function Page() {
     resolveLibraryCustomerId(completedLab?.id)
   );
 
+  // Stage-aware date reported by CaseDesignCenter (null until every product slot has its stage).
+  const [stageAwareDueDate, setStageAwareDueDate] = useState<StageAwareDueDate>({
+    productId: null,
+    displayDate: null,
+  });
+  const handleEstimatedDueDateChange = (report: EstimatedDueDateReport) =>
+    setStageAwareDueDate((prev) => nextStageAwareDueDate(prev, report, selectedProductId));
+
   const {
     submissionState,
     caseSubmitted,
@@ -133,6 +147,14 @@ export default function Page() {
     completedGender,
     completedAge,
     labCustomerId: resolveLibraryCustomerId(completedLab?.id) ?? null,
+  });
+
+  const headerEstimate = pickHeaderDueDate({
+    caseSubmitted,
+    stageAwareDate:
+      stageAwareDueDate.productId === selectedProductId ? stageAwareDueDate.displayDate : null,
+    productDate: headerDueDate,
+    productDateLoading: headerDueDateLoading,
   });
 
   useEffect(() => {
@@ -197,8 +219,8 @@ export default function Page() {
               labLogoUrl={completedLab?.logo}
               labName={completedLab?.name}
               onEditLab={handleTopBarEditLab}
-              estimatedDueDate={caseSubmitted ? null : headerDueDate}
-              estimatedDueDateLoading={!caseSubmitted && headerDueDateLoading}
+              estimatedDueDate={headerEstimate.date}
+              estimatedDueDateLoading={headerEstimate.isLoading}
               cutoffTime={
                 caseSubmitted
                   ? null
@@ -245,6 +267,7 @@ export default function Page() {
               rushCasesEnabled={rushCasesEnabled}
               rushCaseSchedule={rushCaseSchedule}
               labBusinessHours={labBusinessHours}
+              onEstimatedDueDateChange={handleEstimatedDueDateChange}
               attachmentDoctorName={completedDoctor ? withDegree(completedDoctor.name, completedDoctor.degree) : undefined}
               attachmentPatientName={completedPatientName || undefined}
               attachmentCaseId={slipResponseData?.id ?? undefined}
