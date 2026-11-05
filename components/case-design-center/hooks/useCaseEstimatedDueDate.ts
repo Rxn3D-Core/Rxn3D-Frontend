@@ -14,7 +14,10 @@ function extractDatePart(value: string | null | undefined): string {
  * Also surfaces the effective pickup cutoff (case pan override or lab default) for the
  * product that owns the latest due date.
  */
-export function useCaseEstimatedDueDate(productIds: Array<number | null | undefined>) {
+export function useCaseEstimatedDueDate(
+  productIds: Array<number | null | undefined>,
+  labId?: number | null
+) {
   const uniqueIds = Array.from(
     new Set(
       productIds.filter((id): id is number => typeof id === "number" && id > 0)
@@ -23,8 +26,9 @@ export function useCaseEstimatedDueDate(productIds: Array<number | null | undefi
 
   const queries = useQueries({
     queries: uniqueIds.map((productId) => ({
-      queryKey: ["product-estimated-due-date", productId, 0, 0],
-      queryFn: () => ProductApi.calculateDelivery(productId),
+      queryKey: ["product-estimated-due-date", productId, 0, 0, labId ?? 0],
+      queryFn: () =>
+        ProductApi.calculateDelivery(productId, undefined, undefined, undefined, labId),
       staleTime: 5 * 60 * 1000,
       retry: 1,
     })),

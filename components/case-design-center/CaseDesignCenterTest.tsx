@@ -105,7 +105,11 @@ export default function Page() {
     displayDate: headerDueDate,
     isLoading: headerDueDateLoading,
     effectivePickupCutoffTime,
-  } = useCaseEstimatedDueDate(productIdsForDueDate);
+  } = useCaseEstimatedDueDate(
+    productIdsForDueDate,
+    // Office: the wizard lab; lab profile: its own customer id (completedLab is the office there).
+    resolveLibraryCustomerId(completedLab?.id)
+  );
 
   const {
     submissionState,
