@@ -13,7 +13,10 @@ function extractDatePart(value: string | null | undefined): string {
  * Returns a map of `rushKey → delivery_date (yyyy-MM-dd)`.
  * Only requires apiProductId > 0; apiStageId is included when available.
  */
-export function useRushSlotDeliveryDates(slots: RushArchSlot[]): {
+export function useRushSlotDeliveryDates(
+  slots: RushArchSlot[],
+  labId?: number | null
+): {
   dates: Record<string, string>;
   isLoading: boolean;
 } {
@@ -24,12 +27,15 @@ export function useRushSlotDeliveryDates(slots: RushArchSlot[]): {
         slot.apiProductId,
         slot.apiStageId ?? 0,
         slot.apiVariationId ?? 0,
+        labId ?? 0,
       ],
       queryFn: () =>
         ProductApi.calculateDelivery(
           slot.apiProductId,
           slot.apiStageId,
-          slot.apiVariationId
+          slot.apiVariationId,
+          undefined,
+          labId
         ),
       enabled: slot.apiProductId > 0,
       staleTime: 5 * 60 * 1000,
