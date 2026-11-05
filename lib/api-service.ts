@@ -196,8 +196,9 @@ export const ProductApi = {
   },
 
   // Calculate delivery date
-  calculateDelivery: async (productId: number, stageId?: number, variationId?: number, casepanId?: number) => {
-    const labId = resolveProductLabId()
+  // labIdOverride: the caller's known lab (e.g. the Case Design Center wizard lab); falls back to the profile resolver.
+  calculateDelivery: async (productId: number, stageId?: number, variationId?: number, casepanId?: number, labIdOverride?: number | null) => {
+    const labId = labIdOverride && labIdOverride > 0 ? String(labIdOverride) : resolveProductLabId()
 
     if (!labId) {
       throw new Error('Lab ID not found. Please ensure you are logged in and have selected a lab.')

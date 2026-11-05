@@ -25,7 +25,8 @@ export function formatEstimatedDueDate(isoDate: string): string {
 export function useProductEstimatedDueDate(
   productId: number | null | undefined,
   stageId?: number | null,
-  variationId?: number | null
+  variationId?: number | null,
+  labId?: number | null
 ) {
   const enabled = typeof productId === "number" && productId > 0;
 
@@ -35,12 +36,15 @@ export function useProductEstimatedDueDate(
       productId ?? 0,
       stageId ?? 0,
       variationId ?? 0,
+      labId ?? 0,
     ],
     queryFn: () =>
       ProductApi.calculateDelivery(
         productId as number,
         stageId && stageId > 0 ? stageId : undefined,
-        variationId && variationId > 0 ? variationId : undefined
+        variationId && variationId > 0 ? variationId : undefined,
+        undefined,
+        labId
       ),
     enabled,
     staleTime: 5 * 60 * 1000,
