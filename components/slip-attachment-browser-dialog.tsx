@@ -234,7 +234,7 @@ function FileCard({
 
         {/* Actions on hover */}
         <div
-          className={`absolute bottom-1 right-1 flex gap-1 transition-opacity ${
+          className={`absolute bottom-1 right-1 z-20 flex gap-1 transition-opacity ${
             selected || isStl ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           }`}
         >
