@@ -24,7 +24,8 @@ import type {
   CaseAttachmentSlip,
   SlipAttachmentRecord,
 } from "@/services/slip-attachments-service"
-import { toProxiedFileUrl } from "@/lib/file-proxy"
+import { isS3Url, toProxiedFileUrl } from "@/lib/file-proxy"
+import { downloadFromS3 } from "@/lib/file-download"
 
 interface CaseAttachmentModalProps {
   open: boolean
@@ -170,7 +171,11 @@ export default function CaseAttachmentModal({
               type="button"
               className="p-0.5 hover:bg-white/80 rounded bg-white/60"
               title="Download"
-              onClick={() => window.open(downloadUrl, "_blank", "noopener,noreferrer")}
+              onClick={() =>
+                isS3Url(downloadUrl)
+                  ? void downloadFromS3(downloadUrl, attachment.file_name)
+                  : window.open(downloadUrl, "_blank", "noopener,noreferrer")
+              }
             >
               <Download className="text-gray-500 w-2.5 h-2.5" />
             </button>

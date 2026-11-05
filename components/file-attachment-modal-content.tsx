@@ -45,7 +45,8 @@ type LocalUploadItem = {
   slipNumber?: string
   slipStageName?: string
 }
-import { toProxiedFileUrl } from "@/lib/file-proxy"
+import { isS3Url, toProxiedFileUrl } from "@/lib/file-proxy"
+import { downloadFromS3 } from "@/lib/file-download"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import * as THREE from "three"
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
@@ -741,6 +742,10 @@ export default function FileAttachmentModalContent({
   const handleDownloadFile = (item: LocalUploadItem) => {
     const href = item.url
     if (!href) return
+    if (isS3Url(href)) {
+      void downloadFromS3(href, item.file.name)
+      return
+    }
     window.open(href, "_blank", "noopener,noreferrer")
   }
 
@@ -974,7 +979,7 @@ export default function FileAttachmentModalContent({
                 geometryType="cube"
                 fileSize={`${(file.size / 1024 / 1024).toFixed(1)} MB`}
                 dimensions="Unknown"
-                stlUrl={toProxiedFileUrl(url)}
+                stlUrl={url}
                 materialColor="#f5ecd0"
                 viewerKey={url}
                 autoOpen={false}
@@ -1014,7 +1019,7 @@ export default function FileAttachmentModalContent({
               {isImage ? "View Image" : "View File"}
             </button>
           )}
-          <div className={`absolute bottom-1 right-1 flex gap-0.5 z-10 ${(isStl || is3dObj) ? "opacity-0 group-hover:opacity-100" : ""}`}>
+          <div className={`absolute bottom-1 right-1 flex gap-0.5 z-10 ${is3dObj ? "opacity-0 group-hover:opacity-100" : ""}`}>
             {!archived && (
               <>
                 {item.remoteId && (
@@ -1272,7 +1277,7 @@ export default function FileAttachmentModalContent({
                         </div>
                       </div>
                     )}
-                    <div className={`absolute bottom-1 right-1 flex gap-0.5 transition-opacity ${isInViewer ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                    <div className={`absolute bottom-1 right-1 flex gap-0.5 transition-opacity ${isInViewer || upload.type === "stl" ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
                       {upload.remoteId && (
                         <button type="button" className="w-5 h-5 rounded bg-white/90 border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:text-[#1162A8]"
                           title={upload.archived ? "Unarchive" : "Archive"}
@@ -1327,7 +1332,7 @@ export default function FileAttachmentModalContent({
                     {item?.type === "stl" ? (
                       <div className="absolute inset-0">
                         <STLCanvasOnly
-                          src={toProxiedFileUrl(item.url)}
+                          src={item.url}
                           isWireframe={isWireframe}
                           showGrid={showGrid}
                           modelColor={modelColor}
