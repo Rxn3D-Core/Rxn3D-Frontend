@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { getStlSourceUrls } from "@/lib/file-proxy"
-import { loadStlGeometry } from "@/lib/stl-load"
+import { loadStlGeometry, type StlLoadProgress } from "@/lib/stl-load"
 
 interface STLCanvasOnlyProps {
   src: string
@@ -29,6 +29,7 @@ export default function STLCanvasOnly({
 }: STLCanvasOnlyProps) {
   const mountRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
+  const [progress, setProgress] = useState<StlLoadProgress | null>(null)
 
   // Live option refs — updated every render so the scene picks up changes without remounting
   const wireframeRef = useRef(isWireframe)
@@ -67,6 +68,7 @@ export default function STLCanvasOnly({
     if (!container || !src) return
 
     setLoading(true)
+    setProgress(null)
     applyRef.current = null
 
     const mount = () =>
@@ -76,6 +78,7 @@ export default function STLCanvasOnly({
         { isWireframe: wireframeRef.current, showGrid: showGridRef.current, modelColor: modelColorRef.current, autoRotate, controlsRef },
         (handles) => { applyRef.current = handles },
         () => setLoading(false),
+        setProgress,
       )
 
     // If container has no dimensions yet defer one frame
@@ -97,17 +100,41 @@ export default function STLCanvasOnly({
     )
   }
 
+  const knownDownload = progress?.phase === "download" && progress.total > 0 ? progress : null
+
   return (
     <div className="w-full h-full relative">
       {loading && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#c8c8c8] gap-2">
-          <div className="w-8 h-8 border-[3px] border-gray-400 border-t-[#1162A8] rounded-full animate-spin" />
-          <span className="text-xs text-gray-500 font-medium">Loading 3D model…</span>
+        <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#c8c8c8] gap-1.5 px-3 ${knownDownload ? "pb-8" : ""}`}>
+          {/* With a known size the bar replaces the spinner, leaving room for the Download icon below */}
+          {!knownDownload && (
+            <div className="w-8 h-8 border-[3px] border-gray-400 border-t-[#1162A8] rounded-full animate-spin" />
+          )}
+          <span className="text-xs text-gray-700 font-semibold text-center">{progressLabel(progress)}</span>
+          {knownDownload && (
+            <>
+              <span className="text-[10px] text-gray-600 text-center">{formatMb(progress.loaded)} / {formatMb(progress.total)}</span>
+              <div className="w-full max-w-[140px] h-1.5 bg-gray-400/50 rounded overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((progress.loaded / progress.total) * 100)}>
+                <div className="h-full bg-[#1162A8] transition-[width] duration-150" style={{ width: `${Math.min(100, (progress.loaded / progress.total) * 100)}%` }} />
+              </div>
+            </>
+          )}
         </div>
       )}
       <div ref={mountRef} className="w-full h-full" />
     </div>
   )
+}
+
+const formatMb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`
+
+function progressLabel(progress: StlLoadProgress | null): string {
+  if (!progress) return "Loading 3D model…"
+  if (progress.phase === "processing") return "Preparing 3D model…"
+  if (progress.total > 0) {
+    return `Downloading ${Math.min(100, Math.round((progress.loaded / progress.total) * 100))}%`
+  }
+  return `Downloading ${formatMb(progress.loaded)}…`
 }
 
 interface SceneOptions {
@@ -129,6 +156,9 @@ interface SceneHandles {
 const geoCache = new Map<string, THREE.BufferGeometry>()
 // In-flight loads, so two viewers of the same file share one download
 const geoPending = new Map<string, Promise<THREE.BufferGeometry>>()
+// Latest progress and subscribers per in-flight file, so every viewer waiting on one download shows it
+const geoProgress = new Map<string, StlLoadProgress>()
+const progressListeners = new Map<string, Set<(p: StlLoadProgress) => void>>()
 
 function mountScene(
   container: HTMLDivElement,
@@ -136,6 +166,7 @@ function mountScene(
   opts: SceneOptions,
   onHandles: (handles: SceneHandles) => void,
   onLoaded?: () => void,
+  onProgress?: (progress: StlLoadProgress) => void,
 ): () => void {
   const { isWireframe, showGrid, modelColor, autoRotate, controlsRef } = opts
 
@@ -239,6 +270,7 @@ function mountScene(
     onLoaded?.()
   }
 
+  let unsubscribeProgress: (() => void) | undefined
   // Direct S3 and proxied URLs for one file share a cache key
   const cacheKey = getStlSourceUrls(src)[0]
   const cached = geoCache.get(cacheKey)
@@ -247,14 +279,31 @@ function mountScene(
   } else {
     let pending = geoPending.get(cacheKey)
     if (!pending) {
-      pending = loadStlGeometry(src).then((geo) => {
+      pending = loadStlGeometry(src, (p) => {
+        geoProgress.set(cacheKey, p)
+        progressListeners.get(cacheKey)?.forEach((fn) => fn(p))
+      }).then((geo) => {
         geo.computeVertexNormals()
         geo.computeBoundingBox()
         geoCache.set(cacheKey, geo)
         return geo
       })
-      pending.catch(() => {}).finally(() => geoPending.delete(cacheKey))
+      pending.catch(() => {}).finally(() => {
+        geoPending.delete(cacheKey)
+        geoProgress.delete(cacheKey)
+      })
       geoPending.set(cacheKey, pending)
+    }
+    if (onProgress) {
+      let listeners = progressListeners.get(cacheKey)
+      if (!listeners) progressListeners.set(cacheKey, (listeners = new Set()))
+      listeners.add(onProgress)
+      unsubscribeProgress = () => {
+        listeners!.delete(onProgress)
+        if (listeners!.size === 0) progressListeners.delete(cacheKey)
+      }
+      const last = geoProgress.get(cacheKey)
+      if (last) onProgress(last)
     }
     pending.then(addMesh, (err) => {
       console.error("[STLCanvasOnly] LOAD FAILED →", src, err)
@@ -287,6 +336,7 @@ function mountScene(
   // ── Teardown ─────────────────────────────────────────────────────────────
   return () => {
     destroyed = true
+    unsubscribeProgress?.()
     cancelAnimationFrame(animId)
     ro.disconnect()
     controls.dispose()
