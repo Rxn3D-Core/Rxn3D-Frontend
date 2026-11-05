@@ -29,7 +29,8 @@ import {
   rememberPendingAttachment,
 } from "@/lib/case-design-attachment-cache"
 import type { CaseAttachmentsData, SlipAttachmentRecord } from "@/services/slip-attachments-service"
-import { toProxiedFileUrl } from "@/lib/file-proxy"
+import { isS3Url, toProxiedFileUrl } from "@/lib/file-proxy"
+import { downloadFromS3 } from "@/lib/file-download"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import FileAttachmentModalContent from "./file-attachment-modal-content"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
@@ -198,7 +199,7 @@ function FileCard({
         ) : isStl ? (
           livePreview ? (
             <div className="absolute inset-0" onClick={(e) => e.stopPropagation()}>
-              <STLCanvasOnly src={toProxiedFileUrl(record.file_path)} />
+              <STLCanvasOnly src={record.file_path} />
             </div>
           ) : (
             <div
@@ -234,7 +235,7 @@ function FileCard({
         {/* Actions on hover */}
         <div
           className={`absolute bottom-1 right-1 flex gap-1 transition-opacity ${
-            selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            selected || isStl ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           }`}
         >
           <button
@@ -543,7 +544,7 @@ function PreviewPanel({
                     {isStl ? (
                       <div className="absolute inset-0">
                         <STLCanvasOnly
-                          src={toProxiedFileUrl(item.file_path)}
+                          src={item.file_path}
                           isWireframe={isWireframe}
                           showGrid={showGrid}
                         />
@@ -970,8 +971,13 @@ export default function SlipAttachmentBrowserDialog({
   )
 
   const handleDownload = useCallback((record: SlipAttachmentRecord) => {
+    const url = record.download_url || record.file_path
+    if (isS3Url(url)) {
+      void downloadFromS3(url, record.file_name)
+      return
+    }
     const a = document.createElement("a")
-    a.href = toProxiedFileUrl(record.download_url || record.file_path)
+    a.href = toProxiedFileUrl(url)
     a.download = record.file_name
     a.click()
   }, [])

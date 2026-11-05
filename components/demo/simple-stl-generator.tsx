@@ -24,7 +24,7 @@ import {
 } from "lucide-react"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js"
+import { loadStlGeometry } from "@/lib/stl-load"
 
 interface SimpleSTLViewerProps {
   title: string
@@ -107,24 +107,14 @@ export default function SimpleSTLViewer({
     if (url.startsWith("blob:") && !window.URL) {
       throw new Error("Blob URL is not available.");
     }
-    const loader = new STLLoader()
-    return new Promise<THREE.BufferGeometry>((resolve, reject) => {
-      loader.load(
-        url,
-        geometry => {
-          geometry.computeVertexNormals();
-          geometry.computeBoundingBox();
-          resolve(geometry);
-        },
-        (xhr) => {
-          // ...existing code...
-        },
-        (err) => {
-          // Improved error message
-          reject(new Error(`Failed to load STL: ${url}. The file may have been removed or revoked.`));
-        }
-      )
-    })
+    try {
+      const geometry = await loadStlGeometry(url)
+      geometry.computeVertexNormals();
+      geometry.computeBoundingBox();
+      return geometry
+    } catch {
+      throw new Error(`Failed to load STL: ${url}. The file may have been removed or revoked.`);
+    }
   }, []);
 
   // Helper to create a solid background color
