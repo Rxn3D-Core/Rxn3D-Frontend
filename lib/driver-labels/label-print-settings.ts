@@ -146,17 +146,17 @@ export function fieldLabel(
   compact: boolean,
 ): string {
   const compactMap = {
-    pt: "PT",
-    ofc: "OFC",
-    dr: "DR",
-    case: "CASE",
-    slip: "SLIP",
-    stage: "STAGE",
-    pan: "PAN",
-    prod: "PROD",
-    status: "STATUS",
-    pickup: "PICKUP",
-    deliver: "DELIVER",
+    pt: "Pt:",
+    ofc: "Ofc:",
+    dr: "Dr:",
+    case: "Case #",
+    slip: "Slip #",
+    stage: "Stg:",
+    pan: "Pan #",
+    prod: "Prod:",
+    status: "Sts:",
+    pickup: "Pku:",
+    deliver: "Del:",
   } as const;
   const fullMap = {
     pt: "Patient",
