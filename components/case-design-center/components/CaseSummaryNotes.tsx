@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ChevronUp, Maximize2 } from "lucide-react";
 import type { NotesProps } from "../types";
 import { buildCaseSummaryText, buildNoteGroups } from "../utils/caseNoteBuilder";
+import { AUTO_GENERATED_NOTES_ENABLED } from "../utils/caseSummaryNotesPayload";
 
 export function CaseSummaryNotes(props: NotesProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -17,6 +18,8 @@ export function CaseSummaryNotes(props: NotesProps) {
   }, []);
 
   const dynamicNoteText = useMemo(() => {
+    // RXN-62: auto-generated notes are switched off; the box holds only what the user types.
+    if (!AUTO_GENERATED_NOTES_ENABLED) return "";
     const groups = buildNoteGroups(props);
     return buildCaseSummaryText(groups);
   }, [
@@ -49,6 +52,8 @@ export function CaseSummaryNotes(props: NotesProps) {
   ]);
 
   useEffect(() => {
+    // With auto notes off there is nothing to regenerate, so keep what the user typed.
+    if (!AUTO_GENERATED_NOTES_ENABLED) return;
     setManualOverride(null);
   }, [props.addedProducts?.length]);
 
@@ -138,7 +143,11 @@ export function CaseSummaryNotes(props: NotesProps) {
                 className={`w-full rounded-lg border border-[#D1D5DB] px-3 pt-4 pb-3 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 overflow-hidden ${
                   expanded ? "min-h-[200px] resize-y" : "resize-none"
                 }`}
-                placeholder="Notes will appear here as you complete product fields…"
+                placeholder={
+                  AUTO_GENERATED_NOTES_ENABLED
+                    ? "Notes will appear here as you complete product fields…"
+                    : "Type notes here…"
+                }
               />
             </div>
           </div>
