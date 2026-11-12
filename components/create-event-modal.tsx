@@ -138,15 +138,16 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, onCreateEve
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-6">
-        <DialogHeader className="flex flex-row items-center justify-between p-0">
+      <DialogContent className="max-w-lg p-6 max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex flex-row items-center justify-between p-0 flex-shrink-0">
           <span className="text-lg font-semibold">Create event</span>
           <Button variant="ghost" size="sm" className="p-1 h-8 w-8" onClick={handleCancel}>
             <X className="h-4 w-4" />
           </Button>
         </DialogHeader>
 
-        <div className="space-y-6">
+        {/* Scrollable fields; the action buttons below stay visible */}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-6 -mx-1 px-1">
           {/* Event Title */}
           <div>
             <Input
@@ -290,9 +291,11 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, onCreateEve
               <span className="font-medium">Mark Lab as closed</span>
             </div>
           </div>
+        </div>
 
+        <div className="flex-shrink-0">
           {/* Action Buttons */}
-            <div className="flex justify-end gap-4 pt-4">
+            <div className="flex justify-end gap-4 pt-2">
             <Button size="sm" className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 px-8 flex items-center gap-2" onClick={handleCancel}>
               Cancel
             </Button>
