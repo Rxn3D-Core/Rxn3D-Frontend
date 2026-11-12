@@ -50,26 +50,53 @@ export const DRIVER_LABEL_OPTIONAL_FIELDS = [
 export type DriverLabelOptionalKey =
   (typeof DRIVER_LABEL_OPTIONAL_FIELDS)[number]["key"];
 
-const STORAGE_KEY = "rxn3d.driver-label-print-settings.v1";
+/** Shape of `settings` in GET/PUT /v1/slip-settings/driver-label (RXN-63). */
+export interface DriverLabelSettingsApiValues {
+  show_doctor: boolean
+  show_stage: boolean
+  show_pan: boolean
+  show_product: boolean
+  show_status: boolean
+  compact_abbreviations: boolean
+  show_dividers: boolean
+  uppercase_status: boolean
+}
 
-export function loadDriverLabelPrintSettings(): DriverLabelPrintSettings {
-  if (typeof window === "undefined") return { ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS };
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS };
-    const parsed = JSON.parse(raw) as Partial<DriverLabelPrintSettings>;
-    return { ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS, ...parsed, scope: "all" };
-  } catch {
-    return { ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS };
+/** Fresh copy of the defaults (used while loading, after a failed load, and for Reset). */
+export function defaultDriverLabelPrintSettings(): DriverLabelPrintSettings {
+  return { ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS }
+}
+
+/** API values to print settings. Anything missing or not a boolean falls back to the default. */
+export function driverLabelSettingsFromApi(
+  values: Partial<Record<keyof DriverLabelSettingsApiValues, unknown>> | null | undefined,
+): DriverLabelPrintSettings {
+  const d = DEFAULT_DRIVER_LABEL_PRINT_SETTINGS
+  const bool = (v: unknown, fallback: boolean) => (typeof v === "boolean" ? v : fallback)
+  return {
+    scope: "all",
+    showDoctor: bool(values?.show_doctor, d.showDoctor),
+    showStage: bool(values?.show_stage, d.showStage),
+    showPan: bool(values?.show_pan, d.showPan),
+    showProduct: bool(values?.show_product, d.showProduct),
+    showStatus: bool(values?.show_status, d.showStatus),
+    compactAbbreviations: bool(values?.compact_abbreviations, d.compactAbbreviations),
+    showDividers: bool(values?.show_dividers, d.showDividers),
+    uppercaseStatus: bool(values?.uppercase_status, d.uppercaseStatus),
   }
 }
 
-export function saveDriverLabelPrintSettings(settings: DriverLabelPrintSettings): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    /* ignore quota / private mode */
+/** Print settings to the PUT body. `scope` is not stored (it only has one value). */
+export function driverLabelSettingsToApi(settings: DriverLabelPrintSettings): DriverLabelSettingsApiValues {
+  return {
+    show_doctor: settings.showDoctor,
+    show_stage: settings.showStage,
+    show_pan: settings.showPan,
+    show_product: settings.showProduct,
+    show_status: settings.showStatus,
+    compact_abbreviations: settings.compactAbbreviations,
+    show_dividers: settings.showDividers,
+    uppercase_status: settings.uppercaseStatus,
   }
 }
 
