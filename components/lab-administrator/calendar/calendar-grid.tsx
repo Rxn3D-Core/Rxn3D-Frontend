@@ -8,6 +8,7 @@ import { EventModal } from "@/components/event-modal"
 import { CreateEventModal } from "@/components/create-event-modal"
 import type { CalendarEvent } from "@/lib/types"
 import { useHolidays } from "@/contexts/holidays-context"
+import { labTimezoneLabel, labTimezoneLabelForDay } from "@/lib/lab-timezone"
 
 const nonHolidayEvents: CalendarEvent[] = [
   {
@@ -16,7 +17,7 @@ const nonHolidayEvents: CalendarEvent[] = [
     type: "Birthday",
     date: "2025-01-03",
     allDay: true,
-    timezone: "GMT - 7 Phoenix",
+    timezone: labTimezoneLabel(),
     description: "Birthday celebration",
     location: "",
     user: "Dr. Smith",
@@ -31,7 +32,7 @@ const nonHolidayEvents: CalendarEvent[] = [
     location: "Greater Las Vegas Dental",
     description: "Crown preparation appointment - Please bring impression materials",
     allDay: false,
-    timezone: "GMT - 7 Phoenix",
+    timezone: labTimezoneLabel(),
   },
   {
     id: "5",
@@ -43,7 +44,7 @@ const nonHolidayEvents: CalendarEvent[] = [
     location: "Sunrise Dental Clinic",
     description: "Bridge fitting and adjustment",
     allDay: false,
-    timezone: "GMT - 7 Phoenix",
+    timezone: labTimezoneLabel(),
   },
   {
     id: "6",
@@ -55,7 +56,7 @@ const nonHolidayEvents: CalendarEvent[] = [
     location: "Downtown Dental",
     description: "Complete denture delivery and fitting",
     allDay: false,
-    timezone: "GMT - 7 Phoenix",
+    timezone: labTimezoneLabel(),
   },
   {
     id: "7",
@@ -63,7 +64,7 @@ const nonHolidayEvents: CalendarEvent[] = [
     type: "Birthday",
     date: "2025-01-22",
     allDay: true,
-    timezone: "GMT - 7 Phoenix",
+    timezone: labTimezoneLabel(),
     description: "Lab technician birthday",
     location: "",
     user: "Sarah Chen",
@@ -78,7 +79,7 @@ const nonHolidayEvents: CalendarEvent[] = [
     location: "HMC Innovs Lab",
     description: "Scheduled maintenance for lab equipment",
     allDay: false,
-    timezone: "GMT - 7 Phoenix",
+    timezone: labTimezoneLabel(),
   },
   {
     id: "10",
@@ -90,7 +91,7 @@ const nonHolidayEvents: CalendarEvent[] = [
     location: "Modern Dental Practice",
     description: "Implant crown delivery and occlusion check",
     allDay: false,
-    timezone: "GMT - 7 Phoenix",
+    timezone: labTimezoneLabel(),
   },
 ]
 
@@ -116,7 +117,7 @@ export function CalendarGrid({ currentDate = new Date(2025, 0, 1), onDateChange 
       date: holiday.date,
       allDay: true,
       description: holiday.description,
-      timezone: "GMT - 7 Phoenix", // This might need to be dynamic
+      timezone: labTimezoneLabelForDay(holiday.date),
       location: "",
       user: "",
     }))
@@ -202,7 +203,7 @@ export function CalendarGrid({ currentDate = new Date(2025, 0, 1), onDateChange 
       location: eventData.location,
       description: eventData.description,
       allDay: eventData.allDay || false,
-      timezone: eventData.timezone || "GMT - 7 Phoenix",
+      timezone: eventData.timezone || labTimezoneLabel(selectedDate ?? new Date()),
     }
 
     setEvents((prev) => [...prev, newEvent])
