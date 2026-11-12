@@ -1,6 +1,6 @@
 /**
  * Driver-label print field visibility / display options.
- * Locked fields always print; optional ones and display toggles are user-controlled.
+ * Locked fields (lab name, patient, office) always print; optional ones and display toggles are user-controlled.
  */
 
 export type DriverLabelSettingsScope = "all";
@@ -13,6 +13,12 @@ export interface DriverLabelPrintSettings {
   showPan: boolean;
   showProduct: boolean;
   showStatus: boolean;
+  /** RXN-66: these five always printed before; default on so printed labels do not change. */
+  showCaseNumber: boolean;
+  showSlipNumber: boolean;
+  showQrCode: boolean;
+  showPickup: boolean;
+  showDelivery: boolean;
   compactAbbreviations: boolean;
   showDividers: boolean;
   uppercaseStatus: boolean;
@@ -25,6 +31,11 @@ export const DEFAULT_DRIVER_LABEL_PRINT_SETTINGS: DriverLabelPrintSettings = {
   showPan: true,
   showProduct: true,
   showStatus: true,
+  showCaseNumber: true,
+  showSlipNumber: true,
+  showQrCode: true,
+  showPickup: true,
+  showDelivery: true,
   compactAbbreviations: true,
   showDividers: true,
   uppercaseStatus: true,
@@ -34,9 +45,6 @@ export const DRIVER_LABEL_LOCKED_FIELDS = [
   "Lab name",
   "Patient",
   "Office",
-  "Case # + Slip #",
-  "QR code",
-  "Pickup + Delivery",
 ] as const;
 
 export const DRIVER_LABEL_OPTIONAL_FIELDS = [
@@ -45,6 +53,11 @@ export const DRIVER_LABEL_OPTIONAL_FIELDS = [
   { key: "showPan", label: "Pan #" },
   { key: "showProduct", label: "Product" },
   { key: "showStatus", label: "Status / location" },
+  { key: "showCaseNumber", label: "Case #" },
+  { key: "showSlipNumber", label: "Slip #" },
+  { key: "showQrCode", label: "QR code", hint: "Drivers scan the QR code to find the slip." },
+  { key: "showPickup", label: "Pickup" },
+  { key: "showDelivery", label: "Delivery" },
 ] as const;
 
 export type DriverLabelOptionalKey =
@@ -57,6 +70,12 @@ export interface DriverLabelSettingsApiValues {
   show_pan: boolean
   show_product: boolean
   show_status: boolean
+  /** Added in RXN-66; an older API does not send them. */
+  show_case_number: boolean
+  show_slip_number: boolean
+  show_qr_code: boolean
+  show_pickup: boolean
+  show_delivery: boolean
   compact_abbreviations: boolean
   show_dividers: boolean
   uppercase_status: boolean
@@ -80,6 +99,11 @@ export function driverLabelSettingsFromApi(
     showPan: bool(values?.show_pan, d.showPan),
     showProduct: bool(values?.show_product, d.showProduct),
     showStatus: bool(values?.show_status, d.showStatus),
+    showCaseNumber: bool(values?.show_case_number, d.showCaseNumber),
+    showSlipNumber: bool(values?.show_slip_number, d.showSlipNumber),
+    showQrCode: bool(values?.show_qr_code, d.showQrCode),
+    showPickup: bool(values?.show_pickup, d.showPickup),
+    showDelivery: bool(values?.show_delivery, d.showDelivery),
     compactAbbreviations: bool(values?.compact_abbreviations, d.compactAbbreviations),
     showDividers: bool(values?.show_dividers, d.showDividers),
     uppercaseStatus: bool(values?.uppercase_status, d.uppercaseStatus),
@@ -94,6 +118,11 @@ export function driverLabelSettingsToApi(settings: DriverLabelPrintSettings): Dr
     show_pan: settings.showPan,
     show_product: settings.showProduct,
     show_status: settings.showStatus,
+    show_case_number: settings.showCaseNumber,
+    show_slip_number: settings.showSlipNumber,
+    show_qr_code: settings.showQrCode,
+    show_pickup: settings.showPickup,
+    show_delivery: settings.showDelivery,
     compact_abbreviations: settings.compactAbbreviations,
     show_dividers: settings.showDividers,
     uppercase_status: settings.uppercaseStatus,

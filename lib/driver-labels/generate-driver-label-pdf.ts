@@ -3,6 +3,7 @@
  *
  * Layout matches Figma driver slips (4×2.5 PLS780 / 3.75×2 PLS618):
  *   header (lab / PT / OFC / DR + QR) | mid (CASE·SLIP, STAGE·PAN, PROD, STATUS) | footer (PICKUP · DELIVER)
+ * Only lab / PT / OFC are always printed; the rest follow the lab's settings (see label-content-layout.ts).
  *
  * `pages` is one entry per physical page; each inner array is that page's cells
  * (length === geo.cellsPerPage). A cell holds a slip or null (blank). Roll mode
@@ -12,6 +13,12 @@
 
 import type { jsPDF } from "jspdf";
 import { cellOrigin, type GridGeometry } from "./label-layout";
+import {
+  HEADER_BAND_PX,
+  planStickerLayout,
+  type FooterFieldKey,
+  type MidFieldKey,
+} from "./label-content-layout";
 import {
   DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
   fieldLabel,
@@ -188,17 +195,26 @@ function drawSticker(
   doc.setLineWidth((1 / FIGMA_DPI) * sFont);
   doc.roundedRect(x, y, w, h, radius, radius, "S");
 
+  const layout = planStickerLayout(settings);
+  const dyPx = layout.headerDy;
+
   // QR fills the header band and stays right-aligned, stopping just above the
   // y=96 rule. The old 70px mark used min(sx, sy), so on 4×2.5 stock the
   // header grew and the code stayed small in the corner.
-  const qrTop = (8 / FIGMA_DPI) * sy;
+  // With the QR code off, its width goes back to the header lines.
+  const qrTop = ((8 + dyPx) / FIGMA_DPI) * sy;
   const qrRightPad = (12 / FIGMA_DPI) * sx;
-  const ruleY = (96 / FIGMA_DPI) * sy;
-  const qrSize = Math.max(0, ruleY - (6 / FIGMA_DPI) * sy - qrTop);
+  const ruleY = ((HEADER_BAND_PX + dyPx) / FIGMA_DPI) * sy;
+  // Capped by the width scale: on a tall label (4×6) sy is 3× sx and an uncapped code would take half the
+  // width and cut off the lab and patient lines. The cap equals the uncapped size on every sheet size and
+  // on 4×2.5 and 4×2 rolls.
+  const qrSize = Math.max(0, Math.min(ruleY - (6 / FIGMA_DPI) * sy - qrTop, (82 / FIGMA_DPI) * sx * 1.25));
   const qrX = x + w - qrRightPad - qrSize;
   const qrY = y + qrTop;
-  const headerMaxW = Math.max(160, ((qrX - x) / sx) * FIGMA_DPI - 14 - 8);
-  if (qrDataUrl) {
+  const headerMaxW = layout.showQr
+    ? Math.max(160, ((qrX - x) / sx) * FIGMA_DPI - 14 - 8)
+    : 452;
+  if (layout.showQr && qrDataUrl) {
     try {
       doc.addImage({
         imageData: qrDataUrl,
@@ -215,91 +231,56 @@ function drawSticker(
 
   // Header (locked: lab, patient, office; optional: doctor)
   drawFigmaLine(
-    doc, x, y, 14, 14, headerMaxW,
+    doc, x, y, 14, 14 + dyPx, headerMaxW,
     (slip.lab_name || "").toUpperCase(),
     12, COLOR_INK, sx, sy, true,
   );
   drawFigmaLine(
-    doc, x, y, 14, 36, headerMaxW,
+    doc, x, y, 14, 36 + dyPx, headerMaxW,
     `${L("pt")} ${val(slip.pt_name)}`,
     12, COLOR_INK, sx, sy, true,
   );
   drawFigmaLine(
-    doc, x, y, 14, 60, headerMaxW,
+    doc, x, y, 14, 60 + dyPx, headerMaxW,
     `${L("ofc")} ${val(slip.office_code)}`,
     9.5, COLOR_MUTED, sx, sy, true,
   );
-  if (settings.showDoctor) {
+  if (layout.showDoctor) {
     drawFigmaLine(
-      doc, x, y, 14, 76, headerMaxW,
+      doc, x, y, 14, 76 + dyPx, headerMaxW,
       `${L("dr")} ${val(slip.doctor_name)}`,
       9.5, COLOR_MUTED, sx, sy, true,
     );
   }
 
+  // Dividers, mid rows and footer are packed by planStickerLayout (hidden fields leave no gap).
   const ruleX = x + (14 / FIGMA_DPI) * sx;
   const ruleW = (452 / FIGMA_DPI) * sx;
   doc.setDrawColor(...hexRgb(COLOR_RULE));
   doc.setLineWidth((1 / FIGMA_DPI) * sFont);
-  if (settings.showDividers) {
-    doc.line(ruleX, y + (96 / FIGMA_DPI) * sy, ruleX + ruleW, y + (96 / FIGMA_DPI) * sy);
+  for (const ruleTop of layout.rules) {
+    doc.line(ruleX, y + (ruleTop / FIGMA_DPI) * sy, ruleX + ruleW, y + (ruleTop / FIGMA_DPI) * sy);
   }
 
-  // Mid rows — pack when optional fields are off
   const body = 9.5;
-  const midTops = [106, 125.5, 145, 164.5];
-  type MidRow =
-    | { kind: "pair"; left: string; right: string }
-    | { kind: "full"; text: string };
-
-  const rows: MidRow[] = [
-    {
-      kind: "pair",
-      left: `${L("case")} ${val(slip.case_number)}`,
-      right: `${L("slip")} ${val(slip.slip_number)}`,
-    },
-  ];
-  if (settings.showStage || settings.showPan) {
-    rows.push({
-      kind: "pair",
-      left: settings.showStage ? `${L("stage")} ${val(slip.stage_code)}` : "",
-      right: settings.showPan ? `${L("pan")} ${val(slip.case_pan_number)}` : "",
-    });
-  }
-  if (settings.showProduct) {
-    rows.push({ kind: "full", text: `${L("prod")} ${val(slip.product_name)}` });
-  }
-  if (settings.showStatus) {
-    let statusText = val(slip.status);
-    if (statusText !== "-" && settings.uppercaseStatus) statusText = statusText.toUpperCase();
-    rows.push({ kind: "full", text: `${L("status")} ${statusText}` });
-  }
-
-  rows.forEach((row, i) => {
-    const top = midTops[Math.min(i, midTops.length - 1)];
-    if (row.kind === "pair") {
-      if (row.left) drawFigmaLine(doc, x, y, 14, top, 220, row.left, body, COLOR_MUTED, sx, sy, true);
-      if (row.right) drawFigmaLine(doc, x, y, 246, top, 220, row.right, body, COLOR_MUTED, sx, sy, true);
-    } else {
-      drawFigmaLine(doc, x, y, 14, top, 452, row.text, body, COLOR_MUTED, sx, sy, true);
+  let statusText = val(slip.status);
+  if (statusText !== "-" && settings.uppercaseStatus) statusText = statusText.toUpperCase();
+  const text: Record<MidFieldKey | FooterFieldKey, string> = {
+    case: `${L("case")} ${val(slip.case_number)}`,
+    slip: `${L("slip")} ${val(slip.slip_number)}`,
+    stage: `${L("stage")} ${val(slip.stage_code)}`,
+    pan: `${L("pan")} ${val(slip.case_pan_number)}`,
+    prod: `${L("prod")} ${val(slip.product_name)}`,
+    status: `${L("status")} ${statusText}`,
+    pickup: `${L("pickup")} ${formatShortDate(slip.pickup_date)}`,
+    deliver: `${L("deliver")} ${formatDeliver(slip.delivery_date, slip.delivery_time)}`,
+  };
+  const rows = layout.footer ? [...layout.mid, layout.footer] : layout.mid;
+  for (const row of rows) {
+    for (const cell of row.cells) {
+      drawFigmaLine(doc, x, y, cell.left, row.top, cell.maxW, text[cell.key], body, COLOR_MUTED, sx, sy, true);
     }
-  });
-
-  if (settings.showDividers) {
-    doc.line(ruleX, y + (192 / FIGMA_DPI) * sy, ruleX + ruleW, y + (192 / FIGMA_DPI) * sy);
   }
-
-  // Footer locked
-  drawFigmaLine(
-    doc, x, y, 14, 202, 190,
-    `${L("pickup")} ${formatShortDate(slip.pickup_date)}`,
-    body, COLOR_MUTED, sx, sy, true,
-  );
-  drawFigmaLine(
-    doc, x, y, 203.84, 202, 262,
-    `${L("deliver")} ${formatDeliver(slip.delivery_date, slip.delivery_time)}`,
-    body, COLOR_MUTED, sx, sy, true,
-  );
 }
 
 export async function generateDriverLabelPdf(

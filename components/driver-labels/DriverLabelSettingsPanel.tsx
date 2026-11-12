@@ -53,7 +53,7 @@ export function DriverLabelSettingsPanel({
       <div className="border-b border-[#e8eaee] px-4 py-3">
         <h3 className="text-[15px] font-semibold text-[#17191F]">Driver label settings</h3>
         <p className="mt-1 text-[12px] leading-4 text-[#6b7280]">
-          Choose which optional details appear. Required delivery identifiers stay locked.
+          Choose which optional details appear. Lab name, patient and office always print.
         </p>
         <p className="mt-1 text-[12px] leading-4 text-[#6b7280]">
           This setting is shared by everyone in your lab.
@@ -109,22 +109,34 @@ export function DriverLabelSettingsPanel({
             Optional details
           </div>
           <ul className="space-y-2.5">
-            {DRIVER_LABEL_OPTIONAL_FIELDS.map(({ key, label }) => (
-              <li key={key} className="flex items-center gap-2.5">
-                <Checkbox
-                  id={`driver-opt-${key}`}
-                  checked={draft[key]}
-                  disabled={locked}
-                  onCheckedChange={(v) => setOptional(key, v === true)}
-                />
-                <label
-                  htmlFor={`driver-opt-${key}`}
-                  className="cursor-pointer text-[13px] text-[#17191F]"
-                >
-                  {label}
-                </label>
-              </li>
-            ))}
+            {DRIVER_LABEL_OPTIONAL_FIELDS.map((field) => {
+              const { key, label } = field
+              const hint = "hint" in field ? field.hint : undefined
+              return (
+                <li key={key} className="flex items-start gap-2.5">
+                  <Checkbox
+                    id={`driver-opt-${key}`}
+                    className="mt-0.5"
+                    checked={draft[key]}
+                    disabled={locked}
+                    onCheckedChange={(v) => setOptional(key, v === true)}
+                  />
+                  <div>
+                    <label
+                      htmlFor={`driver-opt-${key}`}
+                      className="cursor-pointer text-[13px] text-[#17191F]"
+                    >
+                      {label}
+                    </label>
+                    {hint ? (
+                      <p className="text-[11px] leading-4 text-[#6b7280]" data-testid={`driver-opt-${key}-hint`}>
+                        {hint}
+                      </p>
+                    ) : null}
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         </div>
 
