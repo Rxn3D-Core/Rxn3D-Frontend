@@ -23,6 +23,12 @@ interface DriverLabelSettingsPanelProps {
   onChange: (next: DriverLabelPrintSettings) => void
   onReset: () => void
   onApply: () => void
+  /** Not a lab admin: the panel shows the lab-wide setting but cannot change or save it. */
+  readOnly?: boolean
+  loading?: boolean
+  saving?: boolean
+  saveError?: string | null
+  loadError?: boolean
 }
 
 export function DriverLabelSettingsPanel({
@@ -30,18 +36,38 @@ export function DriverLabelSettingsPanel({
   onChange,
   onReset,
   onApply,
+  readOnly = false,
+  loading = false,
+  saving = false,
+  saveError = null,
+  loadError = false,
 }: DriverLabelSettingsPanelProps) {
+  // Editing needs a lab admin and a successful load (otherwise we would overwrite unseen values).
+  const locked = readOnly || loading || loadError
   const setOptional = (key: DriverLabelOptionalKey, checked: boolean) => {
     onChange({ ...draft, [key]: checked })
   }
 
   return (
-    <aside className="flex h-full w-full max-w-[340px] flex-col border-l border-[#e8eaee] bg-white">
+    <aside data-testid="driver-label-settings-panel" className="flex h-full w-full max-w-[340px] flex-col border-l border-[#e8eaee] bg-white">
       <div className="border-b border-[#e8eaee] px-4 py-3">
         <h3 className="text-[15px] font-semibold text-[#17191F]">Driver label settings</h3>
         <p className="mt-1 text-[12px] leading-4 text-[#6b7280]">
           Choose which optional details appear. Required delivery identifiers stay locked.
         </p>
+        <p className="mt-1 text-[12px] leading-4 text-[#6b7280]">
+          This setting is shared by everyone in your lab.
+        </p>
+        {readOnly && !loading && !loadError ? (
+          <p className="mt-1 text-[12px] leading-4 text-amber-700" data-testid="driver-label-settings-readonly">
+            Only lab admins can change these settings.
+          </p>
+        ) : null}
+        {loadError ? (
+          <p className="mt-1 text-[12px] leading-4 text-red-600">
+            Settings could not be loaded, so they cannot be changed now. Close and reopen to retry.
+          </p>
+        ) : null}
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
@@ -49,7 +75,7 @@ export function DriverLabelSettingsPanel({
           <span className="text-[11px] font-medium uppercase tracking-wide text-[#6b7280]">
             Apply to
           </span>
-          <Select value={draft.scope} onValueChange={() => onChange({ ...draft, scope: "all" })}>
+          <Select disabled={locked} value={draft.scope} onValueChange={() => onChange({ ...draft, scope: "all" })}>
             <SelectTrigger className="h-9">
               <SelectValue />
             </SelectTrigger>
@@ -88,6 +114,7 @@ export function DriverLabelSettingsPanel({
                 <Checkbox
                   id={`driver-opt-${key}`}
                   checked={draft[key]}
+                  disabled={locked}
                   onCheckedChange={(v) => setOptional(key, v === true)}
                 />
                 <label
@@ -117,6 +144,7 @@ export function DriverLabelSettingsPanel({
                 <span className="text-[13px] text-[#17191F]">{label}</span>
                 <Switch
                   checked={draft[key]}
+                  disabled={locked}
                   onCheckedChange={(v) => onChange({ ...draft, [key]: v })}
                 />
               </li>
@@ -125,12 +153,18 @@ export function DriverLabelSettingsPanel({
         </div>
       </div>
 
+      {saveError ? (
+        <p className="border-t border-[#e8eaee] px-4 py-2 text-[12px] text-red-600" role="alert" data-testid="driver-label-settings-save-error">
+          Settings were not saved: {saveError}
+        </p>
+      ) : null}
       <div className="flex items-center justify-between gap-2 border-t border-[#e8eaee] px-4 py-3">
         <Button
           type="button"
           variant="outline"
           className="border-[#c4b5fd] text-[#6d28d9] hover:bg-[#f5f3ff]"
           onClick={onReset}
+          disabled={locked || saving}
         >
           Reset defaults
         </Button>
@@ -138,8 +172,10 @@ export function DriverLabelSettingsPanel({
           type="button"
           className="bg-blue-600 text-white hover:bg-blue-700"
           onClick={onApply}
+          disabled={locked || saving}
+          data-testid="driver-label-settings-apply"
         >
-          Apply settings
+          {saving ? "Saving..." : "Apply settings"}
         </Button>
       </div>
     </aside>

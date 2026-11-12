@@ -36,10 +36,9 @@ import {
 } from "@/lib/driver-labels/generate-driver-label-pdf"
 import {
   DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
-  loadDriverLabelPrintSettings,
-  saveDriverLabelPrintSettings,
   type DriverLabelPrintSettings,
 } from "@/lib/driver-labels/label-print-settings"
+import { getDriverLabelSettings, saveDriverLabelSettings } from "@/lib/api/driver-label-settings"
 import { DriverLabelSettingsPanel } from "@/components/driver-labels/DriverLabelSettingsPanel"
 
 type PrintMode = "sheet" | "roll"
@@ -96,12 +95,40 @@ export default function DriverLabelSheetModal({
     setSafariPreview(isSafariBrowser())
   }, [])
 
+  // Lab-wide settings come from the API (RXN-63). Until they load, and if loading fails,
+  // labels print with the defaults.
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [settingsLoadError, setSettingsLoadError] = useState(false)
+  const [canEditSettings, setCanEditSettings] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null)
+
   useEffect(() => {
     if (!isOpen) return
-    const loaded = loadDriverLabelPrintSettings()
-    setAppliedSettings(loaded)
-    setDraftSettings(loaded)
+    let cancelled = false
     setSettingsOpen(false)
+    setSettingsLoading(true)
+    setSettingsLoadError(false)
+    setSettingsSaveError(null)
+    setCanEditSettings(false)
+    setAppliedSettings({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS })
+    setDraftSettings({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS })
+    getDriverLabelSettings()
+      .then((loaded) => {
+        if (cancelled) return
+        setAppliedSettings(loaded.settings)
+        setDraftSettings(loaded.settings)
+        setCanEditSettings(loaded.canEdit)
+      })
+      .catch(() => {
+        if (!cancelled) setSettingsLoadError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setSettingsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [isOpen])
 
   const paper = getPaper(paperId)
@@ -270,10 +297,21 @@ export default function DriverLabelSheetModal({
     setLabelPresetId(m === "roll" ? ROLL_SIZES[0].id : SHEET_TEMPLATES[0].id)
   }
 
-  const handleApplySettings = () => {
-    setAppliedSettings(draftSettings)
-    saveDriverLabelPrintSettings(draftSettings)
-    setSettingsOpen(false)
+  const handleApplySettings = async () => {
+    if (!canEditSettings || settingsSaving) return
+    setSettingsSaving(true)
+    setSettingsSaveError(null)
+    try {
+      const saved = await saveDriverLabelSettings(draftSettings)
+      setAppliedSettings(saved.settings)
+      setDraftSettings(saved.settings)
+      setSettingsOpen(false)
+    } catch (e) {
+      // Not saved: keep the old applied settings and the draft, and say so.
+      setSettingsSaveError(e instanceof Error && e.message ? e.message : "Could not save the settings.")
+    } finally {
+      setSettingsSaving(false)
+    }
   }
 
   const handleResetSettings = () => {
@@ -370,6 +408,11 @@ export default function DriverLabelSheetModal({
                 <p className="text-[12px] text-[#6b7280]">
                   Settings control optional production details; delivery identifiers stay locked.
                 </p>
+                {settingsLoadError ? (
+                  <p className="text-[12px] text-red-600" data-testid="driver-label-settings-load-error">
+                    Driver label settings could not be loaded. Labels print with the default settings.
+                  </p>
+                ) : null}
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -380,6 +423,7 @@ export default function DriverLabelSheetModal({
                   title="Driver label settings"
                   onClick={() => {
                     setDraftSettings(appliedSettings)
+                    setSettingsSaveError(null)
                     setSettingsOpen((o) => !o)
                   }}
                 >
@@ -636,6 +680,11 @@ export default function DriverLabelSheetModal({
                   onChange={setDraftSettings}
                   onReset={handleResetSettings}
                   onApply={handleApplySettings}
+                  readOnly={!canEditSettings}
+                  loading={settingsLoading}
+                  saving={settingsSaving}
+                  saveError={settingsSaveError}
+                  loadError={settingsLoadError}
                 />
               ) : null}
             </div>
