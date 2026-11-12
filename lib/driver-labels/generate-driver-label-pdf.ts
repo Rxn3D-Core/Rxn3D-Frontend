@@ -2,7 +2,7 @@
  * Builds the driver-label PDF from a page/cell placement grid.
  *
  * Layout matches Figma driver slips (4×2.5 PLS780 / 3.75×2 PLS618):
- *   header (lab / PT / OFC / DR + QR) | mid (CASE·SLIP, STAGE·PAN, PROD, STATUS) | footer (PICKUP · DELIVER)
+ *   header (lab / Pt: / Ofc: / Dr: + QR) | mid (Case #·Slip #, Stg:·Pan #, Prod:, Sts:) | footer (Pku: · Del:)
  *
  * `pages` is one entry per physical page; each inner array is that page's cells
  * (length === geo.cellsPerPage). A cell holds a slip or null (blank). Roll mode
