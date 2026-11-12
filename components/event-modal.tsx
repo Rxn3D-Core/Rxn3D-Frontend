@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
+import { labTimezoneLabelForDay } from "@/lib/lab-timezone"
 import type { CalendarEvent } from "@/lib/types"
 import { useHolidays } from "@/contexts/holidays-context"
 import { Loader2 } from "lucide-react"
@@ -302,7 +303,7 @@ export function EventModal({ open, onOpenChange, event, onDelete, onEdit, onSave
                 />
                 <span className="font-medium text-gray-900">All Day</span>
               </div>
-              <span className="text-blue-600 font-medium">{currentEvent.timezone || "GMT - 7 Phoenix"}</span>
+              <span className="text-blue-600 font-medium">{labTimezoneLabelForDay(currentEvent.date)}</span>
             </div>
 
             {/* Repeat */}
