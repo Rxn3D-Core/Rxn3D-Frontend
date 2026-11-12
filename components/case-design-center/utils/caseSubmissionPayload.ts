@@ -31,6 +31,7 @@ import {
   mergeProductAndAbutmentAddonEntries,
 } from "./abutmentAddonSync";
 import {
+  AUTO_GENERATED_NOTES_ENABLED,
   buildSlipLevelNotes,
   clearProductNotesWhenUsingCaseSummary,
 } from "./caseSummaryNotesPayload";
@@ -467,7 +468,9 @@ export function snapshotToProduct(
     ...(stage_id !== undefined ? { stage_id } : {}),
     ...(teeth_selection.length > 0 ? { teeth_selection } : {}),
     status: "In Progress" as const,
-    notes: buildProductNoteFromSnapshot(snap) || undefined,
+    notes: AUTO_GENERATED_NOTES_ENABLED
+      ? buildProductNoteFromSnapshot(snap) || undefined
+      : undefined,
     ...(impressions.length > 0 ? { impressions } : {}),
     ...(opposite_impressions.length > 0 ? { opposite_impressions } : {}),
     ...(addons.length > 0 ? { addons } : {}),
