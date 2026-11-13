@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
@@ -10,13 +11,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { LOGO_ACCEPT, LOGO_FORMAT_HINT, validateLogoFile } from "@/lib/logo-upload"
+import { fetchActiveLogoDataUrl } from "@/lib/api/driver-label-settings"
+import { prepareLabelLogo } from "@/lib/driver-labels/logo-outline"
 import {
   DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
   DRIVER_LABEL_LOCKED_FIELDS,
   DRIVER_LABEL_OPTIONAL_FIELDS,
   type DriverLabelOptionalKey,
+  type DriverLabelDesign,
+  type DriverLabelLogoSource,
   type DriverLabelPrintSettings,
 } from "@/lib/driver-labels/label-print-settings"
+
+/** RXN-65: logo URLs from the API (lab profile logo, uploaded driver label logo, the one the saved choice prints). */
+export interface DriverLabelLogoInfo {
+  currentUrl: string | null
+  customUrl: string | null
+  activeUrl: string | null
+}
 
 interface DriverLabelSettingsPanelProps {
   draft: DriverLabelPrintSettings
@@ -29,6 +42,44 @@ interface DriverLabelSettingsPanelProps {
   saving?: boolean
   saveError?: string | null
   loadError?: boolean
+  logo?: DriverLabelLogoInfo
+  logoBusy?: boolean
+  logoError?: string | null
+  onUploadLogo?: (file: File) => void
+  onRemoveLogo?: () => void
+}
+
+const NO_LOGO: DriverLabelLogoInfo = { currentUrl: null, customUrl: null, activeUrl: null }
+
+const DESIGNS: { id: DriverLabelDesign; title: string; text: string }[] = [
+  { id: "classic", title: "Classic", text: "Lab name, patient and office stacked on the left." },
+  { id: "centered", title: "Centered", text: "Logo or lab name centred, details in two columns." },
+]
+
+/** Shows what the saved logo looks like once converted for printing (the same conversion the label uses). */
+function OutlinePreview({ activeUrl, outline }: { activeUrl: string; outline: boolean }) {
+  const [src, setSrc] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    setSrc(null)
+    setFailed(false)
+    fetchActiveLogoDataUrl()
+      .then((data) => prepareLabelLogo(data, outline))
+      .then((prepared) => {
+        if (cancelled) return
+        if (prepared) setSrc(prepared.dataUrl)
+        else setFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeUrl, outline])
+  if (failed) {
+    return <p className="text-[11px] text-amber-700">Preview unavailable. The label will print the lab name.</p>
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return src ? <img src={src} alt="Logo as printed" className="max-h-12 max-w-full" data-testid="driver-label-logo-print-preview" /> : null
 }
 
 export function DriverLabelSettingsPanel({
@@ -41,12 +92,33 @@ export function DriverLabelSettingsPanel({
   saving = false,
   saveError = null,
   loadError = false,
+  logo = NO_LOGO,
+  logoBusy = false,
+  logoError = null,
+  onUploadLogo,
+  onRemoveLogo,
 }: DriverLabelSettingsPanelProps) {
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
   // Editing needs a lab admin and a successful load (otherwise we would overwrite unseen values).
   const locked = readOnly || loading || loadError
   const setOptional = (key: DriverLabelOptionalKey, checked: boolean) => {
     onChange({ ...draft, [key]: checked })
   }
+
+  const setSource = (source: DriverLabelLogoSource) => onChange({ ...draft, logoSource: source })
+  const handleFile = (file: File | undefined) => {
+    if (!file) return
+    const error = validateLogoFile(file)
+    setFileError(error)
+    if (!error) onUploadLogo?.(file)
+    if (fileInput.current) fileInput.current.value = ""
+  }
+  const logoLocked = locked || logoBusy
+  // The converted preview reads the saved logo, so it is only shown when the draft choice equals what is saved.
+  const savedChoiceShown = draft.logoSource !== "none" && logo.activeUrl !== null &&
+    ((draft.logoSource === "current" && logo.activeUrl === logo.currentUrl) ||
+      (draft.logoSource === "custom" && logo.activeUrl === logo.customUrl))
 
   return (
     <aside data-testid="driver-label-settings-panel" className="flex h-full w-full max-w-[340px] flex-col border-l border-[#e8eaee] bg-white">
@@ -71,6 +143,150 @@ export function DriverLabelSettingsPanel({
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+        <div>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">
+            Label design
+          </div>
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Label design">
+            {DESIGNS.map((d) => (
+              <label
+                key={d.id}
+                data-testid={`driver-label-design-${d.id}`}
+                className={`cursor-pointer rounded-md border p-2 text-left ${
+                  draft.labelDesign === d.id ? "border-blue-500 bg-blue-50" : "border-[#e5e7eb] bg-white"
+                } ${locked ? "cursor-not-allowed opacity-60" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="driver-label-design"
+                  className="sr-only"
+                  checked={draft.labelDesign === d.id}
+                  disabled={locked}
+                  onChange={() => onChange({ ...draft, labelDesign: d.id })}
+                />
+                <span className="block text-[13px] font-medium text-[#17191F]">{d.title}</span>
+                <span className="block text-[11px] leading-4 text-[#6b7280]">{d.text}</span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] leading-4 text-[#6b7280]">The switches below apply to both designs.</p>
+        </div>
+
+        {draft.labelDesign === "centered" ? (
+          <div data-testid="driver-label-logo-section">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">Logo</div>
+            <div className="space-y-2" role="radiogroup" aria-label="Logo on the label">
+              <label className="flex items-start gap-2 text-[13px] text-[#17191F]">
+                <input
+                  type="radio"
+                  name="driver-label-logo-source"
+                  className="mt-1"
+                  checked={draft.logoSource === "current"}
+                  disabled={logoLocked}
+                  onChange={() => setSource("current")}
+                  data-testid="driver-label-logo-current"
+                />
+                <span>
+                  Use current logo
+                  {logo.currentUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logo.currentUrl} alt="Current lab logo" className="mt-1 max-h-12 max-w-full rounded border border-[#e5e7eb] bg-white p-1" />
+                  ) : (
+                    <span className="block text-[11px] text-amber-700">No logo on file. The lab name prints instead.</span>
+                  )}
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-[13px] text-[#17191F]">
+                <input
+                  type="radio"
+                  name="driver-label-logo-source"
+                  className="mt-1"
+                  checked={draft.logoSource === "custom"}
+                  disabled={logoLocked || !logo.customUrl}
+                  onChange={() => setSource("custom")}
+                  data-testid="driver-label-logo-custom"
+                />
+                <span>
+                  Use an uploaded logo
+                  {logo.customUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logo.customUrl} alt="Uploaded driver label logo" className="mt-1 max-h-12 max-w-full rounded border border-[#e5e7eb] bg-white p-1" />
+                  ) : (
+                    <span className="block text-[11px] text-[#6b7280]">Upload a file below first.</span>
+                  )}
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-[13px] text-[#17191F]">
+                <input
+                  type="radio"
+                  name="driver-label-logo-source"
+                  className="mt-1"
+                  checked={draft.logoSource === "none"}
+                  disabled={logoLocked}
+                  onChange={() => setSource("none")}
+                  data-testid="driver-label-logo-none"
+                />
+                <span>No logo (print the lab name)</span>
+              </label>
+            </div>
+
+            {!readOnly ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept={LOGO_ACCEPT}
+                  className="hidden"
+                  data-testid="driver-label-logo-file"
+                  onChange={(e) => handleFile(e.target.files?.[0])}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={logoLocked}
+                  onClick={() => fileInput.current?.click()}
+                  data-testid="driver-label-logo-upload"
+                >
+                  {logoBusy ? "Working..." : logo.customUrl ? "Upload a new logo" : "Upload a logo"}
+                </Button>
+                {logo.customUrl ? (
+                  <Button type="button" variant="ghost" size="sm" disabled={logoLocked} onClick={onRemoveLogo} data-testid="driver-label-logo-remove">
+                    Remove uploaded logo
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+            <p className="mt-1.5 text-[11px] leading-4 text-[#6b7280]">
+              {LOGO_FORMAT_HINT}, up to 1 MB. Uploading is saved at once; the logo choice is saved with Apply settings.
+            </p>
+            {fileError || logoError ? (
+              <p className="mt-1 text-[12px] text-red-600" role="alert" data-testid="driver-label-logo-error">
+                {fileError || logoError}
+              </p>
+            ) : null}
+
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span className="text-[13px] text-[#17191F]">Convert to outline</span>
+              <Switch
+                checked={draft.logoOutline}
+                disabled={locked}
+                onCheckedChange={(v) => onChange({ ...draft, logoOutline: v })}
+                data-testid="driver-label-logo-outline"
+              />
+            </div>
+            <p className="mt-1 text-[11px] leading-4 text-[#6b7280]">
+              Turn off when your file is already an outline drawing.
+            </p>
+            {savedChoiceShown && logo.activeUrl ? (
+              <div className="mt-2 rounded border border-dashed border-[#d1d5db] p-2">
+                <div className="mb-1 text-[11px] text-[#6b7280]">Printed logo (saved choice)</div>
+                <OutlinePreview activeUrl={logo.activeUrl} outline={draft.logoOutline} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="space-y-1.5">
           <span className="text-[11px] font-medium uppercase tracking-wide text-[#6b7280]">
             Apply to

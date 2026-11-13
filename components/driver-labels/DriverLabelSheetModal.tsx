@@ -28,8 +28,9 @@ import {
   sheetGeometry,
   type MediaId,
 } from "@/lib/driver-labels/label-layout"
+import { generateLabelPdf } from "@/lib/driver-labels/generate-label-pdf"
+import { prepareLabelLogo } from "@/lib/driver-labels/logo-outline"
 import {
-  generateDriverLabelPdf,
   isSafariBrowser,
   printPdfUrl,
   type DriverLabelSlip,
@@ -38,7 +39,14 @@ import {
   DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
   type DriverLabelPrintSettings,
 } from "@/lib/driver-labels/label-print-settings"
-import { getDriverLabelSettings, saveDriverLabelSettings } from "@/lib/api/driver-label-settings"
+import {
+  deleteDriverLabelLogo,
+  fetchActiveLogoDataUrl,
+  getDriverLabelSettings,
+  saveDriverLabelSettings,
+  uploadDriverLabelLogo,
+  type LabDriverLabelSettings,
+} from "@/lib/api/driver-label-settings"
 import { DriverLabelSettingsPanel } from "@/components/driver-labels/DriverLabelSettingsPanel"
 
 type PrintMode = "sheet" | "roll"
@@ -102,6 +110,10 @@ export default function DriverLabelSheetModal({
   const [canEditSettings, setCanEditSettings] = useState(false)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null)
+  // RXN-65: lab profile logo, uploaded driver label logo and the one the saved choice prints.
+  const [logoInfo, setLogoInfo] = useState<LabDriverLabelSettings["logo"]>({ currentUrl: null, customUrl: null, activeUrl: null })
+  const [logoBusy, setLogoBusy] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isOpen) return
@@ -111,6 +123,8 @@ export default function DriverLabelSheetModal({
     setSettingsLoadError(false)
     setSettingsSaveError(null)
     setCanEditSettings(false)
+    setLogoInfo({ currentUrl: null, customUrl: null, activeUrl: null })
+    setLogoError(null)
     setAppliedSettings({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS })
     setDraftSettings({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS })
     getDriverLabelSettings()
@@ -119,6 +133,7 @@ export default function DriverLabelSheetModal({
         setAppliedSettings(loaded.settings)
         setDraftSettings(loaded.settings)
         setCanEditSettings(loaded.canEdit)
+        setLogoInfo(loaded.logo)
       })
       .catch(() => {
         if (!cancelled) setSettingsLoadError(true)
@@ -215,7 +230,12 @@ export default function DriverLabelSheetModal({
     if (!geo) return
     setGenerating(true)
     try {
-      const doc = await generateDriverLabelPdf(payload, geo, appliedSettings)
+      // RXN-65: the logo only prints in the centred design; any failure falls back to the lab name.
+      const logo =
+        appliedSettings.labelDesign === "centered" && appliedSettings.logoSource !== "none" && logoInfo.activeUrl
+          ? await prepareLabelLogo(await fetchActiveLogoDataUrl(), appliedSettings.logoOutline)
+          : null
+      const doc = await generateLabelPdf(payload, geo, appliedSettings, { logo })
       swapPreview(doc, doc.output("bloburl") as unknown as string)
       setStep("preview")
     } catch (err) {
@@ -305,6 +325,7 @@ export default function DriverLabelSheetModal({
       const saved = await saveDriverLabelSettings(draftSettings)
       setAppliedSettings(saved.settings)
       setDraftSettings(saved.settings)
+      setLogoInfo(saved.logo)
       setSettingsOpen(false)
     } catch (e) {
       // Not saved: keep the old applied settings and the draft, and say so.
@@ -313,6 +334,34 @@ export default function DriverLabelSheetModal({
       setSettingsSaving(false)
     }
   }
+
+  const runLogoAction = async (action: () => Promise<LabDriverLabelSettings>, onDone?: (r: LabDriverLabelSettings) => void) => {
+    if (!canEditSettings || logoBusy) return
+    setLogoBusy(true)
+    setLogoError(null)
+    try {
+      const result = await action()
+      setLogoInfo(result.logo)
+      onDone?.(result)
+    } catch (e) {
+      setLogoError(e instanceof Error && e.message ? e.message : "Could not update the logo.")
+    } finally {
+      setLogoBusy(false)
+    }
+  }
+
+  const handleUploadLogo = (file: File) =>
+    runLogoAction(() => uploadDriverLabelLogo(file), () => {
+      // The upload does not change the saved choice; pre-select the new file in the draft.
+      setDraftSettings((d) => ({ ...d, logoSource: "custom" }))
+    })
+
+  const handleRemoveLogo = () =>
+    runLogoAction(() => deleteDriverLabelLogo(), (r) => {
+      // The server resets a saved "custom" choice to "current"; mirror that in the printing settings and the draft.
+      setAppliedSettings((a) => ({ ...a, logoSource: r.settings.logoSource }))
+      setDraftSettings((d) => (d.logoSource === "custom" ? { ...d, logoSource: r.settings.logoSource } : d))
+    })
 
   const handleResetSettings = () => {
     setDraftSettings({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS })
@@ -685,6 +734,11 @@ export default function DriverLabelSheetModal({
                   saving={settingsSaving}
                   saveError={settingsSaveError}
                   loadError={settingsLoadError}
+                  logo={logoInfo}
+                  logoBusy={logoBusy}
+                  logoError={logoError}
+                  onUploadLogo={handleUploadLogo}
+                  onRemoveLogo={handleRemoveLogo}
                 />
               ) : null}
             </div>

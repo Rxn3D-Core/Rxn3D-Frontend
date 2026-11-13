@@ -48,14 +48,14 @@ export interface DriverLabelSlip {
 }
 
 /** Detect the jsPDF image format from a data URL; null lets jsPDF auto-detect. */
-function parseImageFormat(dataUrl: string): "PNG" | "JPEG" | undefined {
+export function parseImageFormat(dataUrl: string): "PNG" | "JPEG" | undefined {
   const m = /^data:image\/(png|jpe?g)/i.exec(dataUrl);
   if (!m) return undefined;
   return /png/i.test(m[1]) ? "PNG" : "JPEG";
 }
 
 /** Resolve a QR source (data URL or remote URL) to an embeddable data URL. */
-async function loadImageAsDataUrl(src?: string): Promise<string | null> {
+export async function loadImageAsDataUrl(src?: string): Promise<string | null> {
   if (!src) return null;
   if (src.startsWith("data:")) return src;
   try {
@@ -74,7 +74,7 @@ async function loadImageAsDataUrl(src?: string): Promise<string | null> {
 }
 
 /** Trim text with an ellipsis so it fits within maxW (current font/unit). */
-function fitText(doc: jsPDF, text: string, maxW: number): string {
+export function fitText(doc: jsPDF, text: string, maxW: number): string {
   if (!text) return "";
   if (doc.getTextWidth(text) <= maxW) return text;
   let t = text;
@@ -82,12 +82,12 @@ function fitText(doc: jsPDF, text: string, maxW: number): string {
   return `${t}…`;
 }
 
-function val(v?: string | null): string {
+export function val(v?: string | null): string {
   return v && String(v).trim() ? String(v).trim() : "-";
 }
 
 /** Y-m-d or similar → MM/DD/YY (Figma: 08/25/26). */
-function formatShortDate(d?: string | null): string {
+export function formatShortDate(d?: string | null): string {
   if (!d || !String(d).trim()) return "-";
   const raw = String(d).trim();
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
@@ -116,7 +116,7 @@ function formatClock(t?: string | null): string {
   return `${h}:${min} ${ampm}`;
 }
 
-function formatDeliver(date?: string | null, time?: string | null): string {
+export function formatDeliver(date?: string | null, time?: string | null): string {
   const d = formatShortDate(date);
   const clock = formatClock(time);
   if (d === "-" && !clock) return "-";
@@ -130,12 +130,12 @@ const FIGMA_DPI = 120;
 const FIGMA_W_IN = 4;
 const FIGMA_H_IN = 2;
 
-const COLOR_INK = "#17191F";
-const COLOR_MUTED = "#555B66";
-const COLOR_BORDER = "#1B1D21";
-const COLOR_RULE = "#D3D7DE";
+export const COLOR_INK = "#17191F";
+export const COLOR_MUTED = "#555B66";
+export const COLOR_BORDER = "#1B1D21";
+export const COLOR_RULE = "#D3D7DE";
 
-function hexRgb(hex: string): [number, number, number] {
+export function hexRgb(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
