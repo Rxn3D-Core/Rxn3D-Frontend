@@ -8,9 +8,7 @@ import type { jsPDF } from "jspdf";
 import { cellOrigin, type GridGeometry } from "./label-layout";
 import {
   fitText,
-  formatDeliver,
-  formatShortDate,
-  hexRgb,
+    hexRgb,
   loadImageAsDataUrl,
   parseImageFormat,
   val,
@@ -19,18 +17,19 @@ import {
 import {
   fitLogoLeft,
   fitValueSize,
+  formatDeliverV3,
+  formatPickupV3,
   planV3Layout,
+  repackHeader,
   V3_CAPTIONS,
   V3_COLOR_LABEL,
   V3_COLOR_RULE,
   V3_COLOR_VALUE,
   type V3Key,
+  type V3Media,
 } from "./label-content-layout-v3";
 import type { DriverLabelPrintSettings } from "./label-print-settings";
 import type { PreparedLogo } from "./logo-outline";
-
-/** Baseline offset from the top of a line box, in em (Arial / Helvetica ascent plus half the leading). */
-const BASELINE_EM = 0.92;
 
 function drawSticker(
   doc: jsPDF,
@@ -42,9 +41,9 @@ function drawSticker(
   qrDataUrl: string | null,
   settings: DriverLabelPrintSettings,
   logo: PreparedLogo | null,
+  media: V3Media,
 ) {
-  const plan = planV3Layout(settings, w, h);
-  const baseline = (top: number, pt: number) => top + (pt / 72) * BASELINE_EM;
+  const plan = planV3Layout(settings, w, h, media);
   const measure = (text: string, pt: number, bold: boolean) => {
     doc.setFont("helvetica", bold ? "bold" : "normal");
     doc.setFontSize(pt);
@@ -66,6 +65,43 @@ function drawSticker(
     }
   }
 
+  if (plan.rule) {
+    doc.setDrawColor(...hexRgb(V3_COLOR_RULE));
+    doc.setLineWidth(plan.rule.widthIn);
+    doc.line(x + plan.rule.x, y + plan.rule.y, x + plan.rule.x + plan.rule.w, y + plan.rule.y);
+  }
+
+  const values: Record<V3Key, string> = {
+    slip: val(slip.slip_number),
+    case: val(slip.case_number),
+    pan: val(slip.case_pan_number),
+    pt: val(slip.pt_name),
+    ofc: val(slip.office_code),
+    dr: val(slip.doctor_name),
+    stage: val(slip.stage_code),
+    pickup: formatPickupV3(slip.pickup_date),
+    deliver: formatDeliverV3(slip.delivery_date, slip.delivery_time, plan.dateMode),
+  };
+
+  // Header columns keep the Figma positions unless a real value is wider than its slot; then they pack to the right.
+  const header = plan.cells.filter((c) => c.group === "header");
+  if (header.length) {
+    const needed = header.map((c) =>
+      Math.max(measure(V3_CAPTIONS[c.key], c.labelPt, c.boldLabel), measure(values[c.key], c.valuePt, c.boldValue)),
+    );
+    const placed = repackHeader(header, needed, plan.headerRight, plan.headerMinLeft);
+    header.forEach((c, i) => {
+      c.x = placed[i].x;
+      c.labelX = placed[i].x;
+      c.w = placed[i].w;
+    });
+  }
+
+  // Logo area ends 8 px before the first header column (after any repack).
+  const firstHeaderX = header.length ? header[0].x : plan.headerRight;
+  plan.nameCell.w = Math.max(0, firstHeaderX - 8 / 96 - plan.nameCell.x);
+  plan.logoBox.w = Math.min(plan.logoBox.w, plan.nameCell.w);
+
   // Top left: logo when one is ready, otherwise the lab name.
   let logoDrawn = false;
   if (logo) {
@@ -86,39 +122,22 @@ function drawSticker(
     doc.setFont("helvetica", "bold");
     doc.setFontSize(size.pt);
     doc.setTextColor(...hexRgb(V3_COLOR_VALUE));
-    doc.text(size.ellipsis ? fitText(doc, text, n.w) : text, x + n.x, y + baseline(n.y, n.fontPt));
+    doc.text(size.ellipsis ? fitText(doc, text, n.w) : text, x + n.x, y + n.baseline);
   }
-
-  if (plan.rule) {
-    doc.setDrawColor(...hexRgb(V3_COLOR_RULE));
-    doc.setLineWidth(plan.rule.widthIn);
-    doc.line(x + plan.rule.x, y + plan.rule.y, x + plan.rule.x + plan.rule.w, y + plan.rule.y);
-  }
-
-  const values: Record<V3Key, string> = {
-    slip: val(slip.slip_number),
-    case: val(slip.case_number),
-    pan: val(slip.case_pan_number),
-    pt: val(slip.pt_name),
-    ofc: val(slip.office_code),
-    dr: val(slip.doctor_name),
-    stage: val(slip.stage_code),
-    pickup: formatShortDate(slip.pickup_date),
-    deliver: formatDeliver(slip.delivery_date, slip.delivery_time),
-  };
 
   for (const c of plan.cells) {
-    doc.setFont("helvetica", c.boldLabel ? "bold" : "normal");
-    doc.setFontSize(c.labelPt);
-    doc.setTextColor(...hexRgb(V3_COLOR_LABEL));
-    doc.text(V3_CAPTIONS[c.key], x + c.x, y + baseline(c.labelY, c.labelPt));
-
+    if (c.caption) {
+      doc.setFont("helvetica", c.boldLabel ? "bold" : "normal");
+      doc.setFontSize(c.labelPt);
+      doc.setTextColor(...hexRgb(V3_COLOR_LABEL));
+      doc.text(V3_CAPTIONS[c.key], x + c.labelX, y + c.labelBase);
+    }
     const text = values[c.key];
     const size = fitValueSize((t, pt) => measure(t, pt, c.boldValue), text, c.w, c.valuePt, c.minValuePt);
     doc.setFont("helvetica", c.boldValue ? "bold" : "normal");
     doc.setFontSize(size.pt);
     doc.setTextColor(...hexRgb(V3_COLOR_VALUE));
-    doc.text(size.ellipsis ? fitText(doc, text, c.w) : text, x + c.x, y + baseline(c.valueY, c.valuePt));
+    doc.text(size.ellipsis ? fitText(doc, text, c.w) : text, x + c.x, y + c.valueBase);
   }
 }
 
@@ -144,7 +163,7 @@ export async function generateV3DriverLabelPdf(
       if (!slip) return;
       const { x, y } = cellOrigin(geo, cellIdx);
       const qr = slip.qr_code ? qrCache.get(slip.qr_code) ?? null : null;
-      drawSticker(doc, slip, x, y, geo.labelWidthIn, geo.labelHeightIn, qr, settings, logo);
+      drawSticker(doc, slip, x, y, geo.labelWidthIn, geo.labelHeightIn, qr, settings, logo, geo.isRoll ? "roll" : "sheet");
     });
   });
 
