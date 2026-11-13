@@ -28,7 +28,7 @@ import {
   sheetGeometry,
   type MediaId,
 } from "@/lib/driver-labels/label-layout"
-import { generateLabelPdf } from "@/lib/driver-labels/generate-label-pdf"
+import { generateLabelPdf, usesV3Design } from "@/lib/driver-labels/generate-label-pdf"
 import { prepareLabelLogo } from "@/lib/driver-labels/logo-outline"
 import {
   isSafariBrowser,
@@ -230,9 +230,9 @@ export default function DriverLabelSheetModal({
     if (!geo) return
     setGenerating(true)
     try {
-      // RXN-65: the logo only prints in the centred design; any failure falls back to the lab name.
+      // RXN-65/68: the logo prints in the centred and v3 designs; any failure falls back to the lab name.
       const logo =
-        appliedSettings.labelDesign === "centered" && appliedSettings.logoSource !== "none" && logoInfo.activeUrl
+        (appliedSettings.labelDesign === "centered" || usesV3Design(geo)) && appliedSettings.logoSource !== "none" && logoInfo.activeUrl
           ? await prepareLabelLogo(await fetchActiveLogoDataUrl(), appliedSettings.logoOutline)
           : null
       const doc = await generateLabelPdf(payload, geo, appliedSettings, { logo })
@@ -734,6 +734,7 @@ export default function DriverLabelSheetModal({
                   saving={settingsSaving}
                   saveError={settingsSaveError}
                   loadError={settingsLoadError}
+                  v3Active={geo ? usesV3Design(geo) : false}
                   logo={logoInfo}
                   logoBusy={logoBusy}
                   logoError={logoError}

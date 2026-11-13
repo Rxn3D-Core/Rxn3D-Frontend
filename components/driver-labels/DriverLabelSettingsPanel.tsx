@@ -42,6 +42,8 @@ interface DriverLabelSettingsPanelProps {
   saving?: boolean
   saveError?: string | null
   loadError?: boolean
+  /** RXN-68: the chosen roll size prints the v3 design (fixed captions, logo applies, no compact switch). */
+  v3Active?: boolean
   logo?: DriverLabelLogoInfo
   logoBusy?: boolean
   logoError?: string | null
@@ -92,6 +94,7 @@ export function DriverLabelSettingsPanel({
   saving = false,
   saveError = null,
   loadError = false,
+  v3Active = false,
   logo = NO_LOGO,
   logoBusy = false,
   logoError = null,
@@ -169,10 +172,14 @@ export function DriverLabelSettingsPanel({
               </label>
             ))}
           </div>
-          <p className="mt-1.5 text-[11px] leading-4 text-[#6b7280]">The switches below apply to both designs.</p>
+          <p className="mt-1.5 text-[11px] leading-4 text-[#6b7280]">
+            {v3Active
+              ? "This roll size prints the v3 design, so the choice above applies to other sizes. Product and Status are not part of v3."
+              : "The switches below apply to both designs."}
+          </p>
         </div>
 
-        {draft.labelDesign === "centered" ? (
+        {draft.labelDesign === "centered" || v3Active ? (
           <div data-testid="driver-label-logo-section">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">Logo</div>
             <div className="space-y-2" role="radiogroup" aria-label="Logo on the label">
@@ -367,7 +374,9 @@ export function DriverLabelSettingsPanel({
                 ["showDividers", "Show dividers"],
                 ["uppercaseStatus", "Uppercase status"],
               ] as const
-            ).map(([key, label]) => (
+            )
+              .filter(([key]) => !(v3Active && key === "compactAbbreviations"))
+              .map(([key, label]) => (
               <li key={key} className="flex items-center justify-between gap-3">
                 <span className="text-[13px] text-[#17191F]">{label}</span>
                 <Switch
