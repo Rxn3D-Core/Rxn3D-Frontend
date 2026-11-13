@@ -10,6 +10,10 @@ export type DriverLabelDesign = "classic" | "centered";
 /** RXN-65: which logo prints in the centred design. `none` prints the lab name. */
 export type DriverLabelLogoSource = "none" | "current" | "custom";
 
+/** RXN-65: print the office code or its full name. */
+export type DriverLabelOfficeDisplay = "code" | "name";
+export const DRIVER_LABEL_OFFICE_DISPLAYS: readonly DriverLabelOfficeDisplay[] = ["code", "name"];
+
 export const DRIVER_LABEL_DESIGNS: readonly DriverLabelDesign[] = ["classic", "centered"];
 export const DRIVER_LABEL_LOGO_SOURCES: readonly DriverLabelLogoSource[] = ["none", "current", "custom"];
 
@@ -35,6 +39,7 @@ export interface DriverLabelPrintSettings {
   logoSource: DriverLabelLogoSource;
   /** Convert the logo to an outline when printing (off when the file already is one). */
   logoOutline: boolean;
+  officeDisplay: DriverLabelOfficeDisplay;
 }
 
 export const DEFAULT_DRIVER_LABEL_PRINT_SETTINGS: DriverLabelPrintSettings = {
@@ -55,6 +60,7 @@ export const DEFAULT_DRIVER_LABEL_PRINT_SETTINGS: DriverLabelPrintSettings = {
   labelDesign: "classic",
   logoSource: "none",
   logoOutline: true,
+  officeDisplay: "code",
 };
 
 export const DRIVER_LABEL_LOCKED_FIELDS = [
@@ -99,6 +105,7 @@ export interface DriverLabelSettingsApiValues {
   label_design: DriverLabelDesign
   logo_source: DriverLabelLogoSource
   logo_outline: boolean
+  office_display: DriverLabelOfficeDisplay
 }
 
 /** Fresh copy of the defaults (used while loading, after a failed load, and for Reset). */
@@ -132,6 +139,7 @@ export function driverLabelSettingsFromApi(
     labelDesign: oneOf(values?.label_design, DRIVER_LABEL_DESIGNS, d.labelDesign),
     logoSource: oneOf(values?.logo_source, DRIVER_LABEL_LOGO_SOURCES, d.logoSource),
     logoOutline: bool(values?.logo_outline, d.logoOutline),
+    officeDisplay: oneOf(values?.office_display, DRIVER_LABEL_OFFICE_DISPLAYS, d.officeDisplay),
   }
 }
 
@@ -154,6 +162,7 @@ export function driverLabelSettingsToApi(settings: DriverLabelPrintSettings): Dr
     label_design: settings.labelDesign,
     logo_source: settings.logoSource,
     logo_outline: settings.logoOutline,
+    office_display: settings.officeDisplay,
   }
 }
 
@@ -200,4 +209,17 @@ export function fieldLabel(
     deliver: "Deliver",
   } as const;
   return compact ? compactMap[key] : fullMap[key];
+}
+
+/**
+ * The office text for a label: the full name when the setting says so and the print data has one,
+ * otherwise the code (older API without `office_name`, or no name on file).
+ */
+export function officeText(
+  slip: { office_code?: string; office_name?: string },
+  display: DriverLabelOfficeDisplay,
+): string | undefined {
+  const name = slip.office_name?.trim();
+  if (display === "name" && name && name !== "N/A") return name;
+  return slip.office_code;
 }

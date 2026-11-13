@@ -13,6 +13,7 @@
 
 import type { jsPDF } from "jspdf";
 import { cellOrigin, type GridGeometry } from "./label-layout";
+import { fitLogoLeft } from "./label-content-layout-centered";
 import {
   HEADER_BAND_PX,
   planStickerLayout,
@@ -22,14 +23,18 @@ import {
 import {
   DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
   fieldLabel,
+  officeText,
   type DriverLabelPrintSettings,
 } from "./label-print-settings";
+import type { PreparedLogo } from "./logo-outline";
 
 export interface DriverLabelSlip {
   slip_id: number;
   case_id?: number;
   lab_name?: string;
   office_code?: string;
+  /** Added in RXN-65; an older API does not send it. */
+  office_name?: string;
   pt_name?: string;
   doctor_name?: string;
   stage_code?: string;
@@ -183,6 +188,7 @@ function drawSticker(
   h: number,
   qrDataUrl: string | null,
   settings: DriverLabelPrintSettings,
+  logo: PreparedLogo | null = null,
 ) {
   const sx = w / FIGMA_W_IN;
   const sy = h / FIGMA_H_IN;
@@ -230,11 +236,32 @@ function drawSticker(
   }
 
   // Header (locked: lab, patient, office; optional: doctor)
-  drawFigmaLine(
-    doc, x, y, 14, 14 + dyPx, headerMaxW,
-    (slip.lab_name || "").toUpperCase(),
-    12, COLOR_INK, sx, sy, true,
-  );
+  // RXN-65: a prepared logo replaces the lab name line (same top-left spot); any problem falls back to the name.
+  let logoDrawn = false;
+  if (logo) {
+    const box = {
+      x: (14 / FIGMA_DPI) * sx,
+      y: ((9 + dyPx) / FIGMA_DPI) * sy,
+      w: (headerMaxW / FIGMA_DPI) * sx,
+      h: (24 / FIGMA_DPI) * sy,
+    };
+    const fit = fitLogoLeft(box, logo.aspect);
+    if (fit) {
+      try {
+        doc.addImage({ imageData: logo.dataUrl, format: "PNG", x: x + fit.x, y: y + fit.y, width: fit.w, height: fit.h });
+        logoDrawn = true;
+      } catch {
+        /* falls back to the lab name */
+      }
+    }
+  }
+  if (!logoDrawn) {
+    drawFigmaLine(
+      doc, x, y, 14, 14 + dyPx, headerMaxW,
+      (slip.lab_name || "").toUpperCase(),
+      12, COLOR_INK, sx, sy, true,
+    );
+  }
   drawFigmaLine(
     doc, x, y, 14, 36 + dyPx, headerMaxW,
     `${L("pt")} ${val(slip.pt_name)}`,
@@ -242,7 +269,7 @@ function drawSticker(
   );
   drawFigmaLine(
     doc, x, y, 14, 60 + dyPx, headerMaxW,
-    `${L("ofc")} ${val(slip.office_code)}`,
+    `${L("ofc")} ${val(officeText(slip, settings.officeDisplay))}`,
     9.5, COLOR_MUTED, sx, sy, true,
   );
   if (layout.showDoctor) {
@@ -287,6 +314,7 @@ export async function generateDriverLabelPdf(
   pages: (DriverLabelSlip | null)[][],
   geo: GridGeometry,
   settings: DriverLabelPrintSettings = DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
+  logo: PreparedLogo | null = null,
 ): Promise<jsPDF> {
   const { jsPDF: JsPDF } = await import("jspdf");
   const orientation = geo.pageWidthIn > geo.pageHeightIn ? "landscape" : "portrait";
@@ -306,7 +334,7 @@ export async function generateDriverLabelPdf(
       if (!slip) return;
       const { x, y } = cellOrigin(geo, cellIdx);
       const qr = slip.qr_code ? qrCache.get(slip.qr_code) ?? null : null;
-      drawSticker(doc, slip, x, y, geo.labelWidthIn, geo.labelHeightIn, qr, settings);
+      drawSticker(doc, slip, x, y, geo.labelWidthIn, geo.labelHeightIn, qr, settings, logo);
     });
   });
 
