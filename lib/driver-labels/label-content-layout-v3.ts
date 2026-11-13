@@ -1,5 +1,5 @@
 /**
- * RXN-68: the "v3" driver label (Figma). Used for the sizes in `V3_SIZES` (five roll sizes, three sheet sizes).
+ * RXN-68: the "v3" driver label (Figma). Used for the sizes in `V3_SIZES` (five roll sizes, eight sheet sizes).
  * Pure (no jsPDF) so every size and every hide combination can be unit tested.
  *
  * Spec (4 x 6 in = 384 x 576 px at 96 dpi, Arial):
@@ -55,6 +55,11 @@ export const V3_SIZES: readonly { media: V3Media; widthIn: number; heightIn: num
   { media: "sheet", widthIn: 4, heightIn: 2.5 }, // PLS780
   { media: "sheet", widthIn: 3.75, heightIn: 2 }, // PLS618
   { media: "sheet", widthIn: 3.25, heightIn: 2.25 },
+  { media: "sheet", widthIn: 3.375, heightIn: 2.33 }, // PLS389, 8/sheet
+  { media: "sheet", widthIn: 4, heightIn: 3 }, // PLS569, 6/sheet
+  { media: "sheet", widthIn: 3, heightIn: 2 }, // PLS504, 10/sheet
+  { media: "sheet", widthIn: 4, heightIn: 2 }, // 10/sheet
+  { media: "sheet", widthIn: 2.5, heightIn: 2.5 }, // PLS470, 12/sheet in the size list
 ];
 
 export function isV3Size(media: V3Media, widthIn: number, heightIn: number): boolean {
