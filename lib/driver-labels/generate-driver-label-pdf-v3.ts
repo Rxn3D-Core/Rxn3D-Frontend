@@ -81,6 +81,8 @@ function drawSticker(
     stage: val(slip.stage_code),
     pickup: formatPickupV3(slip.pickup_date),
     deliver: formatDeliverV3(slip.delivery_date, slip.delivery_time, plan.dateMode),
+    status: val(slip.slip_status),
+    location: val(slip.status),
   };
 
   // Header columns keep the Figma positions unless a real value is wider than its slot; then they pack to the right.
@@ -123,6 +125,36 @@ function drawSticker(
     doc.setFontSize(size.pt);
     doc.setTextColor(...hexRgb(V3_COLOR_VALUE));
     doc.text(size.ellipsis ? fitText(doc, text, n.w) : text, x + n.x, y + n.baseline);
+  }
+
+  // Inline status / location lines: gray caption, dark value; shrunk, then the last value cut, when too wide.
+  for (const line of plan.statusLines) {
+    type Seg = { text: string; color: string };
+    const segs: Seg[] = [];
+    line.keys.forEach((key, i) => {
+      if (i > 0) segs.push({ text: " \u00B7 ", color: V3_COLOR_LABEL });
+      segs.push({ text: `${V3_CAPTIONS[key]}: `, color: V3_COLOR_LABEL }, { text: values[key], color: V3_COLOR_VALUE });
+    });
+    // getTextWidth drops trailing spaces, so measure each piece with a letter appended.
+    const width = (g: string, pt: number) => measure(`${g}x`, pt, false) - measure("x", pt, false);
+    const total = (pt: number, list: Seg[]) => list.reduce((sum, g) => sum + width(g.text, pt), 0);
+    let pt = line.pt;
+    if (total(pt, segs) > line.w) pt = Math.max(line.minPt, pt * (line.w / total(pt, segs)) * 0.995);
+    if (total(pt, segs) > line.w) {
+      const last = segs[segs.length - 1];
+      const rest = total(pt, segs.slice(0, -1));
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(pt);
+      last.text = fitText(doc, last.text, Math.max(0, line.w - rest));
+    }
+    let cx = x + line.x;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(pt);
+    for (const g of segs) {
+      doc.setTextColor(...hexRgb(g.color));
+      doc.text(g.text, cx, y + line.base);
+      cx += width(g.text, pt);
+    }
   }
 
   for (const c of plan.cells) {
