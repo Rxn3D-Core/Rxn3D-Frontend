@@ -1,5 +1,5 @@
 /**
- * RXN-68: the "v3" driver label (Figma). Used for the roll sizes 4 x 6, 4 x 2.5, 4 x 2, 3 x 2 and 2.25 x 1.25 in.
+ * RXN-68: the "v3" driver label (Figma). Used for the sizes in `V3_SIZES` (five roll sizes, three sheet sizes).
  * Pure (no jsPDF) so every size and every hide combination can be unit tested.
  *
  * Spec (4 x 6 in = 384 x 576 px at 96 dpi, Arial):
@@ -39,17 +39,28 @@ export const V3_COLOR_LABEL = "#666666";
 export const V3_COLOR_VALUE = "#111111";
 export const V3_COLOR_RULE = "#555555";
 
-/** Sizes (inches) that print the v3 design. */
-export const V3_SIZES: readonly { widthIn: number; heightIn: number }[] = [
-  { widthIn: 4, heightIn: 6 },
-  { widthIn: 4, heightIn: 2.5 },
-  { widthIn: 4, heightIn: 2 },
-  { widthIn: 3, heightIn: 2 },
-  { widthIn: 2.25, heightIn: 1.25 },
+export type V3Media = "roll" | "sheet";
+
+/**
+ * Sizes (inches) that print the v3 design, per print mode. To add a size, add a row here; nothing else changes.
+ * Roll rows are the five roll sizes; sheet rows are label stock on a Letter sheet (grid comes from SHEET_TEMPLATES,
+ * 8 labels per sheet for these three).
+ */
+export const V3_SIZES: readonly { media: V3Media; widthIn: number; heightIn: number }[] = [
+  { media: "roll", widthIn: 4, heightIn: 6 },
+  { media: "roll", widthIn: 4, heightIn: 2.5 },
+  { media: "roll", widthIn: 4, heightIn: 2 },
+  { media: "roll", widthIn: 3, heightIn: 2 },
+  { media: "roll", widthIn: 2.25, heightIn: 1.25 },
+  { media: "sheet", widthIn: 4, heightIn: 2.5 }, // PLS780
+  { media: "sheet", widthIn: 3.75, heightIn: 2 }, // PLS618
+  { media: "sheet", widthIn: 3.25, heightIn: 2.25 },
 ];
 
-export function isV3Size(widthIn: number, heightIn: number): boolean {
-  return V3_SIZES.some((s) => Math.abs(s.widthIn - widthIn) < 1e-6 && Math.abs(s.heightIn - heightIn) < 1e-6);
+export function isV3Size(media: V3Media, widthIn: number, heightIn: number): boolean {
+  return V3_SIZES.some(
+    (s) => s.media === media && Math.abs(s.widthIn - widthIn) < 1e-6 && Math.abs(s.heightIn - heightIn) < 1e-6,
+  );
 }
 
 export interface V3Box {

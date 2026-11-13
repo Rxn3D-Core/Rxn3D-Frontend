@@ -16,9 +16,9 @@ export interface LabelPdfAssets {
   logo: PreparedLogo | null;
 }
 
-/** True when this geometry (roll mode and one of the v3 sizes) prints the v3 design. */
+/** True when this geometry (one of the v3 sizes for its print mode) prints the v3 design. */
 export function usesV3Design(geo: GridGeometry): boolean {
-  return geo.isRoll && isV3Size(geo.labelWidthIn, geo.labelHeightIn);
+  return isV3Size(geo.isRoll ? "roll" : "sheet", geo.labelWidthIn, geo.labelHeightIn);
 }
 
 export async function generateLabelPdf(
@@ -27,7 +27,7 @@ export async function generateLabelPdf(
   settings: DriverLabelPrintSettings = DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
   assets: LabelPdfAssets = { logo: null },
 ): Promise<jsPDF> {
-  // RXN-68: the roll sizes 4x6, 4x2.5, 4x2, 3x2 and 2.25x1.25 always print the v3 design.
+  // RXN-68: the v3 sizes (see V3_SIZES) always print the v3 design.
   if (usesV3Design(geo)) {
     return generateV3DriverLabelPdf(pages, geo, settings, assets.logo);
   }
