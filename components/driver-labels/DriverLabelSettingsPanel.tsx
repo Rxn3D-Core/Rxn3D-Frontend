@@ -174,7 +174,7 @@ export function DriverLabelSettingsPanel({
           </div>
           <p className="mt-1.5 text-[11px] leading-4 text-[#6b7280]">
             {v3Active
-              ? "This roll size prints the v3 design, so the choice above applies to other sizes. Product and Status are not part of v3."
+              ? "This size prints the v3 design, so the choice above applies to other sizes. Product and Status are not part of v3."
               : "The switches below apply to both designs."}
           </p>
         </div>
