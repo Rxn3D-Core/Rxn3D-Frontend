@@ -253,6 +253,8 @@ export interface V3Plan {
 const LABEL_PX = 9.5;
 const MIN_SHRINK = 0.62;
 const GAP = 3;
+/** Smallest gap (px) kept between the SLIP / CASE / PAN columns; closer texts are re-spaced by repackHeader. */
+const HEADER_GAP = 10;
 const LAB_NAME_PX = 10.5;
 
 const I = (px: number) => px / 96;
@@ -308,7 +310,7 @@ export function planV3Layout(
   const hdrRight = Wpx - h.right;
   hdrKeys.forEach((key, i) => {
     const x = hdrXs[i];
-    const slot = (i + 1 < hdrKeys.length ? hdrXs[i + 1] - GAP : hdrRight) - x;
+    const slot = (i + 1 < hdrKeys.length ? hdrXs[i + 1] - HEADER_GAP : hdrRight) - x;
     add(key, "header", x, slot, baselineFromTop(h.labelY, LABEL_PX), baselineFromTop(h.valueY, h.valuePx), h.valuePx);
   });
 
@@ -401,7 +403,7 @@ export function formatDeliverV3(date: string | null | undefined, time: string | 
 
 /**
  * Header columns: Figma positions when every text fits its slot; otherwise the columns are packed against the
- * right margin by their real widths (gap 6 px), so real slip / case / pan numbers are not cut. `needed` is the
+ * right margin by their real widths (gap 10 px), so real slip / case / pan numbers are not cut. `needed` is the
  * width (inches) each column wants, in order. Falls back to the Figma slots when even the packed row is too wide.
  */
 export function repackHeader(
@@ -409,7 +411,7 @@ export function repackHeader(
   needed: number[],
   rightEdge: number,
   minLeft: number,
-  gap = 6 / 96,
+  gap = HEADER_GAP / 96,
 ): { x: number; w: number }[] {
   if (cols.every((c, i) => needed[i] <= c.w + 1e-9)) return cols;
   const total = needed.reduce((s, n) => s + n, 0) + gap * Math.max(0, cols.length - 1);
