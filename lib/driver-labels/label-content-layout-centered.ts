@@ -42,10 +42,15 @@ export interface Box {
 
 export interface CenteredCell extends Box {
   key: CenteredFieldKey;
-  /** Font size in pt after scaling. */
+  /** Font size in pt after scaling: the field name ("Ofc:"). The value after it is `valuePt`, larger. */
   fontPt: number;
+  valuePt: number;
   /** Muted colour (body fields) versus ink (patient). */
   muted: boolean;
+  /** `right`: the text ends at the right edge of the box (Case / Slip / Status column). */
+  align: "left" | "right";
+  /** Draw right after the real text end of this cell (Pan after Stage, Del after Pku), inside the box limits. */
+  after?: CenteredFieldKey;
 }
 
 export interface CenteredPlan {
@@ -68,19 +73,19 @@ const DPI = 120;
 const W_IN = 4;
 const H_IN = 2;
 
-const ROW_PITCH_PX = 19.5;
+// Row spacing like the user's sample label: airy (35 px on the 240 px artboard), shrinking only when many rows must fit.
+const ROW_PITCH_MAX_PX = 35;
+const ROW_MARGIN_PX = 8;
 const TEXT_H_PX = 16;
 const OPTICAL_SHIFT_PX = 0.75;
 const COL_LEFT = 14;
-const COL_RIGHT = 246;
 const COL_W = 220;
 const FULL_W = 452;
-const FOOTER_RULE_PX = 192;
-const FOOTER_TOP_PX = 202;
 const NAME_BOX_H_PX = 48;
 const LOGO_H_PX = 44;
-const BODY_PT = 9.5;
-const NAME_PT = 12;
+const BODY_PT = 9.5; // field names (Ofc:, Dr:, ...)
+const VALUE_PT = 11; // the values after them (DOH, Shaun Nelson, ...), larger than the names
+const NAME_PT = 11;
 
 export function planCenteredLayout(
   settings: DriverLabelPrintSettings,
@@ -93,7 +98,7 @@ export function planCenteredLayout(
   const X = (px: number) => (px / DPI) * sx;
   const Y = (px: number) => (px / DPI) * sy;
   // Box height = ascent plus descent of the glyphs (baseline is at 0.78 em below the top of the box).
-  const bodyH = (BODY_PT * sFont * 0.9) / 72;
+  const bodyH = (VALUE_PT * sFont * 0.9) / 72;
 
   // QR: same size rule as the classic design (fills the band above y=96, capped by the width scale).
   const qrTop = Y(8);
@@ -106,8 +111,8 @@ export function planCenteredLayout(
   const regionW = Math.max(0, regionRight - regionLeft);
   const bandBottomPx = qr ? 96 : 84;
 
-  const hasStageLine = settings.showStage || settings.showPan;
-  const nameTopPx = hasStageLine ? 8 : (bandBottomPx - NAME_BOX_H_PX) / 2;
+  // Stage and Pan are no longer on a line under the header: they sit in the right column with Case.
+  const nameTopPx = (bandBottomPx - NAME_BOX_H_PX) / 2;
   const header: Box = { x: regionLeft, y: Y(nameTopPx), w: regionW, h: Y(NAME_BOX_H_PX) };
   const logoBox: Box = {
     x: regionLeft + X(4),
@@ -125,63 +130,61 @@ export function planCenteredLayout(
   };
 
   const cells: CenteredCell[] = [];
-  const add = (key: CenteredFieldKey, leftPx: number, topPx: number, maxWPx: number) => {
-    // The patient line is larger and in ink colour, as in the classic design.
-    const isPt = key === "pt";
-    const fontPt = (isPt ? NAME_PT : BODY_PT) * sFont;
-    cells.push({ key, x: X(leftPx), y: Y(topPx), w: X(maxWPx), h: isPt ? nameH : bodyH, fontPt, muted: !isPt });
+  const add = (
+    key: CenteredFieldKey,
+    leftPx: number,
+    topPx: number,
+    maxWPx: number,
+    extra: { align?: "left" | "right"; after?: CenteredFieldKey } = {},
+  ) => {
+    const fontPt = BODY_PT * sFont;
+    cells.push({
+      key, x: X(leftPx), y: Y(topPx), w: X(maxWPx), h: bodyH, fontPt, valuePt: VALUE_PT * sFont, muted: false,
+      align: extra.align ?? "left", after: extra.after,
+    });
   };
+  // Rows, each with a left and a right part (the user's priority order):
+  //   Ofc | Dr      Pt | Stage      Slip | Case + Pan      [Prod | Status]      Pku | Del
+  // A row with nothing visible is dropped, so hidden fields leave no gap; a row with only a right part keeps it right.
+  const LEFT_W = 205; // left part width when the row also has a right part
+  const RIGHT_X = COL_LEFT + LEFT_W + 10;
+  const RIGHT_W = ARTBOARD_W_PX - 14 - RIGHT_X;
+  type RowSpec = { left?: CenteredFieldKey; right: CenteredFieldKey[]; last?: boolean };
+  const rows = ([
+    { left: "ofc", right: settings.showDoctor ? ["dr"] : [] },
+    { left: "pt", right: settings.showStage ? ["stage"] : [] },
+    {
+      left: settings.showSlipNumber ? "slip" : undefined,
+      right: [...(settings.showCaseNumber ? (["case"] as const) : []), ...(settings.showPan ? (["pan"] as const) : [])],
+    },
+    { left: settings.showProduct ? "prod" : undefined, right: settings.showStatus ? ["status"] : [] },
+    { left: settings.showPickup ? "pickup" : undefined, right: settings.showDelivery ? ["deliver"] : [], last: true },
+  ] as RowSpec[]).filter((r) => r.left !== undefined || r.right.length > 0);
+  const hasFooter = rows.some((r) => r.last);
+  const totalRows = rows.length;
+  const bodyRows = hasFooter ? totalRows - 1 : totalRows;
 
-  // Stage and Pan share one line under the header, left aligned, inside the region left of the QR.
-  if (hasStageLine) {
-    const lineTopPx = 8 + NAME_BOX_H_PX + 6;
-    const regionWPx = (regionW / sx) * DPI;
-    if (settings.showStage && settings.showPan) {
-      const half = (regionWPx - 8) / 2;
-      add("stage", COL_LEFT, lineTopPx, half);
-      add("pan", COL_LEFT + half + 8, lineTopPx, half);
-    } else {
-      add(settings.showStage ? "stage" : "pan", COL_LEFT, lineTopPx, regionWPx);
+  // All rows are evenly spaced and centred in the band under the header; hidden fields leave no gap.
+  const pitchPx =
+    totalRows > 1
+      ? Math.min(ROW_PITCH_MAX_PX, (ARTBOARD_H_PX - bandBottomPx - ROW_MARGIN_PX - TEXT_H_PX) / (totalRows - 1))
+      : ROW_PITCH_MAX_PX;
+  const blockH = (totalRows - 1) * pitchPx + TEXT_H_PX;
+  const startPx = bandBottomPx + (ARTBOARD_H_PX - bandBottomPx - blockH) / 2 - OPTICAL_SHIFT_PX;
+  const rowTop = (i: number) => startPx + i * pitchPx;
+
+  rows.forEach((row, i) => {
+    const top = rowTop(i);
+    if (row.left) add(row.left, COL_LEFT, top, row.right.length > 0 ? LEFT_W : FULL_W);
+    if (row.right.length === 2) {
+      // Case first, Pan right after its text.
+      const caseW = RIGHT_W * 0.62;
+      add(row.right[0], RIGHT_X, top, caseW);
+      add(row.right[1], RIGHT_X + caseW + 6, top, RIGHT_W - caseW - 6, { after: row.right[0] });
+    } else if (row.right.length === 1) {
+      add(row.right[0], RIGHT_X, top, RIGHT_W);
     }
-  }
-
-  // Body: left column Ofc, Dr, Pt; right column Case, Slip; optional Prod / Status row.
-  const left: CenteredFieldKey[] = ["ofc", ...(settings.showDoctor ? (["dr"] as const) : []), "pt"];
-  const right: CenteredFieldKey[] = [
-    ...(settings.showCaseNumber ? (["case"] as const) : []),
-    ...(settings.showSlipNumber ? (["slip"] as const) : []),
-  ];
-  const extra: CenteredFieldKey[] = [
-    ...(settings.showProduct ? (["prod"] as const) : []),
-    ...(settings.showStatus ? (["status"] as const) : []),
-  ];
-  const footerKeys: CenteredFieldKey[] = [
-    ...(settings.showPickup ? (["pickup"] as const) : []),
-    ...(settings.showDelivery ? (["deliver"] as const) : []),
-  ];
-  const hasFooter = footerKeys.length > 0;
-
-  const columnRows = Math.max(left.length, right.length);
-  const rowCount = columnRows + (extra.length > 0 ? 1 : 0);
-  const midBottomPx = hasFooter ? FOOTER_RULE_PX : ARTBOARD_H_PX;
-  const blockH = (rowCount - 1) * ROW_PITCH_PX + TEXT_H_PX;
-  const midStartPx = bandBottomPx + (midBottomPx - bandBottomPx - blockH) / 2 - OPTICAL_SHIFT_PX;
-  const rowTop = (i: number) => midStartPx + i * ROW_PITCH_PX;
-
-  // A left-column row with nothing on its right (Pt, usually) may use the full width, so long names cut later.
-  left.forEach((key, i) => add(key, COL_LEFT, rowTop(i), i < right.length ? COL_W : FULL_W));
-  right.forEach((key, i) => add(key, COL_RIGHT, rowTop(i), COL_W));
-  if (extra.length === 1) {
-    add(extra[0], COL_LEFT, rowTop(columnRows), FULL_W);
-  } else if (extra.length === 2) {
-    add(extra[0], COL_LEFT, rowTop(columnRows), COL_W);
-    add(extra[1], COL_RIGHT, rowTop(columnRows), COL_W);
-  }
-
-  // Bottom line: Pku stays left and Del right even when the other one is hidden.
-  for (const key of footerKeys) {
-    add(key, key === "pickup" ? COL_LEFT : COL_RIGHT, FOOTER_TOP_PX, COL_W);
-  }
+  });
 
   return {
     qr,
@@ -189,7 +192,11 @@ export function planCenteredLayout(
     logoBox,
     nameCell,
     cells,
-    rule: settings.showDividers && hasFooter ? { x: X(COL_LEFT), y: Y(FOOTER_RULE_PX), w: X(FULL_W) } : null,
+    // The optional divider sits between the details and the Pku / Del row.
+    rule:
+      settings.showDividers && hasFooter
+        ? { x: X(COL_LEFT), y: Y(rowTop(bodyRows) - (pitchPx - TEXT_H_PX) / 2), w: X(FULL_W) }
+        : null,
   };
 }
 
@@ -203,4 +210,11 @@ export function fitLogoInBox(box: Box, aspect: number): Box {
     w = h * aspect;
   }
   return { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, w, h };
+}
+
+/** Like `fitLogoInBox` but left aligned and vertically centred (classic design header). Null when nothing fits. */
+export function fitLogoLeft(box: Box, aspect: number): Box | null {
+  const fit = fitLogoInBox(box, aspect);
+  if (fit.w <= 0 || fit.h <= 0) return null;
+  return { x: box.x, y: fit.y, w: fit.w, h: fit.h };
 }

@@ -28,7 +28,7 @@ import {
   type V3Key,
   type V3Media,
 } from "./label-content-layout-v3";
-import type { DriverLabelPrintSettings } from "./label-print-settings";
+import { officeText, type DriverLabelPrintSettings } from "./label-print-settings";
 import type { PreparedLogo } from "./logo-outline";
 
 function drawSticker(
@@ -76,7 +76,7 @@ function drawSticker(
     case: val(slip.case_number),
     pan: val(slip.case_pan_number),
     pt: val(slip.pt_name),
-    ofc: val(slip.office_code),
+    ofc: val(officeText(slip, settings.officeDisplay)),
     dr: val(slip.doctor_name),
     stage: val(slip.stage_code),
     pickup: formatPickupV3(slip.pickup_date),

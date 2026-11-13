@@ -1,5 +1,5 @@
 /**
- * RXN-65/68: picks the driver label drawing from the saved `labelDesign`. The classic generator is unchanged.
+ * RXN-65/68: picks the driver label drawing from the saved `labelDesign`. Both designs print the logo when one is given.
  * `assets.logo` is the already prepared (outlined) logo or null; the generators do no logo networking.
  */
 
@@ -34,5 +34,5 @@ export async function generateLabelPdf(
   if (settings.labelDesign === "centered") {
     return generateCenteredDriverLabelPdf(pages, geo, settings, assets.logo);
   }
-  return generateDriverLabelPdf(pages, geo, settings);
+  return generateDriverLabelPdf(pages, geo, settings, assets.logo);
 }

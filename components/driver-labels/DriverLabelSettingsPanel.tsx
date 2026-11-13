@@ -179,8 +179,7 @@ export function DriverLabelSettingsPanel({
           </p>
         </div>
 
-        {draft.labelDesign === "centered" || v3Active ? (
-          <div data-testid="driver-label-logo-section">
+        <div data-testid="driver-label-logo-section">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">Logo</div>
             <div className="space-y-2" role="radiogroup" aria-label="Logo on the label">
               <label className="flex items-start gap-2 text-[13px] text-[#17191F]">
@@ -291,8 +290,7 @@ export function DriverLabelSettingsPanel({
                 <OutlinePreview activeUrl={logo.activeUrl} outline={draft.logoOutline} />
               </div>
             ) : null}
-          </div>
-        ) : null}
+        </div>
 
         <div className="space-y-1.5">
           <span className="text-[11px] font-medium uppercase tracking-wide text-[#6b7280]">
@@ -325,6 +323,24 @@ export function DriverLabelSettingsPanel({
               </div>
             ))}
           </div>
+        </div>
+
+        <div>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">
+            Office
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[13px] text-[#17191F]">Show office full name</span>
+            <Switch
+              checked={draft.officeDisplay === "name"}
+              disabled={locked}
+              onCheckedChange={(v) => onChange({ ...draft, officeDisplay: v ? "name" : "code" })}
+              data-testid="driver-label-office-display"
+            />
+          </div>
+          <p className="mt-1 text-[11px] leading-4 text-[#6b7280]">
+            Off prints the office code.
+          </p>
         </div>
 
         <div>

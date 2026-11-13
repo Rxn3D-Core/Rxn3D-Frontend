@@ -230,9 +230,9 @@ export default function DriverLabelSheetModal({
     if (!geo) return
     setGenerating(true)
     try {
-      // RXN-65/68: the logo prints in the centred and v3 designs; any failure falls back to the lab name.
+      // RXN-65/68: the logo prints in every design; any failure falls back to the lab name.
       const logo =
-        (appliedSettings.labelDesign === "centered" || usesV3Design(geo)) && appliedSettings.logoSource !== "none" && logoInfo.activeUrl
+        appliedSettings.logoSource !== "none" && logoInfo.activeUrl
           ? await prepareLabelLogo(await fetchActiveLogoDataUrl(), appliedSettings.logoOutline)
           : null
       const doc = await generateLabelPdf(payload, geo, appliedSettings, { logo })
