@@ -187,6 +187,18 @@ export function DriverLabelSettingsPanel({
                   type="radio"
                   name="driver-label-logo-source"
                   className="mt-1"
+                  checked={draft.logoSource === "none"}
+                  disabled={logoLocked}
+                  onChange={() => setSource("none")}
+                  data-testid="driver-label-logo-none"
+                />
+                <span>No logo (print the lab name)</span>
+              </label>
+              <label className="flex items-start gap-2 text-[13px] text-[#17191F]">
+                <input
+                  type="radio"
+                  name="driver-label-logo-source"
+                  className="mt-1"
                   checked={draft.logoSource === "current"}
                   disabled={logoLocked}
                   onChange={() => setSource("current")}
@@ -221,18 +233,6 @@ export function DriverLabelSettingsPanel({
                     <span className="block text-[11px] text-[#6b7280]">Upload a file below first.</span>
                   )}
                 </span>
-              </label>
-              <label className="flex items-start gap-2 text-[13px] text-[#17191F]">
-                <input
-                  type="radio"
-                  name="driver-label-logo-source"
-                  className="mt-1"
-                  checked={draft.logoSource === "none"}
-                  disabled={logoLocked}
-                  onChange={() => setSource("none")}
-                  data-testid="driver-label-logo-none"
-                />
-                <span>No logo (print the lab name)</span>
               </label>
             </div>
 
