@@ -17,7 +17,8 @@ import type { DriverLabelPrintSettings } from "./label-print-settings";
 export type V3HeaderKey = "slip" | "case" | "pan";
 export type V3RowKey = "ofc" | "dr" | "stage";
 export type V3FooterKey = "pickup" | "deliver";
-export type V3Key = V3HeaderKey | V3RowKey | V3FooterKey | "pt";
+export type V3StatusKey = "status" | "location";
+export type V3Key = V3HeaderKey | V3RowKey | V3FooterKey | V3StatusKey | "pt";
 export type V3Media = "roll" | "sheet";
 /** Delivery text: `long` "10/05/2026 4:00 PM"; `short` "10/05/26 4:00 PM"; `hour` "10/05/26 4 PM" (whole hours). */
 export type V3DateMode = "long" | "short" | "hour";
@@ -33,11 +34,24 @@ export const V3_CAPTIONS: Record<V3Key, string> = {
   stage: "STAGE #",
   pickup: "PICKUP",
   deliver: "DELIVER",
+  status: "STATUS",
+  location: "LOCATION",
 };
 
+/** Status and location text is 9.5 px everywhere (Figma); the LOCATION value box is 103 px wide and wraps to 2 lines. */
+export const V3_LOCATION_W = 103;
+export const V3_LOCATION_LINE_PX = 11;
+export const V3_STATUS_PX = 9.5;
 export const V3_COLOR_LABEL = "#666666";
 export const V3_COLOR_VALUE = "#111111";
 export const V3_COLOR_RULE = "#555555";
+
+/**
+ * Where STATUS (slip status, e.g. Ongoing) and LOCATION (where the slip is, e.g. In office ready to pick up) sit.
+ * `columns`: STATUS caption at x[0], LOCATION caption at x[1], values 13 px below; the LOCATION value box is 103 px
+ * wide and wraps to two lines (the block is 35 px tall). `line` (sheet 4 x 2 only): one line "STATUS: v · LOCATION: v".
+ */
+export type V3StatusBlock = { kind: "columns"; y: number; x: [number, number] } | { kind: "line"; y: number; x: number };
 
 /** Positions of one Figma frame, in px at 96 dpi from the frame's top-left corner. */
 export interface V3Frame {
@@ -50,6 +64,8 @@ export interface V3Frame {
   /** Row y and x of OFFICE / DOCTOR / STAGE #; `captions` false prints values only (2.25 x 1.25). */
   row: { y: number; x: [number, number, number]; captions: boolean };
   rule: { x: number; y: number; w: number };
+  /** Status / location block; absent on 2.25 x 1.25 and sheet 2.5 x 2.5, whose Figma frames have none. */
+  status?: V3StatusBlock;
   /** Font size px of the row, pickup and delivery values (10.5 px; 9.5 px on 2.25 x 1.25). */
   valuePx: number;
   /** Footer: caption y, value offset, x of PICKUP and DELIVER, QR square, delivery date format. */
@@ -67,44 +83,48 @@ export const V3_FRAMES: Record<string, V3Frame> = {
     logo: [10, 13.5, 66, 20],
     header: { x: [266, 304, 347], labelY: 10, valueY: 24.5, valuePx: 10, right: 10 },
     patient: { labelX: 10, labelY: 53, nameX: 10, nameY: 68, nameH: 36, namePx: 31 },
-    row: { y: 110, x: [10, 87, 195], captions: true },
+    row: { y: 110, x: [10, 98, 217], captions: true },
     rule: { x: 10, y: 470, w: 364 },
     valuePx: 10.5,
     footer: { y: 532, valueDy: 12, pickupX: 10, deliverX: 115, qr: [290, 485, 71], date: "long" },
+    status: { kind: "columns", y: 140, x: [10, 97] },
   },
   "roll:4x2.5": {
     logo: LOGO_STD,
     header: { x: [265, 303, 345], ...HDR_STD },
     patient: { ...PT_STD, labelX: 16, labelY: 40.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 148, w: 356 },
+    rule: { x: 14, y: 184, w: 275 },
     valuePx: 10.5,
     footer: { y: 201.5, valueDy: 12, pickupX: 14, deliverX: 94, qr: [300, 156, 70], date: "long" },
+    status: { kind: "columns", y: 124, x: [13, 93] },
   },
   "roll:4x2": {
     logo: LOGO_STD,
     header: { x: [265, 303, 345], ...HDR_STD },
     patient: { ...PT_STD, labelY: 43.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 123, w: 356 },
+    rule: { x: 14, y: 156, w: 289 },
     valuePx: 10.5,
     footer: { y: 158, valueDy: 12, pickupX: 14, deliverX: 94, qr: [315, 127, 55], date: "long" },
+    status: { kind: "columns", y: 117, x: [13, 93] },
   },
   "roll:3x2": {
     logo: LOGO_STD,
     header: { x: [169, 207, 249], ...HDR_STD },
     patient: { ...PT_STD, labelY: 41.5 },
     row: { y: ROW_Y, x: [14, 80, 163.76], captions: true },
-    rule: { x: 14, y: 123, w: 260 },
+    rule: { x: 14, y: 155, w: 202 },
     valuePx: 10.5,
     footer: { y: 156, valueDy: 12, pickupX: 14, deliverX: 80, qr: [229, 134, 44], date: "long" },
+    status: { kind: "columns", y: 117, x: [13, 80] },
   },
   "roll:2.25x1.25": {
     logo: [10, 10, 48, 15],
     header: { x: [101, 139, 181], labelY: 7.5, valueY: 20, valuePx: 10, right: 10 },
     patient: { labelX: 10, labelY: 30.5, nameX: 10, nameY: 41, nameH: 23, namePx: 20 },
     row: { y: 66.5, x: [10, 61, 137], captions: false },
-    rule: { x: 10, y: 83, w: 196 },
+    rule: { x: 10, y: 88, w: 168 },
     valuePx: 9.5,
     footer: { y: 88, valueDy: 13, pickupX: 10, deliverX: 86, qr: [181, 87, 25], date: "short" },
   },
@@ -122,63 +142,70 @@ export const V3_FRAMES: Record<string, V3Frame> = {
     header: { x: [265, 303, 345], ...HDR_STD },
     patient: { ...PT_STD, labelX: 16, labelY: 42.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 148, w: 356 },
+    rule: { x: 14, y: 179, w: 280 },
     valuePx: 10.5,
     footer: { y: 196.5, valueDy: 12, pickupX: 14, deliverX: 94, qr: [305, 154, 65], date: "long" },
+    status: { kind: "columns", y: 124, x: [13, 93] },
   },
   "sheet:3.75x2": {
     logo: LOGO_STD,
     header: { x: [241, 279, 321], ...HDR_STD },
     patient: { ...PT_STD, labelY: 42.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 123, w: 332 },
+    rule: { x: 14, y: 155, w: 265 },
     valuePx: 10.5,
     footer: { y: 157, valueDy: 12, pickupX: 14, deliverX: 94, qr: [295, 128, 51], date: "long" },
+    status: { kind: "columns", y: 117, x: [13, 93] },
   },
   "sheet:3.25x2.25": {
     logo: LOGO_STD,
     header: { x: [193, 231, 273], ...HDR_STD },
     patient: { ...PT_STD, labelY: 43.5 },
     row: { y: ROW_Y, x: [14, 80, 176.24], captions: true },
-    rule: { x: 14, y: 124, w: 284 },
+    rule: { x: 14, y: 164, w: 211 },
     valuePx: 10.5,
     footer: { y: 172.5, valueDy: 12, pickupX: 14, deliverX: 80, qr: [233, 130, 65], date: "long" },
+    status: { kind: "columns", y: 121, x: [13, 80] },
   },
   "sheet:3.375x2.33": {
     logo: LOGO_STD,
     header: { x: [205, 243, 285], ...HDR_STD },
     patient: { ...PT_STD, labelY: 42.5 },
     row: { y: ROW_Y, x: [14, 83, 182.48], captions: true },
-    rule: { x: 14, y: 132, w: 296 },
+    rule: { x: 14, y: 170, w: 223 },
     valuePx: 10.5,
     footer: { y: 180.5, valueDy: 12, pickupX: 14, deliverX: 83, qr: [244, 137, 66], date: "long" },
+    status: { kind: "columns", y: 123, x: [13, 83] },
   },
   "sheet:4x3": {
     logo: LOGO_STD,
     header: { x: [265, 303, 345], ...HDR_STD },
     patient: { ...PT_STD, labelY: 41.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 196, w: 356 },
+    rule: { x: 14, y: 233, w: 280 },
     valuePx: 10.5,
     footer: { y: 244.5, valueDy: 12, pickupX: 14, deliverX: 94, qr: [305, 202, 65], date: "long" },
+    status: { kind: "columns", y: 117, x: [13, 93] },
   },
   "sheet:3x2": {
     logo: LOGO_STD,
     header: { x: [169, 207, 249], ...HDR_STD },
     patient: { ...PT_STD, labelY: 42.5 },
     row: { y: ROW_Y, x: [14, 80, 163.76], captions: true },
-    rule: { x: 14, y: 123, w: 260 },
+    rule: { x: 14, y: 153, w: 201 },
     valuePx: 10.5,
     footer: { y: 154, valueDy: 12, pickupX: 14, deliverX: 80, qr: [226, 128, 48], date: "long" },
+    status: { kind: "columns", y: 117, x: [13, 80] },
   },
   "sheet:4x2": {
     logo: LOGO_STD,
     header: { x: [265, 303, 345], ...HDR_STD },
     patient: { ...PT_STD, labelY: 42.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 123, w: 356 },
+    rule: { x: 14, y: 125, w: 356 },
     valuePx: 10.5,
     footer: { y: 157, valueDy: 12, pickupX: 14, deliverX: 94, qr: [315, 126, 55], date: "long" },
+    status: { kind: "line", y: 112, x: 14 },
   },
 };
 
@@ -218,7 +245,7 @@ export interface V3Box {
 /** A caption with a value (or, for the patient, a large name). All numbers in inches; y values are baselines. */
 export interface V3Cell {
   key: V3Key;
-  group: "header" | "patient" | "row" | "footer";
+  group: "header" | "patient" | "row" | "footer" | "status";
   x: number;
   /** x of the caption (differs from `x` only for the patient on some frames). */
   labelX: number;
@@ -234,6 +261,19 @@ export interface V3Cell {
   minValuePt: number;
   boldLabel: boolean;
   boldValue: boolean;
+  /** Value lines allowed (2 for LOCATION: it wraps); `lineGap` (inches) is the distance between them. */
+  maxLines: number;
+  lineGap: number;
+}
+
+/** One printed line "STATUS: value · LOCATION: value" (kind `line`). Inches; `base` is a baseline. */
+export interface V3StatusLine {
+  keys: V3StatusKey[];
+  x: number;
+  w: number;
+  base: number;
+  pt: number;
+  minPt: number;
 }
 
 export interface V3Plan {
@@ -243,6 +283,8 @@ export interface V3Plan {
   logoBox: V3Box;
   nameCell: { x: number; w: number; baseline: number; fontPt: number; minPt: number };
   cells: V3Cell[];
+  /** Status / location printed inline (empty for `columns`, whose cells are in `cells`). */
+  statusLines: V3StatusLine[];
   rule: { x: number; y: number; w: number; widthIn: number } | null;
   dateMode: V3DateMode;
   /** For the generator's header repack: right margin and the smallest x a header column may start at (right of the logo plus 8 px). */
@@ -282,7 +324,7 @@ export function planV3Layout(
     labelBasePx: number,
     valueBasePx: number,
     valuePx: number,
-    opts: { caption?: boolean; boldLabel?: boolean; boldValue?: boolean } = {},
+    opts: { caption?: boolean; boldLabel?: boolean; boldValue?: boolean; maxLines?: number } = {},
   ) => {
     cells.push({
       key,
@@ -298,6 +340,8 @@ export function planV3Layout(
       minValuePt: PT(valuePx) * MIN_SHRINK,
       boldLabel: !!opts.boldLabel,
       boldValue: !!opts.boldValue,
+      maxLines: opts.maxLines ?? 1,
+      lineGap: I(V3_LOCATION_LINE_PX),
     });
   };
 
@@ -360,12 +404,40 @@ export function planV3Layout(
     add(key, "footer", x, slot, baselineFromTop(f.y, LABEL_PX), baselineFromTop(f.y + f.valueDy, frame.valuePx), frame.valuePx, { boldLabel: true });
   });
 
+  // Status and location: columns (cells), or one or two inline lines. Stops short of the QR code when they share height.
+  const statusLines: V3StatusLine[] = [];
+  const sb = frame.status;
+  if (sb && settings.showStatus) {
+    const qrBox = settings.showQrCode ? f.qr : null;
+    const bottom = sb.y + (sb.kind === "columns" ? 35 : 11);
+    const beside = qrBox && qrBox[1] < bottom && qrBox[1] + qrBox[2] > sb.y;
+    const rightLimit = beside && qrBox ? qrBox[0] - 6 : Wpx - 14;
+    if (sb.kind === "columns") {
+      (["status", "location"] as const).forEach((key, i) => {
+        const x = sb.x[i];
+        const slot = i === 0 ? sb.x[1] - GAP - x : Math.min(V3_LOCATION_W, rightLimit - x);
+        add(key, "status", x, slot, baselineFromTop(sb.y, LABEL_PX), baselineFromTop(sb.y + 13, V3_STATUS_PX), V3_STATUS_PX, {
+          maxLines: i === 1 ? 2 : 1,
+        });
+      });
+    } else {
+      statusLines.push({
+        keys: ["status", "location"],
+        x: I(sb.x),
+        w: I(Math.max(0, rightLimit - sb.x)),
+        base: I(baselineFromTop(sb.y, V3_STATUS_PX)),
+        pt: PT(V3_STATUS_PX),
+        minPt: PT(V3_STATUS_PX) * MIN_SHRINK,
+      });
+    }
+  }
+
   const rule =
     settings.showDividers && (footKeys.length > 0 || qr)
       ? { x: I(frame.rule.x), y: I(frame.rule.y), w: I(frame.rule.w), widthIn: I(1) }
       : null;
 
-  return { frame, qr, logoBox, nameCell, cells, rule, dateMode: f.date, headerRight: I(hdrRight), headerMinLeft: I(lx + lw + 8) };
+  return { frame, qr, logoBox, nameCell, cells, statusLines, rule, dateMode: f.date, headerRight: I(hdrRight), headerMinLeft: I(lx + lw + 8) };
 }
 
 function datePart(d: string | null | undefined, fullYear: boolean): string {

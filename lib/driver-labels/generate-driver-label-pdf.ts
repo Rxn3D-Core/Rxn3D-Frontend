@@ -44,6 +44,8 @@ export interface DriverLabelSlip {
   product_name?: string;
   /** Location / workflow status label (e.g. READY FOR PICKUP). */
   status?: string;
+  /** Workflow status of the slip itself (e.g. Ongoing), added in RXN-73; an older API does not send it. */
+  slip_status?: string;
   pickup_date?: string;
   pickup_time?: string;
   delivery_date?: string;
