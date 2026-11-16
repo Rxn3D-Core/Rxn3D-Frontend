@@ -35,7 +35,6 @@ interface DriverLabelSettingsPanelProps {
   draft: DriverLabelPrintSettings
   onChange: (next: DriverLabelPrintSettings) => void
   onReset: () => void
-  onApply: () => void
   /** Not a lab admin: the panel shows the lab-wide setting but cannot change or save it. */
   readOnly?: boolean
   loading?: boolean
@@ -88,7 +87,6 @@ export function DriverLabelSettingsPanel({
   draft,
   onChange,
   onReset,
-  onApply,
   readOnly = false,
   loading = false,
   saving = false,
@@ -264,7 +262,7 @@ export function DriverLabelSettingsPanel({
               </div>
             ) : null}
             <p className="mt-1.5 text-[11px] leading-4 text-[#6b7280]">
-              {LOGO_FORMAT_HINT}, up to 1 MB. Uploading is saved at once; the logo choice is saved with Apply settings.
+              {LOGO_FORMAT_HINT}, up to 1 MB. Uploading is saved at once; the logo choice saves automatically.
             </p>
             {fileError || logoError ? (
               <p className="mt-1 text-[12px] text-red-600" role="alert" data-testid="driver-label-logo-error">
@@ -421,15 +419,9 @@ export function DriverLabelSettingsPanel({
         >
           Reset defaults
         </Button>
-        <Button
-          type="button"
-          className="bg-blue-600 text-white hover:bg-blue-700"
-          onClick={onApply}
-          disabled={locked || saving}
-          data-testid="driver-label-settings-apply"
-        >
-          {saving ? "Saving..." : "Apply settings"}
-        </Button>
+        <span className="text-[12px] text-[#6b7280]" aria-live="polite" data-testid="driver-label-settings-autosave">
+          {saving ? "Saving..." : readOnly ? "" : "Changes save automatically."}
+        </span>
       </div>
     </aside>
   )
