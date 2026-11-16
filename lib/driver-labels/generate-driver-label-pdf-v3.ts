@@ -165,6 +165,25 @@ function drawSticker(
       doc.text(V3_CAPTIONS[c.key], x + c.labelX, y + c.labelBase);
     }
     const text = values[c.key];
+    if (c.maxLines > 1) {
+      // Wraps at the slot width; if it needs more lines than allowed, shrink, then cut the last line.
+      doc.setFont("helvetica", "normal");
+      let pt = c.valuePt;
+      let lines: string[] = [];
+      for (;;) {
+        doc.setFontSize(pt);
+        lines = doc.splitTextToSize(text, c.w) as string[];
+        if (lines.length <= c.maxLines || pt <= c.minValuePt + 1e-6) break;
+        pt = Math.max(c.minValuePt, pt * 0.95);
+      }
+      if (lines.length > c.maxLines) {
+        const rest = lines.slice(c.maxLines - 1).join(" ");
+        lines = [...lines.slice(0, c.maxLines - 1), fitText(doc, rest, c.w)];
+      }
+      doc.setTextColor(...hexRgb(V3_COLOR_VALUE));
+      lines.forEach((ln, i) => doc.text(ln, x + c.x, y + c.valueBase + i * c.lineGap));
+      continue;
+    }
     const size = fitValueSize((t, pt) => measure(t, pt, c.boldValue), text, c.w, c.valuePt, c.minValuePt);
     doc.setFont("helvetica", c.boldValue ? "bold" : "normal");
     doc.setFontSize(size.pt);

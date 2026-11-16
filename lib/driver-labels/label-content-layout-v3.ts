@@ -38,7 +38,9 @@ export const V3_CAPTIONS: Record<V3Key, string> = {
   location: "LOCATION",
 };
 
-/** Status and location text is 9.5 px everywhere (Figma). */
+/** Status and location text is 9.5 px everywhere (Figma); the LOCATION value box is 103 px wide and wraps to 2 lines. */
+export const V3_LOCATION_W = 103;
+export const V3_LOCATION_LINE_PX = 11;
 export const V3_STATUS_PX = 9.5;
 export const V3_COLOR_LABEL = "#666666";
 export const V3_COLOR_VALUE = "#111111";
@@ -46,13 +48,10 @@ export const V3_COLOR_RULE = "#555555";
 
 /**
  * Where STATUS (slip status, e.g. Ongoing) and LOCATION (where the slip is, e.g. In office ready to pick up) sit.
- * `columns`: two captions above their values, at x[0] and x[1]. `stack`: two lines "STATUS: v" and "LOCATION: v".
- * `line`: one line "STATUS: v · LOCATION: v".
+ * `columns`: STATUS caption at x[0], LOCATION caption at x[1], values 13 px below; the LOCATION value box is 103 px
+ * wide and wraps to two lines (the block is 35 px tall). `line` (sheet 4 x 2 only): one line "STATUS: v · LOCATION: v".
  */
-export type V3StatusBlock =
-  | { kind: "columns"; y: number; x: [number, number] }
-  | { kind: "stack"; y: number; x: number }
-  | { kind: "line"; y: number; x: number };
+export type V3StatusBlock = { kind: "columns"; y: number; x: [number, number] } | { kind: "line"; y: number; x: number };
 
 /** Positions of one Figma frame, in px at 96 dpi from the frame's top-left corner. */
 export interface V3Frame {
@@ -65,7 +64,7 @@ export interface V3Frame {
   /** Row y and x of OFFICE / DOCTOR / STAGE #; `captions` false prints values only (2.25 x 1.25). */
   row: { y: number; x: [number, number, number]; captions: boolean };
   rule: { x: number; y: number; w: number };
-  /** Status / location block; absent on 2.25 x 1.25, which has no room for it. */
+  /** Status / location block; absent on 2.25 x 1.25 and sheet 2.5 x 2.5, whose Figma frames have none. */
   status?: V3StatusBlock;
   /** Font size px of the row, pickup and delivery values (10.5 px; 9.5 px on 2.25 x 1.25). */
   valuePx: number;
@@ -84,48 +83,48 @@ export const V3_FRAMES: Record<string, V3Frame> = {
     logo: [10, 13.5, 66, 20],
     header: { x: [266, 304, 347], labelY: 10, valueY: 24.5, valuePx: 10, right: 10 },
     patient: { labelX: 10, labelY: 53, nameX: 10, nameY: 68, nameH: 36, namePx: 31 },
-    row: { y: 110, x: [10, 87, 195], captions: true },
+    row: { y: 110, x: [10, 98, 217], captions: true },
     rule: { x: 10, y: 470, w: 364 },
     valuePx: 10.5,
     footer: { y: 532, valueDy: 12, pickupX: 10, deliverX: 115, qr: [290, 485, 71], date: "long" },
-    status: { kind: "columns", y: 140, x: [10, 90] },
+    status: { kind: "columns", y: 140, x: [10, 97] },
   },
   "roll:4x2.5": {
     logo: LOGO_STD,
     header: { x: [265, 303, 345], ...HDR_STD },
     patient: { ...PT_STD, labelX: 16, labelY: 40.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 148, w: 356 },
+    rule: { x: 14, y: 184, w: 275 },
     valuePx: 10.5,
     footer: { y: 201.5, valueDy: 12, pickupX: 14, deliverX: 94, qr: [300, 156, 70], date: "long" },
-    status: { kind: "columns", y: 118, x: [12, 92] },
+    status: { kind: "columns", y: 124, x: [13, 93] },
   },
   "roll:4x2": {
     logo: LOGO_STD,
     header: { x: [265, 303, 345], ...HDR_STD },
     patient: { ...PT_STD, labelY: 43.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 140, w: 300 },
+    rule: { x: 14, y: 156, w: 289 },
     valuePx: 10.5,
     footer: { y: 158, valueDy: 12, pickupX: 14, deliverX: 94, qr: [315, 127, 55], date: "long" },
-    status: { kind: "columns", y: 113, x: [13, 93] },
+    status: { kind: "columns", y: 117, x: [13, 93] },
   },
   "roll:3x2": {
     logo: LOGO_STD,
     header: { x: [169, 207, 249], ...HDR_STD },
     patient: { ...PT_STD, labelY: 41.5 },
     row: { y: ROW_Y, x: [14, 80, 163.76], captions: true },
-    rule: { x: 14, y: 140, w: 205 },
+    rule: { x: 14, y: 155, w: 202 },
     valuePx: 10.5,
     footer: { y: 156, valueDy: 12, pickupX: 14, deliverX: 80, qr: [229, 134, 44], date: "long" },
-    status: { kind: "columns", y: 114, x: [14, 107] },
+    status: { kind: "columns", y: 117, x: [13, 80] },
   },
   "roll:2.25x1.25": {
     logo: [10, 10, 48, 15],
     header: { x: [101, 139, 181], labelY: 7.5, valueY: 20, valuePx: 10, right: 10 },
     patient: { labelX: 10, labelY: 30.5, nameX: 10, nameY: 41, nameH: 23, namePx: 20 },
     row: { y: 66.5, x: [10, 61, 137], captions: false },
-    rule: { x: 10, y: 83, w: 196 },
+    rule: { x: 10, y: 88, w: 168 },
     valuePx: 9.5,
     footer: { y: 88, valueDy: 13, pickupX: 10, deliverX: 86, qr: [181, 87, 25], date: "short" },
   },
@@ -137,67 +136,66 @@ export const V3_FRAMES: Record<string, V3Frame> = {
     rule: { x: 14, y: 162, w: 212 },
     valuePx: 10.5,
     footer: { y: 197, valueDy: 12, pickupX: 14, deliverX: 75, qr: [171, 166, 55], date: "hour" },
-    status: { kind: "stack", y: 116, x: 14 },
   },
   "sheet:4x2.5": {
     logo: LOGO_STD,
     header: { x: [265, 303, 345], ...HDR_STD },
     patient: { ...PT_STD, labelX: 16, labelY: 42.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 148, w: 356 },
+    rule: { x: 14, y: 179, w: 280 },
     valuePx: 10.5,
     footer: { y: 196.5, valueDy: 12, pickupX: 14, deliverX: 94, qr: [305, 154, 65], date: "long" },
-    status: { kind: "line", y: 116, x: 14 },
+    status: { kind: "columns", y: 124, x: [13, 93] },
   },
   "sheet:3.75x2": {
     logo: LOGO_STD,
     header: { x: [241, 279, 321], ...HDR_STD },
     patient: { ...PT_STD, labelY: 42.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 125, w: 332 },
+    rule: { x: 14, y: 155, w: 265 },
     valuePx: 10.5,
     footer: { y: 157, valueDy: 12, pickupX: 14, deliverX: 94, qr: [295, 128, 51], date: "long" },
-    status: { kind: "line", y: 112, x: 14 },
+    status: { kind: "columns", y: 117, x: [13, 93] },
   },
   "sheet:3.25x2.25": {
     logo: LOGO_STD,
     header: { x: [193, 231, 273], ...HDR_STD },
     patient: { ...PT_STD, labelY: 43.5 },
     row: { y: ROW_Y, x: [14, 80, 176.24], captions: true },
-    rule: { x: 14, y: 127, w: 284 },
+    rule: { x: 14, y: 164, w: 211 },
     valuePx: 10.5,
     footer: { y: 172.5, valueDy: 12, pickupX: 14, deliverX: 80, qr: [233, 130, 65], date: "long" },
-    status: { kind: "line", y: 112, x: 14 },
+    status: { kind: "columns", y: 121, x: [13, 80] },
   },
   "sheet:3.375x2.33": {
     logo: LOGO_STD,
     header: { x: [205, 243, 285], ...HDR_STD },
     patient: { ...PT_STD, labelY: 42.5 },
     row: { y: ROW_Y, x: [14, 83, 182.48], captions: true },
-    rule: { x: 14, y: 132, w: 296 },
+    rule: { x: 14, y: 170, w: 223 },
     valuePx: 10.5,
     footer: { y: 180.5, valueDy: 12, pickupX: 14, deliverX: 83, qr: [244, 137, 66], date: "long" },
-    status: { kind: "line", y: 112, x: 14 },
+    status: { kind: "columns", y: 123, x: [13, 83] },
   },
   "sheet:4x3": {
     logo: LOGO_STD,
     header: { x: [265, 303, 345], ...HDR_STD },
     patient: { ...PT_STD, labelY: 41.5 },
     row: { y: ROW_Y, x: [14, 94, 194], captions: true },
-    rule: { x: 14, y: 196, w: 356 },
+    rule: { x: 14, y: 233, w: 280 },
     valuePx: 10.5,
     footer: { y: 244.5, valueDy: 12, pickupX: 14, deliverX: 94, qr: [305, 202, 65], date: "long" },
-    status: { kind: "line", y: 116, x: 13 },
+    status: { kind: "columns", y: 117, x: [13, 93] },
   },
   "sheet:3x2": {
     logo: LOGO_STD,
     header: { x: [169, 207, 249], ...HDR_STD },
     patient: { ...PT_STD, labelY: 42.5 },
     row: { y: ROW_Y, x: [14, 80, 163.76], captions: true },
-    rule: { x: 14, y: 127, w: 260 },
+    rule: { x: 14, y: 153, w: 201 },
     valuePx: 10.5,
     footer: { y: 154, valueDy: 12, pickupX: 14, deliverX: 80, qr: [226, 128, 48], date: "long" },
-    status: { kind: "line", y: 112, x: 14 },
+    status: { kind: "columns", y: 117, x: [13, 80] },
   },
   "sheet:4x2": {
     logo: LOGO_STD,
@@ -263,9 +261,12 @@ export interface V3Cell {
   minValuePt: number;
   boldLabel: boolean;
   boldValue: boolean;
+  /** Value lines allowed (2 for LOCATION: it wraps); `lineGap` (inches) is the distance between them. */
+  maxLines: number;
+  lineGap: number;
 }
 
-/** One printed line of "STATUS: value" and / or "LOCATION: value" (kinds `line` and `stack`). Inches; `base` is a baseline. */
+/** One printed line "STATUS: value · LOCATION: value" (kind `line`). Inches; `base` is a baseline. */
 export interface V3StatusLine {
   keys: V3StatusKey[];
   x: number;
@@ -282,7 +283,7 @@ export interface V3Plan {
   logoBox: V3Box;
   nameCell: { x: number; w: number; baseline: number; fontPt: number; minPt: number };
   cells: V3Cell[];
-  /** Status / location printed inline (empty for `columns`, whose cells are in `cells`, and for 2.25 x 1.25). */
+  /** Status / location printed inline (empty for `columns`, whose cells are in `cells`). */
   statusLines: V3StatusLine[];
   rule: { x: number; y: number; w: number; widthIn: number } | null;
   dateMode: V3DateMode;
@@ -323,7 +324,7 @@ export function planV3Layout(
     labelBasePx: number,
     valueBasePx: number,
     valuePx: number,
-    opts: { caption?: boolean; boldLabel?: boolean; boldValue?: boolean } = {},
+    opts: { caption?: boolean; boldLabel?: boolean; boldValue?: boolean; maxLines?: number } = {},
   ) => {
     cells.push({
       key,
@@ -339,6 +340,8 @@ export function planV3Layout(
       minValuePt: PT(valuePx) * MIN_SHRINK,
       boldLabel: !!opts.boldLabel,
       boldValue: !!opts.boldValue,
+      maxLines: opts.maxLines ?? 1,
+      lineGap: I(V3_LOCATION_LINE_PX),
     });
   };
 
@@ -406,26 +409,26 @@ export function planV3Layout(
   const sb = frame.status;
   if (sb && settings.showStatus) {
     const qrBox = settings.showQrCode ? f.qr : null;
-    const bottom = sb.y + (sb.kind === "columns" ? 24 : sb.kind === "stack" ? 24 : 11);
+    const bottom = sb.y + (sb.kind === "columns" ? 35 : 11);
     const beside = qrBox && qrBox[1] < bottom && qrBox[1] + qrBox[2] > sb.y;
     const rightLimit = beside && qrBox ? qrBox[0] - 6 : Wpx - 14;
     if (sb.kind === "columns") {
       (["status", "location"] as const).forEach((key, i) => {
         const x = sb.x[i];
-        const slot = (i === 0 ? sb.x[1] - GAP : rightLimit) - x;
-        add(key, "status", x, slot, baselineFromTop(sb.y, LABEL_PX), baselineFromTop(sb.y + 13, V3_STATUS_PX), V3_STATUS_PX);
+        const slot = i === 0 ? sb.x[1] - GAP - x : Math.min(V3_LOCATION_W, rightLimit - x);
+        add(key, "status", x, slot, baselineFromTop(sb.y, LABEL_PX), baselineFromTop(sb.y + 13, V3_STATUS_PX), V3_STATUS_PX, {
+          maxLines: i === 1 ? 2 : 1,
+        });
       });
     } else {
-      const mk = (keys: V3StatusKey[], top: number): V3StatusLine => ({
-        keys,
+      statusLines.push({
+        keys: ["status", "location"],
         x: I(sb.x),
         w: I(Math.max(0, rightLimit - sb.x)),
-        base: I(baselineFromTop(top, V3_STATUS_PX)),
+        base: I(baselineFromTop(sb.y, V3_STATUS_PX)),
         pt: PT(V3_STATUS_PX),
         minPt: PT(V3_STATUS_PX) * MIN_SHRINK,
       });
-      if (sb.kind === "line") statusLines.push(mk(["status", "location"], sb.y));
-      else statusLines.push(mk(["status"], sb.y), mk(["location"], sb.y + 13));
     }
   }
 
