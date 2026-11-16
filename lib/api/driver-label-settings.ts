@@ -94,7 +94,9 @@ export async function deleteDriverLabelLogo(): Promise<LabDriverLabelSettings> {
  */
 export async function fetchActiveLogoDataUrl(): Promise<string | null> {
   try {
-    const res = await fetch(buildApiUrl(`${LOGO_PATH}/image`), { headers: authHeaders() })
+    // no-store: the endpoint answers with max-age=60 and the URL does not change when the saved choice does, so a
+    // cached answer would print the previous logo (RXN-76).
+    const res = await fetch(buildApiUrl(`${LOGO_PATH}/image`), { headers: authHeaders(), cache: "no-store" })
     if (!res.ok) return null
     const blob = await res.blob()
     return await new Promise<string | null>((resolve) => {

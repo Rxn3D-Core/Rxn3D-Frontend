@@ -120,7 +120,7 @@ export default function DriverLabelSheetModal({
   const canEditRef = useRef(false)
   canEditRef.current = canEditSettings
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveInFlight = useRef(false)
+  const saveRun = useRef<Promise<LabDriverLabelSettings | null> | null>(null)
   const saveAgain = useRef(false)
 
   useEffect(() => {
@@ -240,12 +240,16 @@ export default function DriverLabelSheetModal({
     if (!geo) return
     setGenerating(true)
     try {
+      // RXN-76: finish any save that is still running first, then print with what the server now has.
+      const justSaved = await settleSaves()
+      const printSettings = justSaved?.settings ?? appliedSettings
+      const printLogo = justSaved?.logo ?? logoInfo
       // RXN-65/68: the logo prints in every design; any failure falls back to the lab name.
       const logo =
-        appliedSettings.logoSource !== "none" && logoInfo.activeUrl
-          ? await prepareLabelLogo(await fetchActiveLogoDataUrl(), appliedSettings.logoOutline)
+        printSettings.logoSource !== "none" && printLogo.activeUrl
+          ? await prepareLabelLogo(await fetchActiveLogoDataUrl(), printSettings.logoOutline)
           : null
-      const doc = await generateLabelPdf(payload, geo, appliedSettings, { logo })
+      const doc = await generateLabelPdf(payload, geo, printSettings, { logo })
       swapPreview(doc, doc.output("bloburl") as unknown as string)
       setStep("preview")
     } catch (err) {
@@ -327,41 +331,60 @@ export default function DriverLabelSheetModal({
     setLabelPresetId(m === "roll" ? ROLL_SIZES[0].id : SHEET_TEMPLATES[0].id)
   }
 
-  /** Saves the newest draft. One save runs at a time; a change made meanwhile is saved right after. */
-  const saveNow = async () => {
+  /** Saves the newest draft until nothing newer is waiting. Resolves with the last saved result (null if none). */
+  const runSaves = async (): Promise<LabDriverLabelSettings | null> => {
+    let last: LabDriverLabelSettings | null = null
+    do {
+      saveAgain.current = false
+      const sent = draftRef.current
+      try {
+        const saved = await saveDriverLabelSettings(sent)
+        last = saved
+        setAppliedSettings(saved.settings)
+        setLogoInfo(saved.logo)
+        // Show what the server kept, unless the user changed something while this save ran (that one saves next).
+        if (draftRef.current === sent) {
+          draftRef.current = saved.settings
+          setDraftSettings(saved.settings)
+        }
+      } catch (e) {
+        // Not saved: keep the old applied settings and the draft, and say so. The next change tries again.
+        setSettingsSaveError(e instanceof Error && e.message ? e.message : "Could not save the settings.")
+        break
+      }
+    } while (saveAgain.current)
+    return last
+  }
+
+  /** Saves the newest draft now. One save loop runs at a time; a change made meanwhile is picked up by it. */
+  const saveNow = (): Promise<LabDriverLabelSettings | null> => {
     if (saveTimer.current) {
       clearTimeout(saveTimer.current)
       saveTimer.current = null
     }
-    if (!canEditRef.current) return
-    if (saveInFlight.current) {
+    if (!canEditRef.current) return Promise.resolve(null)
+    if (saveRun.current) {
       saveAgain.current = true
-      return
+      return saveRun.current
     }
-    saveInFlight.current = true
     setSettingsSaving(true)
     setSettingsSaveError(null)
-    const sent = draftRef.current
-    try {
-      const saved = await saveDriverLabelSettings(sent)
-      setAppliedSettings(saved.settings)
-      setLogoInfo(saved.logo)
-      // Show what the server kept, unless the user changed something while this save ran (that one saves next).
-      if (draftRef.current === sent) {
-        draftRef.current = saved.settings
-        setDraftSettings(saved.settings)
-      }
-    } catch (e) {
-      // Not saved: keep the old applied settings and the draft, and say so. The next change tries again.
-      setSettingsSaveError(e instanceof Error && e.message ? e.message : "Could not save the settings.")
-    } finally {
-      saveInFlight.current = false
+    const run = runSaves().finally(() => {
+      saveRun.current = null
       setSettingsSaving(false)
-      if (saveAgain.current) {
-        saveAgain.current = false
-        void saveNow()
-      }
-    }
+    })
+    saveRun.current = run
+    return run
+  }
+
+  /**
+   * RXN-76: wait until every change is saved. The label is made from the saved settings (the backend serves the
+   * logo of the saved choice), so printing right after a click must not run on the old choice.
+   * Resolves with the newest saved result, or null when nothing was waiting.
+   */
+  const settleSaves = async (): Promise<LabDriverLabelSettings | null> => {
+    if (saveTimer.current) return saveNow()
+    return saveRun.current ?? null
   }
 
   /** Every settings change goes through here: update the draft, then save after a short pause (or at once). */
