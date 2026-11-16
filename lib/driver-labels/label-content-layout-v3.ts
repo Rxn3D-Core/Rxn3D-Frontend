@@ -372,9 +372,7 @@ export function planV3Layout(
 
   // Patient: caption and the large name (full width: nothing else sits beside it).
   const p = frame.patient;
-  add("pt", "patient", p.nameX, Wpx - 2 * p.nameX, baselineFromTop(p.labelY, LABEL_PX), baselineInBox(p.nameY, p.nameH, p.namePx), p.namePx, {
-    boldValue: true,
-  });
+  add("pt", "patient", p.nameX, Wpx - 2 * p.nameX, baselineFromTop(p.labelY, LABEL_PX), baselineInBox(p.nameY, p.nameH, p.namePx), p.namePx);
   // The caption may start at its own x (4 x 2.5 prints it at 16 px).
   cells[cells.length - 1].labelX = I(p.labelX);
 
