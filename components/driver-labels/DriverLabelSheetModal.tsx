@@ -122,6 +122,9 @@ export default function DriverLabelSheetModal({
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveRun = useRef<Promise<LabDriverLabelSettings | null> | null>(null)
   const saveAgain = useRef(false)
+  // RXN-76: true while the newest change is not saved (waiting, or the save failed); with the failure text.
+  const unsavedRef = useRef(false)
+  const saveFailText = useRef<string | null>(null)
 
   useEffect(() => {
     if (!isOpen) return
@@ -136,6 +139,8 @@ export default function DriverLabelSheetModal({
     setAppliedSettings({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS })
     setDraftSettings({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS })
     draftRef.current = { ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS }
+    unsavedRef.current = false
+    saveFailText.current = null
     getDriverLabelSettings()
       .then((loaded) => {
         if (cancelled) return
@@ -242,6 +247,14 @@ export default function DriverLabelSheetModal({
     try {
       // RXN-76: finish any save that is still running first, then print with what the server now has.
       const justSaved = await settleSaves()
+      if (unsavedRef.current) {
+        // The new choice is not saved, so the label would print the OLD choice. Say so instead of printing it.
+        alert(
+          `Your latest driver label settings could not be saved${saveFailText.current ? ` (${saveFailText.current})` : ""}. ` +
+            "Open the settings, check them and try again. Nothing was printed.",
+        )
+        return
+      }
       const printSettings = justSaved?.settings ?? appliedSettings
       const printLogo = justSaved?.logo ?? logoInfo
       // RXN-65/68: the logo prints in every design; any failure falls back to the lab name.
@@ -340,16 +353,20 @@ export default function DriverLabelSheetModal({
       try {
         const saved = await saveDriverLabelSettings(sent)
         last = saved
+        saveFailText.current = null
         setAppliedSettings(saved.settings)
         setLogoInfo(saved.logo)
         // Show what the server kept, unless the user changed something while this save ran (that one saves next).
         if (draftRef.current === sent) {
           draftRef.current = saved.settings
+          unsavedRef.current = false
           setDraftSettings(saved.settings)
         }
       } catch (e) {
         // Not saved: keep the old applied settings and the draft, and say so. The next change tries again.
-        setSettingsSaveError(e instanceof Error && e.message ? e.message : "Could not save the settings.")
+        const text = e instanceof Error && e.message ? e.message : "Could not save the settings."
+        saveFailText.current = text
+        setSettingsSaveError(text)
         break
       }
     } while (saveAgain.current)
@@ -383,7 +400,8 @@ export default function DriverLabelSheetModal({
    * Resolves with the newest saved result, or null when nothing was waiting.
    */
   const settleSaves = async (): Promise<LabDriverLabelSettings | null> => {
-    if (saveTimer.current) return saveNow()
+    // A change whose save failed earlier is tried once more here.
+    if (saveTimer.current || (unsavedRef.current && !saveRun.current)) return saveNow()
     return saveRun.current ?? null
   }
 
@@ -392,6 +410,7 @@ export default function DriverLabelSheetModal({
     draftRef.current = next
     setDraftSettings(next)
     if (!canEditRef.current) return
+    unsavedRef.current = true
     if (saveTimer.current) clearTimeout(saveTimer.current)
     if (immediate) {
       void saveNow()
