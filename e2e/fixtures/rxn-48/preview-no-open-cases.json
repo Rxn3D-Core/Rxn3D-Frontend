@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "message": "Offboarding preview",
+  "data": {
+    "customer": {
+      "id": 55,
+      "name": "Smile Dental",
+      "type": "office"
+    },
+    "member": {
+      "user_id": 812,
+      "name": "Ana Ruiz",
+      "role": "doctor",
+      "membership_status": "Active"
+    },
+    "is_self": false,
+    "requires_transfer": false,
+    "can_offboard": true,
+    "blockers": [],
+    "transferable_cases": [],
+    "staying_cases": [],
+    "staying_counts": {
+      "late_stage": 0,
+      "mixed": 0,
+      "closed": 3
+    },
+    "eligible_targets": []
+  }
+}

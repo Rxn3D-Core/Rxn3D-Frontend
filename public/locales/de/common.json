@@ -207,5 +207,61 @@
       "partnerGeneric": "Partner",
       "slipCreateBlockedTitle": "Verbindung pausiert"
     }
+  },
+  "offboarding": {
+    "title": {
+      "self": "{{office}} verlassen",
+      "admin": "{{name}} aus {{office}} entfernen"
+    },
+    "description": {
+      "self": "Sie verlieren den Zugriff auf {{office}}. Ihr Konto, Ihr Verlauf und Ihre anderen Organisationen bleiben unverändert.",
+      "admin": "{{name}} verliert den Zugriff auf {{office}}. Konto, Verlauf und andere Organisationen bleiben unverändert."
+    },
+    "loading": "Offene Fälle werden geprüft…",
+    "loadError": "Die offenen Fälle konnten nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "blockers": {
+      "last_admin": "Dies ist der letzte Administrator von {{office}}. Machen Sie zuerst ein anderes Mitglied zum Administrator.",
+      "no_eligible_target": "In {{office}} gibt es keinen weiteren aktiven Arzt, der die offenen Fälle übernehmen kann. Laden Sie zuerst einen Arzt ein.",
+      "already_offboarded": "Dieses Mitglied wurde bereits aus {{office}} entfernt."
+    },
+    "transfer": {
+      "title": "Offene Fälle zur Übertragung ({{count}})",
+      "hint": "Wählen Sie den Arzt, der diese Fälle übernimmt. Abgeschlossene und abgerechnete Fälle werden nicht verschoben.",
+      "defaultTarget": "Alle offenen Fälle übertragen an",
+      "chooseDoctor": "Arzt auswählen",
+      "sameAsAll": "Wie oben",
+      "caseTarget": "Arzt für Fall {{number}}",
+      "lab": "Labor: {{name}}"
+    },
+    "staying": {
+      "title": "Fälle, die bei {{name}} bleiben ({{count}})",
+      "hint": "Diese Fälle sind weit fortgeschritten oder enthalten fertige oder abgerechnete Arbeit und werden daher nicht verschoben. Eine automatische Fallnotiz hält fest, dass sie bei {{name}} bleiben.",
+      "lateStage": "Fortgeschrittene Phase",
+      "mixed": "Offene und fertige Arbeit"
+    },
+    "closedCount": "Nicht betroffene abgeschlossene Fälle: {{count}}",
+    "noOpenCases": "Es gibt keine offenen Fälle zu übertragen.",
+    "reason": {
+      "label": "Grund (optional)",
+      "placeholder": "Wird im Prüfprotokoll vermerkt"
+    },
+    "cancel": "Abbrechen",
+    "working": "Wird ausgeführt…",
+    "confirm": {
+      "self": "Praxis verlassen",
+      "admin": "Mitglied entfernen"
+    },
+    "errors": {
+      "generic": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+      "stale": "Die offenen Fälle haben sich geändert. Prüfen Sie die Liste erneut.",
+      "invalidTarget": "Wählen Sie einen aktiven Arzt dieser Praxis."
+    },
+    "success": {
+      "title": "Entfernt",
+      "self": "Sie haben {{office}} verlassen.",
+      "admin": "{{name}} wurde aus {{office}} entfernt.",
+      "transferred": "{{count}} Fälle wurden übertragen."
+    }
   }
 }

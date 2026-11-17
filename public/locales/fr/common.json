@@ -207,5 +207,61 @@
       "partnerGeneric": "partenaire",
       "slipCreateBlockedTitle": "Connexion en pause"
     }
+  },
+  "offboarding": {
+    "title": {
+      "self": "Quitter {{office}}",
+      "admin": "Retirer {{name}} de {{office}}"
+    },
+    "description": {
+      "self": "Vous perdrez l'accès à {{office}}. Votre compte, votre historique et vos autres organisations restent inchangés.",
+      "admin": "{{name}} perdra l'accès à {{office}}. Son compte, son historique et ses autres organisations restent inchangés."
+    },
+    "loading": "Vérification des dossiers ouverts…",
+    "loadError": "Impossible de charger les dossiers ouverts.",
+    "retry": "Réessayer",
+    "blockers": {
+      "last_admin": "Il s'agit du dernier administrateur de {{office}}. Nommez d'abord un autre membre administrateur.",
+      "no_eligible_target": "Il n'y a pas d'autre médecin actif dans {{office}} pour reprendre les dossiers ouverts. Invitez d'abord un médecin.",
+      "already_offboarded": "Ce membre a déjà été retiré de {{office}}."
+    },
+    "transfer": {
+      "title": "Dossiers ouverts à transférer ({{count}})",
+      "hint": "Choisissez le médecin qui reprend ces dossiers. Les dossiers clôturés et facturés ne sont pas déplacés.",
+      "defaultTarget": "Transférer tous les dossiers ouverts à",
+      "chooseDoctor": "Choisir un médecin",
+      "sameAsAll": "Comme ci-dessus",
+      "caseTarget": "Médecin du dossier {{number}}",
+      "lab": "Laboratoire : {{name}}"
+    },
+    "staying": {
+      "title": "Dossiers qui restent avec {{name}} ({{count}})",
+      "hint": "Ces dossiers sont à un stade avancé ou contiennent du travail terminé ou facturé ; ils ne sont donc pas déplacés. Une note de dossier automatique indique qu'ils restent avec {{name}}.",
+      "lateStage": "Stade avancé",
+      "mixed": "Travail ouvert et terminé"
+    },
+    "closedCount": "Dossiers clôturés non concernés : {{count}}",
+    "noOpenCases": "Il n'y a aucun dossier ouvert à transférer.",
+    "reason": {
+      "label": "Motif (facultatif)",
+      "placeholder": "Ajouté au journal d'audit"
+    },
+    "cancel": "Annuler",
+    "working": "En cours…",
+    "confirm": {
+      "self": "Quitter le cabinet",
+      "admin": "Retirer le membre"
+    },
+    "errors": {
+      "generic": "Une erreur s'est produite. Veuillez réessayer.",
+      "stale": "Les dossiers ouverts ont changé. Vérifiez à nouveau la liste.",
+      "invalidTarget": "Choisissez un médecin actif de ce cabinet."
+    },
+    "success": {
+      "title": "Retiré",
+      "self": "Vous avez quitté {{office}}.",
+      "admin": "{{name}} a été retiré de {{office}}.",
+      "transferred": "{{count}} dossiers ont été transférés."
+    }
   }
 }

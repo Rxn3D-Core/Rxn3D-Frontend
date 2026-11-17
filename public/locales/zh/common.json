@@ -207,5 +207,61 @@
       "partnerGeneric": "合作方",
       "slipCreateBlockedTitle": "连接已暂停"
     }
+  },
+  "offboarding": {
+    "title": {
+      "self": "离开 {{office}}",
+      "admin": "将 {{name}} 从 {{office}} 移除"
+    },
+    "description": {
+      "self": "您将失去对 {{office}} 的访问权限。您的账户、历史记录和其他组织保持不变。",
+      "admin": "{{name}} 将失去对 {{office}} 的访问权限。其账户、历史记录和其他组织保持不变。"
+    },
+    "loading": "正在检查未完成的病例…",
+    "loadError": "无法加载未完成的病例。",
+    "retry": "重试",
+    "blockers": {
+      "last_admin": "这是 {{office}} 的最后一位管理员。请先将其他成员设为管理员。",
+      "no_eligible_target": "{{office}} 中没有其他可接手未完成病例的在职医生。请先邀请一位医生。",
+      "already_offboarded": "该成员已从 {{office}} 移除。"
+    },
+    "transfer": {
+      "title": "待转移的未完成病例（{{count}}）",
+      "hint": "请选择接手这些病例的医生。已关闭和已开票的病例不会被转移。",
+      "defaultTarget": "将所有未完成病例转移给",
+      "chooseDoctor": "选择医生",
+      "sameAsAll": "与上方相同",
+      "caseTarget": "病例 {{number}} 的医生",
+      "lab": "技工所：{{name}}"
+    },
+    "staying": {
+      "title": "保留给 {{name}} 的病例（{{count}}）",
+      "hint": "这些病例已处于后期阶段，或包含已完成或已开票的工作，因此不会被转移。系统会自动添加病例备注，说明它们仍归 {{name}}。",
+      "lateStage": "后期阶段",
+      "mixed": "未完成与已完成的工作"
+    },
+    "closedCount": "不受影响的已关闭病例：{{count}}",
+    "noOpenCases": "没有需要转移的未完成病例。",
+    "reason": {
+      "label": "原因（可选）",
+      "placeholder": "将记录在审计日志中"
+    },
+    "cancel": "取消",
+    "working": "处理中…",
+    "confirm": {
+      "self": "离开诊所",
+      "admin": "移除成员"
+    },
+    "errors": {
+      "generic": "出现问题，请重试。",
+      "stale": "未完成的病例已变化，请重新检查列表。",
+      "invalidTarget": "请选择本诊所的在职医生。"
+    },
+    "success": {
+      "title": "已移除",
+      "self": "您已离开 {{office}}。",
+      "admin": "{{name}} 已从 {{office}} 移除。",
+      "transferred": "已转移 {{count}} 个病例。"
+    }
   }
 }

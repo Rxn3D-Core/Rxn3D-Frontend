@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "message": "You have open cases in this office. Choose who takes over before leaving.",
+  "error": "transfer_required"
+}

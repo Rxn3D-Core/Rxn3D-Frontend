@@ -33,9 +33,10 @@ import type { UpdateMeProfileInput } from "@/lib/api/me"
 import type { UserProfileData } from "@/services/user-profile-service"
 import {
   confirmCurrentUserEmailChange,
-  leaveCurrentUserCustomer,
+  fetchCurrentUserProfile,
   sendCurrentUserEmailChangeOtp,
 } from "@/services/user-profile-service"
+import { OffboardMemberDialog } from "@/components/offboarding/offboard-member-dialog"
 import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024
@@ -70,7 +71,7 @@ export function UserProfileModal({
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isConfirmingEmail, setIsConfirmingEmail] = useState(false)
   const [emailError, setEmailError] = useState<string | null>(null)
-  const [leavingCustomerId, setLeavingCustomerId] = useState<number | null>(null)
+  const [leaveTarget, setLeaveTarget] = useState<{ id: number; name: string } | null>(null)
   const [leaveError, setLeaveError] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
@@ -89,7 +90,7 @@ export function UserProfileModal({
     setCodeSent(false)
     setEmailError(null)
     setLeaveError(null)
-    setLeavingCustomerId(null)
+    setLeaveTarget(null)
     setAvatarFile(null)
     setAvatarPreview(userData.avatar ?? userData.image ?? null)
     setAvatarError(null)
@@ -209,21 +210,14 @@ export function UserProfileModal({
     }
   }
 
-  const handleLeaveCustomer = async (customerId: number, customerName: string) => {
-    const confirmed = window.confirm(
-      `Leave ${customerName}? You will be marked Offboarded for this organization. Your profile and history stay intact.`,
-    )
-    if (!confirmed) return
-
-    setLeavingCustomerId(customerId)
+  // After the server confirmed the leave, reload the profile so the parent can switch organization or log out.
+  const handleLeftCustomer = async (customerId: number) => {
     setLeaveError(null)
     try {
-      const updated = await leaveCurrentUserCustomer(customerId)
+      const updated = await fetchCurrentUserProfile()
       onLeftCustomer?.(updated, customerId)
     } catch (error) {
-      setLeaveError(error instanceof Error ? error.message : "Failed to leave organization.")
-    } finally {
-      setLeavingCustomerId(null)
+      setLeaveError(error instanceof Error ? error.message : "Failed to refresh your profile.")
     }
   }
 
@@ -638,11 +632,11 @@ export function UserProfileModal({
                         <Button
                           type="button"
                           variant="outline"
-                          disabled={leavingCustomerId === customer.id}
-                          onClick={() => void handleLeaveCustomer(customer.id, customer.name)}
+                          data-testid={`profile-leave-${customer.id}`}
+                          onClick={() => setLeaveTarget({ id: customer.id, name: customer.name })}
                           className="h-9 rounded-full border-red-200 px-4 text-red-700 hover:bg-red-50"
                         >
-                          {leavingCustomerId === customer.id ? "Leaving…" : "Leave"}
+                          Leave
                         </Button>
                       </div>
                     </div>
@@ -690,6 +684,17 @@ export function UserProfileModal({
           ) : null}
         </div>
       </DialogContent>
+      <OffboardMemberDialog
+        open={leaveTarget !== null}
+        onOpenChange={(next) => !next && setLeaveTarget(null)}
+        customerId={leaveTarget?.id ?? null}
+        organizationName={leaveTarget?.name}
+        onCompleted={() => {
+          const id = leaveTarget?.id
+          setLeaveTarget(null)
+          if (id !== undefined) void handleLeftCustomer(id)
+        }}
+      />
     </Dialog>
   )
 }

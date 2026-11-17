@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "message": "Your access to this organization has ended.",
+  "error": "membership_inactive"
+}

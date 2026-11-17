@@ -1181,6 +1181,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
+                    data-testid="header-user-menu"
                     className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 lg:h-[4.5rem] lg:w-[4.5rem] p-0 rounded-full hover:ring-2 hover:ring-[#1162a8] transition-all"
                   >
                     <Avatar className="h-full w-full ring-2 ring-gray-200 dark:ring-gray-700">
@@ -1580,13 +1581,13 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           if (selectedCustomerId && Number(selectedCustomerId) === Number(customerId)) {
             const nextCustomer = updated.customers?.find((c) => c.id !== customerId)
             if (nextCustomer) {
-              void setCustomerId(String(nextCustomer.id))
+              void setCustomerId(Number(nextCustomer.id), { reload: true })
+            } else {
+              // No other organization left: nothing to switch to
+              setShowUserProfileModal(false)
+              void logout()
             }
           }
-          toast({
-            title: "Left organization",
-            description: "You have been marked Offboarded for that organization.",
-          })
         }}
       />
 

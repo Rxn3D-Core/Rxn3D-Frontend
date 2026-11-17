@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Filter, Plus, ChevronDown, ChevronUp, Edit, Lock, UserMinus } from "lucide-react"
+import { OffboardMemberDialog } from "@/components/offboarding/offboard-member-dialog"
 import { useAuth } from "@/contexts/auth-context"
-import { useCustomer } from "@/contexts/customer-context"
 import { useToast } from "@/hooks/use-toast"
 import { CreateUserModal } from "./create-user-modal"
 import { SearchInviteUserModal } from "./search-invite-user-modal"
@@ -17,16 +17,6 @@ import { ResetUserPasswordModal } from "./reset-user-password-modal"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 import ReactDOM from "react-dom"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import {
   getAddUserButtonLabel,
   resolveLockedRole,
@@ -88,7 +78,6 @@ interface UserListTableProps {
 
 export function UserListTable({ roleFilter, title, description }: UserListTableProps) {
   const { user, fetchUsers, updateUser, updateMembershipStatus } = useAuth()
-  const { removeCustomerRoleFromUser } = useCustomer()
   const { toast } = useToast()
   const lockedRole = resolveLockedRole(roleFilter)
   const addButtonLabel = getAddUserButtonLabel(lockedRole)
@@ -108,7 +97,6 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
   const [userToOffboard, setUserToOffboard] = useState<StaffUser | null>(null)
-  const [isOffboarding, setIsOffboarding] = useState(false)
 
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
@@ -330,6 +318,13 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
 
   // Handle membership status change for THIS organization only (not global users.status)
   const handleStatusChange = async (userId: number, newStatus: string) => {
+    if (newStatus === "Offboarded") {
+      const target = staffUsers.find((u) => u.id === userId)
+      setShowStatusDropdown(null)
+      setDropdownPosition(null)
+      if (target) setUserToOffboard(target)
+      return
+    }
     const customerId = Number(localStorage.getItem("customerId") || 0)
     if (!customerId) {
       toast({
@@ -424,39 +419,6 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
   // Handle update user success
   const handleUpdateUserSuccess = () => {
     loadUsers() // Reload the user list
-  }
-
-  // Soft-offboard: keep the row and history, mark membership Offboarded
-  const handleOffboardUser = async () => {
-    if (!userToOffboard) return
-    const customerId = Number(localStorage.getItem("customerId") || 0)
-    if (!customerId) {
-      toast({
-        title: "Error",
-        description: "No organization selected.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsOffboarding(true)
-    try {
-      const success = await removeCustomerRoleFromUser(customerId, userToOffboard.id)
-      if (success) {
-        toast({
-          title: "Offboarded",
-          description: `${userToOffboard.name} is marked Offboarded for this organization. History stays intact.`,
-        })
-        setStaffUsers((prev) =>
-          prev.map((u) =>
-            u.id === userToOffboard.id ? { ...u, membershipStatus: "Offboarded" } : u,
-          ),
-        )
-        setUserToOffboard(null)
-      }
-    } finally {
-      setIsOffboarding(false)
-    }
   }
 
   // Handle edit user
@@ -874,30 +836,17 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
         user={userToUpdate}
       />
 
-      <AlertDialog open={!!userToOffboard} onOpenChange={(open) => !open && setUserToOffboard(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark as Offboarded?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {userToOffboard?.name} will be marked Offboarded for this organization. Their profile
-              connection and history stay intact, and they can be invited again later.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isOffboarding}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                void handleOffboardUser()
-              }}
-              disabled={isOffboarding}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {isOffboarding ? "Offboarding…" : "Offboard"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <OffboardMemberDialog
+        open={!!userToOffboard}
+        onOpenChange={(open) => !open && setUserToOffboard(null)}
+        customerId={typeof window !== "undefined" ? Number(localStorage.getItem("customerId") || 0) || null : null}
+        userId={userToOffboard?.id ?? null}
+        memberName={userToOffboard?.name}
+        onCompleted={() => {
+          setUserToOffboard(null)
+          loadUsers()
+        }}
+      />
 
       <ResetUserPasswordModal
         isOpen={showResetPassword}

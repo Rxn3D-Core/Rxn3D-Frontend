@@ -4,25 +4,15 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Filter, Search, Plus, ChevronDown, Pencil, Trash2, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { OffboardMemberDialog } from "@/components/offboarding/offboard-member-dialog"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { CreateUserModal } from "@/components/office-administrator/create-user-modal"
 import { SearchInviteUserModal } from "@/components/office-administrator/search-invite-user-modal"
 import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
 import { ResetUserPasswordModal } from "@/components/office-administrator/reset-user-password-modal"
 import { useAuth } from "@/contexts/auth-context"
-import { useCustomer } from "@/contexts/customer-context"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { normalizeUserStatus, type UserStatus } from "@/lib/user-status"
@@ -96,7 +86,6 @@ export default function StaffManagementPage() {
   const router = useRouter()
   const { toast } = useToast()
   const { user, fetchUsers, updateUser, updateMembershipStatus, hasPermission } = useAuth()
-  const { removeCustomerRoleFromUser } = useCustomer()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [showFilterPanel, setShowFilterPanel] = useState(false)
@@ -109,7 +98,6 @@ export default function StaffManagementPage() {
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
   const [userToRemove, setUserToRemove] = useState<StaffUser | null>(null)
-  const [isRemoving, setIsRemoving] = useState(false)
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
   const [allSelected, setAllSelected] = useState(false)
@@ -260,35 +248,6 @@ export default function StaffManagementPage() {
     loadStaffUsers()
   }
 
-  // Remove the user from the current customer (does NOT delete the user account)
-  const handleRemoveUser = async () => {
-    if (!userToRemove) return
-    const customerId = Number(localStorage.getItem("customerId") || 0)
-    if (!customerId) {
-      toast({
-        title: "Error",
-        description: "No customer selected. Please select a location first.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsRemoving(true)
-    try {
-      const success = await removeCustomerRoleFromUser(customerId, userToRemove.id)
-      if (success) {
-        toast({
-          title: "Offboarded",
-          description: `${userToRemove.name} is marked Offboarded for this organization. History stays intact.`,
-        })
-        loadStaffUsers()
-        setUserToRemove(null)
-      }
-    } finally {
-      setIsRemoving(false)
-    }
-  }
-
   // Handle add new user – search existing first, then create
   const handleAddUser = () => {
     setShowSearchInvite(true)
@@ -321,6 +280,13 @@ export default function StaffManagementPage() {
 
   // Per-organization membership status only (not global users.status)
   const handleStatusChange = async (userId: number, newStatus: string) => {
+    if (newStatus === "Offboarded") {
+      const target = staffUsers.find((u) => u.id === userId)
+      setShowStatusDropdown(null)
+      setDropdownPosition(null)
+      if (target) setUserToRemove(target)
+      return
+    }
     const customerId = Number(localStorage.getItem("customerId") || 0)
     if (!customerId) {
       toast({
@@ -703,30 +669,17 @@ export default function StaffManagementPage() {
       </div>
 
       {/* Remove-from-customer confirmation */}
-      <AlertDialog open={!!userToRemove} onOpenChange={(open) => !open && setUserToRemove(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark as Offboarded?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {userToRemove?.name} will be marked Offboarded for this organization. Their profile
-              connection and history stay intact, and they can be invited again later.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isRemoving}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                handleRemoveUser()
-              }}
-              disabled={isRemoving}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {isRemoving ? "Offboarding…" : "Offboard"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <OffboardMemberDialog
+        open={!!userToRemove}
+        onOpenChange={(open) => !open && setUserToRemove(null)}
+        customerId={typeof window !== "undefined" ? Number(localStorage.getItem("customerId") || 0) || null : null}
+        userId={userToRemove?.id ?? null}
+        memberName={userToRemove?.name}
+        onCompleted={() => {
+          setUserToRemove(null)
+          loadStaffUsers()
+        }}
+      />
 
       <SearchInviteUserModal
         isOpen={showSearchInvite}

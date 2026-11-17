@@ -606,5 +606,61 @@
       "partnerGeneric": "socio",
       "slipCreateBlockedTitle": "Conexión en espera"
     }
+  },
+  "offboarding": {
+    "title": {
+      "self": "Salir de {{office}}",
+      "admin": "Quitar a {{name}} de {{office}}"
+    },
+    "description": {
+      "self": "Perderá el acceso a {{office}}. Su cuenta, historial y otras organizaciones no cambian.",
+      "admin": "{{name}} perderá el acceso a {{office}}. Su cuenta, historial y otras organizaciones no cambian."
+    },
+    "loading": "Comprobando casos abiertos…",
+    "loadError": "No se pudieron cargar los casos abiertos.",
+    "retry": "Reintentar",
+    "blockers": {
+      "last_admin": "Es el último administrador de {{office}}. Nombre primero a otro miembro como administrador.",
+      "no_eligible_target": "No hay otro doctor activo en {{office}} que pueda asumir los casos abiertos. Invite primero a un doctor.",
+      "already_offboarded": "Este miembro ya fue retirado de {{office}}."
+    },
+    "transfer": {
+      "title": "Casos abiertos a transferir ({{count}})",
+      "hint": "Elija el doctor que asumirá estos casos. Los casos cerrados y facturados no se mueven.",
+      "defaultTarget": "Transferir todos los casos abiertos a",
+      "chooseDoctor": "Elija un doctor",
+      "sameAsAll": "Igual que arriba",
+      "caseTarget": "Doctor del caso {{number}}",
+      "lab": "Laboratorio: {{name}}"
+    },
+    "staying": {
+      "title": "Casos que se quedan con {{name}} ({{count}})",
+      "hint": "Estos casos están en una etapa avanzada o tienen trabajo terminado o facturado, por lo que no se mueven. Una nota automática del caso registra que se quedan con {{name}}.",
+      "lateStage": "Etapa avanzada",
+      "mixed": "Trabajo abierto y terminado"
+    },
+    "closedCount": "Casos cerrados no afectados: {{count}}",
+    "noOpenCases": "No hay casos abiertos que transferir.",
+    "reason": {
+      "label": "Motivo (opcional)",
+      "placeholder": "Se añade al registro de auditoría"
+    },
+    "cancel": "Cancelar",
+    "working": "Procesando…",
+    "confirm": {
+      "self": "Salir de la oficina",
+      "admin": "Quitar miembro"
+    },
+    "errors": {
+      "generic": "Algo salió mal. Inténtelo de nuevo.",
+      "stale": "Los casos abiertos cambiaron. Revise la lista de nuevo.",
+      "invalidTarget": "Elija un doctor activo de esta oficina."
+    },
+    "success": {
+      "title": "Retirado",
+      "self": "Ha salido de {{office}}.",
+      "admin": "{{name}} fue retirado de {{office}}.",
+      "transferred": "Se transfirieron {{count}} casos."
+    }
   }
 }

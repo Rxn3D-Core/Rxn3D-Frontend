@@ -1,6 +1,11 @@
 import { clearSessionStorage } from "./clear-session-storage"
 import { PLAN_SUBSCRIPTIONS_PATH } from "./plan-guard"
 import {
+  isMembershipInactive,
+  membershipInactiveDestination,
+  SELECTED_PROFILE_KEYS,
+} from "./offboarding/offboarding"
+import {
   createNoticeDeduper,
   PLAN_UPGRADE_NOTICE_EVENT,
   planErrorReaction,
@@ -21,7 +26,7 @@ type InterceptorWindow = Window & {
 }
 
 /** Bump so HMR re-wraps fetch when this file changes. */
-const INTERCEPTOR_VERSION = 8
+const INTERCEPTOR_VERSION = 9
 
 /** One upgrade toast per burst of failing plan-gated requests. */
 const allowPlanNotice = createNoticeDeduper(8000)
@@ -68,6 +73,28 @@ function forceLogout(): Promise<Response> {
   clearSessionStorage()
   window.location.href = "/login"
   return new Promise(() => {})
+}
+
+let membershipInactiveHandled = false
+
+/** 403 `membership_inactive`: the selected organization no longer allows this user. Leave it. */
+function handleMembershipInactive() {
+  if (membershipInactiveHandled) return
+  membershipInactiveHandled = true
+  try {
+    const current = Number(localStorage.getItem("customerId") || 0) || null
+    const user = JSON.parse(localStorage.getItem("user") || "null") as { customers?: Array<{ id: number }> } | null
+    const destination = membershipInactiveDestination(current, (user?.customers ?? []).map((c) => Number(c.id)))
+    if (destination === "/login") {
+      clearSessionStorage()
+    } else {
+      SELECTED_PROFILE_KEYS.forEach((key) => localStorage.removeItem(key))
+    }
+    window.location.assign(destination)
+  } catch {
+    clearSessionStorage()
+    window.location.assign("/login")
+  }
 }
 
 function isRetryAfterRefresh(init?: RequestInit): boolean {
@@ -150,6 +177,10 @@ export function setupGlobalFetchInterceptor() {
       const requestUrl = getRequestUrl(args[0])
       if (!requestUrl.includes("/entitlements")) {
         const body = await response.clone().json().catch(() => null)
+        if (isMembershipInactive(response.status, body)) {
+          handleMembershipInactive()
+          return response
+        }
         const planError = readPlanError(response.status, requestUrl, body)
         if (planError) {
           window.dispatchEvent(new Event("plan-entitlement-changed"))

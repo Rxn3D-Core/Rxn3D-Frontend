@@ -600,5 +600,61 @@
       "partnerGeneric": "partner",
       "slipCreateBlockedTitle": "Connection on hold"
     }
+  },
+  "offboarding": {
+    "title": {
+      "self": "Leave {{office}}",
+      "admin": "Remove {{name}} from {{office}}"
+    },
+    "description": {
+      "self": "You will lose access to {{office}}. Your account, history and other organizations stay as they are.",
+      "admin": "{{name}} will lose access to {{office}}. Their account, history and other organizations stay as they are."
+    },
+    "loading": "Checking open cases…",
+    "loadError": "Could not load the open cases.",
+    "retry": "Try again",
+    "blockers": {
+      "last_admin": "This is the last admin of {{office}}. Make another member an admin first.",
+      "no_eligible_target": "There is no other active doctor in {{office}} to take over the open cases. Invite a doctor first.",
+      "already_offboarded": "This member has already been removed from {{office}}."
+    },
+    "transfer": {
+      "title": "Open cases to transfer ({{count}})",
+      "hint": "Choose the doctor who takes over these cases. Closed and invoiced cases are not moved.",
+      "defaultTarget": "Transfer all open cases to",
+      "chooseDoctor": "Choose a doctor",
+      "sameAsAll": "Same as above",
+      "caseTarget": "Doctor for case {{number}}",
+      "lab": "Lab: {{name}}"
+    },
+    "staying": {
+      "title": "Cases that stay with {{name}} ({{count}})",
+      "hint": "These cases are in a late stage or have finished or invoiced work, so they are not moved. An automatic case note records that they stay with {{name}}.",
+      "lateStage": "Late stage",
+      "mixed": "Open and finished work"
+    },
+    "closedCount": "Closed cases that are not affected: {{count}}",
+    "noOpenCases": "There are no open cases to transfer.",
+    "reason": {
+      "label": "Reason (optional)",
+      "placeholder": "Added to the audit record"
+    },
+    "cancel": "Cancel",
+    "working": "Working…",
+    "confirm": {
+      "self": "Leave office",
+      "admin": "Remove member"
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "stale": "The open cases changed. Review the list again.",
+      "invalidTarget": "Choose an active doctor in this office."
+    },
+    "success": {
+      "title": "Removed",
+      "self": "You have left {{office}}.",
+      "admin": "{{name}} was removed from {{office}}.",
+      "transferred": "{{count}} cases were transferred."
+    }
   }
 }

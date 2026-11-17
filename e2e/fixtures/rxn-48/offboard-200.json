@@ -1,0 +1,36 @@
+{
+  "success": true,
+  "message": "Ana Ruiz was removed from Smile Dental. 3 cases were transferred.",
+  "data": {
+    "customer_id": 55,
+    "user_id": 812,
+    "membership_status": "Offboarded",
+    "offboarded_at": "2026-11-05T14:02:11Z",
+    "offboarded_by": 1,
+    "transferred": [
+      {
+        "case_id": 9001,
+        "case_number": "C01234",
+        "from_doctor_id": 812,
+        "to_doctor_id": 813
+      },
+      {
+        "case_id": 9003,
+        "case_number": "C01250",
+        "from_doctor_id": 812,
+        "to_doctor_id": 813
+      },
+      {
+        "case_id": 9004,
+        "case_number": "C01255",
+        "from_doctor_id": 812,
+        "to_doctor_id": 813
+      }
+    ],
+    "staying_counts": {
+      "late_stage": 1,
+      "mixed": 0,
+      "closed": 14
+    }
+  }
+}
