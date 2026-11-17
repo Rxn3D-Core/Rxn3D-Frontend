@@ -29,7 +29,9 @@ import {
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { CaseSubmissionOverlays } from "@/components/case-design-center/components/CaseSubmissionOverlays";
 import { CaseDesignCenter } from "@/components/case-design-center/components/CaseDesignCenter";
-import { PatientHeader } from "@/components/case-design-center/components/PatientHeader";
+import { VirtualSlipHeader } from "@/components/virtual-slip/VirtualSlipHeader";
+import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
+import { withDegree } from "@/lib/doctor-degree";
 import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
 import type { SlipProductSnapshot, VirtualSlipInitialState } from "@/components/case-design-center/types";
 import { buildAddStageSubmissionPayloadsAsync } from "@/components/case-design-center/utils/addStageSubmissionPayload";
@@ -130,6 +132,40 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     fetchProductDetails: fetchCaseDesignProductDetails,
     bootstrap,
   });
+
+  // Same header as edit slip / virtual slip (office and lab logos come from the slip).
+  // Slip-specific values of the existing slip are blanked because the new stage is a new
+  // slip; the delivery date follows the estimate for the selected stage.
+  const stageHeader = useMemo(() => {
+    const base = buildVirtualSlipVM(virtualSlipDetails).header;
+    const doctor = wizard.completedDoctor;
+    const parsed = headerDueDate ? new Date(headerDueDate) : null;
+    const estimated =
+      parsed && !Number.isNaN(parsed.getTime())
+        ? `${String(parsed.getMonth() + 1).padStart(2, "0")}/${String(parsed.getDate()).padStart(2, "0")}/${String(parsed.getFullYear()).slice(2)}`
+        : "";
+    return {
+      ...base,
+      patientName: wizard.completedPatientName,
+      gender: wizard.completedGender,
+      age: wizard.completedAge,
+      doctorName: doctor ? withDegree(doctor.name, doctor.degree) : base.doctorName,
+      doctorImage: doctor ? doctor.img ?? base.doctorImage : base.doctorImage,
+      slipNumber: "",
+      slipStatus: "",
+      pickupDate: "",
+      deliveryTime: "",
+      isRush: false,
+      dueDate: estimated,
+    };
+  }, [
+    virtualSlipDetails,
+    headerDueDate,
+    wizard.completedDoctor,
+    wizard.completedPatientName,
+    wizard.completedGender,
+    wizard.completedAge,
+  ]);
 
   const handleEstimatedDueDateChange = useCallback(
     (info: {
@@ -477,25 +513,14 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
 
         {wizard.caseDesignMounted && (
           <div style={{ display: wizard.wizardComplete ? undefined : "none" }}>
-            <PatientHeader
-              doctorImageUrl={wizard.completedDoctor?.img}
-              doctorName={wizard.completedDoctor?.name}
-              doctorDegree={wizard.completedDoctor?.degree}
-              patientName={wizard.completedPatientName}
-              gender={wizard.completedGender}
-              age={wizard.completedAge}
-              caseSubmitted={false}
-              onEditDoctorClick={wizard.handleEditDoctor}
-              canEditDoctor={wizard.canEditDoctor}
-              onPatientNameChange={wizard.setCompletedPatientName}
-              onGenderChange={wizard.setCompletedGender}
-              onAgeChange={wizard.setCompletedAge}
-              labLogoUrl={wizard.completedLab?.logo}
-              labName={wizard.completedLab?.name}
-              onEditLab={wizard.handleTopBarEditLab}
-              estimatedDueDate={headerDueDate}
-              estimatedDueDateLoading={headerDueDateLoading}
-              cutoffTime={rushCaseSchedule?.default_pickup_time}
+            <VirtualSlipHeader
+              header={stageHeader}
+              edit={{
+                onPatientNameChange: wizard.setCompletedPatientName,
+                onGenderChange: wizard.setCompletedGender,
+                onAgeChange: wizard.setCompletedAge,
+                onEditDoctor: wizard.canEditDoctor ? wizard.handleEditDoctor : undefined,
+              }}
             />
 
             {initialSlipState && (
