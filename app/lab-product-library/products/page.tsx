@@ -297,6 +297,16 @@ export default function ProductsPage() {
     })
   }
 
+  // RXN-89: "Show products" links in the usage warning open /products?edit=<id>
+  const deepLinkHandledRef = useRef(false)
+  useEffect(() => {
+    if (deepLinkHandledRef.current || typeof window === "undefined") return
+    const editId = Number(new URLSearchParams(window.location.search).get("edit"))
+    if (!Number.isInteger(editId) || editId <= 0) return
+    deepLinkHandledRef.current = true
+    handleEdit(editId)
+  }, []) // run once on mount
+
   const handleDuplicate = async (id: number) => {
     setIsEditLoading(true)
     setEditingProduct(null)

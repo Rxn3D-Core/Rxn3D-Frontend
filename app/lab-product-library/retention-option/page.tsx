@@ -17,6 +17,8 @@ import { LinkProductsModal } from "@/components/product-management/link-products
 import { LinkRetentionModal } from "@/components/product-management/link-retention-modal"
 import { getRetentionOptions, updateRetentionOptionStatus, deleteRetentionOption } from "@/services/retention-options-api"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { WarningActionModal } from "@/components/ui/warning-action-modal"
+import { useItemUsageGuard } from "@/hooks/use-item-usage-guard"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
 import { getPrimaryRole } from "@/lib/get-primary-role"
@@ -110,6 +112,8 @@ export default function RetentionOptionPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const customerId = getCustomerId(user)
+  // RXN-89: live product-usage check before deactivate/delete
+  const usageGuard = useItemUsageGuard("retention-option", { customerId })
   const primaryRole = normalizeRoleSlug(getPrimaryRole(user))
   const canManageRetentionOptions = primaryRole !== "lab_admin"
 
@@ -209,10 +213,8 @@ export default function RetentionOptionPage() {
 
   const { toast } = useToast()
 
-  const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
-    if (!canManageRetentionOptions) return
+  const setRetentionOptionStatus = async (id: number, newStatus: 'Active' | 'Inactive') => {
     try {
-      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
       await updateRetentionOptionStatus(id, newStatus, customerId ?? undefined)
       
       toast({
@@ -228,7 +230,24 @@ export default function RetentionOptionPage() {
         description: error.message || "Failed to update retention option status",
         variant: "destructive",
       })
+      return false
     }
+  }
+
+  const handleStatusToggle = (id: number, currentStatus: 'Active' | 'Inactive') => {
+    if (!canManageRetentionOptions) return
+    if (currentStatus !== 'Active') {
+      void setRetentionOptionStatus(id, 'Active')
+      return
+    }
+    // RXN-89: warn first when products use this retention option
+    const option = retentionOptions.find((o: any) => o.id === id)
+    void usageGuard.requestAction({
+      itemId: id,
+      itemName: option?.name || "",
+      action: "deactivate",
+      run: () => setRetentionOptionStatus(id, 'Inactive'),
+    })
   }
 
   function handleEdit(option: any): void {
@@ -240,25 +259,42 @@ export default function RetentionOptionPage() {
 
   const handleDelete = (optionId: number) => {
     if (!canManageRetentionOptions) return
-    setDeleteOptionId(optionId)
-    setShowDeleteModal(true)
+    const option = retentionOptions.find((o: any) => o.id === optionId)
+    void usageGuard.requestAction({
+      itemId: optionId,
+      itemName: option?.name || "",
+      action: "delete",
+      run: () => deleteRetentionOptionNow(optionId),
+      // Not used by any product: confirm as before
+      onNotUsed: () => {
+        setDeleteOptionId(optionId)
+        setShowDeleteModal(true)
+      },
+    })
+  }
+
+  const deleteRetentionOptionNow = async (optionId: number) => {
+    try {
+      await deleteRetentionOption(optionId, customerId ?? undefined)
+      toast({
+        title: "Success",
+        description: "Retention option deleted successfully",
+      })
+      fetchRetentionOptions()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete retention option",
+        variant: "destructive",
+      })
+      return false
+    }
   }
 
   const confirmDelete = async () => {
     if (deleteOptionId != null) {
       try {
-        await deleteRetentionOption(deleteOptionId, customerId ?? undefined)
-        toast({
-          title: "Success",
-          description: "Retention option deleted successfully",
-        })
-        fetchRetentionOptions()
-      } catch (error: any) {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to delete retention option",
-          variant: "destructive",
-        })
+        await deleteRetentionOptionNow(deleteOptionId)
       } finally {
         setShowDeleteModal(false)
         setDeleteOptionId(null)
@@ -543,6 +579,7 @@ export default function RetentionOptionPage() {
                             <button
                               className="text-gray-400 hover:text-red-600 transition-colors p-0.5"
                               onClick={() => handleDelete(option.id)}
+                              disabled={usageGuard.checkingId === option.id}
                             >
                               <TrashIcon className="h-3.5 w-3.5" />
                             </button>
@@ -672,6 +709,7 @@ export default function RetentionOptionPage() {
           onConfirm={confirmDelete}
           itemName="retention option"
         />
+        <WarningActionModal {...usageGuard.modalProps} />
       </>
     </div>
   )
