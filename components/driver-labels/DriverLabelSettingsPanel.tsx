@@ -19,7 +19,6 @@ import {
   DRIVER_LABEL_LOCKED_FIELDS,
   DRIVER_LABEL_OPTIONAL_FIELDS,
   type DriverLabelOptionalKey,
-  type DriverLabelDesign,
   type DriverLabelLogoSource,
   type DriverLabelPrintSettings,
 } from "@/lib/driver-labels/label-print-settings"
@@ -51,11 +50,6 @@ interface DriverLabelSettingsPanelProps {
 }
 
 const NO_LOGO: DriverLabelLogoInfo = { currentUrl: null, customUrl: null, activeUrl: null }
-
-const DESIGNS: { id: DriverLabelDesign; title: string; text: string }[] = [
-  { id: "classic", title: "Classic", text: "Lab name, patient and office stacked on the left." },
-  { id: "centered", title: "Centered", text: "Logo or lab name centred, details in two columns." },
-]
 
 /** Shows what the saved logo looks like once converted for printing (the same conversion the label uses). */
 function OutlinePreview({ activeUrl, outline }: { activeUrl: string; outline: boolean }) {
@@ -144,38 +138,12 @@ export function DriverLabelSettingsPanel({
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
-        <div>
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">
-            Label design
-          </div>
-          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Label design">
-            {DESIGNS.map((d) => (
-              <label
-                key={d.id}
-                data-testid={`driver-label-design-${d.id}`}
-                className={`cursor-pointer rounded-md border p-2 text-left ${
-                  draft.labelDesign === d.id ? "border-blue-500 bg-blue-50" : "border-[#e5e7eb] bg-white"
-                } ${locked ? "cursor-not-allowed opacity-60" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="driver-label-design"
-                  className="sr-only"
-                  checked={draft.labelDesign === d.id}
-                  disabled={locked}
-                  onChange={() => onChange({ ...draft, labelDesign: d.id })}
-                />
-                <span className="block text-[13px] font-medium text-[#17191F]">{d.title}</span>
-                <span className="block text-[11px] leading-4 text-[#6b7280]">{d.text}</span>
-              </label>
-            ))}
-          </div>
-          <p className="mt-1.5 text-[11px] leading-4 text-[#6b7280]">
-            {v3Active
-              ? "This size prints the v3 design, so the choice above applies to other sizes. Product is not part of v3; Status and Location print on every v3 size except 2.25 x 1.25."
-              : "The switches below apply to both designs."}
+        {/* RXN-79: the Classic / Centered "Label design" choice is hidden. The saved labelDesign value still loads, saves and prints as before. */}
+        {v3Active ? (
+          <p className="text-[11px] leading-4 text-[#6b7280]" data-testid="driver-label-v3-note">
+            This size prints the v3 design. Product is not part of v3; Status and Location print on every v3 size except 2.25 x 1.25.
           </p>
-        </div>
+        ) : null}
 
         <div data-testid="driver-label-logo-section">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">Logo</div>
