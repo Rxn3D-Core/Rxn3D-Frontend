@@ -130,7 +130,8 @@ async function acceptInvitation(invitationId: number) {
   })
 
   if (!response.ok) {
-    throw new Error('Failed to accept invitation')
+    const error = await response.json().catch(() => null)
+    throw new Error(error?.error || error?.message || 'Failed to accept invitation')
   }
 
   return response.json()
