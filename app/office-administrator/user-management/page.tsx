@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Filter, Search, Plus, ChevronDown, ChevronUp, Pencil, Lock, UserMinus } from "lucide-react"
+import { canRemoveMember, roleRank } from "@/lib/role-rank"
 import { OffboardMemberDialog } from "@/components/offboarding/offboard-member-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,11 +31,20 @@ interface StaffUser {
   membershipStatus?: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded"
   avatar?: string
   avatarColor?: string
+  role?: string
 }
 
 export default function UserOfficeManagement() {
   const router = useRouter()
   const { user, fetchUsers, updateUser, updateMembershipStatus, hasPermission } = useAuth()
+
+  const mayRemove = (target: { id: number; role?: string }) =>
+    canRemoveMember({
+      actorRole: user?.role,
+      actorIsSuperadmin: user?.role === "superadmin" || !!user?.roles?.includes("superadmin"),
+      targetRole: target.role,
+      isSelf: Number(user?.id) === Number(target.id),
+    })
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -114,6 +124,8 @@ export default function UserOfficeManagement() {
       )
     )
     const userType = roleNames.length > 0 ? roleNames.join(", ") : "User"
+    // Highest-ranked role in this organization decides who may remove them.
+    const role = (roleNames as string[]).sort((a, b) => roleRank(b) - roleRank(a))[0]
     const scopedCustomer = scopedCustomerUsers[0]
     const membershipRaw = scopedCustomer?.status || "Active"
     const membershipStatus = (
@@ -128,6 +140,7 @@ export default function UserOfficeManagement() {
       email: apiUser.email || '',
       phone: apiUser.phone || apiUser.work_number || '',
       userType: userType,
+      role,
       joinDate: apiUser.created_at ? new Date(apiUser.created_at).toISOString().split('T')[0] : '',
       status: normalizeUserStatus(apiUser.status),
       membershipStatus,
@@ -681,8 +694,8 @@ export default function UserOfficeManagement() {
                           onClick={() => setUserToOffboard(user)}
                           data-testid={`user-offboard-${user.id}`}
                           className="text-red-600 hover:text-red-800"
-                          title="Offboard from this organization"
-                          disabled={!hasPermission("delete_user")}
+                          title={mayRemove(user) ? "Offboard from this organization" : "You cannot remove a member whose role is higher than yours"}
+                          disabled={!hasPermission("delete_user") || !mayRemove(user)}
                         >
                           <UserMinus className="h-5 w-5" />
                         </Button>
