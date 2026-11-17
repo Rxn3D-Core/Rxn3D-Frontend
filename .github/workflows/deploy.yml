@@ -77,6 +77,7 @@ jobs:
       - name: Build Next.js
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+          NEXT_PUBLIC_OPEN_REGISTRATION_ENABLED: ${{ secrets.NEXT_PUBLIC_OPEN_REGISTRATION_ENABLED }}
           # add one line per NEXT_PUBLIC_* var your app uses, same pattern
         run: |
           echo "========================================"
