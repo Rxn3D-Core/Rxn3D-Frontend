@@ -595,8 +595,8 @@ export function LabAdminDashboard() {
                                       onSuccess: () => {
                                         toast({ title: "Invitation accepted successfully" })
                                       },
-                                      onError: () => {
-                                        toast({ title: "Failed to accept invitation", variant: "destructive" })
+                                      onError: (error) => {
+                                        toast({ title: "Failed to accept invitation", description: error?.message && error.message !== "Failed to accept invitation" ? error.message : undefined, variant: "destructive" })
                                       }
                                     })
                                   }}
