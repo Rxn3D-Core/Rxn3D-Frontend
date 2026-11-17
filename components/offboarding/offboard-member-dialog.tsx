@@ -18,8 +18,25 @@ import {
   mapValidationErrors,
   type CaseTargets,
 } from "@/lib/offboarding/offboarding"
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes"
 import { OffboardingApiError } from "@/services/offboarding-service"
 import type { OffboardingPreview, OffboardResult } from "@/types/offboarding"
+
+/** Case number that opens the case (first slip) in a new tab; plain text when it has no slip. */
+function CaseNumberLink({ caseId, caseNumber, slipId, className }: { caseId: number; caseNumber: string; slipId?: number; className: string }) {
+  if (!slipId) return <span className={className}>{caseNumber}</span>
+  return (
+    <a
+      href={buildVirtualSlipPath(caseId, slipId)}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-testid={`offboarding-case-link-${caseId}`}
+      className={`${className} text-[#1162a8] underline-offset-2 hover:underline`}
+    >
+      {caseNumber}
+    </a>
+  )
+}
 
 export interface OffboardMemberDialogProps {
   open: boolean
@@ -204,7 +221,7 @@ export function OffboardMemberDialog({
                     {cases.map((c) => (
                       <li key={c.case_id} data-testid={`offboarding-case-${c.case_id}`} className="rounded-lg border border-slate-200 p-3">
                         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                          <span className="text-sm font-semibold text-slate-900">{c.case_number}</span>
+                          <CaseNumberLink caseId={c.case_id} caseNumber={c.case_number} slipId={c.slips[0]?.slip_id} className="text-sm font-semibold" />
                           <span className="text-xs text-slate-500">
                             {[c.patient_name, c.lab ? t("offboarding.transfer.lab", "Lab: {{name}}", { name: c.lab.name }) : null]
                               .filter(Boolean)
@@ -262,7 +279,7 @@ export function OffboardMemberDialog({
                   <ul className="space-y-1">
                     {data.staying_cases.map((c) => (
                       <li key={c.case_id} data-testid={`offboarding-staying-${c.case_id}`} className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-4 text-slate-700">
-                        <span className="text-xs font-semibold">{c.case_number}</span>
+                        <CaseNumberLink caseId={c.case_id} caseNumber={c.case_number} slipId={c.slips[0]?.slip_id} className="text-xs font-semibold" />
                         {c.patient_name ? ` · ${c.patient_name}` : ""} ·{" "}
                         {c.reason === "mixed"
                           ? t("offboarding.staying.mixed", "Open and finished work")
