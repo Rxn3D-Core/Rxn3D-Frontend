@@ -19,6 +19,7 @@ import { AddOnsCategoryProvider } from "@/contexts/product-add-on-category-conte
 import { ProductsProvider } from "@/contexts/product-products-context"
 import { CaseTrackingProvider } from "@/contexts/case-tracking-context"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PanelRoute } from "@/components/panel-route"
 import { PermissionRoute } from "@/components/permission-route"
 import { ROUTE_PERMISSIONS } from "@/lib/route-permissions"
 
@@ -29,6 +30,7 @@ export default function GlobalProductLibraryLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PanelRoute panel="superadmin">
       <PermissionRoute permissions={[...ROUTE_PERMISSIONS.productLibrary]}>
       <ProductLibraryProvider>
         <ProductCategoryProvider>
@@ -69,6 +71,7 @@ export default function GlobalProductLibraryLayout({
         </ProductCategoryProvider>
       </ProductLibraryProvider>
       </PermissionRoute>
+      </PanelRoute>
     </ProtectedRoute>
   )
 }

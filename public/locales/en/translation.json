@@ -656,5 +656,10 @@
       "admin": "{{name}} was removed from {{office}}.",
       "transferred": "{{count}} cases were transferred."
     }
+  },
+  "panelAccess": {
+    "title": "No permission",
+    "body": "You don't have permission to access this page.",
+    "goToDashboard": "Go to dashboard"
   }
 }

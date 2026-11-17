@@ -662,5 +662,10 @@
       "admin": "{{name}} fue retirado de {{office}}.",
       "transferred": "Se transfirieron {{count}} casos."
     }
+  },
+  "panelAccess": {
+    "title": "Sin permiso",
+    "body": "No tienes permiso para acceder a esta página.",
+    "goToDashboard": "Ir al panel"
   }
 }

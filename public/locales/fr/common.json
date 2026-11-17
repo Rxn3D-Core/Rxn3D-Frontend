@@ -263,5 +263,10 @@
       "admin": "{{name}} a été retiré de {{office}}.",
       "transferred": "{{count}} dossiers ont été transférés."
     }
+  },
+  "panelAccess": {
+    "title": "Aucune autorisation",
+    "body": "Vous n'avez pas l'autorisation d'accéder à cette page.",
+    "goToDashboard": "Aller au tableau de bord"
   }
 }

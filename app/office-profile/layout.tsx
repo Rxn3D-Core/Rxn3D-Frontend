@@ -2,6 +2,7 @@ import type React from "react"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PanelRoute } from "@/components/panel-route"
 import { PermissionRoute } from "@/components/permission-route"
 import { DriverSlipProvider } from "@/contexts/DriverSlipContext"
 import { ROUTE_PERMISSIONS } from "@/lib/route-permissions"
@@ -13,6 +14,7 @@ export default function LabProfileLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PanelRoute panel="office">
       <PermissionRoute permissions={[...ROUTE_PERMISSIONS.officeProfile]}>
       <DriverSlipProvider>
         <div className="flex h-[100dvh] bg-[#F9F9F9] overflow-hidden">
@@ -26,6 +28,7 @@ export default function LabProfileLayout({
         </div>
       </DriverSlipProvider>
       </PermissionRoute>
+      </PanelRoute>
     </ProtectedRoute>
   )
 } 
