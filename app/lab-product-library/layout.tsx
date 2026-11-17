@@ -21,6 +21,7 @@ import { ProductsProvider } from "@/contexts/product-products-context"
 import { AddOnsCategoryProvider } from "@/contexts/product-add-on-category-context"
 import { CaseTrackingProvider } from "@/contexts/case-tracking-context"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PanelRoute } from "@/components/panel-route"
 import { PermissionRoute } from "@/components/permission-route"
 import { ROUTE_PERMISSIONS } from "@/lib/route-permissions"
 
@@ -50,6 +51,7 @@ export default function LabProductLibraryLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PanelRoute panel="lab">
       <ProductManagementGuard>
       <PermissionRoute
         permissions={[...ROUTE_PERMISSIONS.productLibrary]}
@@ -94,6 +96,7 @@ export default function LabProductLibraryLayout({
       </ProductLibraryProvider>
       </PermissionRoute>
       </ProductManagementGuard>
+      </PanelRoute>
     </ProtectedRoute>
   )
 }

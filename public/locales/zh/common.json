@@ -263,5 +263,10 @@
       "admin": "{{name}} 已从 {{office}} 移除。",
       "transferred": "已转移 {{count}} 个病例。"
     }
+  },
+  "panelAccess": {
+    "title": "无权限",
+    "body": "您无权访问此页面。",
+    "goToDashboard": "前往仪表板"
   }
 }

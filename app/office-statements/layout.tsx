@@ -2,6 +2,7 @@ import type React from "react"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PanelRoute } from "@/components/panel-route"
 
 export default function OfficeStatementsLayout({
   children,
@@ -10,6 +11,7 @@ export default function OfficeStatementsLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PanelRoute panel="office">
       <div className="flex h-[100dvh] bg-[#F9F9F9] overflow-hidden">
         <DashboardSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -19,6 +21,7 @@ export default function OfficeStatementsLayout({
           </div>
         </div>
       </div>
+      </PanelRoute>
     </ProtectedRoute>
   )
 }

@@ -263,5 +263,10 @@
       "admin": "{{name}} wurde aus {{office}} entfernt.",
       "transferred": "{{count}} Fälle wurden übertragen."
     }
+  },
+  "panelAccess": {
+    "title": "Keine Berechtigung",
+    "body": "Sie haben keine Berechtigung, diese Seite aufzurufen.",
+    "goToDashboard": "Zum Dashboard"
   }
 }
