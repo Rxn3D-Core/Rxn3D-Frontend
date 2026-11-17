@@ -28,8 +28,9 @@ import {
   sheetGeometry,
   type MediaId,
 } from "@/lib/driver-labels/label-layout"
+import { generateLabelPdf, usesV3Design } from "@/lib/driver-labels/generate-label-pdf"
+import { prepareLabelLogo } from "@/lib/driver-labels/logo-outline"
 import {
-  generateDriverLabelPdf,
   isSafariBrowser,
   printPdfUrl,
   type DriverLabelSlip,
@@ -38,7 +39,14 @@ import {
   DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
   type DriverLabelPrintSettings,
 } from "@/lib/driver-labels/label-print-settings"
-import { getDriverLabelSettings, saveDriverLabelSettings } from "@/lib/api/driver-label-settings"
+import {
+  deleteDriverLabelLogo,
+  fetchActiveLogoDataUrl,
+  getDriverLabelSettings,
+  saveDriverLabelSettings,
+  uploadDriverLabelLogo,
+  type LabDriverLabelSettings,
+} from "@/lib/api/driver-label-settings"
 import { DriverLabelSettingsPanel } from "@/components/driver-labels/DriverLabelSettingsPanel"
 
 type PrintMode = "sheet" | "roll"
@@ -102,6 +110,21 @@ export default function DriverLabelSheetModal({
   const [canEditSettings, setCanEditSettings] = useState(false)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null)
+  // RXN-65: lab profile logo, uploaded driver label logo and the one the saved choice prints.
+  const [logoInfo, setLogoInfo] = useState<LabDriverLabelSettings["logo"]>({ currentUrl: null, customUrl: null, activeUrl: null })
+  const [logoBusy, setLogoBusy] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
+  // RXN-77: settings save by themselves a moment after each change (no Apply click). The refs let the timer and
+  // the save loop always see the newest draft and edit right.
+  const draftRef = useRef<DriverLabelPrintSettings>(DEFAULT_DRIVER_LABEL_PRINT_SETTINGS)
+  const canEditRef = useRef(false)
+  canEditRef.current = canEditSettings
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveRun = useRef<Promise<LabDriverLabelSettings | null> | null>(null)
+  const saveAgain = useRef(false)
+  // RXN-76: true while the newest change is not saved (waiting, or the save failed); with the failure text.
+  const unsavedRef = useRef(false)
+  const saveFailText = useRef<string | null>(null)
 
   useEffect(() => {
     if (!isOpen) return
@@ -111,14 +134,21 @@ export default function DriverLabelSheetModal({
     setSettingsLoadError(false)
     setSettingsSaveError(null)
     setCanEditSettings(false)
+    setLogoInfo({ currentUrl: null, customUrl: null, activeUrl: null })
+    setLogoError(null)
     setAppliedSettings({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS })
     setDraftSettings({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS })
+    draftRef.current = { ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS }
+    unsavedRef.current = false
+    saveFailText.current = null
     getDriverLabelSettings()
       .then((loaded) => {
         if (cancelled) return
         setAppliedSettings(loaded.settings)
         setDraftSettings(loaded.settings)
+        draftRef.current = loaded.settings
         setCanEditSettings(loaded.canEdit)
+        setLogoInfo(loaded.logo)
       })
       .catch(() => {
         if (!cancelled) setSettingsLoadError(true)
@@ -215,7 +245,24 @@ export default function DriverLabelSheetModal({
     if (!geo) return
     setGenerating(true)
     try {
-      const doc = await generateDriverLabelPdf(payload, geo, appliedSettings)
+      // RXN-76: finish any save that is still running first, then print with what the server now has.
+      const justSaved = await settleSaves()
+      if (unsavedRef.current) {
+        // The new choice is not saved, so the label would print the OLD choice. Say so instead of printing it.
+        alert(
+          `Your latest driver label settings could not be saved${saveFailText.current ? ` (${saveFailText.current})` : ""}. ` +
+            "Open the settings, check them and try again. Nothing was printed.",
+        )
+        return
+      }
+      const printSettings = justSaved?.settings ?? appliedSettings
+      const printLogo = justSaved?.logo ?? logoInfo
+      // RXN-65/68: the logo prints in every design; any failure falls back to the lab name.
+      const logo =
+        printSettings.logoSource !== "none" && printLogo.activeUrl
+          ? await prepareLabelLogo(await fetchActiveLogoDataUrl(), printSettings.logoOutline)
+          : null
+      const doc = await generateLabelPdf(payload, geo, printSettings, { logo })
       swapPreview(doc, doc.output("bloburl") as unknown as string)
       setStep("preview")
     } catch (err) {
@@ -297,25 +344,120 @@ export default function DriverLabelSheetModal({
     setLabelPresetId(m === "roll" ? ROLL_SIZES[0].id : SHEET_TEMPLATES[0].id)
   }
 
-  const handleApplySettings = async () => {
-    if (!canEditSettings || settingsSaving) return
+  /** Saves the newest draft until nothing newer is waiting. Resolves with the last saved result (null if none). */
+  const runSaves = async (): Promise<LabDriverLabelSettings | null> => {
+    let last: LabDriverLabelSettings | null = null
+    do {
+      saveAgain.current = false
+      const sent = draftRef.current
+      try {
+        const saved = await saveDriverLabelSettings(sent)
+        last = saved
+        saveFailText.current = null
+        setAppliedSettings(saved.settings)
+        setLogoInfo(saved.logo)
+        // Show what the server kept, unless the user changed something while this save ran (that one saves next).
+        if (draftRef.current === sent) {
+          draftRef.current = saved.settings
+          unsavedRef.current = false
+          setDraftSettings(saved.settings)
+        }
+      } catch (e) {
+        // Not saved: keep the old applied settings and the draft, and say so. The next change tries again.
+        const text = e instanceof Error && e.message ? e.message : "Could not save the settings."
+        saveFailText.current = text
+        setSettingsSaveError(text)
+        break
+      }
+    } while (saveAgain.current)
+    return last
+  }
+
+  /** Saves the newest draft now. One save loop runs at a time; a change made meanwhile is picked up by it. */
+  const saveNow = (): Promise<LabDriverLabelSettings | null> => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current)
+      saveTimer.current = null
+    }
+    if (!canEditRef.current) return Promise.resolve(null)
+    if (saveRun.current) {
+      saveAgain.current = true
+      return saveRun.current
+    }
     setSettingsSaving(true)
     setSettingsSaveError(null)
-    try {
-      const saved = await saveDriverLabelSettings(draftSettings)
-      setAppliedSettings(saved.settings)
-      setDraftSettings(saved.settings)
-      setSettingsOpen(false)
-    } catch (e) {
-      // Not saved: keep the old applied settings and the draft, and say so.
-      setSettingsSaveError(e instanceof Error && e.message ? e.message : "Could not save the settings.")
-    } finally {
+    const run = runSaves().finally(() => {
+      saveRun.current = null
       setSettingsSaving(false)
+    })
+    saveRun.current = run
+    return run
+  }
+
+  /**
+   * RXN-76: wait until every change is saved. The label is made from the saved settings (the backend serves the
+   * logo of the saved choice), so printing right after a click must not run on the old choice.
+   * Resolves with the newest saved result, or null when nothing was waiting.
+   */
+  const settleSaves = async (): Promise<LabDriverLabelSettings | null> => {
+    // A change whose save failed earlier is tried once more here.
+    if (saveTimer.current || (unsavedRef.current && !saveRun.current)) return saveNow()
+    return saveRun.current ?? null
+  }
+
+  /** Every settings change goes through here: update the draft, then save after a short pause (or at once). */
+  const changeDraft = (next: DriverLabelPrintSettings, immediate = false) => {
+    draftRef.current = next
+    setDraftSettings(next)
+    if (!canEditRef.current) return
+    unsavedRef.current = true
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    if (immediate) {
+      void saveNow()
+    } else {
+      saveTimer.current = setTimeout(() => void saveNow(), 600)
     }
   }
 
+  // Closing the dialog saves a change that is still waiting for its timer.
+  useEffect(() => {
+    if (!isOpen && saveTimer.current) void saveNow()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
+
+  const runLogoAction = async (action: () => Promise<LabDriverLabelSettings>, onDone?: (r: LabDriverLabelSettings) => void) => {
+    if (!canEditSettings || logoBusy) return
+    setLogoBusy(true)
+    setLogoError(null)
+    try {
+      const result = await action()
+      setLogoInfo(result.logo)
+      onDone?.(result)
+    } catch (e) {
+      setLogoError(e instanceof Error && e.message ? e.message : "Could not update the logo.")
+    } finally {
+      setLogoBusy(false)
+    }
+  }
+
+  const handleUploadLogo = (file: File) =>
+    runLogoAction(() => uploadDriverLabelLogo(file), () => {
+      // The upload does not change the saved choice; pre-select the new file in the draft.
+      changeDraft({ ...draftRef.current, logoSource: "custom" }, true)
+    })
+
+  const handleRemoveLogo = () =>
+    runLogoAction(() => deleteDriverLabelLogo(), (r) => {
+      // The server resets a saved "custom" choice to "current"; mirror that in the printing settings and the draft.
+      setAppliedSettings((a) => ({ ...a, logoSource: r.settings.logoSource }))
+      if (draftRef.current.logoSource === "custom") {
+        draftRef.current = { ...draftRef.current, logoSource: r.settings.logoSource }
+        setDraftSettings(draftRef.current)
+      }
+    })
+
   const handleResetSettings = () => {
-    setDraftSettings({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS })
+    changeDraft({ ...DEFAULT_DRIVER_LABEL_PRINT_SETTINGS }, true)
   }
 
   const gridText = geo
@@ -677,14 +819,19 @@ export default function DriverLabelSheetModal({
               {settingsOpen ? (
                 <DriverLabelSettingsPanel
                   draft={draftSettings}
-                  onChange={setDraftSettings}
+                  onChange={changeDraft}
                   onReset={handleResetSettings}
-                  onApply={handleApplySettings}
                   readOnly={!canEditSettings}
                   loading={settingsLoading}
                   saving={settingsSaving}
                   saveError={settingsSaveError}
                   loadError={settingsLoadError}
+                  v3Active={geo ? usesV3Design(geo) : false}
+                  logo={logoInfo}
+                  logoBusy={logoBusy}
+                  logoError={logoError}
+                  onUploadLogo={handleUploadLogo}
+                  onRemoveLogo={handleRemoveLogo}
                 />
               ) : null}
             </div>
