@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
+import { getInvitationAcceptBlock, invitationAcceptBlockMessage } from "@/lib/auth/invitation-accept-guard"
 import { DoctorDegreeField } from "@/components/doctor-degree-field"
 import { normalizeDegree, validateDegree } from "@/lib/doctor-degree"
 import {
@@ -102,7 +103,7 @@ export default function UserInvitationPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
-  const { user, token: authToken, isAuthenticated, logout, setAuthFromData } = useAuth()
+  const { user, token: authToken, isAuthenticated, isImpersonating, logout, setAuthFromData } = useAuth()
 
   const token = (Array.isArray(params?.token) ? params?.token[0] : params?.token) || ""
   const invitationPath = `/user-invitations/${token}`
@@ -141,12 +142,13 @@ export default function UserInvitationPage() {
   const showRegistrationForm = invitation ? isRegistrationInvitation(invitation) : false
   const requiresDoctorDocuments = !!invitation?.requires_doctor_documents
 
-  // A different user is signed in than the one the invitation is addressed to
-  const emailMismatch =
-    isAuthenticated &&
-    !!user?.email &&
-    !!invitation?.email &&
-    user.email.toLowerCase() !== invitation.email.toLowerCase()
+  // Impersonating, or a different user is signed in than the one the invitation is addressed to (RXN-84)
+  const acceptBlock = getInvitationAcceptBlock({
+    isAuthenticated,
+    isImpersonating,
+    signedInEmail: user?.email,
+    invitationEmail: invitation?.email,
+  })
 
   const handleSignatureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -171,6 +173,8 @@ export default function UserInvitationPage() {
 
   /** Apply JWT from accept response; returns true when session was set (navigation may follow). */
   const tryAutoLoginFromAccept = (response: Awaited<ReturnType<typeof acceptUserInvitation>>) => {
+    // Never replace an impersonation or other-user session (also clears impersonation keys).
+    if (acceptBlock) return false
     const authData = buildAuthDataFromInvitationAccept(response, user)
     if (!authData) return false
     return setAuthFromData(authData, invitation?.email || authData.user.email)
@@ -178,6 +182,7 @@ export default function UserInvitationPage() {
 
   // Existing ACTIVE user accepting a second profile (authenticated, Bearer, token-only body)
   const handleAcceptExisting = async () => {
+    if (acceptBlock) return
     setError(null)
     setIsSubmitting(true)
     try {
@@ -198,6 +203,7 @@ export default function UserInvitationPage() {
   // New or Invited user completing registration (no auth)
   const handleRegister = async (e: FormEvent) => {
     e.preventDefault()
+    if (acceptBlock) return
     setError(null)
 
     if (!firstName.trim() || !lastName.trim() || !phone.trim() || !password || !confirmPassword) {
@@ -376,6 +382,26 @@ export default function UserInvitationPage() {
     )
   }
 
+  // Impersonating or signed in as someone else: never accept, offer sign-out only (every path, incl. registration)
+  if (acceptBlock) {
+    return (
+      <Shell>
+        <div className="text-center" data-testid="invitation-accept-blocked">
+          <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-[#ff9500]" />
+          <h1 className="mb-2 text-xl font-bold text-gray-900">Signed in as a different user</h1>
+          <p className="mb-6 text-sm text-gray-600">{invitationAcceptBlockMessage(invitation.email)}</p>
+          <Button
+            className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
+            onClick={() => logout()}
+            data-testid="invitation-accept-blocked-sign-out"
+          >
+            Sign out
+          </Button>
+        </div>
+      </Shell>
+    )
+  }
+
   // user_exists + requires_login → Join {customer} (not registration)
   if (existingActiveUserFlow) {
     // Not signed in → send to login and return here afterwards
@@ -397,27 +423,6 @@ export default function UserInvitationPage() {
           >
             <LogIn className="mr-2 h-4 w-4" />
             Log in to accept
-          </Button>
-        </Shell>
-      )
-    }
-
-    // Signed in as a different account than the invite is addressed to
-    if (emailMismatch) {
-      return (
-        <Shell>
-          <InvitationHeader
-            variant="join"
-            customerName={invitation.customer?.name}
-            role={invitation.role}
-            email={invitation.email}
-          />
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            You're signed in as <span className="font-semibold">{user?.email}</span>, but this invitation is for{" "}
-            <span className="font-semibold">{invitation.email}</span>. Log out and sign in as that user to accept.
-          </div>
-          <Button className="mt-4 w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0d5999]" onClick={() => logout()}>
-            Log out & switch account
           </Button>
         </Shell>
       )

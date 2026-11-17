@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Filter, Plus, ChevronDown, ChevronUp, Edit, Lock, UserMinus } from "lucide-react"
+import { canRemoveMember } from "@/lib/role-rank"
 import { OffboardMemberDialog } from "@/components/offboarding/offboard-member-dialog"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
@@ -79,6 +80,14 @@ interface UserListTableProps {
 export function UserListTable({ roleFilter, title, description }: UserListTableProps) {
   const { user, fetchUsers, updateUser, updateMembershipStatus } = useAuth()
   const { toast } = useToast()
+
+  const mayRemove = (target: { id: number; role?: string }) =>
+    canRemoveMember({
+      actorRole: user?.role,
+      actorIsSuperadmin: user?.role === "superadmin" || !!user?.roles?.includes("superadmin"),
+      targetRole: target.role,
+      isSelf: Number(user?.id) === Number(target.id),
+    })
   const lockedRole = resolveLockedRole(roleFilter)
   const addButtonLabel = getAddUserButtonLabel(lockedRole)
   
@@ -757,8 +766,8 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
                           size="sm"
                           onClick={() => setUserToOffboard(user)}
                           className="text-red-600 hover:text-red-800"
-                          title="Offboard from this organization"
-                          disabled={user.membershipStatus === "Offboarded"}
+                          title={mayRemove(user) ? "Offboard from this organization" : "You cannot remove a member whose role is higher than yours"}
+                          disabled={user.membershipStatus === "Offboarded" || !mayRemove(user)}
                         >
                           <UserMinus className="h-5 w-5" />
                         </Button>
