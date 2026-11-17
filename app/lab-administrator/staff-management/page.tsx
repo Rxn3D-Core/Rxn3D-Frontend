@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Filter, Search, Plus, ChevronDown, Pencil, Trash2, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { canRemoveMember } from "@/lib/role-rank"
 import { OffboardMemberDialog } from "@/components/offboarding/offboard-member-dialog"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -86,6 +87,14 @@ export default function StaffManagementPage() {
   const router = useRouter()
   const { toast } = useToast()
   const { user, fetchUsers, updateUser, updateMembershipStatus, hasPermission } = useAuth()
+
+  const mayRemove = (target: { id: number; role?: string }) =>
+    canRemoveMember({
+      actorRole: user?.role,
+      actorIsSuperadmin: user?.role === "superadmin" || !!user?.roles?.includes("superadmin"),
+      targetRole: target.role,
+      isSelf: Number(user?.id) === Number(target.id),
+    })
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [showFilterPanel, setShowFilterPanel] = useState(false)
@@ -564,8 +573,8 @@ export default function StaffManagementPage() {
                           size="sm"
                           onClick={() => setUserToRemove(user)}
                           className="text-red-600 hover:text-red-800"
-                          title="Mark as Offboarded"
-                          disabled={user.membershipStatus === "Offboarded"}
+                          title={mayRemove(user) ? "Mark as Offboarded" : "You cannot remove a member whose role is higher than yours"}
+                          disabled={user.membershipStatus === "Offboarded" || !mayRemove(user)}
                         >
                           <Trash2 className="h-5 w-5" />
                         </Button>
