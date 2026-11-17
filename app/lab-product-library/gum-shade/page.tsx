@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { CreateGumShadeModal } from "@/components/product-management/create-gum-shade-modal"
 import { CreateGumShadeGroupModal } from "@/components/product-management/create-gum-shade-group-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { WarningActionModal } from "@/components/ui/warning-action-modal"
+import { useItemUsageGuard } from "@/hooks/use-item-usage-guard"
 import { GumShadeBrand, useGumShades } from "@/contexts/product-gum-shade-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
@@ -63,6 +65,8 @@ export default function GumShadePage() {
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
   const { user } = useAuth()
+  // RXN-89: live product-usage check before delete
+  const usageGuard = useItemUsageGuard("gum-shade")
   const { toast } = useToast()
   const customerId = useMemo(() => getCustomerId(user), [user])
   const {
@@ -182,10 +186,18 @@ export default function GumShadePage() {
 
   // Handle delete confirmation (single)
   const handleDeleteClick = (gumShade: any) => {
-    setDeleteConfirmation({
-      isOpen: true,
-      item: gumShade,
-      isBulk: false,
+    void usageGuard.requestAction({
+      itemId: gumShade.id,
+      itemName: [gumShade.name, gumShade.system_name].filter(Boolean).join(" - "),
+      action: "delete",
+      run: () => deleteGumShadeBrand(gumShade.id),
+      // Not used by any product: confirm as before
+      onNotUsed: () =>
+        setDeleteConfirmation({
+          isOpen: true,
+          item: gumShade,
+          isBulk: false,
+        }),
     })
   }
 
@@ -536,6 +548,7 @@ export default function GumShadePage() {
                             size="sm"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
                             onClick={() => handleDeleteClick(shade)}
+                            disabled={usageGuard.checkingId === shade.id}
                             title={t("Delete")}
                           >
                             <TrashIcon className="h-4 w-4" />
@@ -756,6 +769,8 @@ export default function GumShadePage() {
         cancelText={t("Cancel")}
         isLoading={isLoading}
       />
+
+      <WarningActionModal {...usageGuard.modalProps} />
     </div>
   )
 }

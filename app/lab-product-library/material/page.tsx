@@ -10,6 +10,8 @@ import { Search, ChevronUp, ChevronDown, Copy, Info, TrashIcon, Edit, Plus, Pack
 import { CreateMaterialModal } from "@/components/product-management/create-material-modal"
 import { CreateMaterialGroupModal } from "@/components/product-management/create-material-group-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { WarningActionModal } from "@/components/ui/warning-action-modal"
+import { useItemUsageGuard } from "@/hooks/use-item-usage-guard"
 import { useMaterials } from "@/contexts/product-materials-context"
 import { TooltipContent, Tooltip, TooltipProvider, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { useLanguage } from "@/contexts/language-context"
@@ -58,6 +60,8 @@ export default function MaterialPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
+  // RXN-89: live product-usage check before delete
+  const usageGuard = useItemUsageGuard("material")
   const [isDeleting, setIsDeleting] = useState(false)
 
   // Single debounced fetch effect
@@ -175,8 +179,18 @@ export default function MaterialPage() {
     setShowCreateModal(true)
   }
   function handleDelete(materialId: number): void {
-    setDeleteTargetId(materialId)
-    setShowDeleteModal(true)
+    const material = materials.find((m: any) => m.id === materialId)
+    void usageGuard.requestAction({
+      itemId: materialId,
+      itemName: material?.name || "",
+      action: "delete",
+      run: () => deleteMaterial(materialId),
+      // Not used by any product: confirm as before
+      onNotUsed: () => {
+        setDeleteTargetId(materialId)
+        setShowDeleteModal(true)
+      },
+    })
   }
   function handleBulkDelete(): void {
     setShowBulkDeleteModal(true)
@@ -352,6 +366,7 @@ export default function MaterialPage() {
                             size="sm"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
                             onClick={() => handleDelete(material.id)}
+                            disabled={usageGuard.checkingId === material.id}
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>
@@ -469,6 +484,7 @@ export default function MaterialPage() {
         description={`Are you sure you want to delete ${selectedItems.length} selected materials? This action cannot be undone.`}
         isLoading={isDeleting}
       />
+      <WarningActionModal {...usageGuard.modalProps} />
     </div>
   )
 }
