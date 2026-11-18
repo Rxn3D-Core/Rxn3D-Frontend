@@ -20,6 +20,7 @@ import {
 } from "@/lib/slip-location";
 import { useBetaFeature } from "@/hooks/use-beta-feature";
 import { BETA_FEATURE_KEYS } from "@/lib/api/beta-features";
+import { resolveCreatedByFromVirtualSlip } from "@/lib/slip-header-response-data";
 import {
   buildVirtualSlipInitialState,
   determineInitialArch,
@@ -28,8 +29,8 @@ import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { CaseSubmissionOverlays } from "@/components/case-design-center/components/CaseSubmissionOverlays";
 import { CaseDesignCenter } from "@/components/case-design-center/components/CaseDesignCenter";
 import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
-import { VirtualSlipHeader } from "@/components/virtual-slip/VirtualSlipHeader";
 import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
+import { PatientHeader } from "@/components/case-design-center/components/PatientHeader";
 import type { SlipProductSnapshot, VirtualSlipInitialState } from "@/components/case-design-center/types";
 import { buildEditSlipSubmissionPayloadAsync } from "@/components/case-design-center/utils/editSlipSubmissionPayload";
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId";
@@ -203,6 +204,28 @@ export function EditSlipFlow({ slipId }: Props) {
     };
   }, [virtualSlipDetails]);
 
+  const createdByMeta = useMemo(
+    () => resolveCreatedByFromVirtualSlip(virtualSlipDetails),
+    [virtualSlipDetails]
+  );
+
+  // Generated slip details (pan, case, slip, status, dates) shown in the header.
+  const headerDetails = useMemo(() => {
+    const h = buildVirtualSlipVM(virtualSlipDetails).header;
+    return {
+      panNumber: h.panNumber,
+      caseNumber: h.caseNumber,
+      slipNumber: h.slipNumber,
+      location: h.location,
+      caseStatus: h.caseStatus,
+      slipStatus: h.slipStatus,
+      pickupDate: h.pickupDate,
+      dueDate: h.dueDate,
+      deliveryTime: h.deliveryTime,
+      isRush: h.isRush,
+    };
+  }, [virtualSlipDetails]);
+
   const labCustomerId = useMemo(
     () => resolveLibraryCustomerId(resolveLabIdFromSlipDetails(virtualSlipDetails)),
     [virtualSlipDetails]
@@ -212,27 +235,6 @@ export function EditSlipFlow({ slipId }: Props) {
     fetchProductDetails: fetchCaseDesignProductDetails,
     bootstrap,
   });
-
-  // Same header as the virtual slip (generated info, office / lab logos from the slip),
-  // with the fields the user may change in edit mode taken from the wizard state.
-  const editHeader = useMemo(() => {
-    const base = buildVirtualSlipVM(virtualSlipDetails).header;
-    const doctor = wizard.completedDoctor;
-    return {
-      ...base,
-      patientName: wizard.completedPatientName,
-      gender: wizard.completedGender,
-      age: wizard.completedAge,
-      doctorName: doctor ? withDegree(doctor.name, doctor.degree) : base.doctorName,
-      doctorImage: doctor ? doctor.img ?? base.doctorImage : base.doctorImage,
-    };
-  }, [
-    virtualSlipDetails,
-    wizard.completedDoctor,
-    wizard.completedPatientName,
-    wizard.completedGender,
-    wizard.completedAge,
-  ]);
 
   const caseId = useMemo(
     () => resolveVirtualSlipCaseId(virtualSlipDetails),
@@ -447,14 +449,25 @@ export function EditSlipFlow({ slipId }: Props) {
 
         {wizard.caseDesignMounted && (
           <div style={{ display: wizard.wizardComplete ? undefined : "none" }}>
-            <VirtualSlipHeader
-              header={editHeader}
-              edit={{
-                onPatientNameChange: wizard.setCompletedPatientName,
-                onGenderChange: wizard.setCompletedGender,
-                onAgeChange: wizard.setCompletedAge,
-                onEditDoctor: wizard.canEditDoctor ? wizard.handleEditDoctor : undefined,
-              }}
+            <PatientHeader
+              doctorImageUrl={wizard.completedDoctor?.img}
+              doctorName={wizard.completedDoctor?.name}
+              doctorDegree={wizard.completedDoctor?.degree}
+              patientName={wizard.completedPatientName}
+              gender={wizard.completedGender}
+              age={wizard.completedAge}
+              caseSubmitted={false}
+              onEditDoctorClick={wizard.handleEditDoctor}
+              canEditDoctor={wizard.canEditDoctor}
+              onPatientNameChange={wizard.setCompletedPatientName}
+              onGenderChange={wizard.setCompletedGender}
+              onAgeChange={wizard.setCompletedAge}
+              createdByName={createdByMeta.name}
+              createdByImageUrl={createdByMeta.imageUrl}
+              labLogoUrl={wizard.completedLab?.logo}
+              labName={wizard.completedLab?.name}
+              onEditLab={wizard.handleTopBarEditLab}
+              details={headerDetails}
             />
 
             {initialSlipState && (

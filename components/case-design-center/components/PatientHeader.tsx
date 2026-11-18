@@ -12,6 +12,20 @@ import { SubmitCutoffBanner, useIsWithinCutoffWarningWindow } from "@/components
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
+/** Read-only slip / case details shown under the patient fields (edit slip, add new stage). */
+export interface PatientHeaderDetails {
+  panNumber?: string;
+  caseNumber?: string;
+  slipNumber?: string;
+  location?: string;
+  caseStatus?: string;
+  slipStatus?: string;
+  pickupDate?: string;
+  dueDate?: string;
+  deliveryTime?: string;
+  isRush?: boolean;
+}
+
 export interface PatientHeaderProps {
   /** Selected doctor image URL (from wizard). Falls back to placeholder when not provided. */
   doctorImageUrl?: string | null;
@@ -63,6 +77,70 @@ export interface PatientHeaderProps {
   /** Lab cut-off time(s); cutoff warning banner shows only within 10 minutes before cut-off. */
   cutoffTime?: string | null;
   cutoffTime2?: string | null;
+  /** Generated slip / case details (pan, case, slip, status, dates) shown in the pre-submit header. */
+  details?: PatientHeaderDetails | null;
+}
+
+const DETAIL_LABEL = "shrink-0 whitespace-nowrap text-[clamp(13px,0.68vw,15px)] font-bold leading-tight text-[#4C4D55]";
+const DETAIL_VALUE = "min-w-0 truncate text-[clamp(13px,0.68vw,15px)] font-normal leading-tight text-[#4C4D55]";
+
+/** Label/value rows for one column of the details grid; rows without a value are skipped. */
+function DetailColumn({ fields }: { fields: { label: string; value?: string; className?: string }[] }) {
+  const rows = fields.filter((f) => f.value && f.value.trim() !== "");
+  if (rows.length === 0) return <div aria-hidden />;
+  return (
+    <div className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-[6px] gap-y-[clamp(3px,0.45vw,7px)]">
+      {rows.map((f) => (
+        <div key={f.label} className="contents">
+          <span className={DETAIL_LABEL}>{f.label}:</span>
+          <span className={`${DETAIL_VALUE} ${f.className ?? ""}`} title={f.value}>
+            {f.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HeaderDetails({ details }: { details: PatientHeaderDetails }) {
+  const hasAny = Object.values(details).some((v) => typeof v === "string" && v.trim() !== "");
+  if (!hasAny) return null;
+  return (
+    <div className="grid min-w-0 grid-cols-5 items-center gap-x-[clamp(16px,1.4vw,28px)] border-t border-[#d9d9d9] py-[6px]">
+      <DetailColumn
+        fields={[
+          { label: "Pan", value: details.panNumber },
+          { label: "Case", value: details.caseNumber, className: "text-[#1162A8]" },
+          { label: "Slip", value: details.slipNumber },
+        ]}
+      />
+      <div className="flex min-w-0 items-center justify-center px-1">
+        {details.location && details.location.trim() !== "" ? (
+          <p className="w-full min-w-0 truncate text-center text-[clamp(13px,0.68vw,15px)] font-bold leading-tight text-[#4C4D55]" title={details.location}>
+            {details.location}
+          </p>
+        ) : null}
+      </div>
+      <DetailColumn
+        fields={[
+          { label: "Case status", value: details.caseStatus },
+          { label: "Slip status", value: details.slipStatus },
+        ]}
+      />
+      <div aria-hidden />
+      <DetailColumn
+        fields={[
+          { label: "Pickup date", value: details.pickupDate },
+          {
+            label: "Delivery date",
+            value: details.dueDate,
+            className: details.isRush ? "text-red-600 font-bold" : undefined,
+          },
+          { label: "Delivery time", value: details.deliveryTime },
+        ]}
+      />
+    </div>
+  );
 }
 
 function SkeletonField({ label, width = "w-[160px]" }: { label: string; width?: string }) {
@@ -161,6 +239,7 @@ export function PatientHeader({
   estimatedDueDateLoading = false,
   cutoffTime,
   cutoffTime2,
+  details,
 }: PatientHeaderProps = {}) {
   const displayName = doctorName && doctorName.trim() !== "" ? withDegree(doctorName, doctorDegree) : DEFAULT_DOCTOR_NAME;
   const doctorImgSrc = doctorDisplayImageUrl(doctorImageUrl);
@@ -430,6 +509,7 @@ export function PatientHeader({
               </div>
             )}
           </div>
+          {!caseSubmitted && details ? <HeaderDetails details={details} /> : null}
         </div>
 
         {/* Created By — avatar + name (spans both center rows) */}

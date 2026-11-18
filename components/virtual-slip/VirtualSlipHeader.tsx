@@ -1,14 +1,13 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { VirtualSlipHeaderVM } from "@/lib/virtual-slip-view-model";
 import { hasDisplayValue } from "@/lib/virtual-slip-display";
 import {
   VirtualSlipLocationAction,
   type VirtualSlipLocationActionProps,
 } from "@/components/virtual-slip/VirtualSlipLocationAction";
-import { SubmitCutoffBanner, useIsWithinCutoffWarningWindow } from "@/components/submit-cutoff-banner";
 import { DOCTOR_PLACEHOLDER_IMAGE, doctorDisplayImageUrl } from "@/utils/avatar-utils";
 
 const HEADER_ICON_BASE = "/icons/virtual-slip-actions";
@@ -190,30 +189,7 @@ export interface VirtualSlipHeaderProps {
   /** Prints Blade portrait-v4 HTML from API (base64 → iframe print). */
   onPrintPaperSlipV4?: () => void;
   locationAction?: VirtualSlipLocationActionProps;
-  /**
-   * Edit-slip mode: same layout as the read-only header, but patient name, gender
-   * and age become inputs and the print / invoice buttons are hidden.
-   */
-  edit?: VirtualSlipHeaderEditProps;
-  /**
-   * Lab pickup cut-off (`case_schedule.default_pickup_time`). When set and the current
-   * Pacific time is within 10 minutes before it, a "submit before cut-off" banner shows
-   * under the header (add new stage).
-   */
-  cutoffTime?: string | null;
-  cutoffTime2?: string | null;
 }
-
-export interface VirtualSlipHeaderEditProps {
-  onPatientNameChange: (value: string) => void;
-  onGenderChange: (value: string) => void;
-  onAgeChange: (value: string) => void;
-  /** Shows a pencil on the doctor avatar when provided. */
-  onEditDoctor?: () => void;
-}
-
-const EDIT_INPUT =
-  "h-[26px] w-full min-w-0 rounded border border-[#D9D9D9] bg-white px-1.5 text-[clamp(13px,0.68vw,15px)] text-[#4C4D55] focus:border-[#1162A8] focus:outline-none";
 
 export function VirtualSlipHeader({
   header,
@@ -222,64 +198,7 @@ export function VirtualSlipHeader({
   onPrintInvoice,
   onPrintPaperSlipV4,
   locationAction,
-  edit,
-  cutoffTime,
-  cutoffTime2,
 }: VirtualSlipHeaderProps) {
-  const showCutoffWarning = useIsWithinCutoffWarningWindow(cutoffTime, cutoffTime2);
-  const editFields: HeaderField[] | null = edit
-    ? [
-        {
-          label: "Pt name",
-          value: header.patientName,
-          valueNode: (
-            <input
-              type="text"
-              aria-label="Patient name"
-              data-testid="edit-slip-patient-name"
-              value={header.patientName}
-              onChange={(e) => edit.onPatientNameChange(e.target.value)}
-              className={EDIT_INPUT}
-            />
-          ),
-        },
-        {
-          label: "Gender",
-          value: header.gender,
-          valueNode: (
-            <select
-              aria-label="Gender"
-              data-testid="edit-slip-gender"
-              value={header.gender}
-              onChange={(e) => edit.onGenderChange(e.target.value)}
-              className={EDIT_INPUT}
-            >
-              <option value="" />
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              {header.gender && header.gender !== "Male" && header.gender !== "Female" ? (
-                <option value={header.gender}>{header.gender}</option>
-              ) : null}
-            </select>
-          ),
-        },
-        {
-          label: "Age",
-          value: header.age,
-          valueNode: (
-            <input
-              type="number"
-              min={0}
-              aria-label="Age"
-              data-testid="edit-slip-age"
-              value={header.age}
-              onChange={(e) => edit.onAgeChange(e.target.value)}
-              className={EDIT_INPUT}
-            />
-          ),
-        },
-      ]
-    : null;
   return (
     <div className="border border-[#D9D9D9] bg-white">
       <div className="flex items-stretch gap-3 px-3 py-[4px] sm:gap-4 sm:px-5 lg:gap-6">
@@ -291,16 +210,6 @@ export function VirtualSlipHeader({
             sizeClass="h-[clamp(88px,10.5vw,118px)] w-[clamp(88px,10.5vw,118px)]"
             fallback="doctor"
           />
-          {edit?.onEditDoctor ? (
-            <button
-              type="button"
-              onClick={edit.onEditDoctor}
-              aria-label="Change doctor"
-              className="-mt-[22px] ml-[72px] flex h-6 w-6 items-center justify-center rounded-full border border-[#D9D9D9] bg-white text-[#7F7F7F] shadow hover:text-[#1D1D1B]"
-            >
-              <Pencil size={12} />
-            </button>
-          ) : null}
           {hasDisplayValue(header.doctorName) && (
             <div className="flex flex-col items-center gap-[2px] text-center font-sans">
               <span className="text-[clamp(10px,0.65vw,12px)] text-[#7F7F7F]">Doctor:</span>
@@ -337,21 +246,17 @@ export function VirtualSlipHeader({
                   v4
                 </button>
               ) : null}
-              {edit ? null : (
-                <>
-                  <HeaderActionButton
-                    src={`${HEADER_ICON_BASE}/printer.svg?v=1`}
-                    label="Print"
-                    onClick={onPrint}
-                    loading={printing}
-                  />
-                  <HeaderActionButton
-                    src={`${HEADER_ICON_BASE}/print-invoice.svg`}
-                    label="Print invoice"
-                    onClick={onPrintInvoice}
-                  />
-                </>
-              )}
+              <HeaderActionButton
+                src={`${HEADER_ICON_BASE}/printer.svg?v=1`}
+                label="Print"
+                onClick={onPrint}
+                loading={printing}
+              />
+              <HeaderActionButton
+                src={`${HEADER_ICON_BASE}/print-invoice.svg`}
+                label="Print invoice"
+                onClick={onPrintInvoice}
+              />
             </div>
 
             <LogoOrName
@@ -365,13 +270,11 @@ export function VirtualSlipHeader({
 
           <div className="grid min-w-0 flex-1 grid-cols-5 items-center gap-x-[clamp(16px,1.4vw,28px)] py-[4px]">
             <Column
-              fields={
-                editFields ?? [
-                  { label: "Pt name", value: header.patientName },
-                  { label: "Gender", value: header.gender },
-                  { label: "Age", value: header.age },
-                ]
-              }
+              fields={[
+                { label: "Pt name", value: header.patientName },
+                { label: "Gender", value: header.gender },
+                { label: "Age", value: header.age },
+              ]}
             />
             <Column
               fields={[
@@ -455,11 +358,6 @@ export function VirtualSlipHeader({
           </div>
         )}
       </div>
-      {showCutoffWarning && (cutoffTime || cutoffTime2) ? (
-        <div className="flex justify-end px-3 pb-[6px] sm:px-5">
-          <SubmitCutoffBanner cutoffTime={cutoffTime} cutoffTime2={cutoffTime2} compact />
-        </div>
-      ) : null}
     </div>
   );
 }
