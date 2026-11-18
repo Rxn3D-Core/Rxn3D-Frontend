@@ -16,6 +16,8 @@ import { useAddOns, type AddOn } from "@/contexts/product-add-on-context"
 import { useAuth } from "@/contexts/auth-context"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { generateCodeFromName } from "@/lib/utils"
+import { ChargeFrequencySelect } from "@/components/billing/charge-frequency-select"
+import { normalizeChargeFrequency } from "@/lib/product-invoicing"
 
 interface AddAddOnModalProps {
   isOpen: boolean
@@ -48,6 +50,7 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
     name: "",
     code: "",
     price: "",
+    chargeFrequency: "per_stage",
     type: "Both",
     status: "Active",
     sequence: "",
@@ -87,6 +90,7 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
       name: detail.name,
       code: detail.code || "",
       price: detail.price?.toString() || "",
+      chargeFrequency: normalizeChargeFrequency(detail.charge_frequency),
       type: detail.type || "Both",
       status: detail.status,
       sequence: detail.sequence?.toString() || "",
@@ -324,6 +328,7 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
     }
     if (isLabAdmin) {
       payload.price = formData.price !== "" ? Number.parseFloat(formData.price) : null
+      payload.charge_frequency = normalizeChargeFrequency(formData.chargeFrequency)
     }
 
     try {
@@ -477,6 +482,13 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
                           <div className="text-red-500 text-xs mt-1">{validationErrors.price}</div>
                         )}
                       </div>
+                    )}
+                    {isLabAdmin && !formData.createNewSubCategory && (
+                      <ChargeFrequencySelect
+                        idPrefix="addon"
+                        value={normalizeChargeFrequency(formData.chargeFrequency)}
+                        onChange={(value) => handleInputChange("chargeFrequency", value)}
+                      />
                     )}
                   </div>
                 </div>

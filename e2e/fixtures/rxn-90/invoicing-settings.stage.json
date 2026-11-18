@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "message": "Invoicing settings retrieved successfully",
+  "data": {
+    "invoicing_mode": "stage",
+    "options": [
+      "stage",
+      "product"
+    ],
+    "can_edit": true,
+    "applies_to": "new_cases",
+    "updated_at": null,
+    "updated_by": null
+  }
+}

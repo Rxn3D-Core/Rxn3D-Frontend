@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Loader2 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { resolveSlipRowActionVisibility } from "@/lib/slip-row-action-visibility"
 import { useBetaFeature } from "@/hooks/use-beta-feature"
 import { BETA_FEATURE_KEYS } from "@/lib/api/beta-features"
@@ -36,6 +37,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
   { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canCancelCase = true, canDeleteCase = true, allowDriverActions = true, allowRush = true, allowUndoLocation = false, onClose, variant },
   ref,
 ) {
+  const { t } = useTranslation()
   const allowEditSlipAllLocations = useBetaFeature(BETA_FEATURE_KEYS.editSlipAllLocations)
   const visibility = useMemo(
     () =>
@@ -93,6 +95,10 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
     visibility.restoreSlip ? { label: "Resume", fn: () => actions.onRestore(row) } : null,
     visibility.deleteSlip ? { label: "Delete slip", fn: () => actions.onDelete(row) } : null,
     visibility.printStatement ? { label: "Print statement", fn: () => actions.onPrintStatement(row) } : null,
+    // RXN-90: lab admin closes a product-mode arch that will not reach its releasing stage.
+    actions.onFinalizeArchInvoice && row.invoicingMode === "product" && row.caseId != null
+      ? { label: t("productInvoicing.finalize.menu"), fn: () => actions.onFinalizeArchInvoice?.(row) }
+      : null,
   ].filter((item): item is { label: string; fn: () => void } => item != null)
 
   if (variant === "mobile") {

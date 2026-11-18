@@ -128,6 +128,8 @@ export interface Abutment {
   description?: string
   charge_type?: 'once_per_abutment' | 'per_option' | null
   price?: number | null
+  /** RXN-90: charge once per case (and arch) or on every stage/slip. Missing = per_stage. */
+  charge_frequency?: 'per_stage' | 'per_case' | null
   options?: AbutmentPlatform[]
   // Backward-compatible alias for older payloads.
   platforms?: AbutmentPlatform[]
@@ -774,6 +776,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       description?: string
       charge_type?: 'once_per_abutment' | 'per_option' | null
       price?: number | null
+      charge_frequency?: 'per_stage' | 'per_case'
       customer_id?: number | null
       options?: Array<{
         name: string
@@ -807,6 +810,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       description?: string
       charge_type?: 'once_per_abutment' | 'per_option' | null
       price?: number | null
+      charge_frequency?: 'per_stage' | 'per_case'
       customer_id?: number | null
       options?: Array<{
         id?: number

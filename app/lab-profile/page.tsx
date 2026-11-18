@@ -9,6 +9,8 @@ import { PickupDeliveryTab } from "@/components/lab-administrator/lab-profile-pi
 import ActivityLogTab from "@/components/lab-administrator/lab-profile-activity-log"
 import { LabProfileSidebar } from "@/components/lab-administrator/lab-profile-sidebar"
 import LabProfileTabs from "@/components/lab-administrator/lab-profile-tabs"
+import InvoicingTab from "@/components/lab-administrator/lab-profile-invoicing"
+import { useTranslation } from "react-i18next"
 import {
   DEFAULT_CLOSE_TIME_12,
   DEFAULT_DELIVERY_TIME_12,
@@ -19,7 +21,7 @@ import {
 } from "@/utils/time-utils"
 
 
-const tabs = [
+const baseTabs = [
   { id: "overview", label: "Overview" },
   { id: "operating-hours", label: "Operating Hours" },
   { id: "pickup-delivery", label: "Pick up & Delivery" },
@@ -27,6 +29,8 @@ const tabs = [
 ]
 
 export default function LabProfile() {
+  const { t } = useTranslation()
+  const tabs = [...baseTabs.slice(0, 3), { id: "invoicing", label: t("productInvoicing.settings.tab") }, baseTabs[3]]
   const [activeTab, setActiveTab] = useState("overview")
   const { user } = useAuth()
   
@@ -247,6 +251,8 @@ export default function LabProfile() {
             }}
           />
         )
+      case "invoicing":
+        return <InvoicingTab customerId={getCustomerId()} />
       case "activity-log":
         return <ActivityLogTab customerId={getCustomerId()} />
       default:

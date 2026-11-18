@@ -26,6 +26,7 @@ import {
   type StatementHeaderDraft,
 } from "@/lib/statement-edit-utils"
 import { useEnrichedStatementParties } from "@/hooks/use-enriched-statement-parties"
+import { isProductInvoiceStatementItem } from "@/lib/product-invoicing"
 
 type StatementPreviewBillingItem = StatementBillingItem & {
   product_type?: string | null
@@ -421,7 +422,7 @@ function StatementPreviewContent({
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{toNumber(item.addon_total) === 0 ? "-" : formatMoney(item.addon_total)}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{toNumber(item.sub_total) === 0 ? "-" : formatMoney(item.sub_total)}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{toNumber(item.rush_percentage) === 0 ? "-" : `${toNumber(item.rush_percentage)}%`}</td>
-                    {isEditMode ? (
+                    {isEditMode && !isProductInvoiceStatementItem(item) ? (
                       <td className="px-1.5 py-2 text-right align-middle">
                         <div className="flex items-center justify-end">
                           <span className="text-[12px] text-slate-500">$</span>
@@ -478,7 +479,7 @@ function StatementPreviewContent({
                       <p className="truncate text-xs text-slate-500">{item.variation_name.trim()}</p>
                     ) : null}
                   </div>
-                  {isEditMode ? (
+                  {isEditMode && !isProductInvoiceStatementItem(item) ? (
                     <div className="flex shrink-0 items-center">
                       <span className="text-sm text-slate-500">$</span>
                       <input

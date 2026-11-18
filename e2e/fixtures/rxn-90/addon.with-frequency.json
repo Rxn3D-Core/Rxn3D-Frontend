@@ -1,0 +1,15 @@
+{
+  "status": true,
+  "message": "Add-on retrieved successfully",
+  "data": {
+    "id": 44,
+    "name": "Characterization",
+    "code": "CHAR",
+    "price": 50,
+    "charge_frequency": "per_case",
+    "subcategory_id": 3,
+    "type": "Both",
+    "status": "Active",
+    "sequence": 1
+  }
+}

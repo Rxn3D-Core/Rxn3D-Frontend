@@ -6,6 +6,7 @@ import type {
   StatementPartyNamedRef,
   StatementRecord,
 } from "@/lib/redux/api/billingApi";
+import { isProductInvoiceStatementItem } from "@/lib/product-invoicing";
 
 export type StatementHeaderDraft = {
   statementId: string;
@@ -26,6 +27,9 @@ export type StatementItemLike = {
   stage_name?: string | null;
   gross_amount?: number | string | null;
   amount?: number | string | null;
+  /** RXN-90: product-invoice rows never map to a stage (slip) invoice product. */
+  source?: string | null;
+  product_invoice_id?: number | null;
 };
 
 function normalizeText(value: string | null | undefined): string {
@@ -164,6 +168,9 @@ export function findMatchingBillingTarget(
   item: StatementItemLike,
   invoices: BillingInvoice[],
 ): StatementBillingTarget | null {
+  // A product line ("All stages") sums several stage sections; matching it to one stage invoice
+  // product by patient/name would overwrite the wrong price.
+  if (isProductInvoiceStatementItem(item)) return null;
   const itemPatient = normalizeText(item.patient_name);
   let best: { invoiceId: number; productId: number; score: number } | null = null;
 

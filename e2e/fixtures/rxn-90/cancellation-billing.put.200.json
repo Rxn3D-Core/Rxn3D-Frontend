@@ -1,0 +1,53 @@
+{
+  "success": true,
+  "message": "Cancellation billing saved successfully",
+  "data": {
+    "case_id": 900,
+    "invoicing_mode": "product",
+    "products": [
+      {
+        "arch": "Upper",
+        "product_id": 310,
+        "product_name": "Full Denture",
+        "status": "cancelled",
+        "completed_stages": [
+          {
+            "section_id": 501,
+            "stage_name": "Wax try-in",
+            "section_total": "300.00",
+            "accrued_at": "2026-11-10T09:00:00Z"
+          }
+        ],
+        "current_stage": {
+          "slip_id": 1300,
+          "stage_name": "Finish",
+          "estimated_total": "430.00"
+        },
+        "reference_total": "300.00",
+        "full_amount": "730.00",
+        "decision": {
+          "choice": "partial",
+          "partial_type": "percent",
+          "partial_value": "50.00",
+          "reference_total": "300.00",
+          "charge_amount": "365.00",
+          "notes": null,
+          "decided_by": {
+            "id": 12,
+            "first_name": "Ana",
+            "last_name": "Lee"
+          },
+          "decided_at": "2026-11-18T12:30:00Z"
+        }
+      }
+    ],
+    "invoices": [
+      {
+        "id": 43,
+        "arch": "Upper",
+        "invoice_number": "LAB001-INV-120-20261118",
+        "total_amount": "365.00"
+      }
+    ]
+  }
+}

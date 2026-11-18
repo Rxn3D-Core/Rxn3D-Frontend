@@ -667,5 +667,197 @@
     "title": "Sin permiso",
     "body": "No tienes permiso para acceder a esta página.",
     "goToDashboard": "Ir al panel"
+  },
+  "productInvoicing": {
+    "common": {
+      "loading": "Cargando…",
+      "retry": "Reintentar",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "close": "Cerrar"
+    },
+    "arch": {
+      "Upper": "Superior",
+      "Lower": "Inferior"
+    },
+    "status": {
+      "pending": "Pendiente",
+      "checked": "Revisada",
+      "billed": "Facturada",
+      "paid": "Pagada",
+      "overdue": "Vencida"
+    },
+    "productStatus": {
+      "completed": "Completado",
+      "cancelled": "Cancelado"
+    },
+    "finalizedReason": {
+      "completed": "Todos los productos completados",
+      "cancelled": "Cancelado",
+      "mixed": "Completado y cancelado",
+      "manual": "Finalizada manualmente"
+    },
+    "lineType": {
+      "stage_base": "Precio de la etapa",
+      "material": "Material",
+      "retention": "Retención",
+      "addon": "Complemento",
+      "advance_field": "Campo avanzado",
+      "implant": "Implante",
+      "abutment": "Pilar",
+      "rush": "Urgente",
+      "cancellation_charge": "Cargo por cancelación"
+    },
+    "settings": {
+      "tab": "Facturación",
+      "title": "Modo de facturación",
+      "subtitle": "Elija cómo crea este laboratorio las facturas de sus casos.",
+      "mode": {
+        "stage": {
+          "label": "Por etapa (por orden)",
+          "description": "Una factura cada vez que una etapa (orden) sale del laboratorio. Así funciona la facturación hoy."
+        },
+        "product": {
+          "label": "Por producto (por arcada)",
+          "description": "Sin factura por etapa. Una factura por arcada cuando todos los productos de esa arcada están completados o cancelados, con cada etapa en su propia sección."
+        }
+      },
+      "appliesToNewCases": "El cambio se aplica solo a casos nuevos. Los casos existentes mantienen el modo con el que se crearon y las facturas existentes no cambian.",
+      "adminOnly": "Solo un administrador del laboratorio puede cambiar el modo de facturación.",
+      "updatedBy": "Último cambio por {{name}} el {{date}}",
+      "updatedAt": "Último cambio el {{date}}",
+      "loadFailed": "No se pudo cargar la configuración de facturación.",
+      "savedTitle": "Modo de facturación guardado",
+      "savedBody": "Los casos nuevos usarán este modo.",
+      "saveFailed": "No se pudo guardar el modo de facturación"
+    },
+    "frequency": {
+      "label": "Cobro",
+      "per_stage": "Por etapa/orden",
+      "per_case": "Por caso",
+      "per_stageHelp": "Se cobra en cada etapa (orden) a la que se añade.",
+      "per_caseHelp": "Se cobra una vez por caso y arcada, aunque se añada a varias etapas."
+    },
+    "kindTabs": {
+      "label": "Tipo de factura",
+      "stage": "Facturas por orden",
+      "product": "Facturas por producto"
+    },
+    "list": {
+      "intro": "Facturas por producto: una factura por caso y arcada, para casos creados mientras el laboratorio facturaba por producto.",
+      "searchPlaceholder": "Buscar por factura, caso o paciente…",
+      "allStatuses": "Todos los estados",
+      "allArches": "Ambas arcadas",
+      "invoice": "Factura",
+      "case": "Caso",
+      "office": "Consultorio",
+      "arch": "Arcada",
+      "status": "Estado",
+      "finalized": "Finalizada",
+      "total": "Total",
+      "onStatement": "En estado de cuenta",
+      "empty": "Aún no hay facturas por producto.",
+      "loadFailed": "No se pudieron cargar las facturas por producto.",
+      "select": "Seleccionar factura {{number}}",
+      "generateStatement": "Generar estado de cuenta ({{count}})",
+      "statementCreated": "Estado de cuenta creado",
+      "statementFailed": "No se pudo crear el estado de cuenta",
+      "statementReady": "El estado de cuenta está listo.",
+      "openStatement": "Abrir estado de cuenta",
+      "pageOf": "Página {{page}} de {{total}}",
+      "previous": "Página anterior",
+      "next": "Página siguiente",
+      "selection": {
+        "empty": "Seleccione al menos una factura.",
+        "mixedOffices": "Seleccione facturas de un solo consultorio.",
+        "alreadyOnStatement": "Una factura seleccionada ya está en un estado de cuenta."
+      }
+    },
+    "detail": {
+      "title": "Factura por producto",
+      "subtitle": "Producto, etapa y cargos",
+      "case": "Caso {{number}}",
+      "status": "Estado",
+      "updateStatus": "Actualizar estado",
+      "statusSaved": "Estado actualizado",
+      "statusFailed": "No se pudo actualizar el estado",
+      "locked": "Esta factura está facturada o en un estado de cuenta, por lo que no se pueden cambiar los precios aquí. Ajuste la facturación en el estado de cuenta.",
+      "stage": "Etapa",
+      "cancellationSection": "Cargo por cancelación",
+      "remake": "Rehacer",
+      "reference": "Solo referencia",
+      "referenceTotal": "Total de referencia (no se cobra)",
+      "sectionTotal": "Subtotal de la etapa",
+      "rush": "Urgente {{percent}}%",
+      "charge": "Cargo",
+      "qty": "Cant.",
+      "price": "Precio",
+      "total": "Total",
+      "waived": "Ya cobrado en este caso",
+      "editPrice": "Editar precio",
+      "priceInvalid": "Ingrese un precio de 0 o más.",
+      "priceSaved": "Precio actualizado",
+      "priceFailed": "No se pudo actualizar el precio",
+      "invoiceTotal": "Total de la factura",
+      "cancellationSummary": "Cancelado: {{choice}}, cobrado {{amount}} (etapas completadas {{reference}})",
+      "pdf": "Descargar PDF",
+      "pdfFailed": "No se pudo descargar el PDF",
+      "regenerate": "Regenerar",
+      "regenerateConfirmTitle": "¿Regenerar esta factura?",
+      "regenerateConfirmBody": "Todas las etapas se vuelven a calcular con los precios actuales del catálogo. Los precios cambiados a mano se reemplazan. El número de factura no cambia.",
+      "regenerated": "Factura regenerada",
+      "regenerateFailed": "No se pudo regenerar la factura",
+      "delete": "Eliminar",
+      "deleteConfirmTitle": "¿Eliminar esta factura?",
+      "deleteConfirmBody": "Las etapas siguen registradas en el caso. La factura se crea de nuevo, con un número nuevo, la próxima vez que se finalice la arcada.",
+      "deleted": "Factura eliminada",
+      "deleteFailed": "No se pudo eliminar la factura",
+      "loadFailed": "No se pudo cargar esta factura."
+    },
+    "cancel": {
+      "title": "Facturar el producto cancelado",
+      "subtitle": "Este caso se factura por producto. Elija qué cobrar por cada producto cancelado.",
+      "reference": "Referencia",
+      "noCompletedStages": "No hay etapas completadas.",
+      "currentStage": "En el laboratorio al cancelar: {{stage}}",
+      "fullAmount": "Importe completo",
+      "choiceLabel": "Cobro por el producto cancelado",
+      "choice": {
+        "full": "Completo",
+        "partial": "Parcial",
+        "none": "Sin cargo"
+      },
+      "partialType": "Tipo de cargo parcial",
+      "type": {
+        "percent": "Porcentaje",
+        "amount": "Importe"
+      },
+      "notesPlaceholder": "Notas (opcional)",
+      "charge": "Cargo",
+      "errors": {
+        "partialTypeRequired": "Elija porcentaje o importe.",
+        "partialValueRequired": "Ingrese un valor.",
+        "partialValuePositive": "Ingrese un valor mayor que 0.",
+        "percentMax": "El porcentaje no puede ser mayor que 100.",
+        "amountMax": "El importe no puede ser mayor que {{max}}."
+      },
+      "save": "Guardar facturación",
+      "decideLater": "Decidir después",
+      "savedTitle": "Facturación de la cancelación guardada",
+      "savedInvoices": "Factura creada: {{numbers}}",
+      "savedNoInvoice": "Aún no hay factura: la arcada sigue abierta o el cargo es $0.",
+      "saveFailed": "No se pudo guardar la facturación de la cancelación",
+      "locked": "Esta decisión está en una factura facturada o en un estado de cuenta y ya no se puede cambiar.",
+      "loadFailed": "No se pudo cargar la facturación de la cancelación de este caso"
+    },
+    "finalize": {
+      "menu": "Finalizar factura de la arcada",
+      "title": "Finalizar factura de la arcada",
+      "body": "Úselo cuando la arcada no llegará a su etapa de entrega. La factura se crea con las etapas completadas hasta ahora.",
+      "submit": "Finalizar",
+      "done": "Factura de la arcada creada",
+      "doneInvoice": "{{number}}: {{total}}",
+      "failed": "No se pudo finalizar la factura de la arcada"
+    }
   }
 }

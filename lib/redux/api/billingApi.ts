@@ -270,6 +270,9 @@ export interface StatementBillingItem {
   patient_name?: string | null
   product_name?: string | null
   variation_name?: string | null
+  /** RXN-90: `product_invoice` rows are one line per product ("All stages") with no slip billing link. */
+  source?: "stage_invoice" | "product_invoice" | string | null
+  product_invoice_id?: number | null
 }
 
 export interface StatementRecord {
@@ -343,7 +346,10 @@ export interface SendStatementBody {
 }
 
 export interface GenerateStatementBody {
-  billing_ids: number[]
+  /** Stage (slip) invoices. Required unless `product_invoice_ids` is sent (RXN-90). */
+  billing_ids?: number[]
+  /** RXN-90: product invoices; each becomes one statement line per product. */
+  product_invoice_ids?: number[]
   office_id: number
   direction: "outgoing" | "incoming"
   template?: string

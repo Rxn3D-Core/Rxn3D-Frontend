@@ -1,0 +1,83 @@
+{
+  "success": true,
+  "message": "Statement retrieved successfully",
+  "data": {
+    "id": 301,
+    "statement_id": "ST-301",
+    "office_id": 77,
+    "lab_id": 5,
+    "direction": "outgoing",
+    "amount_due": "1610.00",
+    "payment_status": "sent",
+    "due_date": "2026-12-18",
+    "created_at": "2026-11-18T14:00:00Z",
+    "office": {
+      "id": 77,
+      "name": "Smile Dental",
+      "code": "SMD"
+    },
+    "lab": {
+      "id": 5,
+      "name": "Lab A",
+      "code": "LAB001"
+    },
+    "billing_items": [
+      {
+        "id": 1,
+        "source": "product_invoice",
+        "product_invoice_id": 41,
+        "slip_billing_id": null,
+        "slip_billing_product_id": null,
+        "patient_name": "J Doe",
+        "product_type": "Upper",
+        "product_name": "Full Denture",
+        "grade_name": "Premium",
+        "stage_name": "All stages",
+        "base_total": "590.91",
+        "addon_total": "50.00",
+        "implant_total": "0.00",
+        "abutment_total": "50.00",
+        "quantity": 1,
+        "sub_total": "690.91",
+        "rush_percentage": "0.00",
+        "rush_fee": "39.09",
+        "gross_amount": "730.00",
+        "amount": "730.00"
+      },
+      {
+        "id": 2,
+        "source": "product_invoice",
+        "product_invoice_id": 42,
+        "patient_name": "M Roe",
+        "product_type": "Lower",
+        "product_name": "Full Denture",
+        "grade_name": "Premium",
+        "stage_name": "All stages",
+        "base_total": "590.91",
+        "addon_total": "50.00",
+        "sub_total": "690.91",
+        "rush_percentage": "0.00",
+        "rush_fee": "39.09",
+        "gross_amount": "730.00",
+        "amount": "730.00"
+      },
+      {
+        "id": 3,
+        "source": "product_invoice",
+        "product_invoice_id": 42,
+        "patient_name": "M Roe",
+        "product_type": "Lower",
+        "product_name": "Night Guard",
+        "grade_name": null,
+        "stage_name": "All stages",
+        "base_total": "150.00",
+        "addon_total": "0.00",
+        "sub_total": "150.00",
+        "rush_percentage": "0.00",
+        "rush_fee": "0.00",
+        "gross_amount": "150.00",
+        "amount": "150.00"
+      }
+    ]
+  }
+}

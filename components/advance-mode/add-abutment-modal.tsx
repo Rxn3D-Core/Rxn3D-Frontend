@@ -20,6 +20,9 @@ import {
   formatAbutmentOptionCategoryIds,
   parseAbutmentOptionCategoryIds,
 } from "@/components/advance-mode/main-category-multi-select"
+import { ChargeFrequencySelect } from "@/components/billing/charge-frequency-select"
+import { normalizeChargeFrequency } from "@/lib/product-invoicing"
+import type { ChargeFrequency } from "@/types/product-invoicing"
 
 interface AddAbutmentModalProps {
   isOpen: boolean
@@ -89,6 +92,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
   const [pricingData, setPricingData] = useState({
     chargeType: "once_per_abutment" as "once_per_abutment" | "per_option",
     additionalCharge: "0.00",
+    chargeFrequency: "per_stage" as ChargeFrequency,
   })
 
   const [platforms, setPlatforms] = useState<PlatformOption[]>([
@@ -169,6 +173,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       setPricingData({
         chargeType,
         additionalCharge: String(initialAbutment.price ?? "0.00"),
+        chargeFrequency: normalizeChargeFrequency(initialAbutment.charge_frequency),
       })
       const mapped = abutmentToPlatformOptions(initialAbutment).map(opt => ({
         ...opt,
@@ -194,6 +199,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       setPricingData({
         chargeType,
         additionalCharge: String(initialAbutment.price ?? "0.00"),
+        chargeFrequency: normalizeChargeFrequency(initialAbutment.charge_frequency),
       })
       const mapped = abutmentToPlatformOptions(initialAbutment)
       setPlatforms(mapped.length > 0 ? mapped : [])
@@ -207,6 +213,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       setPricingData({
         chargeType: "once_per_abutment",
         additionalCharge: "0.00",
+        chargeFrequency: "per_stage",
       })
       setPlatforms([])
       setAddonRows([])
@@ -284,6 +291,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       status: (initialAbutment?.status ?? "Active") as "Active" | "Inactive",
       charge_type: pricingData.chargeType,
       price: pricingData.chargeType === "once_per_abutment" ? (parseFloat(pricingData.additionalCharge) || 0) : null,
+      charge_frequency: pricingData.chargeFrequency,
       options: optionsPayload,
       addons: addonsPayload,
     }
@@ -774,6 +782,11 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                         />
                       </div>
                     </div>
+                    <ChargeFrequencySelect
+                      idPrefix="abutment"
+                      value={pricingData.chargeFrequency}
+                      onChange={(value) => setPricingData({ ...pricingData, chargeFrequency: value })}
+                    />
                   </div>
 
                   {/* Instructional text when "per-selected-option" is selected */}

@@ -661,5 +661,197 @@
     "title": "No permission",
     "body": "You don't have permission to access this page.",
     "goToDashboard": "Go to dashboard"
+  },
+  "productInvoicing": {
+    "common": {
+      "loading": "Loading…",
+      "retry": "Try again",
+      "save": "Save",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
+    "arch": {
+      "Upper": "Upper",
+      "Lower": "Lower"
+    },
+    "status": {
+      "pending": "Pending",
+      "checked": "Checked",
+      "billed": "Billed",
+      "paid": "Paid",
+      "overdue": "Overdue"
+    },
+    "productStatus": {
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "finalizedReason": {
+      "completed": "All products completed",
+      "cancelled": "Cancelled",
+      "mixed": "Completed and cancelled",
+      "manual": "Finalized manually"
+    },
+    "lineType": {
+      "stage_base": "Stage price",
+      "material": "Material",
+      "retention": "Retention",
+      "addon": "Add-on",
+      "advance_field": "Advance field",
+      "implant": "Implant",
+      "abutment": "Abutment",
+      "rush": "Rush",
+      "cancellation_charge": "Cancellation charge"
+    },
+    "settings": {
+      "tab": "Invoicing",
+      "title": "Invoicing mode",
+      "subtitle": "Choose how this lab creates invoices for its cases.",
+      "mode": {
+        "stage": {
+          "label": "Stage based (per slip)",
+          "description": "One invoice each time a stage (slip) leaves the lab. This is how invoicing works today."
+        },
+        "product": {
+          "label": "Product based (per arch)",
+          "description": "No invoice per stage. One invoice per arch when every product on that arch is completed or cancelled, with each stage shown as its own section."
+        }
+      },
+      "appliesToNewCases": "A change applies to new cases only. Existing cases keep the mode they were created under, and existing invoices are not changed.",
+      "adminOnly": "Only a lab admin can change the invoicing mode.",
+      "updatedBy": "Last changed by {{name}} on {{date}}",
+      "updatedAt": "Last changed on {{date}}",
+      "loadFailed": "Could not load the invoicing settings.",
+      "savedTitle": "Invoicing mode saved",
+      "savedBody": "New cases will use this mode.",
+      "saveFailed": "Could not save the invoicing mode"
+    },
+    "frequency": {
+      "label": "Charge",
+      "per_stage": "Per stage/slip",
+      "per_case": "Per case",
+      "per_stageHelp": "Charged on every stage (slip) it is added to.",
+      "per_caseHelp": "Charged once per case and arch, even when it is added to several stages."
+    },
+    "kindTabs": {
+      "label": "Invoice type",
+      "stage": "Slip invoices",
+      "product": "Product invoices"
+    },
+    "list": {
+      "intro": "Product invoices: one invoice per case and arch, for cases created while the lab used product based invoicing.",
+      "searchPlaceholder": "Search by invoice, case or patient…",
+      "allStatuses": "All statuses",
+      "allArches": "Both arches",
+      "invoice": "Invoice",
+      "case": "Case",
+      "office": "Office",
+      "arch": "Arch",
+      "status": "Status",
+      "finalized": "Finalized",
+      "total": "Total",
+      "onStatement": "On statement",
+      "empty": "No product invoices yet.",
+      "loadFailed": "Could not load product invoices.",
+      "select": "Select invoice {{number}}",
+      "generateStatement": "Generate statement ({{count}})",
+      "statementCreated": "Statement created",
+      "statementFailed": "Could not create the statement",
+      "statementReady": "The statement is ready.",
+      "openStatement": "Open statement",
+      "pageOf": "Page {{page}} of {{total}}",
+      "previous": "Previous page",
+      "next": "Next page",
+      "selection": {
+        "empty": "Select at least one invoice.",
+        "mixedOffices": "Select invoices of one office only.",
+        "alreadyOnStatement": "An invoice you selected is already on a statement."
+      }
+    },
+    "detail": {
+      "title": "Product invoice",
+      "subtitle": "Product, stage and charges",
+      "case": "Case {{number}}",
+      "status": "Status",
+      "updateStatus": "Update status",
+      "statusSaved": "Status updated",
+      "statusFailed": "Could not update the status",
+      "locked": "This invoice is billed or on a statement, so prices cannot be changed here. Adjust billing on the statement instead.",
+      "stage": "Stage",
+      "cancellationSection": "Cancellation charge",
+      "remake": "Remake",
+      "reference": "Reference only",
+      "referenceTotal": "Reference total (not charged)",
+      "sectionTotal": "Stage subtotal",
+      "rush": "Rush {{percent}}%",
+      "charge": "Charge",
+      "qty": "Qty",
+      "price": "Price",
+      "total": "Total",
+      "waived": "Already charged on this case",
+      "editPrice": "Edit price",
+      "priceInvalid": "Enter a price of 0 or more.",
+      "priceSaved": "Price updated",
+      "priceFailed": "Could not update the price",
+      "invoiceTotal": "Invoice total",
+      "cancellationSummary": "Cancelled: {{choice}}, charged {{amount}} (completed stages {{reference}})",
+      "pdf": "Download PDF",
+      "pdfFailed": "Could not download the PDF",
+      "regenerate": "Regenerate",
+      "regenerateConfirmTitle": "Regenerate this invoice?",
+      "regenerateConfirmBody": "Every stage is priced again at current catalog prices. Prices you changed by hand are replaced. The invoice number stays the same.",
+      "regenerated": "Invoice regenerated",
+      "regenerateFailed": "Could not regenerate the invoice",
+      "delete": "Delete",
+      "deleteConfirmTitle": "Delete this invoice?",
+      "deleteConfirmBody": "The stages stay recorded on the case. The invoice is created again, with a new number, the next time the arch is finalized.",
+      "deleted": "Invoice deleted",
+      "deleteFailed": "Could not delete the invoice",
+      "loadFailed": "Could not load this invoice."
+    },
+    "cancel": {
+      "title": "Bill the cancelled product",
+      "subtitle": "This case is billed per product. Choose what to charge for each cancelled product.",
+      "reference": "Reference",
+      "noCompletedStages": "No completed stages.",
+      "currentStage": "In the lab when cancelled: {{stage}}",
+      "fullAmount": "Full amount",
+      "choiceLabel": "Charge for the cancelled product",
+      "choice": {
+        "full": "Full",
+        "partial": "Partial",
+        "none": "No charge"
+      },
+      "partialType": "Partial charge type",
+      "type": {
+        "percent": "Percent",
+        "amount": "Amount"
+      },
+      "notesPlaceholder": "Notes (optional)",
+      "charge": "Charge",
+      "errors": {
+        "partialTypeRequired": "Choose percent or amount.",
+        "partialValueRequired": "Enter a value.",
+        "partialValuePositive": "Enter a value greater than 0.",
+        "percentMax": "The percent cannot be more than 100.",
+        "amountMax": "The amount cannot be more than {{max}}."
+      },
+      "save": "Save billing",
+      "decideLater": "Decide later",
+      "savedTitle": "Cancellation billing saved",
+      "savedInvoices": "Invoice created: {{numbers}}",
+      "savedNoInvoice": "No invoice yet: the arch is still open or the charge is $0.",
+      "saveFailed": "Could not save the cancellation billing",
+      "locked": "This decision is on an invoice that is billed or on a statement and can no longer be changed.",
+      "loadFailed": "Could not load the cancellation billing for this case"
+    },
+    "finalize": {
+      "menu": "Finalize arch invoice",
+      "title": "Finalize arch invoice",
+      "body": "Use this when the arch will not reach its releasing stage. The invoice is created from the stages completed so far.",
+      "submit": "Finalize",
+      "done": "Arch invoice created",
+      "doneInvoice": "{{number}}: {{total}}",
+      "failed": "Could not finalize the arch invoice"
+    }
   }
 }

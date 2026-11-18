@@ -1,0 +1,150 @@
+{
+  "success": true,
+  "message": "Product invoice retrieved successfully",
+  "data": {
+    "id": 41,
+    "invoice_kind": "product",
+    "invoice_number": "LAB001-INV-118-20261118",
+    "case": {
+      "id": 900,
+      "case_number": "C900",
+      "patient_name": "J Doe",
+      "invoicing_mode": "product"
+    },
+    "arch": "Upper",
+    "lab": {
+      "id": 5,
+      "name": "Lab A"
+    },
+    "office": {
+      "id": 77,
+      "name": "Smile Dental"
+    },
+    "status": "pending",
+    "finalized_reason": "completed",
+    "finalized_at": "2026-11-18T12:00:00Z",
+    "on_statement": false,
+    "statement_id": null,
+    "total_amount": "730.00",
+    "products": [
+      {
+        "product_id": 310,
+        "product_name": "Full Denture",
+        "product_code": "FD",
+        "status": "completed",
+        "product_total": "730.00",
+        "cancellation": null,
+        "sections": [
+          {
+            "id": 501,
+            "kind": "stage",
+            "slip_id": 1200,
+            "slip_number": "S1200",
+            "slip_product_id": 2400,
+            "stage_id": 3,
+            "stage_name": "Wax try-in",
+            "stage_sequence": 2,
+            "is_remake": false,
+            "is_reference": false,
+            "is_teeth_based_price": false,
+            "teeth_count": 1,
+            "grade_name": "Premium",
+            "variation_name": null,
+            "rush_percentage": "0.00",
+            "subtotal_before_rush": "300.00",
+            "rush_fee": "0.00",
+            "section_total": "300.00",
+            "accrued_at": "2026-11-10T09:00:00Z",
+            "lines": [
+              {
+                "id": 9001,
+                "line_type": "stage_base",
+                "name": "Wax try-in",
+                "price": "250.00",
+                "quantity": 1,
+                "total": "250.00",
+                "frequency_waived": false
+              },
+              {
+                "id": 9002,
+                "line_type": "addon",
+                "name": "Characterization",
+                "price": "50.00",
+                "quantity": 1,
+                "total": "50.00",
+                "frequency_waived": false,
+                "ref_id": 44,
+                "charge_frequency": "per_stage"
+              }
+            ]
+          },
+          {
+            "id": 502,
+            "kind": "stage",
+            "slip_id": 1250,
+            "slip_number": "S1250",
+            "slip_product_id": 2450,
+            "stage_id": 4,
+            "stage_name": "Finish",
+            "stage_sequence": 3,
+            "is_remake": false,
+            "is_reference": false,
+            "is_teeth_based_price": false,
+            "teeth_count": 1,
+            "grade_name": "Premium",
+            "variation_name": null,
+            "rush_percentage": "10.00",
+            "subtotal_before_rush": "390.91",
+            "rush_fee": "39.09",
+            "section_total": "430.00",
+            "accrued_at": "2026-11-17T09:00:00Z",
+            "lines": [
+              {
+                "id": 9003,
+                "line_type": "stage_base",
+                "name": "Finish",
+                "price": "340.91",
+                "quantity": 1,
+                "total": "340.91",
+                "frequency_waived": false
+              },
+              {
+                "id": 9004,
+                "line_type": "abutment",
+                "name": "Custom abutment",
+                "price": "50.00",
+                "quantity": 1,
+                "total": "50.00",
+                "frequency_waived": false,
+                "ref_id": 7,
+                "option_name": "Titanium",
+                "teeth_number": "8",
+                "charge_frequency": "per_case"
+              },
+              {
+                "id": 9005,
+                "line_type": "addon",
+                "name": "Characterization",
+                "price": "50.00",
+                "quantity": 1,
+                "total": "0.00",
+                "frequency_waived": true,
+                "ref_id": 45,
+                "charge_frequency": "per_case"
+              },
+              {
+                "id": 9006,
+                "line_type": "rush",
+                "name": "Rush",
+                "price": "39.09",
+                "quantity": 1,
+                "total": "39.09",
+                "frequency_waived": false
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

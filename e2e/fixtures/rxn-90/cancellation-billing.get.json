@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "message": "Cancellation billing retrieved successfully",
+  "data": {
+    "case_id": 900,
+    "invoicing_mode": "product",
+    "products": [
+      {
+        "arch": "Upper",
+        "product_id": 310,
+        "product_name": "Full Denture",
+        "status": "cancelled",
+        "completed_stages": [
+          {
+            "section_id": 501,
+            "stage_name": "Wax try-in",
+            "section_total": "300.00",
+            "accrued_at": "2026-11-10T09:00:00Z"
+          }
+        ],
+        "current_stage": {
+          "slip_id": 1300,
+          "stage_name": "Finish",
+          "estimated_total": "430.00"
+        },
+        "reference_total": "300.00",
+        "full_amount": "730.00",
+        "decision": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "message": "Invoicing settings retrieved successfully",
+  "data": {
+    "invoicing_mode": "product",
+    "options": [
+      "stage",
+      "product"
+    ],
+    "can_edit": true,
+    "applies_to": "new_cases",
+    "updated_at": "2026-11-18T10:00:00Z",
+    "updated_by": {
+      "id": 12,
+      "first_name": "Ana",
+      "last_name": "Lee"
+    }
+  }
+}
