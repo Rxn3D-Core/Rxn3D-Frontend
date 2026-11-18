@@ -669,6 +669,40 @@
     "goToDashboard": "Ir al panel"
   },
   "productInvoicing": {
+    "table": {
+      "officeCode": "Código de consultorio",
+      "patient": "Paciente",
+      "ul": "S/I",
+      "product": "Producto",
+      "grade": "Grado",
+      "stage": "Etapa",
+      "allStages": "Todas las etapas",
+      "baseTotal": "Total base",
+      "addOn": "Complemento",
+      "subTotal": "Subtotal",
+      "rush": "U%",
+      "gross": "Bruto",
+      "dueDate": "Vencimiento",
+      "status": "Estado",
+      "actionsHeader": "Acciones",
+      "selectAll": "Seleccionar todas las facturas de esta página",
+      "dateRange": "Rango de fechas",
+      "datePreset": {
+        "all": "Todas las fechas",
+        "today": "Hoy",
+        "this_week": "Esta semana",
+        "this_month": "Este mes",
+        "last_month": "Mes pasado",
+        "this_year": "Este año"
+      },
+      "actions": {
+        "edit": "Abrir factura (editar precios de líneas)",
+        "check": "Marcar como revisada",
+        "uncheck": "Clic para quitar la marca de revisada",
+        "viewSlip": "Ver orden virtual",
+        "viewInvoice": "Ver factura"
+      }
+    },
     "stagePricingHidden": "Este laboratorio factura por producto, por eso los precios por etapa están ocultos. Los precios guardados se conservan y vuelven a mostrarse si el laboratorio cambia a facturación por etapa.",
     "common": {
       "loading": "Cargando…",

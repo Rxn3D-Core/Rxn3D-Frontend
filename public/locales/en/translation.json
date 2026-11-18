@@ -663,6 +663,40 @@
     "goToDashboard": "Go to dashboard"
   },
   "productInvoicing": {
+    "table": {
+      "officeCode": "Office Code",
+      "patient": "Patient",
+      "ul": "U/L",
+      "product": "Product",
+      "grade": "Grade",
+      "stage": "Stage",
+      "allStages": "All stages",
+      "baseTotal": "Base total",
+      "addOn": "Add-on",
+      "subTotal": "Sub Total",
+      "rush": "R%",
+      "gross": "Gross",
+      "dueDate": "Due Date",
+      "status": "Status",
+      "actionsHeader": "Actions",
+      "selectAll": "Select all invoices on this page",
+      "dateRange": "Date range",
+      "datePreset": {
+        "all": "All dates",
+        "today": "Today",
+        "this_week": "This Week",
+        "this_month": "This Month",
+        "last_month": "Last Month",
+        "this_year": "This Year"
+      },
+      "actions": {
+        "edit": "Open invoice (edit line prices)",
+        "check": "Mark Checked",
+        "uncheck": "Click to unmark as checked",
+        "viewSlip": "View virtual slip",
+        "viewInvoice": "View invoice"
+      }
+    },
     "stagePricingHidden": "This lab invoices per product, so stage prices are hidden. Prices saved earlier are kept and come back if the lab switches to stage based invoicing.",
     "common": {
       "loading": "Loading…",
