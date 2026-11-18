@@ -7,6 +7,7 @@ import { ValidationError } from "@/components/ui/validation-error"
 import { useState, useCallback, useMemo, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { collectStagesStepErrors } from "@/lib/stages-step-validation"
+import { useTranslation } from "react-i18next"
 
 /** Teeth + grades: each stage row price = (grade full price from Grades) × (allocation % ÷ 100). */
 function mergeStageGradePricesForTeeth(
@@ -64,6 +65,11 @@ interface StagesSectionProps {
     userRole: string;
     customGradeNames?: Record<number, string>; // Map of custom grade IDs (negative) to their names
     isSingleStage?: boolean; // When true, the entire stages section is disabled
+    /**
+     * RXN-90: the lab invoices per product, so stage price columns, allocation % and the pricing helper are hidden.
+     * Display only: stage prices stay in form state and are saved unchanged.
+     */
+    hideStagePricing?: boolean;
 }
 
 export function StagesSection({
@@ -85,7 +91,11 @@ export function StagesSection({
     userRole = "",
     customGradeNames = {}, // Default to empty object
     isSingleStage = false,
+    hideStagePricing = false,
 }: StagesSectionProps) {
+    const { t } = useTranslation()
+    /** Price columns, allocation %, sub totals and the pricing helper: not for super-admins or product-mode labs. */
+    const showStagePricing = userRole !== "superadmin" && !hideStagePricing
     // Fallback state for releasing stages if not provided as props
     const [localReleasingStageIds, setLocalReleasingStageIds] = useState<(string | number)[]>([])
 
@@ -557,18 +567,18 @@ export function StagesSection({
     const showTeethAllocationColumn =
         isTeethBased &&
         selectedStages.length > 0 &&
-        userRole !== "superadmin"
+        showStagePricing
 
     const stagesTableGridTemplateColumns = useMemo(() => {
         const alloc = showTeethAllocationColumn ? "minmax(76px,96px) " : ""
-        if (userRole === "superadmin") {
+        if (!showStagePricing) {
             return `minmax(120px,1fr) minmax(80px,1fr) ${alloc}minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
         }
         if (hasSelectedGrades) {
             return `minmax(120px,1fr) minmax(80px,1fr) ${alloc}repeat(${selectedGradesWithNames.length}, minmax(120px,1fr)) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
         }
         return `minmax(120px,1fr) minmax(80px,1fr) ${alloc}minmax(100px,1fr) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
-    }, [userRole, hasSelectedGrades, selectedGradesWithNames.length, showTeethAllocationColumn])
+    }, [showStagePricing, hasSelectedGrades, selectedGradesWithNames.length, showTeethAllocationColumn])
 
     const stageTableSubtotals = (() => {
         const allocSum = selectedStages.reduce((acc, row) => {
@@ -620,7 +630,8 @@ export function StagesSection({
             {
                 stagesSectionEnabled: sections.stages,
                 isSingleStage: false,
-                isSuperAdmin: userRole === "superadmin",
+                // Hidden price / allocation cells must not block saving (super-admin or product-mode lab).
+                isSuperAdmin: !showStagePricing,
             },
         )
     }, [
@@ -630,7 +641,7 @@ export function StagesSection({
         watchedGrades,
         hasGradeBasedPricing,
         isTeethBased,
-        userRole,
+        showStagePricing,
     ])
 
     /** Manual (after Next/Save) merged with live collector so invalid fields stay visibly highlighted. */
@@ -684,7 +695,7 @@ export function StagesSection({
                     >
                         <strong>{selectedStages.length} selected</strong>
                     </span>
-                    {sections.stages && selectedStages.length > 0 && userRole !== "superadmin" && (
+                    {sections.stages && selectedStages.length > 0 && showStagePricing && (
                         <button
                             type="button"
                             onClick={() => setShowPriceSuggestion(!showPriceSuggestion)}
@@ -705,7 +716,12 @@ export function StagesSection({
             {expandedSections.stages && (
                 <div className={cn("px-6 pb-6", !sections.stages && "opacity-50 pointer-events-none select-none")}>
                     {/* Pricing suggestion banner */}
-                    {showPriceSuggestion && userRole !== "superadmin" && (
+                    {hideStagePricing && userRole !== "superadmin" && (
+                        <p className="mb-3 text-xs text-gray-500" data-testid="stages-pricing-hidden-note">
+                            {t("productInvoicing.stagePricingHidden")}
+                        </p>
+                    )}
+                    {showPriceSuggestion && showStagePricing && (
                         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
                             <div className="flex items-start justify-between mb-2">
                                 <span className="text-sm text-gray-700">
@@ -779,8 +795,8 @@ export function StagesSection({
                                             </div>
                                         </div>
                                     )}
-                                    {/* Hide price columns for superadmin */}
-                                    {userRole !== "superadmin" && (
+                                    {/* Hide price columns for superadmin and product-mode labs */}
+                                    {showStagePricing && (
                                       hasSelectedGrades
                                         ? selectedGradesWithNames.map((grade: any, idx: number) => {
                                             const hasManyGrades = selectedGradesWithNames.length > 4
@@ -877,8 +893,8 @@ export function StagesSection({
                                                     />
                                                 </div>
                                             )}
-                                            {/* Hide price inputs for superadmin */}
-                                            {userRole !== "superadmin" && (
+                                            {/* Hide price inputs for superadmin and product-mode labs (values stay in form state) */}
+                                            {showStagePricing && (
                                               hasSelectedGrades
                                                 ? selectedGradesWithNames.map((grade: any) => {
                                                       const gid = grade.grade_id || grade.id
@@ -1005,7 +1021,7 @@ export function StagesSection({
                                         </div>
                                     )
                                 })}
-                                {selectedStages.length > 0 && (
+                                {selectedStages.length > 0 && !hideStagePricing && (
                                     <div
                                         className="grid gap-2 items-center py-2.5 px-2 mt-1 border-t-2 border-slate-200 bg-slate-50 rounded-b-md"
                                         style={{
@@ -1023,7 +1039,7 @@ export function StagesSection({
                                                 </span>
                                             </div>
                                         )}
-                                        {userRole !== "superadmin" &&
+                                        {showStagePricing &&
                                             (hasSelectedGrades
                                                 ? stageTableSubtotals.gradeSums.map((sum, idx) => (
                                                       <div className="relative px-1" key={`sub-${idx}`}>

@@ -663,6 +663,7 @@
     "goToDashboard": "Go to dashboard"
   },
   "productInvoicing": {
+    "stagePricingHidden": "This lab invoices per product, so stage prices are hidden. Prices saved earlier are kept and come back if the lab switches to stage based invoicing.",
     "common": {
       "loading": "Loading…",
       "retry": "Try again",

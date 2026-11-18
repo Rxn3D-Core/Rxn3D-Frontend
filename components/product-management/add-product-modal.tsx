@@ -54,6 +54,8 @@ import { useAddOns } from "@/contexts/product-add-on-context"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/contexts/auth-context"
 import { getCustomerId } from "@/lib/dashboard-widgets"
+import { useInvoicingSettings } from "@/hooks/use-invoicing-settings"
+import { hidesStagePricing, skipsStagePriceValidation } from "@/lib/stage-pricing-visibility"
 import { hydrateAdvanceFieldsFormFromProduct, serializeAdvanceFieldsForApi } from "@/lib/product-advance-fields-form"
 import {
   applyDefaultToothChartToPayload,
@@ -236,6 +238,17 @@ export function AddProductModal({
         : ""
 
   const customerId = useMemo(() => getCustomerId(user), [user])
+
+  /**
+   * RXN-90: a lab on product based invoicing does not see (or validate) stage prices. Display only: the values stay
+   * in form state and are saved unchanged. Loading or a failed settings call keeps the stage-mode UI.
+   */
+  const isLabProfileContext =
+    userRole !== "superadmin" && typeof window !== "undefined" && localStorage.getItem("customerType") === "lab"
+  const invoicingSettingsQuery = useInvoicingSettings(isLabProfileContext ? customerId ?? null : null)
+  const labInvoicingMode = isLabProfileContext ? invoicingSettingsQuery.data?.invoicing_mode : undefined
+  const hideStagePricing = hidesStagePricing(labInvoicingMode)
+  const skipStagePriceValidation = skipsStagePriceValidation(userRole, labInvoicingMode)
 
   /** Warm advance-field catalog cache when modal opens (tab content mounts lazily). */
   const catalogAdvanceFieldsCustomerId = useMemo(() => {
@@ -631,7 +644,7 @@ export function AddProductModal({
       const sErrs = collectStagesStepErrors(values, {
         stagesSectionEnabled: sections.stages,
         isSingleStage: false,
-        isSuperAdmin: userRole === "superadmin",
+        isSuperAdmin: skipStagePriceValidation,
       })
       setManualStageErrors(sErrs)
       if (sErrs.length > 0) {
@@ -1321,7 +1334,7 @@ export function AddProductModal({
       const next = collectStagesStepErrors(getValues() as Record<string, unknown>, {
         stagesSectionEnabled: sections.stages,
         isSingleStage: watchedIsSingleStage === "Yes",
-        isSuperAdmin: userRole === "superadmin",
+        isSuperAdmin: skipStagePriceValidation,
       })
       if (
         prev.length === next.length &&
@@ -1332,7 +1345,7 @@ export function AddProductModal({
       return next
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedStagesStep, sections.stages, watchedIsSingleStage, userRole])
+  }, [watchedStagesStep, sections.stages, watchedIsSingleStage, userRole, skipStagePriceValidation])
 
   useEffect(() => {
     setManualSlipRelationErrors((prev) =>
@@ -1486,7 +1499,8 @@ export function AddProductModal({
       },
       enforceLabPricing,
       isSingleStage: data.is_single_stage === "Yes",
-      isSuperAdmin: userRole === "superadmin",
+      // Only gates the Stages checks here (see product-modal-tab-validation).
+      isSuperAdmin: skipStagePriceValidation,
       masterGrades: masterGradesForValidation,
       jawPhotos,
     })
@@ -1680,7 +1694,7 @@ export function AddProductModal({
 
       const allocUpdate = validateStageAllocationPercents(payload.stages ?? data.stages, {
         isTeethBased: data.is_teeth_based_price === "Yes",
-        isSuperAdmin: userRole === "superadmin",
+        isSuperAdmin: skipStagePriceValidation,
       })
       if (allocUpdate) {
         alert(allocUpdate)
@@ -1757,7 +1771,7 @@ export function AddProductModal({
 
       const allocCreate = validateStageAllocationPercents(payload.stages, {
         isTeethBased: data.is_teeth_based_price === "Yes",
-        isSuperAdmin: userRole === "superadmin",
+        isSuperAdmin: skipStagePriceValidation,
       })
       if (allocCreate) {
         alert(allocCreate)
@@ -1952,7 +1966,7 @@ export function AddProductModal({
         {
           stagesSectionEnabled: sections.stages,
           isSingleStage: watchedIsSingleStage === "Yes",
-          isSuperAdmin: userRole === "superadmin",
+          isSuperAdmin: skipStagePriceValidation,
         },
       ),
     [
@@ -1963,6 +1977,7 @@ export function AddProductModal({
       watchedIsSingleStage,
       sections.stages,
       userRole,
+      skipStagePriceValidation,
     ],
   )
 
@@ -2302,6 +2317,7 @@ export function AddProductModal({
                     handleStageReorder={(reorderedStages: any) => setValue("stages", reorderedStages, { shouldDirty: true })}
                     userRole={userRole}
                     isSingleStage={watchedIsSingleStage === "Yes"}
+                    hideStagePricing={hideStagePricing}
                   />
                 </TabsContent>
 
