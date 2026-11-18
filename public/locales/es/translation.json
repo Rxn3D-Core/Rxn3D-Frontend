@@ -669,6 +669,7 @@
     "goToDashboard": "Ir al panel"
   },
   "productInvoicing": {
+    "stagePricingHidden": "Este laboratorio factura por producto, por eso los precios por etapa están ocultos. Los precios guardados se conservan y vuelven a mostrarse si el laboratorio cambia a facturación por etapa.",
     "common": {
       "loading": "Cargando…",
       "retry": "Reintentar",
