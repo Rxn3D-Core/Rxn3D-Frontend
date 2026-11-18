@@ -515,6 +515,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           <div style={{ display: wizard.wizardComplete ? undefined : "none" }}>
             <VirtualSlipHeader
               header={stageHeader}
+              cutoffTime={rushCaseSchedule?.default_pickup_time}
               edit={{
                 onPatientNameChange: wizard.setCompletedPatientName,
                 onGenderChange: wizard.setCompletedGender,
