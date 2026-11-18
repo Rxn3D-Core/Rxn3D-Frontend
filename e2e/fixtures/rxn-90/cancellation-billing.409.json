@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "message": "Invoice is on a statement or billed; adjust billing first.",
+  "error": "decision_locked"
+}

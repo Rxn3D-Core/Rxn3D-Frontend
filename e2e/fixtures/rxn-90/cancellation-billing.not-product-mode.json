@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "message": "This case is not billed per product.",
+  "error": "not_product_mode"
+}

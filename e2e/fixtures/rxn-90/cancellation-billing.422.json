@@ -1,0 +1,9 @@
+{
+  "success": false,
+  "message": "The given data was invalid.",
+  "errors": {
+    "decisions.0.partial_value": [
+      "The partial value may not be greater than 100 for a percent."
+    ]
+  }
+}

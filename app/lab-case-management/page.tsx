@@ -86,6 +86,11 @@ import { V3CaseWidget } from "./components/V3CaseWidget"
 import type { SortDirection } from "./components/V3CaseTable"
 import type { ColumnKey } from "./components/V3FilterBar"
 import type { V2CaseRowData } from "@/app/lab-case-management/v2/case-table-types"
+import { useCancellationBillingPrompt } from "@/components/billing/cancellation-billing-dialog"
+import {
+  FinalizeArchInvoiceDialog,
+  type FinalizeArchTarget,
+} from "@/components/billing/product-invoices/finalize-arch-invoice-dialog"
 
 function formatYmd(d: Date): string {
   // Use local calendar date — toISOString() shifts the day back in timezones ahead of UTC.
@@ -285,6 +290,8 @@ export default function LabSlipV3Page() {
   const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, restoreSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
   const { canCancelCase, canDeleteCase } = usePermissionCapabilities()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
+  const { promptForSlip: promptCancellationBilling, dialog: cancellationBillingDialog } = useCancellationBillingPrompt()
+  const [finalizeArchTarget, setFinalizeArchTarget] = useState<FinalizeArchTarget | null>(null)
   const router = useRouter()
 
   const dateRangeKey = useMemo(
@@ -704,9 +711,11 @@ export default function LabSlipV3Page() {
     if (!selectedSlipForCancel?.id || !reason.trim()) return
     setCancelSlipSubmitting(true)
     try {
-      const res = await cancelSlip(selectedSlipForCancel.id, reason.trim())
+      const cancelledSlipId = selectedSlipForCancel.id
+      const res = await cancelSlip(cancelledSlipId, reason.trim())
       toast({ title: "Case cancelled", description: res?.message ?? "The case was cancelled successfully.", duration: 3000 })
       setCancelSlipModalOpen(false); setSelectedSlipForCancel(null); refreshCurrentListing()
+      void promptCancellationBilling(cancelledSlipId)
     } catch (error) {
       toast({ title: "Unable to cancel case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
     } finally {
@@ -1061,6 +1070,18 @@ export default function LabSlipV3Page() {
             onTogglePan: allowPanToggle
               ? (slip) => { void handleTogglePan(slip) }
               : undefined,
+            // Same lab-admin gate as Undo location; the API enforces it too.
+            onFinalizeArchInvoice: allowUndoLocation
+              ? (slip) => {
+                  if (slip.caseId == null) return
+                  setFinalizeArchTarget({
+                    caseId: slip.caseId,
+                    caseNumber: slip.caseNumber,
+                    patient: slip.patient,
+                    arch: slip.productType === "Upper" || slip.productType === "Lower" ? slip.productType : undefined,
+                  })
+                }
+              : undefined,
           }}
           canPrintStatement={canPrintStatement}
           canSendBack={canSendBackToOffice}
@@ -1207,6 +1228,9 @@ export default function LabSlipV3Page() {
               : null
           }
         />
+
+        {cancellationBillingDialog}
+        <FinalizeArchInvoiceDialog target={finalizeArchTarget} onClose={() => setFinalizeArchTarget(null)} />
 
         <CaseActionModal
           open={cancelSlipModalOpen}

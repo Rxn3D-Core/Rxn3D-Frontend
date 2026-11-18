@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "message": "Only lab admins can change the invoicing mode.",
+  "error": "lab_admin_required"
+}

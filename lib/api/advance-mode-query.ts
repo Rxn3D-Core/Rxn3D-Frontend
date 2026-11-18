@@ -209,6 +209,8 @@ export interface Abutment {
   description?: string
   charge_type?: 'once_per_abutment' | 'per_option' | null
   price?: number | null
+  /** RXN-90: charge once per case (and arch) or on every stage/slip. Missing = per_stage. */
+  charge_frequency?: 'per_stage' | 'per_case' | null
   options?: AbutmentPlatform[]
   // Keep for backward compatibility with older payloads.
   platforms?: AbutmentPlatform[]

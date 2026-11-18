@@ -53,6 +53,7 @@ import {
 } from "@/lib/paper-slip-listing-print-ids"
 import { useDebounce } from "@/lib/performance-utils"
 import { V2CaseWidget } from "./components/V2CaseWidget"
+import { useCancellationBillingPrompt } from "@/components/billing/cancellation-billing-dialog"
 
 function formatYmd(d: Date): string {
   // Use local calendar date — toISOString() shifts the day back in timezones ahead of UTC.
@@ -184,6 +185,7 @@ export default function LabSlipPage() {
   } = useSlipContext();
   const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, restoreSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
+  const { promptForSlip: promptCancellationBilling, dialog: cancellationBillingDialog } = useCancellationBillingPrompt()
 
   const dateRangeKey = useMemo(
     () => `${dateRange.start?.toISOString() ?? ""}|${dateRange.end?.toISOString() ?? ""}`,
@@ -615,7 +617,8 @@ export default function LabSlipPage() {
 
     setCancelSlipSubmitting(true)
     try {
-      const res = await cancelSlip(selectedSlipForCancel.id, reason.trim(), options)
+      const cancelledSlipId = selectedSlipForCancel.id
+      const res = await cancelSlip(cancelledSlipId, reason.trim(), options)
       const scopeLabel =
         options?.scope === "arch" ? options.arch ?? "Arch" : "Case"
       toast({
@@ -626,6 +629,7 @@ export default function LabSlipPage() {
       setCancelSlipModalOpen(false)
       setSelectedSlipForCancel(null)
       refreshCurrentListing()
+      void promptCancellationBilling(cancelledSlipId)
     } catch (error) {
       toast({
         title: "Unable to cancel",
@@ -1343,6 +1347,8 @@ export default function LabSlipPage() {
           onConfirm={handleConfirmSendBackToOffice}
           loading={sendBackToOfficeSubmitting}
         />
+
+        {cancellationBillingDialog}
 
         <CaseActionModal
           open={cancelSlipModalOpen}

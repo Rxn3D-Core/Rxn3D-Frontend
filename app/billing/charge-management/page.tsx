@@ -107,6 +107,8 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useTranslation } from "react-i18next"
 import { EditBillingInvoiceDialog } from "@/components/billing/edit-billing-invoice-dialog"
+import { InvoiceKindTabs, type ChargeInvoiceKind } from "@/components/billing/product-invoices/invoice-kind-tabs"
+import { ProductInvoicesPanel } from "@/components/billing/product-invoices/product-invoices-panel"
 import { StatementEmailRichTextEditor } from "@/components/statement-email-rich-text-editor"
 import { addDays, format } from "date-fns"
 import type { DateRange } from "react-day-picker"
@@ -537,6 +539,8 @@ export default function ChargeManagementPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
   const [selectedItems, setSelectedItems] = useState<string[]>([])
+  /** RXN-90: stage (slip) invoices or product invoices (one per case and arch). */
+  const [invoiceKind, setInvoiceKind] = useState<ChargeInvoiceKind>("stage")
   const { user } = useAuth()
   const { fetchCustomerProfile, customerProfile } = useCustomer()
 
@@ -2148,10 +2152,23 @@ export default function ChargeManagementPage() {
   const filterBarDisabled = !customerId
   const actionDisabled = !customerId || bulkLoading || sendEmailLoading || generatingStatements
 
+  if (invoiceKind === "product") {
+    return (
+      <div className="w-full min-h-full bg-white">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+          <LabBillingPageHeader />
+          <InvoiceKindTabs value={invoiceKind} onChange={setInvoiceKind} />
+          <ProductInvoicesPanel scope={scopeFilter} />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div ref={pageRootRef} className="w-full min-h-full bg-white">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
         <LabBillingPageHeader />
+        <InvoiceKindTabs value={invoiceKind} onChange={setInvoiceKind} />
 
         {!customerId && (
           <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6">

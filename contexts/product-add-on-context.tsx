@@ -15,6 +15,8 @@ export interface AddOn {
   name: string
   code: string
   price?: number | null
+  /** RXN-90: charge once per case (and arch) or on every stage/slip. Missing = per_stage. */
+  charge_frequency?: "per_stage" | "per_case" | null
   subcategory_id: number
   type: "Upper" | "Lower" | "Both" | null
   status: "Active" | "Inactive"

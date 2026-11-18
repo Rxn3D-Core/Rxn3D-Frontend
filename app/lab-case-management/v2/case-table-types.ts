@@ -37,6 +37,8 @@ export interface V2CaseRowData {
   productNames?: string[]
   /** Distinct stage names on the slip (for advanced stage filter). */
   stageNames?: string[]
+  /** RXN-90: how the case is invoiced (`case.invoicing_mode`); missing on older APIs. */
+  invoicingMode?: "stage" | "product"
 }
 
 export interface V2VisibleColumns {
@@ -100,4 +102,6 @@ export interface V2RowActions {
   onRestore: (row: V2CaseRowData) => void
   onUndoLocation?: (row: V2CaseRowData) => void
   onTogglePan?: (row: V2CaseRowData) => void
+  /** RXN-90: lab admin only; shown for product-mode cases. */
+  onFinalizeArchInvoice?: (row: V2CaseRowData) => void
 }

@@ -51,6 +51,8 @@ type Slip = {
   stageNames?: string[];
   /** `location.current.id` from API — use for reliable location UI vs string name */
   locationId?: number;
+  /** RXN-90: `case.invoicing_mode` snapshot; missing on older APIs. */
+  invoicingMode?: "stage" | "product";
   // ...add more fields as needed
 };
 
@@ -207,6 +209,12 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     ),
     caseId: apiSlip.case?.id,
     caseNumber: apiSlip.case?.case_number,
+    invoicingMode:
+      (apiSlip.case?.invoicing_mode ?? apiSlip.invoicing_mode) === "product"
+        ? "product"
+        : (apiSlip.case?.invoicing_mode ?? apiSlip.invoicing_mode) === "stage"
+          ? "stage"
+          : undefined,
     billingId:
       apiSlip.billing_id ??
       apiSlip.billingId ??
