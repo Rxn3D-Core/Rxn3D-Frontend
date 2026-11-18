@@ -8,6 +8,7 @@ import {
   VirtualSlipLocationAction,
   type VirtualSlipLocationActionProps,
 } from "@/components/virtual-slip/VirtualSlipLocationAction";
+import { SubmitCutoffBanner, useIsWithinCutoffWarningWindow } from "@/components/submit-cutoff-banner";
 import { DOCTOR_PLACEHOLDER_IMAGE, doctorDisplayImageUrl } from "@/utils/avatar-utils";
 
 const HEADER_ICON_BASE = "/icons/virtual-slip-actions";
@@ -194,6 +195,13 @@ export interface VirtualSlipHeaderProps {
    * and age become inputs and the print / invoice buttons are hidden.
    */
   edit?: VirtualSlipHeaderEditProps;
+  /**
+   * Lab pickup cut-off (`case_schedule.default_pickup_time`). When set and the current
+   * Pacific time is within 10 minutes before it, a "submit before cut-off" banner shows
+   * under the header (add new stage).
+   */
+  cutoffTime?: string | null;
+  cutoffTime2?: string | null;
 }
 
 export interface VirtualSlipHeaderEditProps {
@@ -215,7 +223,10 @@ export function VirtualSlipHeader({
   onPrintPaperSlipV4,
   locationAction,
   edit,
+  cutoffTime,
+  cutoffTime2,
 }: VirtualSlipHeaderProps) {
+  const showCutoffWarning = useIsWithinCutoffWarningWindow(cutoffTime, cutoffTime2);
   const editFields: HeaderField[] | null = edit
     ? [
         {
@@ -444,6 +455,11 @@ export function VirtualSlipHeader({
           </div>
         )}
       </div>
+      {showCutoffWarning && (cutoffTime || cutoffTime2) ? (
+        <div className="flex justify-end px-3 pb-[6px] sm:px-5">
+          <SubmitCutoffBanner cutoffTime={cutoffTime} cutoffTime2={cutoffTime2} compact />
+        </div>
+      ) : null}
     </div>
   );
 }
