@@ -109,6 +109,13 @@ import { useTranslation } from "react-i18next"
 import { EditBillingInvoiceDialog } from "@/components/billing/edit-billing-invoice-dialog"
 import { InvoiceKindTabs, type ChargeInvoiceKind } from "@/components/billing/product-invoices/invoice-kind-tabs"
 import { ProductInvoicesPanel } from "@/components/billing/product-invoices/product-invoices-panel"
+import {
+  chargeStatusBadgeClass,
+  formatChargeMoney as formatMoney,
+  formatShortDate,
+  mapInvoiceStatusToLabel,
+  mapProductType,
+} from "@/lib/billing/charge-row-format"
 import { StatementEmailRichTextEditor } from "@/components/statement-email-rich-text-editor"
 import { addDays, format } from "date-fns"
 import type { DateRange } from "react-day-picker"
@@ -201,13 +208,6 @@ type StatementJobStatus = {
   error?: string | null
 }
 
-function formatMoney(value: number | string | null | undefined): string {
-  if (value === null || value === undefined || value === "") return "—"
-  const n = typeof value === "string" ? Number.parseFloat(value) : value
-  if (Number.isNaN(n)) return "—"
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
-}
-
 function isRefundLikeStatus(status: string | null | undefined): boolean {
   const normalized = (status ?? "").trim().toLowerCase()
   return normalized === "refund" || normalized === "refunded"
@@ -224,43 +224,12 @@ function parseMoneyValue(value: string | null | undefined): number {
   return Number.isNaN(n) ? 0 : n
 }
 
-function formatShortDate(iso: string | null | undefined): string {
-  if (!iso) return "—"
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" })
-}
-
-function mapProductType(ul: string | null | undefined): string {
-  if (!ul) return "—"
-  const t = ul.toLowerCase()
-  if (t.includes("upper")) return "U"
-  if (t.includes("lower")) return "L"
-  return ul
-}
-
 function formatChipDateRange(from: string, to: string): string {
   const d1 = new Date(`${from}T12:00:00`)
   const d2 = new Date(`${to}T12:00:00`)
   if (Number.isNaN(d1.getTime()) || Number.isNaN(d2.getTime())) return `${from} – ${to}`
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" }
   return `${d1.toLocaleDateString("en-US", opts)} – ${d2.toLocaleDateString("en-US", opts)}`
-}
-
-function mapInvoiceStatusToLabel(status: string | null | undefined): string {
-  if (!status) return "—"
-  const s = status.toLowerCase()
-  if (s === "pending") return "Pending"
-  if (s === "unbilled") return "Unbilled"
-  if (s === "checked") return "Checked"
-  if (s === "billed") return "Billed"
-  if (s === "paid") return "Paid"
-  if (s === "refunded") return "Refunded"
-  if (s === "disputed") return "Disputed"
-  if (s === "sent") return "Sent"
-  if (s === "overdue") return "Overdue"
-  if (s === "cancelled") return "Cancelled"
-  return status
 }
 
 function statementSignedAmount(charge: Pick<ChargeRow, "gross" | "status">): number {
@@ -1422,28 +1391,7 @@ export default function ChargeManagementPage() {
     setSelectedItems((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Checked":
-        return "bg-[#D4F4DD] text-[#14804A]"
-      case "Billed":
-        return "bg-[#E5E7EB] text-[#6B7280]"
-      case "Paid":
-      case "Pending":
-        return "bg-[#D4F4DD] text-[#14804A]"
-      case "Refunded":
-        return "bg-[#FFD6D9] text-[#E12D39]"
-      case "Disputed":
-      case "Overdue":
-        return "bg-[#FFECCC] text-[#CC6600]"
-      case "Unbilled":
-        return "bg-[#E5E7EB] text-[#4B5563]"
-      case "Cancelled":
-        return "bg-[#E5E7EB] text-[#4B5563]"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
+  const getStatusColor = chargeStatusBadgeClass
 
   const onRefresh = useCallback(async () => {
     if (activeSource === "advanced" && advancedBody) {

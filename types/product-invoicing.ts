@@ -47,6 +47,49 @@ export interface ProductInvoiceListItem {
   statement_id?: number | null
   products_count?: number
   created_at?: string | null
+  /**
+   * Optional row fields so the list can look like the slip listing (requested from the backend after RXN-90 v1;
+   * absent on the first release). Each is read when present and otherwise derived from `products[].sections`.
+   */
+  office_code?: string | null
+  /** Latest slip of the arch, for the "View virtual slip" action. */
+  slip_id?: number | null
+  product_name?: string | null
+  grade_name?: string | null
+  variation_name?: string | null
+  base_total?: string | number | null
+  addons?: ProductInvoiceListAddon[] | null
+  sub_total?: string | number | null
+  rush_percentage?: string | number | null
+  rush_fee?: string | number | null
+  gross_amount?: string | number | null
+  due_date?: string | null
+  products?: ProductInvoiceListProduct[] | null
+}
+
+export interface ProductInvoiceListAddon {
+  name?: string | null
+  addon_name?: string | null
+  quantity?: number | string | null
+  price?: string | number | null
+  total?: string | number | null
+}
+
+/** Per-product block of a list row (when the API sends one); `sections` lets the UI derive missing totals. */
+export interface ProductInvoiceListProduct {
+  product_id?: number
+  product_name?: string | null
+  grade_name?: string | null
+  variation_name?: string | null
+  status?: string | null
+  base_total?: string | number | null
+  addons?: ProductInvoiceListAddon[] | null
+  sub_total?: string | number | null
+  rush_percentage?: string | number | null
+  rush_fee?: string | number | null
+  gross_amount?: string | number | null
+  product_total?: string | number | null
+  sections?: ProductInvoiceSection[] | null
 }
 
 export interface ProductInvoicePagination {
