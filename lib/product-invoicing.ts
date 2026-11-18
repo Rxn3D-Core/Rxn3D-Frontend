@@ -42,14 +42,27 @@ export function normalizeChargeFrequency(raw: unknown): ChargeFrequency {
   return raw === "per_case" ? "per_case" : "per_stage"
 }
 
-/** Line price, regenerate and cancellation decisions are allowed only while the invoice is pending/checked and off any statement. */
-export function isProductInvoiceEditable(invoice: { status?: string | null; on_statement?: boolean | null }): boolean {
+/**
+ * Line price, regenerate and cancellation decisions are allowed only while the invoice is pending/checked and off any
+ * statement. The show payload's `is_locked`, when sent, is the backend's own answer and wins.
+ */
+export function isProductInvoiceEditable(invoice: {
+  status?: string | null
+  on_statement?: boolean | null
+  is_locked?: boolean | null
+}): boolean {
+  if (invoice.is_locked === true) return false
   const status = (invoice.status ?? "").toLowerCase()
   return (status === "pending" || status === "checked") && !invoice.on_statement
 }
 
 /** Delete is allowed only for a pending invoice that is not on a statement. */
-export function isProductInvoiceDeletable(invoice: { status?: string | null; on_statement?: boolean | null }): boolean {
+export function isProductInvoiceDeletable(invoice: {
+  status?: string | null
+  on_statement?: boolean | null
+  is_locked?: boolean | null
+}): boolean {
+  if (invoice.is_locked === true) return false
   return (invoice.status ?? "").toLowerCase() === "pending" && !invoice.on_statement
 }
 
@@ -141,4 +154,23 @@ export function isProductInvoiceStatementItem(item: {
 } | null | undefined): boolean {
   if (!item) return false
   return item.source === "product_invoice" || (item.product_invoice_id != null && item.product_invoice_id !== 0)
+}
+
+/**
+ * Best message from an API error body. Handles both envelopes the backend uses:
+ * business rules `{ success:false, message, error, errors? }` and FormRequest validation
+ * `{ status:false, message, data:{ field:[...] } }`. A field message beats the generic one.
+ */
+export function apiErrorMessage(body: unknown, fallback: string): string {
+  if (!body || typeof body !== "object") return fallback
+  const b = body as { message?: unknown; errors?: unknown; data?: unknown }
+  for (const bag of [b.errors, b.data]) {
+    if (bag && typeof bag === "object" && !Array.isArray(bag)) {
+      for (const value of Object.values(bag as Record<string, unknown>)) {
+        const first = Array.isArray(value) ? value[0] : value
+        if (typeof first === "string" && first.trim()) return first
+      }
+    }
+  }
+  return typeof b.message === "string" && b.message.trim() ? b.message : fallback
 }

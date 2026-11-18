@@ -1,4 +1,5 @@
 import { buildApiUrl } from "@/lib/api/client"
+import { apiErrorMessage } from "@/lib/product-invoicing"
 import type { CancellationBillingData, CancellationDecisionInput } from "@/types/product-invoicing"
 
 /**
@@ -32,12 +33,14 @@ function authHeaders(): HeadersInit {
 async function request(slipId: number, init: RequestInit): Promise<CancellationBillingData> {
   const res = await fetch(buildApiUrl(`/slip/${slipId}/cancellation-billing`), { ...init, headers: authHeaders() })
   const body = await res.json().catch(() => null)
-  if (!res.ok || body?.success === false) {
+  if (!res.ok || body?.success === false || body?.status === false) {
+    // Validation 422s use `{ status:false, message, data:{ field:[...] } }`; business rules use `{ success:false, error, errors? }`.
+    const bag = body?.errors ?? (res.status === 422 && body?.status === false ? body?.data : null)
     throw new CancellationBillingError(
-      body?.message || `Request failed (${res.status})`,
+      apiErrorMessage(body, `Request failed (${res.status})`),
       res.status,
       typeof body?.error === "string" ? body.error : null,
-      body?.errors && typeof body.errors === "object" ? body.errors : null,
+      bag && typeof bag === "object" && !Array.isArray(bag) ? bag : null,
     )
   }
   return body?.data as CancellationBillingData

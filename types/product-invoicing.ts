@@ -160,6 +160,9 @@ export interface ProductInvoiceDetail {
   finalized_at?: string | null
   on_statement?: boolean
   statement_id?: number | null
+  /** Backend's lock flag (billed/paid/overdue or on a statement). */
+  is_locked?: boolean
+  notes?: string | null
   total_amount: string | number
   products: ProductInvoiceProduct[]
 }

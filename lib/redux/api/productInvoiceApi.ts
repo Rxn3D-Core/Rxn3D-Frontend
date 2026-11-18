@@ -1,4 +1,5 @@
 import { apiSlice } from "./apiSlice"
+import { apiErrorMessage } from "@/lib/product-invoicing"
 import type {
   ArchType,
   ProductInvoiceDetail,
@@ -122,7 +123,10 @@ export const {
 export function productInvoiceErrorMessage(error: unknown, fallback: string): string {
   if (!error || typeof error !== "object") return fallback
   const e = error as { data?: { message?: unknown }; error?: unknown; message?: unknown }
-  if (e.data && typeof e.data.message === "string" && e.data.message) return e.data.message
+  if (e.data && typeof e.data === "object") {
+    const message = apiErrorMessage(e.data, "")
+    if (message) return message
+  }
   if (typeof e.error === "string" && e.error) return e.error
   if (typeof e.message === "string" && e.message) return e.message
   return fallback

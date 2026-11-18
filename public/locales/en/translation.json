@@ -851,7 +851,8 @@
       "submit": "Finalize",
       "done": "Arch invoice created",
       "doneInvoice": "{{number}}: {{total}}",
-      "failed": "Could not finalize the arch invoice"
+      "failed": "Could not finalize the arch invoice",
+      "noInvoice": "Arch closed. The total is $0, so no invoice was created."
     }
   }
 }

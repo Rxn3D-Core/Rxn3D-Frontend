@@ -857,7 +857,8 @@
       "submit": "Finalizar",
       "done": "Factura de la arcada creada",
       "doneInvoice": "{{number}}: {{total}}",
-      "failed": "No se pudo finalizar la factura de la arcada"
+      "failed": "No se pudo finalizar la factura de la arcada",
+      "noInvoice": "Arcada cerrada. El total es $0, así que no se creó ninguna factura."
     }
   }
 }

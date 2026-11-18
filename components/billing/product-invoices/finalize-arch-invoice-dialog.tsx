@@ -40,12 +40,18 @@ export function FinalizeArchInvoiceDialog({ target, onClose }: { target: Finaliz
     setError(null)
     try {
       const res = await finalize({ case_id: target.caseId, arch }).unwrap()
-      toast({
-        title: t("productInvoicing.finalize.done"),
-        description: res?.data
-          ? t("productInvoicing.finalize.doneInvoice", { number: res.data.invoice_number, total: formatMoney(res.data.total_amount) })
-          : undefined,
-      })
+      // 200 with `data: null` means the arch closed with a $0 total, so no invoice was created.
+      toast(
+        res?.data
+          ? {
+              title: t("productInvoicing.finalize.done"),
+              description: t("productInvoicing.finalize.doneInvoice", {
+                number: res.data.invoice_number,
+                total: formatMoney(res.data.total_amount),
+              }),
+            }
+          : { title: t("productInvoicing.finalize.noInvoice") },
+      )
       onClose()
     } catch (err) {
       setError(productInvoiceErrorMessage(err, t("productInvoicing.finalize.failed")))
