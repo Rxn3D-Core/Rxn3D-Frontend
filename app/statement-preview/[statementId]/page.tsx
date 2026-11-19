@@ -331,6 +331,13 @@ function StatementPreviewContent({
 
       <div className="mb-6 mt-8">
         <p className="mb-2 text-[15px] text-slate-800">Billed to:</p>
+        {statement.office?.logo_url ? (
+          <img
+            src={statement.office.logo_url}
+            alt={`${statement.office.name || "Office"} logo`}
+            className="mb-3 h-auto max-h-[60px] w-[120px] object-contain object-left"
+          />
+        ) : null}
         <h3 className="mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-3xl font-bold leading-tight text-black">
           {statement.office?.name || previewRecipient}
         </h3>
