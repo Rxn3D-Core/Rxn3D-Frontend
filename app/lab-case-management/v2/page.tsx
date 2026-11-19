@@ -17,6 +17,7 @@ import type { V2CaseRowData } from "./case-table-types"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 import { useBusinessSettingsQuery } from "@/hooks/use-business-settings"
+import { useHolidays } from "@/contexts/holidays-context"
 import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
 import { virtualSlipRushSlotsShareProduct } from "@/lib/virtual-slip-rush-slots"
@@ -75,6 +76,13 @@ function canPrintStatement(row: { billingId?: number | null }): boolean {
 export default function LabSlipPage() {
   const { toast } = useToast();
   const { data: listingBusinessSettings } = useBusinessSettingsQuery(resolveListingCustomerId())
+  // Lab holidays (already loaded by HolidaysProvider) for the due-date working-day counts.
+  const { holidays: labHolidays } = useHolidays()
+  const listingCustomerId = resolveListingCustomerId()
+  const listingHolidayDates = useMemo(
+    () => labHolidays.filter((holiday) => Number(holiday.customer_id) === listingCustomerId).map((holiday) => holiday.date),
+    [labHolidays, listingCustomerId],
+  )
   const searchParams = useSearchParams();
   // Get customerType from localStorage and use as userRole
   let userRole = 'lab';
@@ -1114,6 +1122,7 @@ export default function LabSlipPage() {
       <main className="w-full px-4 pb-8">
         <V2CaseWidget
           businessHours={listingBusinessSettings?.business_hours}
+          holidays={listingHolidayDates}
           attachmentsOnly={showWithAttachments}
           bulkCanPrintStatement={Boolean(selectedStatementRow && canPrintStatement(selectedStatementRow))}
           canPrintStatement={canPrintStatement}

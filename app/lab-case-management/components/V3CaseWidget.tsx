@@ -33,6 +33,7 @@ interface Props {
   // table
   rows: V2CaseRowData[]
   businessHours?: readonly SlipListingBusinessHour[] | null
+  holidays?: readonly string[] | null
   loading: boolean
   selected: number[]
   selectAllChecked: boolean | "indeterminate"
@@ -136,6 +137,7 @@ export function V3CaseWidget(props: Props) {
       <V3CaseTable
         rows={props.rows}
         businessHours={props.businessHours}
+        holidays={props.holidays}
         loading={props.loading}
         visibleColumns={visibleColumns}
         selected={props.selected}

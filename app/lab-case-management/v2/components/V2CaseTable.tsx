@@ -23,6 +23,8 @@ import { V2CaseRowActions } from "./V2CaseRowActions"
 export type V2CaseTableProps = {
   rows: V2CaseRowData[]
   businessHours?: readonly SlipListingBusinessHour[] | null
+  /** Lab holiday dates (YYYY-MM-DD) excluded from the due-date day counts. */
+  holidays?: readonly string[] | null
   loading: boolean
   visibleColumns: V2VisibleColumns
   selected: number[]
@@ -132,7 +134,7 @@ export function V2CaseTable(props: V2CaseTableProps) {
                 <td className="px-3 py-2.5 align-top text-right">
                   <button className="inline-flex items-center gap-1.5 rounded text-xs font-medium text-[#4f4c47] hover:text-[#1f1e1b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#918d84]" type="button" onClick={(event) => { event.stopPropagation(); props.rowActions.onChangeDueDate(row) }}>
                     <CalendarIcon className="h-5 w-5 opacity-60" />
-                    {formatDueDate(row, props.businessHours)}
+                    {formatDueDate(row, props.businessHours, props.holidays)}
                   </button>
                 </td>
               )}
@@ -195,6 +197,7 @@ function canMarkReadyToSend(row: V2CaseRowData) {
 function formatDueDate(
   row: V2CaseRowData,
   businessHours?: readonly SlipListingBusinessHour[] | null,
+  holidays?: readonly string[] | null,
 ): string {
   const { dueDate } = row
   const isDelivered =
@@ -208,6 +211,6 @@ function formatDueDate(
   // Parse as calendar day (YYYY-MM-DD) so MM/DD matches the API date on every device.
   const due = parseSlipListingDueDate(dueDate)
   if (!due) return dueDate
-  return formatCaseManagementDueDate(due, new Date(), businessHours)
+  return formatCaseManagementDueDate(due, new Date(), businessHours, holidays)
 }
 
