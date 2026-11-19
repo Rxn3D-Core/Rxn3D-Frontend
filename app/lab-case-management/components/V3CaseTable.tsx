@@ -68,6 +68,8 @@ export type SortDirection = "asc" | "desc"
 interface Props {
   rows: V2CaseRowData[]
   businessHours?: readonly SlipListingBusinessHour[] | null
+  /** Lab holiday dates (YYYY-MM-DD) excluded from the due-date day counts. */
+  holidays?: readonly string[] | null
   loading: boolean
   visibleColumns: Set<ColumnKey>
   selected: number[]
@@ -386,7 +388,7 @@ export function V3CaseTable(props: Props) {
                         <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">DUE DATE</div>
                         {officeProfile ? (
                           <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
-                            {formatDueDate(row, props.businessHours)}
+                            {formatDueDate(row, props.businessHours, props.holidays)}
                           </span>
                         ) : (
                           <button
@@ -397,7 +399,7 @@ export function V3CaseTable(props: Props) {
                           >
                             <img src={`${LI}/calendar.png`} alt="" className="h-[25px] w-[25px] shrink-0" />
                             <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
-                              {formatDueDate(row, props.businessHours)}
+                              {formatDueDate(row, props.businessHours, props.holidays)}
                             </span>
                           </button>
                         )}
@@ -716,6 +718,7 @@ export function V3CaseTable(props: Props) {
                       key={column.key}
                       column={column}
                       businessHours={props.businessHours}
+                      holidays={props.holidays}
                       dueDateColor={dueDateColor}
                       row={row}
                       rowActions={props.rowActions}
@@ -766,6 +769,7 @@ export function V3CaseTable(props: Props) {
 function DesktopCell({
   column,
   businessHours,
+  holidays,
   dueDateColor,
   row,
   rowActions,
@@ -782,6 +786,7 @@ function DesktopCell({
 }: {
   column: DesktopColumn
   businessHours?: readonly SlipListingBusinessHour[] | null
+  holidays?: readonly string[] | null
   dueDateColor: string
   showTimestamp: boolean
   allowDriverActions: boolean
@@ -975,11 +980,11 @@ function DesktopCell({
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); rowActions.onChangeDueDate(row) }}
             >
               <img src={`${LI}/calendar.png`} alt="" className="h-[25px] w-[25px] shrink-0" />
-              <span className="min-w-0 truncate">{formatDueDate(row, businessHours)}</span>
+              <span className="min-w-0 truncate">{formatDueDate(row, businessHours, holidays)}</span>
             </button>
           ) : (
             <span className="min-w-0 truncate" style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
-              {formatDueDate(row, businessHours)}
+              {formatDueDate(row, businessHours, holidays)}
             </span>
           )}
         </div>
@@ -1158,6 +1163,7 @@ function dueDateTextColor(row: V2CaseRowData): string {
 function formatDueDate(
   row: V2CaseRowData,
   businessHours?: readonly SlipListingBusinessHour[] | null,
+  holidays?: readonly string[] | null,
 ): string {
   const { dueDate } = row
   // Parse as calendar day (YYYY-MM-DD) so MM/DD matches the API date on every device.
@@ -1170,5 +1176,5 @@ function formatDueDate(
   }
   if (!dueDate) return "—"
   if (!due) return dueDate
-  return formatCaseManagementDueDate(due, new Date(), businessHours)
+  return formatCaseManagementDueDate(due, new Date(), businessHours, holidays)
 }

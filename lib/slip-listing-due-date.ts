@@ -22,48 +22,81 @@ function formatMmDd(date: Date): string {
   return `${month}/${day}`
 }
 
-/** Count Lab working days after the due date through the current local date. */
-export function countSlipListingOverdueWorkingDays(
-  dueDate: Date,
-  now: Date = new Date(),
-  businessHours?: readonly SlipListingBusinessHour[] | null,
-): number {
-  const today = startOfLocalDay(now)
-  const due = startOfLocalDay(dueDate)
-  if (due.getTime() >= today.getTime()) return 0
+function formatIsoDay(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${date.getFullYear()}-${month}-${day}`
+}
 
-  // Delivery-date logic defaults to Monday-Friday when no hours are configured.
+/**
+ * Lab working days after `from` up to and including `to` (both local days).
+ * Mirrors the backend DeliveryDateService: open business-hour days (Mon-Fri when
+ * none are configured) that are not Lab holidays (exact YYYY-MM-DD dates).
+ */
+function countLabWorkingDaysBetween(
+  from: Date,
+  to: Date,
+  businessHours?: readonly SlipListingBusinessHour[] | null,
+  holidays?: readonly string[] | null,
+): number {
   const configuredDays = businessHours?.length
     ? new Set(businessHours.filter((hour) => hour.is_open).map((hour) => hour.day.toLowerCase()))
     : new Set(WEEKDAYS.slice(0, 5))
+  const holidayDays = new Set((holidays ?? []).map((date) => date.slice(0, 10)))
 
   let count = 0
-  const current = new Date(due)
+  const current = new Date(from)
   current.setDate(current.getDate() + 1)
-  while (current.getTime() <= today.getTime()) {
+  while (current.getTime() <= to.getTime()) {
     const weekday = WEEKDAYS[(current.getDay() + 6) % 7]
-    if (configuredDays.has(weekday)) count += 1
+    if (configuredDays.has(weekday) && !holidayDays.has(formatIsoDay(current))) count += 1
     current.setDate(current.getDate() + 1)
   }
   return count
 }
 
-/** Case Management keeps future countdowns in calendar days but ages overdue cases in Lab working days. */
+/** Count Lab working days after the due date through the current local date. */
+export function countSlipListingOverdueWorkingDays(
+  dueDate: Date,
+  now: Date = new Date(),
+  businessHours?: readonly SlipListingBusinessHour[] | null,
+  holidays?: readonly string[] | null,
+): number {
+  const today = startOfLocalDay(now)
+  const due = startOfLocalDay(dueDate)
+  if (due.getTime() >= today.getTime()) return 0
+  return countLabWorkingDaysBetween(due, today, businessHours, holidays)
+}
+
+/** Count Lab working days after the current local date up to and including the due date. */
+export function countSlipListingUpcomingWorkingDays(
+  dueDate: Date,
+  now: Date = new Date(),
+  businessHours?: readonly SlipListingBusinessHour[] | null,
+  holidays?: readonly string[] | null,
+): number {
+  const today = startOfLocalDay(now)
+  const due = startOfLocalDay(dueDate)
+  if (due.getTime() <= today.getTime()) return 0
+  return countLabWorkingDaysBetween(today, due, businessHours, holidays)
+}
+
+/** Case Management counts both future countdowns and overdue ages in Lab working days. */
 export function formatCaseManagementDueDate(
   dueDate: Date,
   now: Date = new Date(),
   businessHours?: readonly SlipListingBusinessHour[] | null,
+  holidays?: readonly string[] | null,
 ): string {
   const due = startOfLocalDay(dueDate)
   const today = startOfLocalDay(now)
-  const calendarDays = Math.round((due.getTime() - today.getTime()) / 86_400_000)
   const mmdd = formatMmDd(due)
 
-  if (calendarDays < 0) {
-    return `${countSlipListingOverdueWorkingDays(due, today, businessHours)}d ago · ${mmdd}`
+  if (due.getTime() < today.getTime()) {
+    return `${countSlipListingOverdueWorkingDays(due, today, businessHours, holidays)}d ago · ${mmdd}`
   }
-  if (calendarDays === 0) return `Today · ${mmdd}`
-  return `${calendarDays}d · ${mmdd}`
+  if (due.getTime() === today.getTime()) return `Today · ${mmdd}`
+  return `${countSlipListingUpcomingWorkingDays(due, today, businessHours, holidays)}d · ${mmdd}`
 }
 
 /** Parse API / listing due-date strings as a local calendar day (no UTC drift). */
