@@ -143,6 +143,17 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     };
   }, [virtualSlipDetails]);
 
+  // The slip's own office / lab logos and names (not the logged-in user's or the wizard's lab).
+  const slipLogos = useMemo(() => {
+    const h = buildVirtualSlipVM(virtualSlipDetails).header;
+    return {
+      officeLogo: h.officeLogo,
+      officeName: h.officeName,
+      labLogo: h.labLogo,
+      labName: h.labName,
+    };
+  }, [virtualSlipDetails]);
+
   const handleEstimatedDueDateChange = useCallback(
     (info: {
       isoDate: string | null;
@@ -506,6 +517,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
               labName={wizard.completedLab?.name}
               onEditLab={wizard.handleTopBarEditLab}
               details={headerDetails}
+              slipLogos={slipLogos}
               estimatedDueDate={headerDueDate}
               estimatedDueDateLoading={headerDueDateLoading}
               cutoffTime={rushCaseSchedule?.default_pickup_time}
