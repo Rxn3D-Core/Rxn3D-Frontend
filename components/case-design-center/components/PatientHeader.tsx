@@ -115,11 +115,12 @@ function DetailColumn({ fields }: { fields: { label: string; value?: string; cla
   );
 }
 
+/** Inline in the patient-name row (between the fields and the estimated delivery date). */
 function HeaderDetails({ details }: { details: PatientHeaderDetails }) {
   const hasAny = Object.values(details).some((v) => typeof v === "string" && v.trim() !== "");
   if (!hasAny) return null;
   return (
-    <div className="grid min-w-0 grid-cols-5 items-center gap-x-[clamp(16px,1.4vw,28px)] border-t border-[#d9d9d9] py-[6px]">
+    <div className="flex min-w-0 flex-1 items-center justify-evenly gap-x-[clamp(12px,1.4vw,28px)]">
       <DetailColumn
         fields={[
           { label: "Pan", value: details.panNumber },
@@ -127,20 +128,20 @@ function HeaderDetails({ details }: { details: PatientHeaderDetails }) {
           { label: "Slip", value: details.slipNumber },
         ]}
       />
-      <div className="flex min-w-0 items-center justify-center px-1">
-        {details.location && details.location.trim() !== "" ? (
-          <p className="w-full min-w-0 truncate text-center text-[clamp(13px,0.68vw,15px)] font-bold leading-tight text-[#4C4D55]" title={details.location}>
-            {details.location}
-          </p>
-        ) : null}
-      </div>
+      {details.location && details.location.trim() !== "" ? (
+        <p
+          className="min-w-0 max-w-[160px] truncate text-center text-[clamp(13px,0.68vw,15px)] font-bold leading-tight text-[#4C4D55]"
+          title={details.location}
+        >
+          {details.location}
+        </p>
+      ) : null}
       <DetailColumn
         fields={[
           { label: "Case status", value: details.caseStatus },
           { label: "Slip status", value: details.slipStatus },
         ]}
       />
-      <div aria-hidden />
       <DetailColumn
         fields={[
           { label: "Pickup date", value: details.pickupDate },
@@ -455,6 +456,7 @@ export function PatientHeader({
                     type="number"
                   />
                 )}
+                {details ? <HeaderDetails details={details} /> : null}
                 <div className="ml-auto flex min-w-0 flex-col items-end gap-1.5">
                   {estimatedDueDateLoading && !estimatedDueDate ? (
                     <p className="text-xs text-[#9CA3AF]">Estimating delivery date…</p>
@@ -523,7 +525,6 @@ export function PatientHeader({
               </div>
             )}
           </div>
-          {!caseSubmitted && details ? <HeaderDetails details={details} /> : null}
         </div>
 
         {/* Created By — avatar + name (spans both center rows) */}
