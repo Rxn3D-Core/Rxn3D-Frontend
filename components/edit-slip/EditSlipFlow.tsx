@@ -226,6 +226,17 @@ export function EditSlipFlow({ slipId }: Props) {
     };
   }, [virtualSlipDetails]);
 
+  // The slip's own office / lab logos and names (not the logged-in user's or the wizard's lab).
+  const slipLogos = useMemo(() => {
+    const h = buildVirtualSlipVM(virtualSlipDetails).header;
+    return {
+      officeLogo: h.officeLogo,
+      officeName: h.officeName,
+      labLogo: h.labLogo,
+      labName: h.labName,
+    };
+  }, [virtualSlipDetails]);
+
   const labCustomerId = useMemo(
     () => resolveLibraryCustomerId(resolveLabIdFromSlipDetails(virtualSlipDetails)),
     [virtualSlipDetails]
@@ -468,6 +479,7 @@ export function EditSlipFlow({ slipId }: Props) {
               labName={wizard.completedLab?.name}
               onEditLab={wizard.handleTopBarEditLab}
               details={headerDetails}
+              slipLogos={slipLogos}
             />
 
             {initialSlipState && (

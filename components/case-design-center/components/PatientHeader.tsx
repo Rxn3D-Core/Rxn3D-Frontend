@@ -79,6 +79,19 @@ export interface PatientHeaderProps {
   cutoffTime2?: string | null;
   /** Generated slip / case details (pan, case, slip, status, dates) shown in the pre-submit header. */
   details?: PatientHeaderDetails | null;
+  /**
+   * Logos and names of the slip's own office and lab (edit slip, add new stage). When set,
+   * they replace the profile / wizard-selected logos so the office side always shows the
+   * slip's office (its name when it has no logo) and never the lab's logo.
+   */
+  slipLogos?: PatientHeaderSlipLogos | null;
+}
+
+export interface PatientHeaderSlipLogos {
+  officeLogo?: string | null;
+  officeName?: string | null;
+  labLogo?: string | null;
+  labName?: string | null;
 }
 
 const DETAIL_LABEL = "shrink-0 whitespace-nowrap text-[clamp(13px,0.68vw,15px)] font-bold leading-tight text-[#4C4D55]";
@@ -240,6 +253,7 @@ export function PatientHeader({
   cutoffTime,
   cutoffTime2,
   details,
+  slipLogos,
 }: PatientHeaderProps = {}) {
   const displayName = doctorName && doctorName.trim() !== "" ? withDegree(doctorName, doctorDegree) : DEFAULT_DOCTOR_NAME;
   const doctorImgSrc = doctorDisplayImageUrl(doctorImageUrl);
@@ -330,11 +344,11 @@ export function PatientHeader({
 
   const selectedLogo = labLogoUrl && labLogoUrl.trim() !== "" ? labLogoUrl : null;
   // In lab-customer context, "self" is the lab → the wizard selection is the office.
-  const officeLogo = isLabCtx ? selectedLogo : profileLogoUrl;
-  const officeName = isLabCtx ? labName : null;
+  const officeLogo = slipLogos ? slipLogos.officeLogo ?? null : isLabCtx ? selectedLogo : profileLogoUrl;
+  const officeName = slipLogos ? slipLogos.officeName ?? null : isLabCtx ? labName : null;
   const officeEditable = isLabCtx;
-  const labLogo = isLabCtx ? profileLogoUrl : selectedLogo;
-  const labNameDisplay = isLabCtx ? null : labName;
+  const labLogo = slipLogos ? slipLogos.labLogo ?? null : isLabCtx ? profileLogoUrl : selectedLogo;
+  const labNameDisplay = slipLogos ? slipLogos.labName ?? null : isLabCtx ? null : labName;
   const labEditable = !isLabCtx;
 
   const createdInitials = (createdByName || "")
