@@ -1114,6 +1114,13 @@ export default function GenerateStatementsPage() {
 
               <div className="mt-10">
                 <p className="text-[20px] text-slate-800">Billed to:</p>
+                {activePreviewStatement?.office?.logo_url ? (
+                  <img
+                    src={activePreviewStatement.office.logo_url}
+                    alt={`${activePreviewStatement.office.name || "Office"} logo`}
+                    className="mt-3 h-20 w-auto object-contain"
+                  />
+                ) : null}
                 <h3 className="mt-3 text-3xl font-bold text-black sm:text-4xl">
                   {activePreviewStatement?.office?.name || previewRecipient}
                 </h3>
