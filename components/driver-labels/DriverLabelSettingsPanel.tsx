@@ -238,18 +238,6 @@ export function DriverLabelSettingsPanel({
               </p>
             ) : null}
 
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <span className="text-[13px] text-[#17191F]">Convert to outline</span>
-              <Switch
-                checked={draft.logoOutline}
-                disabled={locked}
-                onCheckedChange={(v) => onChange({ ...draft, logoOutline: v })}
-                data-testid="driver-label-logo-outline"
-              />
-            </div>
-            <p className="mt-1 text-[11px] leading-4 text-[#6b7280]">
-              Turn off when your file is already an outline drawing.
-            </p>
             {savedChoiceShown && logo.activeUrl ? (
               <div className="mt-2 rounded border border-dashed border-[#d1d5db] p-2">
                 <div className="mb-1 text-[11px] text-[#6b7280]">Printed logo (saved choice)</div>
