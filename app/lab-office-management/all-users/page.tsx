@@ -527,7 +527,7 @@ export default function AllUsers() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-[190px] shrink-0">
+            <div className="w-full shrink-0 sm:w-[190px]">
               <SearchableSelect
                 value={customerFilter}
                 onValueChange={(value) => {
@@ -541,7 +541,7 @@ export default function AllUsers() {
               />
             </div>
             <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setCurrentPage(1) }}>
-              <SelectTrigger className="w-[140px] shrink-0"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+              <SelectTrigger className="w-full shrink-0 sm:w-[140px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 {USER_STATUSES.map((status) => (
@@ -552,7 +552,7 @@ export default function AllUsers() {
               </SelectContent>
             </Select>
             <Select value={roleFilter} onValueChange={(value) => { setRoleFilter(value); setCurrentPage(1) }}>
-              <SelectTrigger className="w-[140px] shrink-0"><SelectValue placeholder="All Roles" /></SelectTrigger>
+              <SelectTrigger className="w-full shrink-0 sm:w-[140px]"><SelectValue placeholder="All Roles" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="lab_admin">Lab Admin</SelectItem>
@@ -568,7 +568,7 @@ export default function AllUsers() {
                 Clear Filters
               </Button>
             )}
-            <div className="relative ml-auto min-w-0 max-w-[300px] shrink grow basis-[150px]">
+            <div className="relative order-first w-full min-w-0 sm:order-none sm:ml-auto sm:max-w-[300px] sm:shrink sm:grow sm:basis-[150px]">
               <Input
                 type="text"
                 placeholder="Search User"
@@ -578,15 +578,46 @@ export default function AllUsers() {
               />
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             </div>
-            <Button ref={addButtonRef} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm shrink-0 whitespace-nowrap" onClick={handleAddUser} disabled={!canCreateUser}>
+            <Button ref={addButtonRef} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm shrink-0 whitespace-nowrap w-full sm:w-auto" onClick={handleAddUser} disabled={!canCreateUser}>
               <Plus className="h-4 w-4 mr-2" />
               {addButtonLabel}
             </Button>
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+        {/* Mobile cards (phones): the table needs a wide screen, so each user is a card with the same actions */}
+        <div className="divide-y divide-gray-200 md:hidden" data-testid="users-mobile-list">
+          {isLoading ? (
+            <div className="px-4 py-8 text-center text-sm text-gray-500">Loading users...</div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm">No Users found.</div>
+          ) : (
+            filteredUsers.map((user) => (
+              <div key={user.id} className="space-y-3 p-4" data-testid={`user-card-${user.id}`}>
+                <div className="flex items-start gap-3">
+                  <Avatar className={getAvatarFallback(user.name).color} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{user.name}</div>
+                    <div className="break-all text-sm text-gray-600">{user.email}</div>
+                  </div>
+                  <span className={`${getStatusBadgeClass(user.status)} shrink-0 rounded-md px-2 py-0.5 text-xs`}>{user.status}</span>
+                </div>
+                <div className="flex items-center justify-between gap-1">
+                  <Button variant="outline" size="sm" className="h-10 w-10 p-0 text-blue-600" onClick={() => handleViewUser(user)} aria-label="View user"><Eye className="h-5 w-5" /></Button>
+                  <Button variant="outline" size="sm" className="h-10 w-10 p-0 text-green-600" onClick={() => handleEditUser(user)} disabled={!canEditUser} aria-label="Edit user"><Edit className="h-5 w-5" /></Button>
+                  <Button variant="outline" size="sm" className="h-10 w-10 p-0 text-amber-600" onClick={() => handleResetPassword(user)} disabled={!canEditUser} aria-label="Set password"><Lock className="h-5 w-5" /></Button>
+                  {canLoginAsUser ? (
+                    <Button variant="outline" size="sm" className="h-10 w-10 p-0 text-violet-600" onClick={() => setLoginAsUser(user)} disabled={loginAsBusy} aria-label="Login as user"><LogIn className="h-5 w-5" /></Button>
+                  ) : null}
+                  <Button variant="outline" size="sm" className="h-10 w-10 p-0 text-red-600" onClick={() => handleDeleteUser(user.id)} disabled={!canEditUser} aria-label="Delete user"><Trash2 className="h-5 w-5" /></Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Table (tablet and desktop) */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full">
             <thead className="bg-gray-50 text-gray-700 text-sm">
               <tr>
