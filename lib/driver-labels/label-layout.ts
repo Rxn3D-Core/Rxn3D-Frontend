@@ -57,6 +57,7 @@ export const SHEET_TEMPLATES: SheetTemplate[] = [
 /** Sizes offered for roll/thermal mode (per-label only; no grid). */
 export const ROLL_SIZES: { id: string; widthIn: number; heightIn: number }[] = [
   { id: "4x6", widthIn: 4, heightIn: 6 },
+  { id: "4x3", widthIn: 4, heightIn: 3 },
   { id: "4x2.5", widthIn: 4, heightIn: 2.5 },
   { id: "4x2", widthIn: 4, heightIn: 2 },
   { id: "3x2", widthIn: 3, heightIn: 2 },
