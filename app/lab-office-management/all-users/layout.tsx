@@ -10,10 +10,10 @@ export default function StaffManagementLayout({
 }) {
   return <div className="flex min-h-screen bg-[#f9f9f9]">
                     <DashboardSidebar />
-                    <div className="flex-1 flex flex-col">
+                    <div className="flex-1 flex flex-col min-w-0">
                       <Header />
-                      <div className="flex-1 flex">
-                        <main className="flex-1 px-6 py-4">
+                      <div className="flex-1 flex min-w-0">
+                        <main className="flex-1 min-w-0 px-3 py-4 sm:px-6">
                           {children}
                         </main>
                       </div>
