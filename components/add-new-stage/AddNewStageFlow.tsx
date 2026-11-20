@@ -35,6 +35,7 @@ import { DoctorEditModal } from "@/components/case-design-center/components/Doct
 import type { SlipProductSnapshot, VirtualSlipInitialState } from "@/components/case-design-center/types";
 import { buildAddStageSubmissionPayloadsAsync } from "@/components/case-design-center/utils/addStageSubmissionPayload";
 import { resolveVirtualSlipPath } from "@/components/case-design-center/utils/caseCompletionDestination";
+import { useCaseEstimatedDueDate } from "@/components/case-design-center/hooks/useCaseEstimatedDueDate";
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId";
 import { fetchCaseDesignProductDetails } from "@/components/case-design-center/utils/caseDesignProductDetails";
 import {
@@ -131,6 +132,19 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     fetchProductDetails: fetchCaseDesignProductDetails,
     bootstrap,
   });
+
+  // Same cut-off as the create-slip header: the effective pickup cut-off from the products'
+  // delivery calculation (case pan override or lab default), then the lab's default.
+  const productIdsForCutoff = [
+    wizard.selectedProductId,
+    ...wizard.addedProducts.map((p) =>
+      p.productId ?? (typeof p.product?.id === "number" ? p.product.id : null)
+    ),
+  ];
+  const { effectivePickupCutoffTime } = useCaseEstimatedDueDate(
+    productIdsForCutoff,
+    labCustomerId
+  );
 
   // Case details of the source slip. Slip-specific values (slip number, slip status, dates)
   // are left out because the new stage is a new slip; the estimated date is shown separately.
@@ -520,7 +534,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
               slipLogos={slipLogos}
               estimatedDueDate={headerDueDate}
               estimatedDueDateLoading={headerDueDateLoading}
-              cutoffTime={rushCaseSchedule?.default_pickup_time}
+              cutoffTime={effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time}
             />
 
             {initialSlipState && (
