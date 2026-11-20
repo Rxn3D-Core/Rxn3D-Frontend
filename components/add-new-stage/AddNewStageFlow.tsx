@@ -29,11 +29,13 @@ import {
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { CaseSubmissionOverlays } from "@/components/case-design-center/components/CaseSubmissionOverlays";
 import { CaseDesignCenter } from "@/components/case-design-center/components/CaseDesignCenter";
+import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { PatientHeader } from "@/components/case-design-center/components/PatientHeader";
 import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
 import type { SlipProductSnapshot, VirtualSlipInitialState } from "@/components/case-design-center/types";
 import { buildAddStageSubmissionPayloadsAsync } from "@/components/case-design-center/utils/addStageSubmissionPayload";
 import { resolveVirtualSlipPath } from "@/components/case-design-center/utils/caseCompletionDestination";
+import { useCaseEstimatedDueDate } from "@/components/case-design-center/hooks/useCaseEstimatedDueDate";
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId";
 import { fetchCaseDesignProductDetails } from "@/components/case-design-center/utils/caseDesignProductDetails";
 import {
@@ -130,6 +132,41 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     fetchProductDetails: fetchCaseDesignProductDetails,
     bootstrap,
   });
+
+  // Same cut-off as the create-slip header: the effective pickup cut-off from the products'
+  // delivery calculation (case pan override or lab default), then the lab's default.
+  const productIdsForCutoff = [
+    wizard.selectedProductId,
+    ...wizard.addedProducts.map((p) =>
+      p.productId ?? (typeof p.product?.id === "number" ? p.product.id : null)
+    ),
+  ];
+  const { effectivePickupCutoffTime } = useCaseEstimatedDueDate(
+    productIdsForCutoff,
+    labCustomerId
+  );
+
+  // Case details of the source slip. Slip-specific values (slip number, slip status, dates)
+  // are left out because the new stage is a new slip; the estimated date is shown separately.
+  const headerDetails = useMemo(() => {
+    const h = buildVirtualSlipVM(virtualSlipDetails).header;
+    return {
+      panNumber: h.panNumber,
+      caseNumber: h.caseNumber,
+      caseStatus: h.caseStatus,
+    };
+  }, [virtualSlipDetails]);
+
+  // The slip's own office / lab logos and names (not the logged-in user's or the wizard's lab).
+  const slipLogos = useMemo(() => {
+    const h = buildVirtualSlipVM(virtualSlipDetails).header;
+    return {
+      officeLogo: h.officeLogo,
+      officeName: h.officeName,
+      labLogo: h.labLogo,
+      labName: h.labName,
+    };
+  }, [virtualSlipDetails]);
 
   const handleEstimatedDueDateChange = useCallback(
     (info: {
@@ -493,9 +530,11 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
               labLogoUrl={wizard.completedLab?.logo}
               labName={wizard.completedLab?.name}
               onEditLab={wizard.handleTopBarEditLab}
+              details={headerDetails}
+              slipLogos={slipLogos}
               estimatedDueDate={headerDueDate}
               estimatedDueDateLoading={headerDueDateLoading}
-              cutoffTime={rushCaseSchedule?.default_pickup_time}
+              cutoffTime={effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time}
             />
 
             {initialSlipState && (

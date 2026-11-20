@@ -29,6 +29,7 @@ import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { CaseSubmissionOverlays } from "@/components/case-design-center/components/CaseSubmissionOverlays";
 import { CaseDesignCenter } from "@/components/case-design-center/components/CaseDesignCenter";
 import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
+import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { PatientHeader } from "@/components/case-design-center/components/PatientHeader";
 import type { SlipProductSnapshot, VirtualSlipInitialState } from "@/components/case-design-center/types";
 import { buildEditSlipSubmissionPayloadAsync } from "@/components/case-design-center/utils/editSlipSubmissionPayload";
@@ -207,6 +208,34 @@ export function EditSlipFlow({ slipId }: Props) {
     () => resolveCreatedByFromVirtualSlip(virtualSlipDetails),
     [virtualSlipDetails]
   );
+
+  // Generated slip details (pan, case, slip, status, dates) shown in the header.
+  const headerDetails = useMemo(() => {
+    const h = buildVirtualSlipVM(virtualSlipDetails).header;
+    return {
+      panNumber: h.panNumber,
+      caseNumber: h.caseNumber,
+      slipNumber: h.slipNumber,
+      location: h.location,
+      caseStatus: h.caseStatus,
+      slipStatus: h.slipStatus,
+      pickupDate: h.pickupDate,
+      dueDate: h.dueDate,
+      deliveryTime: h.deliveryTime,
+      isRush: h.isRush,
+    };
+  }, [virtualSlipDetails]);
+
+  // The slip's own office / lab logos and names (not the logged-in user's or the wizard's lab).
+  const slipLogos = useMemo(() => {
+    const h = buildVirtualSlipVM(virtualSlipDetails).header;
+    return {
+      officeLogo: h.officeLogo,
+      officeName: h.officeName,
+      labLogo: h.labLogo,
+      labName: h.labName,
+    };
+  }, [virtualSlipDetails]);
 
   const labCustomerId = useMemo(
     () => resolveLibraryCustomerId(resolveLabIdFromSlipDetails(virtualSlipDetails)),
@@ -449,6 +478,8 @@ export function EditSlipFlow({ slipId }: Props) {
               labLogoUrl={wizard.completedLab?.logo}
               labName={wizard.completedLab?.name}
               onEditLab={wizard.handleTopBarEditLab}
+              details={headerDetails}
+              slipLogos={slipLogos}
             />
 
             {initialSlipState && (
