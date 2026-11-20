@@ -92,6 +92,8 @@ export default function DriverLabelSheetModal({
   // Safari's PDF plugin does not paint blob URLs in an iframe. Embed does, once
   // object-src allows blob: and no ancestor has a CSS transform.
   const [safariPreview, setSafariPreview] = useState(false)
+  // RXN-105: Android and other phone browsers cannot show a PDF inside the page; they get an "Open preview" button instead.
+  const [phonePreview, setPhonePreview] = useState(false)
   const [appliedSettings, setAppliedSettings] = useState<DriverLabelPrintSettings>(
     DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
   )
@@ -100,7 +102,9 @@ export default function DriverLabelSheetModal({
   )
 
   useEffect(() => {
-    setSafariPreview(isSafariBrowser())
+    const safari = isSafariBrowser()
+    setSafariPreview(safari)
+    setPhonePreview(!safari && /Android|Mobi/i.test(navigator.userAgent))
   }, [])
 
   // Lab-wide settings come from the API (RXN-63). Until they load, and if loading fails,
@@ -481,14 +485,14 @@ export default function DriverLabelSheetModal({
         <DialogTitle className="sr-only">Print Driver Labels</DialogTitle>
         {step === "preview" ? (
           <div className="flex h-[82vh] flex-col">
-            <div className="flex items-center justify-between border-b px-5 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-3 sm:px-5">
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setStep("layout")}>
                   <ChevronLeft className="mr-1 h-4 w-4" /> Back
                 </Button>
                 <h2 className="text-lg font-semibold text-gray-900">Print preview</h2>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" onClick={handleDownload}>
                   <Download className="mr-2 h-4 w-4" /> Download PDF
                 </Button>
@@ -515,7 +519,18 @@ export default function DriverLabelSheetModal({
               </div>
             </div>
             <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
-              {previewUrl ? (
+              {previewUrl && phonePreview ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center" data-testid="driver-label-phone-preview">
+                  <p className="text-sm text-gray-600">
+                    This phone cannot show the PDF inside the page. Open it to see the labels exactly as they will print.
+                  </p>
+                  <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+                    <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+                      Open preview
+                    </a>
+                  </Button>
+                </div>
+              ) : previewUrl ? (
                 safariPreview ? (
                   <embed
                     src={previewUrl}
@@ -537,9 +552,9 @@ export default function DriverLabelSheetModal({
           </div>
         ) : (
           <div className="flex max-h-[93vh] flex-col overflow-hidden rounded-2xl">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-3 sm:px-5">
               <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <h2 className="text-lg font-semibold text-gray-900">Print Driver Labels</h2>
                   <span className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700">
                     {mode === "roll"
@@ -556,7 +571,7 @@ export default function DriverLabelSheetModal({
                   </p>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -708,8 +723,8 @@ export default function DriverLabelSheetModal({
               <div className="ml-auto pb-1 text-sm font-medium text-gray-600">{gridText}</div>
             </div>
 
-            <div className="flex min-h-0 flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
+              <div className="px-3 py-4 sm:px-5 md:flex-1 md:overflow-y-auto">
                 {!dimsValid ? (
                   <p className="py-10 text-center text-sm text-gray-500">
                     Enter a valid label size to continue.
@@ -836,7 +851,7 @@ export default function DriverLabelSheetModal({
               ) : null}
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t px-5 py-3">
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t px-3 py-3 sm:gap-3 sm:px-5">
               <Button variant="outline" onClick={onClose}>
                 Close
               </Button>
