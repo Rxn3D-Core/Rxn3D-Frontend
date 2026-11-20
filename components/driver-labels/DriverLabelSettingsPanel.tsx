@@ -116,7 +116,7 @@ export function DriverLabelSettingsPanel({
       (draft.logoSource === "custom" && logo.activeUrl === logo.customUrl))
 
   return (
-    <aside data-testid="driver-label-settings-panel" className="flex h-full w-full max-w-[340px] flex-col border-l border-[#e8eaee] bg-white">
+    <aside data-testid="driver-label-settings-panel" className="flex w-full flex-col border-t border-[#e8eaee] bg-white md:h-full md:max-w-[340px] md:border-l md:border-t-0">
       <div className="border-b border-[#e8eaee] px-4 py-3">
         <h3 className="text-[15px] font-semibold text-[#17191F]">Driver label settings</h3>
         <p className="mt-1 text-[12px] leading-4 text-[#6b7280]">
@@ -137,7 +137,7 @@ export function DriverLabelSettingsPanel({
         ) : null}
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+      <div className="flex-1 space-y-5 px-4 py-4 md:overflow-y-auto">
         {/* RXN-79: the Classic / Centered "Label design" choice is hidden. The saved labelDesign value still loads, saves and prints as before. */}
         {v3Active ? (
           <p className="text-[11px] leading-4 text-[#6b7280]" data-testid="driver-label-v3-note">
