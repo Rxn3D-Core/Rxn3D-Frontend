@@ -119,6 +119,17 @@ export const V3_FRAMES: Record<string, V3Frame> = {
     footer: { y: 156, valueDy: 12, pickupX: 14, deliverX: 80, qr: [229, 134, 44], date: "long" },
     status: { kind: "columns", y: 117, x: [13, 80] },
   },
+  // RXN-103: no separate Figma frame; the roll label uses the numbers of the sheet 4 x 3 frame.
+  "roll:4x3": {
+    logo: LOGO_STD,
+    header: { x: [265, 303, 345], ...HDR_STD },
+    patient: { ...PT_STD, labelY: 41.5 },
+    row: { y: ROW_Y, x: [14, 94, 194], captions: true },
+    rule: { x: 14, y: 233, w: 280 },
+    valuePx: 10.5,
+    footer: { y: 244.5, valueDy: 12, pickupX: 14, deliverX: 94, qr: [305, 202, 65], date: "long" },
+    status: { kind: "columns", y: 117, x: [13, 93] },
+  },
   "roll:2.25x1.25": {
     logo: [10, 10, 48, 15],
     header: { x: [101, 139, 181], labelY: 7.5, valueY: 20, valuePx: 10, right: 10 },
@@ -214,6 +225,7 @@ export const V3_SIZES: readonly { media: V3Media; widthIn: number; heightIn: num
   { media: "roll", widthIn: 4, heightIn: 2.5 },
   { media: "roll", widthIn: 4, heightIn: 2 },
   { media: "roll", widthIn: 3, heightIn: 2 },
+  { media: "roll", widthIn: 4, heightIn: 3 },
   { media: "roll", widthIn: 2.25, heightIn: 1.25 },
   { media: "sheet", widthIn: 4, heightIn: 2.5 }, // PLS780, 8/sheet
   { media: "sheet", widthIn: 3.75, heightIn: 2 }, // PLS618, 8/sheet
@@ -229,10 +241,58 @@ export function v3FrameKey(media: V3Media, widthIn: number, heightIn: number): s
   return `${media}:${widthIn}x${heightIn}`;
 }
 
-export function isV3Size(media: V3Media, widthIn: number, heightIn: number): boolean {
+/** RXN-103: custom sizes inside this range print the v3 design too (smaller than the smallest Figma frame does not fit). */
+export const V3_CUSTOM_MIN_IN = { w: 2.25, h: 1.25 } as const;
+export const V3_CUSTOM_MAX_IN = { w: 8.5, h: 11 } as const;
+
+function isStandardV3Size(media: V3Media, widthIn: number, heightIn: number): boolean {
   return V3_SIZES.some(
     (s) => s.media === media && Math.abs(s.widthIn - widthIn) < 1e-6 && Math.abs(s.heightIn - heightIn) < 1e-6,
   );
+}
+
+/** True for the Figma sizes in `V3_SIZES` and for any custom size from 2.25 x 1.25 in up to a Letter page. */
+export function isV3Size(media: V3Media, widthIn: number, heightIn: number): boolean {
+  if (isStandardV3Size(media, widthIn, heightIn)) return true;
+  return (
+    Number.isFinite(widthIn) &&
+    Number.isFinite(heightIn) &&
+    widthIn >= V3_CUSTOM_MIN_IN.w - 1e-6 &&
+    heightIn >= V3_CUSTOM_MIN_IN.h - 1e-6 &&
+    widthIn <= V3_CUSTOM_MAX_IN.w + 1e-6 &&
+    heightIn <= V3_CUSTOM_MAX_IN.h + 1e-6
+  );
+}
+
+/**
+ * RXN-103: the frame of a custom size. Starts from the nearest Figma frame of the same media (by width, then height) and moves
+ * what is anchored to the right edge (header, QR code, rule width) by the width difference and what is anchored to the bottom
+ * (footer, QR code, rule) by the height difference. Type sizes stay as designed, like on every Figma frame.
+ */
+export function deriveV3Frame(media: V3Media, widthIn: number, heightIn: number): V3Frame {
+  const candidates = V3_SIZES.filter((s) => s.media === media && V3_FRAMES[v3FrameKey(s.media, s.widthIn, s.heightIn)]);
+  // A frame with a status block needs the height it was designed for; frames without one are only the smallest sizes.
+  const base = candidates.reduce((best, s) => {
+    const score = (c: { widthIn: number; heightIn: number }) => Math.abs(c.widthIn - widthIn) * 2 + Math.abs(c.heightIn - heightIn);
+    return score(s) < score(best) ? s : best;
+  }, candidates[0]);
+  const f = V3_FRAMES[v3FrameKey(base.media, base.widthIn, base.heightIn)];
+  const dx = (widthIn - base.widthIn) * 96;
+  const dy = (heightIn - base.heightIn) * 96;
+  const [qx, qy, qs] = f.footer.qr;
+  return {
+    ...f,
+    header: { ...f.header, x: f.header.x.map((x) => x + dx) as [number, number, number] },
+    rule: { ...f.rule, y: f.rule.y + dy, w: f.rule.w + dx },
+    footer: { ...f.footer, y: f.footer.y + dy, qr: [qx + dx, qy + dy, qs] },
+  };
+}
+
+/** The Figma frame for a listed size, or a derived one for a custom size. */
+export function resolveV3Frame(media: V3Media, widthIn: number, heightIn: number): V3Frame | null {
+  const exact = V3_FRAMES[v3FrameKey(media, widthIn, heightIn)];
+  if (exact) return exact;
+  return isV3Size(media, widthIn, heightIn) ? deriveV3Frame(media, widthIn, heightIn) : null;
 }
 
 export interface V3Box {
@@ -312,7 +372,7 @@ export function planV3Layout(
   heightIn: number,
   media: V3Media = "roll",
 ): V3Plan {
-  const frame = V3_FRAMES[v3FrameKey(media, widthIn, heightIn)];
+  const frame = resolveV3Frame(media, widthIn, heightIn);
   if (!frame) throw new Error(`No v3 frame for ${media} ${widthIn} x ${heightIn} in`);
   const Wpx = widthIn * 96;
   const cells: V3Cell[] = [];
