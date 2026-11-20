@@ -12,6 +12,20 @@ import { SubmitCutoffBanner, useIsWithinCutoffWarningWindow } from "@/components
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
+/** Read-only slip / case details shown under the patient fields (edit slip, add new stage). */
+export interface PatientHeaderDetails {
+  panNumber?: string;
+  caseNumber?: string;
+  slipNumber?: string;
+  location?: string;
+  caseStatus?: string;
+  slipStatus?: string;
+  pickupDate?: string;
+  dueDate?: string;
+  deliveryTime?: string;
+  isRush?: boolean;
+}
+
 export interface PatientHeaderProps {
   /** Selected doctor image URL (from wizard). Falls back to placeholder when not provided. */
   doctorImageUrl?: string | null;
@@ -63,6 +77,84 @@ export interface PatientHeaderProps {
   /** Lab cut-off time(s); cutoff warning banner shows only within 10 minutes before cut-off. */
   cutoffTime?: string | null;
   cutoffTime2?: string | null;
+  /** Generated slip / case details (pan, case, slip, status, dates) shown in the pre-submit header. */
+  details?: PatientHeaderDetails | null;
+  /**
+   * Logos and names of the slip's own office and lab (edit slip, add new stage). When set,
+   * they replace the profile / wizard-selected logos so the office side always shows the
+   * slip's office (its name when it has no logo) and never the lab's logo.
+   */
+  slipLogos?: PatientHeaderSlipLogos | null;
+}
+
+export interface PatientHeaderSlipLogos {
+  officeLogo?: string | null;
+  officeName?: string | null;
+  labLogo?: string | null;
+  labName?: string | null;
+}
+
+const DETAIL_LABEL = "shrink-0 whitespace-nowrap text-[clamp(13px,0.68vw,15px)] font-bold leading-tight text-[#4C4D55]";
+const DETAIL_VALUE = "min-w-0 truncate text-[clamp(13px,0.68vw,15px)] font-normal leading-tight text-[#4C4D55]";
+
+/** Label/value rows for one column of the details grid; rows without a value are skipped. */
+function DetailColumn({ fields }: { fields: { label: string; value?: string; className?: string }[] }) {
+  const rows = fields.filter((f) => f.value && f.value.trim() !== "");
+  if (rows.length === 0) return <div aria-hidden />;
+  return (
+    <div className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-[6px] gap-y-[clamp(3px,0.45vw,7px)]">
+      {rows.map((f) => (
+        <div key={f.label} className="contents">
+          <span className={DETAIL_LABEL}>{f.label}:</span>
+          <span className={`${DETAIL_VALUE} ${f.className ?? ""}`} title={f.value}>
+            {f.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Inline in the patient-name row (between the fields and the estimated delivery date). */
+function HeaderDetails({ details }: { details: PatientHeaderDetails }) {
+  const hasAny = Object.values(details).some((v) => typeof v === "string" && v.trim() !== "");
+  if (!hasAny) return null;
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-evenly gap-x-[clamp(12px,1.4vw,28px)]">
+      <DetailColumn
+        fields={[
+          { label: "Pan", value: details.panNumber },
+          { label: "Case", value: details.caseNumber, className: "text-[#1162A8]" },
+          { label: "Slip", value: details.slipNumber },
+        ]}
+      />
+      {details.location && details.location.trim() !== "" ? (
+        <p
+          className="min-w-0 max-w-[160px] truncate text-center text-[clamp(13px,0.68vw,15px)] font-bold leading-tight text-[#4C4D55]"
+          title={details.location}
+        >
+          {details.location}
+        </p>
+      ) : null}
+      <DetailColumn
+        fields={[
+          { label: "Case status", value: details.caseStatus },
+          { label: "Slip status", value: details.slipStatus },
+        ]}
+      />
+      <DetailColumn
+        fields={[
+          { label: "Pickup date", value: details.pickupDate },
+          {
+            label: "Delivery date",
+            value: details.dueDate,
+            className: details.isRush ? "text-red-600 font-bold" : undefined,
+          },
+          { label: "Delivery time", value: details.deliveryTime },
+        ]}
+      />
+    </div>
+  );
 }
 
 function SkeletonField({ label, width = "w-[160px]" }: { label: string; width?: string }) {
@@ -161,6 +253,8 @@ export function PatientHeader({
   estimatedDueDateLoading = false,
   cutoffTime,
   cutoffTime2,
+  details,
+  slipLogos,
 }: PatientHeaderProps = {}) {
   const displayName = doctorName && doctorName.trim() !== "" ? withDegree(doctorName, doctorDegree) : DEFAULT_DOCTOR_NAME;
   const doctorImgSrc = doctorDisplayImageUrl(doctorImageUrl);
@@ -251,11 +345,11 @@ export function PatientHeader({
 
   const selectedLogo = labLogoUrl && labLogoUrl.trim() !== "" ? labLogoUrl : null;
   // In lab-customer context, "self" is the lab → the wizard selection is the office.
-  const officeLogo = isLabCtx ? selectedLogo : profileLogoUrl;
-  const officeName = isLabCtx ? labName : null;
+  const officeLogo = slipLogos ? slipLogos.officeLogo ?? null : isLabCtx ? selectedLogo : profileLogoUrl;
+  const officeName = slipLogos ? slipLogos.officeName ?? null : isLabCtx ? labName : null;
   const officeEditable = isLabCtx;
-  const labLogo = isLabCtx ? profileLogoUrl : selectedLogo;
-  const labNameDisplay = isLabCtx ? null : labName;
+  const labLogo = slipLogos ? slipLogos.labLogo ?? null : isLabCtx ? profileLogoUrl : selectedLogo;
+  const labNameDisplay = slipLogos ? slipLogos.labName ?? null : isLabCtx ? null : labName;
   const labEditable = !isLabCtx;
 
   const createdInitials = (createdByName || "")
@@ -362,6 +456,7 @@ export function PatientHeader({
                     type="number"
                   />
                 )}
+                {details ? <HeaderDetails details={details} /> : null}
                 <div className="ml-auto flex min-w-0 flex-col items-end gap-1.5">
                   {estimatedDueDateLoading && !estimatedDueDate ? (
                     <p className="text-xs text-[#9CA3AF]">Estimating delivery date…</p>
