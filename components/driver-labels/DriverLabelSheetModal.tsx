@@ -335,6 +335,24 @@ export default function DriverLabelSheetModal({
 
   const handleDownload = () => previewDoc.current?.save(`driver-labels-${Date.now()}.pdf`)
 
+  // RXN-106: hand the PDF file to another app (printer app, PDF viewer) through the Android share sheet.
+  // Falls back to opening it in a new tab when the browser cannot share files.
+  const handleOpenInApp = async () => {
+    const doc = previewDoc.current
+    if (!doc || !previewUrl) return
+    const file = new File([doc.output("blob")], `driver-labels-${Date.now()}.pdf`, { type: "application/pdf" })
+    try {
+      if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Driver labels" })
+        return
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return // the user closed the share sheet
+      console.error("Sharing the driver labels PDF failed", err)
+    }
+    window.open(previewUrl, "_blank", "noopener,noreferrer")
+  }
+
   const handlePrint = () => {
     if (!previewUrl) return
     // Must run in the click, before any await, or the browser blocks the tab.
@@ -522,9 +540,12 @@ export default function DriverLabelSheetModal({
               {previewUrl && phonePreview ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center" data-testid="driver-label-phone-preview">
                   <p className="text-sm text-gray-600">
-                    This phone cannot show the PDF inside the page. Open it to see the labels exactly as they will print.
+                    This phone cannot show the PDF inside the page. Open it in your printer app, or in the browser to check the labels.
                   </p>
-                  <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+                  <Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={handleOpenInApp} data-testid="driver-label-open-in-app">
+                    Open in app
+                  </Button>
+                  <Button asChild variant="outline">
                     <a href={previewUrl} target="_blank" rel="noopener noreferrer">
                       Open preview
                     </a>
