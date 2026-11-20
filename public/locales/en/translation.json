@@ -508,6 +508,17 @@
     "product": "Product",
     "Delete": "Delete",
     "Cancel": "Cancel",
+  "statementSettings": {
+    "title": "Statements settings",
+    "saved": "Statement settings saved",
+    "save": "Save",
+    "discard": "Discard changes",
+    "retry": "Try again",
+    "readOnly": "Only a lab admin can change these settings.",
+    "loadError": "Could not load the statement settings.",
+    "loading": "Loading statement settings...",
+    "saveError": "Could not save statement settings"
+  },
   "slipActivity": {
     "title": "Slip Activity Monitor",
     "subtitle": "Slip pickup and delivery status changes for your lab, newest first.",

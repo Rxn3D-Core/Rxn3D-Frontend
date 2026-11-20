@@ -27,6 +27,7 @@ import {
 } from "@/lib/statement-edit-utils"
 import { useEnrichedStatementParties } from "@/hooks/use-enriched-statement-parties"
 import { isProductInvoiceStatementItem } from "@/lib/product-invoicing"
+import { resolveStatementDisplay, showsRecipientName, statementTermsLabel } from "@/lib/statement-settings"
 
 type StatementPreviewBillingItem = StatementBillingItem & {
   product_type?: string | null
@@ -216,6 +217,17 @@ function StatementPreviewContent({
   )
   const previewRecipient = statement.recipient_email || statement.office?.email || statement.lab?.email || "—"
   const previewCode = statement.office?.code || statement.lab?.code || "—"
+  // RXN-100: what the lab chose to show when this statement was created (no snapshot = everything).
+  // Edit mode always shows every field so nothing becomes uneditable.
+  const display = useMemo(
+    () => resolveStatementDisplay(isEditMode ? null : statement.display_settings),
+    [isEditMode, statement.display_settings],
+  )
+  const termsLabel = statementTermsLabel(display, statement.payment_terms_days)
+  const labContactParts = [
+    display.show_lab_phone ? `Phone: ${statement.lab?.phone || "—"}` : null,
+    display.show_lab_email ? `Email ${statement.lab?.email || "—"}` : null,
+  ].filter(Boolean)
 
   // Effective gross honours an in-flight edit draft (keyed per row) and falls
   // back to the stored value. Totals recompute from this so the on-screen
@@ -255,7 +267,7 @@ function StatementPreviewContent({
     >
       <div className="grid gap-6 sm:grid-cols-[1fr_200px] sm:items-start">
         <div className="min-w-0">
-          {statement.lab?.logo_url ? (
+          {statement.lab?.logo_url && display.show_lab_logo ? (
             <img
               src={statement.lab.logo_url}
               alt={`${statement.lab.name || "Lab"} logo`}
@@ -266,10 +278,10 @@ function StatementPreviewContent({
             {statement.lab?.name || "Lab"}
           </h3>
           <div className="space-y-0.5 text-[13px] leading-5 text-slate-800">
-            <p className="whitespace-pre-line">{formatStatementPartyAddress(statement.lab)}</p>
-            <p>
-              Phone: {statement.lab?.phone || "—"} | Email {statement.lab?.email || "—"}
-            </p>
+            {display.show_lab_address ? (
+              <p className="whitespace-pre-line">{formatStatementPartyAddress(statement.lab)}</p>
+            ) : null}
+            {labContactParts.length > 0 ? <p>{labContactParts.join(" | ")}</p> : null}
           </div>
         </div>
         <div className="flex flex-col items-start sm:items-end">
@@ -320,9 +332,18 @@ function StatementPreviewContent({
             </div>
           ) : (
             <>
-              <div className="text-[13px] leading-6"><span className="font-bold text-black">NO:</span> {statement.statement_id || `Statement #${statement.id}`}</div>
-              <div className="text-[13px] leading-6"><span className="font-bold text-black">Date:</span> {formatStatementDate(statement.created_at)}</div>
-              <div className="text-[13px] leading-6"><span className="font-bold text-black">Due date:</span> {formatStatementDate(statement.due_date)}</div>
+              {display.show_statement_number ? (
+                <div className="text-[13px] leading-6"><span className="font-bold text-black">NO:</span> {statement.statement_id || `Statement #${statement.id}`}</div>
+              ) : null}
+              {display.show_statement_date ? (
+                <div className="text-[13px] leading-6"><span className="font-bold text-black">Date:</span> {formatStatementDate(statement.created_at)}</div>
+              ) : null}
+              {display.show_due_date ? (
+                <div className="text-[13px] leading-6"><span className="font-bold text-black">Due date:</span> {formatStatementDate(statement.due_date)}</div>
+              ) : null}
+              {termsLabel ? (
+                <div className="text-[13px] leading-6" data-testid="statement-terms"><span className="font-bold text-black">Terms:</span> {termsLabel}</div>
+              ) : null}
             </>
           )}
           </div>
@@ -338,12 +359,19 @@ function StatementPreviewContent({
             className="mb-3 h-auto max-h-[60px] w-[120px] object-contain object-left"
           />
         ) : null}
-        <h3 className="mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-3xl font-bold leading-tight text-black">
-          {statement.office?.name || previewRecipient}
-        </h3>
-        <p className="whitespace-pre-line text-[15px] leading-6 text-slate-700">
-          {formatStatementPartyAddress(statement.office)}
-        </p>
+        {showsRecipientName(display) ? (
+          <h3 className="mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-3xl font-bold leading-tight text-black">
+            {statement.office?.name || previewRecipient}
+          </h3>
+        ) : null}
+        {display.show_recipient_address ? (
+          <p className="whitespace-pre-line text-[15px] leading-6 text-slate-700">
+            {formatStatementPartyAddress(statement.office)}
+          </p>
+        ) : null}
+        {display.show_recipient_phone && statement.office?.phone ? (
+          <p className="text-[15px] leading-6 text-slate-700">Phone: {statement.office.phone}</p>
+        ) : null}
         {isEditMode && headerDraft ? (
           <label className="mt-2 block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-6 text-slate-500">
             <span>Code: {previewCode} | Recipient: </span>
@@ -361,7 +389,8 @@ function StatementPreviewContent({
           </label>
         ) : (
           <p className="mt-2 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-6 text-slate-500">
-            Code: {previewCode} | Recipient: {previewRecipient}
+            Code: {previewCode}
+            {display.show_recipient_email ? ` | Recipient: ${previewRecipient}` : ""}
           </p>
         )}
       </div>

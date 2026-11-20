@@ -1,3 +1,4 @@
+import type { StatementToggleKey } from "@/lib/statement-settings"
 import { apiSlice } from "./apiSlice"
 
 /** Query params for `GET /billing` (see ListBillingRequest on backend) */
@@ -309,6 +310,10 @@ export interface StatementRecord {
   refund_amount?: number | string | null
   /** Refund explanation shown on the statement. */
   refund_reason?: string | null
+  /** RXN-100: the lab's show/hide toggles when the statement was created. Null or missing = show everything. */
+  display_settings?: Partial<Record<StatementToggleKey, boolean>> | null
+  /** RXN-100: the lab's payment term (days) when the statement was created; null = none. */
+  payment_terms_days?: number | null
 }
 
 export interface StatementListResult {
