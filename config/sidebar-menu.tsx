@@ -397,6 +397,13 @@ export const labAdminMenu: MenuItem[] = [
         permission: ["view_statements", "create_statements", "manage_statements"],
         planFeature: "billing.statements",
       },
+      {
+        id: "statement-settings",
+        title: "Statements settings",
+        path: "/billing/statement-settings",
+        permission: ["view_statements", "create_statements", "manage_statements"],
+        planFeature: "billing.statements",
+      },
       // {
       //   id: "integrations",
       //   title: "Integrations",

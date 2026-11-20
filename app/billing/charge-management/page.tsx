@@ -118,6 +118,8 @@ import {
 } from "@/lib/billing/charge-row-format"
 import { StatementEmailRichTextEditor } from "@/components/statement-email-rich-text-editor"
 import { addDays, format } from "date-fns"
+import { useStatementSettings } from "@/hooks/use-statement-settings"
+import { defaultDueDays } from "@/lib/statement-settings"
 import type { DateRange } from "react-day-picker"
 import {
   applyStatementEmailMessageToPreviewHtml,
@@ -1413,10 +1415,14 @@ export default function ChargeManagementPage() {
     setStatementAutoMarkBilled((value) => !value)
   }, [])
 
+  // RXN-100: the lab's payment term sets the default due date (30 days when unset or not loaded). The picker stays an override.
+  const statementSettingsQuery = useStatementSettings()
+  const dueDays = defaultDueDays(statementSettingsQuery.data?.settings.paymentTermsDays)
+
   const getStatementGroupDueDate = useCallback(
     (officeId: number): string =>
-      statementGroupDueDates[officeId] ?? formatDateInput(addDays(new Date(), 30)),
-    [statementGroupDueDates],
+      statementGroupDueDates[officeId] ?? formatDateInput(addDays(new Date(), dueDays)),
+    [statementGroupDueDates, dueDays],
   )
 
   const updateStatementGroupDueDate = useCallback((officeId: number, dueDate: string) => {
@@ -1677,7 +1683,7 @@ export default function ChargeManagementPage() {
     }
 
     setStatementAutoMarkBilled(false)
-    const defaultDueDate = formatDateInput(addDays(new Date(), 30))
+    const defaultDueDate = formatDateInput(addDays(new Date(), dueDays))
     setStatementGroupDueDates(
       Object.fromEntries(selectedStatementGroups.map((group) => [group.officeId, defaultDueDate])),
     )

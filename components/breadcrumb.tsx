@@ -53,6 +53,7 @@ export function Breadcrumb() {
         "subscriptions": t("breadcrumb.subscriptions", { defaultValue: "Subscriptions" }),
         "charge-management": t("breadcrumb.chargeManagement", { defaultValue: "Charge Management" }),
         "generate-statements": t("breadcrumb.generateStatements", { defaultValue: "Generate Statements" }),
+        "statement-settings": t("breadcrumb.statementSettings", { defaultValue: "Statements settings" }),
         "integrations": t("breadcrumb.integrations", { defaultValue: "Integrations" }),
 
         //for lab office management

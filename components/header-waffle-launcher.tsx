@@ -37,6 +37,7 @@ const FALLBACK_ICONS: Record<string, React.ReactNode> = {
   "charge-management":   <Receipt className="h-5 w-5" />,
   "generate-statements": <FileText className="h-5 w-5" />,
   "office-statements":   <FileText className="h-5 w-5" />,
+  "statement-settings":  <Settings className="h-5 w-5" />,
   "system-setting-main": <Settings className="h-5 w-5" />,
 }
 
