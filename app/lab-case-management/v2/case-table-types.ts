@@ -17,6 +17,8 @@ export interface V2CaseRowData {
   /** @deprecated Prefer panColorAssignment */
   panToggled?: boolean
   officeCode: string
+  /** RXN-114: office listing only — lab logo shown in the Lab column. */
+  labLogoUrl?: string
   patient: string
   product: string
   status: string

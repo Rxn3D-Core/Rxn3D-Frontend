@@ -67,6 +67,7 @@ function toCaseRowData(slip: UISlip): V2CaseRowData {
     pan: slip.pan,
     panColorStyle: slip.panColorStyle,
     officeCode: slip.officeCode,
+    labLogoUrl: slip.labLogoUrl,
     patient: slip.patient,
     product: slip.product,
     status: slip.status,
