@@ -58,8 +58,11 @@ import { buildPickupDeliveryEntryFromSlip } from "@/lib/virtual-slip-pickup-entr
 import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog";
 import CaseActionModal from "@/components/CaseActionModal";
 import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal";
-import { resolveCaseStatementBillingId } from "@/lib/case-statement-print";
-import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi";
+import { findSlipBillingIdBySlipId, resolveCaseStatementBillingId } from "@/lib/case-statement-print";
+import {
+  useAdvancedBillingSearchMutation,
+  useGenerateVirtualStatementMutation,
+} from "@/lib/redux/api/billingApi";
 import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
 import { collectStageSeedsFromVirtualSlip } from "@/lib/api/slip-notes";
 import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
@@ -101,9 +104,10 @@ export default function VirtualSlipV2Page() {
   const slipId = Number(params.slipId);
 
   const { toast } = useToast();
-  const { canEditSlip, canCancelCase, canDeleteCase } = usePermissionCapabilities();
+  const { canEditSlip, canCancelCase, canDeleteCase, canViewBilling } = usePermissionCapabilities();
   const allowEditSlipAllLocations = useBetaFeature(BETA_FEATURE_KEYS.editSlipAllLocations);
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation();
+  const [advancedBillingSearch] = useAdvancedBillingSearchMutation();
   const {
     fetchVirtualSlipDetails,
     virtualSlipDetails,
@@ -335,9 +339,39 @@ export default function VirtualSlipV2Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slipUnavailable]);
 
+  // Invoice icon: only for users with billing access, and only when a billing
+  // record (SlipBilling) exists for this exact slip id. Slip details carry no
+  // billing id, so look it up by case number and match strictly on slip_id.
+  const [slipBillingId, setSlipBillingId] = useState<number | null>(null);
+  const detailsSlipId = Number((virtualSlipDetails as { id?: number } | null)?.id);
+  const detailsCaseNumber =
+    (virtualSlipDetails as { case?: { case_number?: string | null } } | null)?.case?.case_number?.trim() ?? "";
+  const directBillingId = resolveCaseStatementBillingId(virtualSlipDetails);
+  useEffect(() => {
+    setSlipBillingId(null);
+    if (!canViewBilling || !Number.isInteger(detailsSlipId) || detailsSlipId <= 0) return;
+    if (directBillingId != null) {
+      setSlipBillingId(directBillingId);
+      return;
+    }
+    if (!detailsCaseNumber) return;
+    let cancelled = false;
+    advancedBillingSearch({ case_number: detailsCaseNumber, per_page: 100, page: 1 })
+      .unwrap()
+      .then((result) => {
+        if (!cancelled) setSlipBillingId(findSlipBillingIdBySlipId(result.data ?? [], detailsSlipId));
+      })
+      .catch(() => {
+        // No access or no billing plan: keep the icon hidden.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [advancedBillingSearch, canViewBilling, detailsSlipId, detailsCaseNumber, directBillingId]);
+
   const handlePrintInvoice = useCallback(() => {
     void (async () => {
-      const billingId = resolveCaseStatementBillingId(virtualSlipDetails);
+      const billingId = slipBillingId;
       if (billingId == null) {
         toast({
           title: "Statement not available",
@@ -394,7 +428,7 @@ export default function VirtualSlipV2Page() {
         });
       }
     })();
-  }, [generateVirtualStatement, toast, virtualSlipDetails]);
+  }, [generateVirtualStatement, toast, slipBillingId]);
 
   const handleConfirmReadyToSend = async (payload: {
     signature: string;
@@ -826,7 +860,7 @@ export default function VirtualSlipV2Page() {
         header={vm.header}
         onPrint={handlePrintPaperSlipV5}
         printing={printingV5}
-        onPrintInvoice={handlePrintInvoice}
+        onPrintInvoice={canViewBilling && slipBillingId != null ? handlePrintInvoice : undefined}
         onPrintPaperSlipV4={handlePrintPaperSlipV4}
         locationAction={{
           pickupDropoffAction:
