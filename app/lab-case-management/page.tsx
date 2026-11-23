@@ -296,7 +296,7 @@ export default function LabSlipV3Page() {
     toggleSlipPan,
   } = useSlipContext()
   const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, restoreSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
-  const { canCancelCase, canDeleteCase } = usePermissionCapabilities()
+  const { canCancelCase, canDeleteCase, canViewBilling } = usePermissionCapabilities()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
   const { promptForSlip: promptCancellationBilling, dialog: cancellationBillingDialog } = useCancellationBillingPrompt()
   const [finalizeArchTarget, setFinalizeArchTarget] = useState<FinalizeArchTarget | null>(null)
@@ -1092,7 +1092,7 @@ export default function LabSlipV3Page() {
                 }
               : undefined,
           }}
-          canPrintStatement={canPrintStatement}
+          canPrintStatement={(row) => canViewBilling && canPrintStatement(row)}
           canSendBack={canSendBackToOffice}
           canCancelCase={canCancelCase}
           canDeleteCase={canDeleteCase}
