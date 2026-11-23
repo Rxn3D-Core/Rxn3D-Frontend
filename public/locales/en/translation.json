@@ -517,7 +517,13 @@
     "readOnly": "Only a lab admin can change these settings.",
     "loadError": "Could not load the statement settings.",
     "loading": "Loading statement settings...",
-    "saveError": "Could not save statement settings"
+    "saveError": "Could not save statement settings",
+    "unsaved": {
+      "title": "You have unsaved changes",
+      "description": "Your changes to the statement settings have not been saved. If you leave this page they will be lost.",
+      "stay": "Stay on page",
+      "leave": "Leave without saving"
+    }
   },
   "slipActivity": {
     "title": "Slip Activity Monitor",
