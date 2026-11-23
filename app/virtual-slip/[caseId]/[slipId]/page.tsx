@@ -386,12 +386,12 @@ export default function VirtualSlipV2Page() {
         const html = result?.data?.html;
         const printUrl = result?.data?.print_url;
 
-        if (printUrl) {
-          window.open(printUrl, "_blank", "width=1200,height=900");
-          return;
-        }
-
+        // Prefer the returned HTML: the API's print_url (/billing/{id}/print) has no route behind it.
         if (!html) {
+          if (printUrl) {
+            window.open(printUrl, "_blank", "width=1200,height=900");
+            return;
+          }
           toast({
             title: "Statement unavailable",
             description: "The server did not return a statement for this case.",
