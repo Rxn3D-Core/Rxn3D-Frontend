@@ -2,6 +2,7 @@ import {
   ALL_COLUMNS,
   type ColumnKey,
 } from "@/app/lab-case-management/components/V3FilterBar"
+import { migrateOfficeLabColumn } from "@/lib/slip-listing-lab-column-migration"
 
 export type SlipListingProfile = "lab" | "office"
 
@@ -57,6 +58,14 @@ export function saveSlipListingStatusFilters(profile: SlipListingProfile, status
 }
 
 export function loadSlipListingVisibleColumns(profile: SlipListingProfile): Set<ColumnKey> | null {
+  if (profile === "office" && typeof window !== "undefined") {
+    try {
+      migrateOfficeLabColumn(localStorage)
+    } catch {
+      // Ignore blocked storage / quota errors.
+    }
+  }
+
   const raw = readJson(storageKey(profile, "visible-columns"))
   if (!Array.isArray(raw)) return null
 
