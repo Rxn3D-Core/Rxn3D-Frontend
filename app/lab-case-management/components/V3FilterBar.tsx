@@ -59,6 +59,10 @@ const DEFAULT_VISIBLE = new Set<ColumnKey>([
   "timestamp",
 ])
 
+// The office listing also starts with its "Lab" column (key "office") visible.
+// Like "timestamp", it stays toggleable, so it is not marked `default: true`.
+const DEFAULT_VISIBLE_OFFICE = new Set<ColumnKey>([...DEFAULT_VISIBLE, "office"])
+
 interface Props {
   search: string
   onSearchChange: (value: string) => void
@@ -524,4 +528,4 @@ function normalizeStatus(status: string) {
   return value
 }
 
-export { DEFAULT_VISIBLE }
+export { DEFAULT_VISIBLE, DEFAULT_VISIBLE_OFFICE }
