@@ -415,7 +415,7 @@ function PreviewPanel({
       {/* Header */}
       <div className="flex flex-row-reverse items-center justify-between gap-2 px-3 py-2 border-b flex-shrink-0 min-w-0">
         {/* Controls stay on the right and never shrink, so they are always visible */}
-        <div className="flex items-center gap-0.5 flex-shrink-0">
+        <div className="flex flex-row-reverse items-center gap-0.5 flex-shrink-0">
           <button
             type="button"
             className="w-8 h-8 rounded flex items-center justify-center hover:bg-gray-100 transition"
