@@ -24,6 +24,14 @@ test("lab listing defaults do not include the office column", () => {
   assert.doesNotMatch(block[1], /"office"/)
 })
 
+test("office column load runs the one-time Lab migration first", () => {
+  const prefs = readFileSync(new URL("../../../lib/slip-listing-preferences.ts", import.meta.url), "utf8")
+  assert.match(
+    prefs,
+    /loadSlipListingVisibleColumns\(profile: SlipListingProfile\)[^{]*\{\s*if \(profile === "office"[^)]*\) \{\s*try \{\s*migrateOfficeLabColumn\(localStorage\)/,
+  )
+})
+
 test("widget uses office defaults only when nothing is saved", () => {
   assert.match(
     widget,
