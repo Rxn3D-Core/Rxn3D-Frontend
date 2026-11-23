@@ -413,8 +413,8 @@ function PreviewPanel({
   return (
     <div className="flex flex-col h-full border-l border-gray-200 bg-white min-w-0">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b flex-shrink-0 min-w-0">
-        {/* Controls on the left so they stay visible on every screen width */}
+      <div className="flex flex-row-reverse items-center justify-between gap-2 px-3 py-2 border-b flex-shrink-0 min-w-0">
+        {/* Controls stay on the right and never shrink, so they are always visible */}
         <div className="flex items-center gap-0.5 flex-shrink-0">
           <button
             type="button"
