@@ -413,32 +413,35 @@ function PreviewPanel({
   return (
     <div className="flex flex-col h-full border-l border-gray-200 bg-white min-w-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0">
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-4 bg-[#1162A8] rounded flex items-center justify-center">
-            <span className="text-white text-[7px] font-bold leading-none">3D</span>
-          </div>
-          <span className="text-xs font-semibold text-gray-900">MyStudio</span>
-        </div>
-        <div className="flex items-center gap-0.5 mr-5">
+      <div className="flex items-center gap-2 px-3 py-2 border-b flex-shrink-0 min-w-0">
+        {/* Controls on the left so they stay visible on every screen width */}
+        <div className="flex items-center gap-0.5 flex-shrink-0">
           <button
             type="button"
-            className="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 transition"
+            className="w-8 h-8 rounded flex items-center justify-center hover:bg-gray-100 transition"
+            title="Close preview"
+            aria-label="Close preview"
+            onClick={onClear}
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+          <button
+            type="button"
+            className="w-8 h-8 rounded flex items-center justify-center hover:bg-gray-100 transition"
             title="Fullscreen"
+            aria-label="Fullscreen"
             onClick={onFullscreen}
           >
-            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <svg viewBox="0 0 16 16" className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M1.5 5.5V2.5H4.5M11.5 2.5H14.5V5.5M14.5 10.5V13.5H11.5M4.5 13.5H1.5V10.5" />
             </svg>
           </button>
-          <button
-            type="button"
-            className="w-7 h-7 rounded flex items-center justify-center hover:bg-gray-100 transition"
-            title="Close preview"
-            onClick={onClear}
-          >
-            <X className="w-6 h-6 text-gray-500" />
-          </button>
+        </div>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="w-4 h-4 bg-[#1162A8] rounded flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-[7px] font-bold leading-none">3D</span>
+          </div>
+          <span className="text-xs font-semibold text-gray-900 truncate">MyStudio</span>
         </div>
       </div>
 
@@ -1461,7 +1464,7 @@ export default function SlipAttachmentBrowserDialog({
                 initial={false}
                 animate={{ width: showPreview ? "50%" : "100%" }}
                 transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-                className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${
+                className={`flex min-h-0 min-w-0 flex-col overflow-hidden max-md:!w-full ${
                   showPreview ? "md:flex-none" : "flex-1"
                 } ${showPreview ? "max-md:max-h-[40%]" : "flex-1"}`}
               >
@@ -1629,9 +1632,9 @@ export default function SlipAttachmentBrowserDialog({
                     animate={{ width: "50%", opacity: 1 }}
                     exit={{ width: 0, opacity: 0 }}
                     transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-                    className="flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden"
+                    className="flex min-h-0 min-w-0 flex-col overflow-hidden max-md:!w-full max-md:flex-1 md:shrink-0"
                   >
-                    <div className="flex h-full w-[min(50vw,700px)] min-w-[280px] flex-1 flex-col">
+                    <div className="flex h-full w-full min-w-0 flex-1 flex-col md:min-w-[280px]">
                       <PreviewPanel
                         items={selectedForPreview}
                         onClear={() => setSelectedForPreview([])}
