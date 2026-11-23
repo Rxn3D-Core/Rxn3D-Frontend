@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { useRouter } from "next/navigation";
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
 import { formatSlipListingProducts } from "@/app/lab-case-management/slip-listing-product-label.mjs";
+import { listingLabLogoUrl } from "@/app/lab-case-management/listing-lab-logo.mjs";
 import { formatSlipListingTimestamp } from "@/lib/slip-listing-timestamp";
 
 // Types based on the API response structure
@@ -140,6 +141,8 @@ export interface UISlip {
   dueDate: string;
   overdue: boolean;
   labName?: string;
+  /** RXN-114: `lab.logo_url` from the office listing; undefined when the lab has no logo. */
+  labLogoUrl?: string;
   doctorName?: string;
   slipNumber?: string;
   /** Distinct catalog product names on the slip (for advanced product filter). */
@@ -245,6 +248,7 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
       })(),
       overdue: false, // You can implement overdue logic based on delivery date
       labName: apiCase.lab?.name,
+      labLogoUrl: listingLabLogoUrl(apiCase.lab),
       doctorName: apiCase.doctor?.name,
       slipNumber: slip.slip_number,
       productNames: Array.from(
