@@ -1006,7 +1006,7 @@ function DesktopCell({
     return (
       <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
         <div className="flex min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 15px", gap: 3, height: 52 }}>
-          <div className="truncate w-full" style={{ fontSize: 18, lineHeight: "21px", color: "#575757" }}>{row.officeCode || "—"}</div>
+          <CounterpartyName name={row.officeCode} logoUrl={row.labLogoUrl} />
           {row.doctor && <div className="truncate w-full" style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.doctor}</div>}
         </div>
       </td>
@@ -1042,6 +1042,28 @@ function DesktopCell({
   )
 }
 
+
+/**
+ * RXN-114: the office listing's Lab column shows the lab logo (small, full name
+ * on hover) when the lab has one; otherwise, or if the image fails, the name text.
+ */
+function CounterpartyName({ name, logoUrl }: { name: string; logoUrl?: string }) {
+  const [logoFailed, setLogoFailed] = useState(false)
+  useEffect(() => setLogoFailed(false), [logoUrl])
+  if (logoUrl && !logoFailed) {
+    return (
+      <img
+        src={logoUrl}
+        alt={name ? `${name} logo` : "Lab logo"}
+        title={name || undefined}
+        className="block max-w-full object-contain object-left"
+        style={{ height: 24 }}
+        onError={() => setLogoFailed(true)}
+      />
+    )
+  }
+  return <div className="truncate w-full" style={{ fontSize: 18, lineHeight: "21px", color: "#575757" }}>{name || "—"}</div>
+}
 
 function DigitalImpressionLabels({
   impressions,
