@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { V3FilterBar, DEFAULT_VISIBLE, type ColumnKey } from "./V3FilterBar"
+import { V3FilterBar, DEFAULT_VISIBLE, DEFAULT_VISIBLE_OFFICE, type ColumnKey } from "./V3FilterBar"
 import { V3CaseTable, type SortDirection } from "./V3CaseTable"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 import type { SlipListingBusinessHour } from "@/lib/slip-listing-due-date"
@@ -83,7 +83,9 @@ export function V3CaseWidget(props: Props) {
   const firstEntry = props.totalCount === 0 ? 0 : (props.currentPage - 1) * props.itemsPerPage + 1
   const lastEntry = Math.min(props.currentPage * props.itemsPerPage, props.totalCount)
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
-    () => loadSlipListingVisibleColumns(props.listingProfile) ?? DEFAULT_VISIBLE,
+    () =>
+      loadSlipListingVisibleColumns(props.listingProfile) ??
+      (props.listingProfile === "office" ? DEFAULT_VISIBLE_OFFICE : DEFAULT_VISIBLE),
   )
   const pageSizeOptions = PAGE_SIZE_CHOICES.includes(props.itemsPerPage)
     ? PAGE_SIZE_CHOICES
