@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard"
 import { useSaveStatementSettings, useStatementSettings } from "@/hooks/use-statement-settings"
 import {
   DEFAULT_LAB_STATEMENT_SETTINGS,
@@ -69,6 +70,13 @@ export default function StatementSettingsPage() {
   // Never edit before a successful load: saving would overwrite values we have not seen.
   const locked = !canEdit || query.isLoading || query.isError || save.isPending
   const dirty = query.data ? JSON.stringify(draft) !== JSON.stringify(query.data.settings) : false
+
+  const { dialog: unsavedDialog } = useUnsavedChangesGuard(dirty, {
+    title: t("statementSettings.unsaved.title", "You have unsaved changes"),
+    description: t("statementSettings.unsaved.description", "Your changes to the statement settings have not been saved. If you leave this page they will be lost."),
+    stay: t("statementSettings.unsaved.stay", "Stay on page"),
+    leave: t("statementSettings.unsaved.leave", "Leave without saving"),
+  })
 
   const onSave = () => {
     save.mutate(draft, {
@@ -185,6 +193,7 @@ export default function StatementSettingsPage() {
           </Button>
         </div>
       ) : null}
+      {unsavedDialog}
     </main>
   )
 }
