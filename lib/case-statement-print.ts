@@ -40,6 +40,25 @@ export function resolveCaseStatementBillingId(value: unknown): number | null {
   return null
 }
 
+/**
+ * Billing id for one slip from billing search results, matched strictly on the
+ * slip id (never a different slip's invoice). Picks the newest record, like the
+ * backend `Slip::slipBilling()` (latestOfMany).
+ */
+export function findSlipBillingIdBySlipId(
+  invoices: Array<{ id: unknown; slip_id?: unknown; slip?: { id?: unknown } | null }>,
+  slipId: number,
+): number | null {
+  let latest: number | null = null
+  for (const invoice of invoices) {
+    const invoiceSlipId = asPositiveInteger(invoice.slip_id) ?? asPositiveInteger(invoice.slip?.id)
+    const invoiceId = asPositiveInteger(invoice.id)
+    if (invoiceSlipId !== slipId || invoiceId == null) continue
+    if (latest == null || invoiceId > latest) latest = invoiceId
+  }
+  return latest
+}
+
 export function findBillingInvoiceIdFromSearchResults(
   invoices: Array<{
     id: number
