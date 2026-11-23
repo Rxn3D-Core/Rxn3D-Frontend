@@ -291,7 +291,7 @@ export default function LabSlipV3Page() {
     toggleSlipPan,
   } = useSlipContext()
   const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, restoreSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
-  const { canCancelCase, canDeleteCase } = usePermissionCapabilities()
+  const { canCancelCase, canDeleteCase, canViewBilling } = usePermissionCapabilities()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
   const router = useRouter()
 
@@ -1071,7 +1071,7 @@ export default function LabSlipV3Page() {
               ? (slip) => { void handleTogglePan(slip) }
               : undefined,
           }}
-          canPrintStatement={canPrintStatement}
+          canPrintStatement={(row) => canViewBilling && canPrintStatement(row)}
           canSendBack={canSendBackToOffice}
           canCancelCase={canCancelCase}
           canDeleteCase={canDeleteCase}

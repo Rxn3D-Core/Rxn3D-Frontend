@@ -154,15 +154,18 @@ function HeaderActionButton({
   label,
   onClick,
   loading = false,
+  testId,
 }: {
   src: string;
   label: string;
   onClick?: () => void;
   loading?: boolean;
+  testId?: string;
 }) {
   return (
     <button
       type="button"
+      data-testid={testId}
       aria-label={label}
       aria-busy={loading || undefined}
       title={loading ? "Preparing print…" : undefined}
@@ -185,6 +188,7 @@ export interface VirtualSlipHeaderProps {
   onPrint?: () => void;
   /** Paper slip print is being prepared; shows a spinner and blocks repeat clicks. */
   printing?: boolean;
+  /** Invoice icon is shown only when set (billing access and an invoice exist). */
   onPrintInvoice?: () => void;
   /** Prints Blade portrait-v4 HTML from API (base64 → iframe print). */
   onPrintPaperSlipV4?: () => void;
@@ -252,11 +256,14 @@ export function VirtualSlipHeader({
                 onClick={onPrint}
                 loading={printing}
               />
-              <HeaderActionButton
-                src={`${HEADER_ICON_BASE}/print-invoice.svg`}
-                label="Print invoice"
-                onClick={onPrintInvoice}
-              />
+              {onPrintInvoice ? (
+                <HeaderActionButton
+                  src={`${HEADER_ICON_BASE}/print-invoice.svg`}
+                  label="Print invoice"
+                  onClick={onPrintInvoice}
+                  testId="virtual-slip-print-invoice"
+                />
+              ) : null}
             </div>
 
             <LogoOrName

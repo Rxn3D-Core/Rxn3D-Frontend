@@ -216,7 +216,7 @@ function OfficeCaseManagementPage() {
   const { slips: officeSlips, loading, pagination, fetchOfficeSlips } = useOfficeSlipContext()
   const { fetchDriverPrintData, readyToSend } = useSlipContext()
   const { fetchProductAddons, cancelSlip, softDeleteSlip, restoreSlip, holdSlip } = useSlipCreation()
-  const { canCancelCase, canDeleteCase } = usePermissionCapabilities()
+  const { canCancelCase, canDeleteCase, canViewBilling } = usePermissionCapabilities()
   const [advancedBillingSearch] = useAdvancedBillingSearchMutation()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
@@ -770,7 +770,7 @@ function OfficeCaseManagementPage() {
             onDelete: (slip) => { setSelectedSlipForDelete(slip); setDeleteSlipModalOpen(true) },
             onRestore: (slip) => { setSelectedSlipForRestore(slip); setRestoreSlipModalOpen(true) },
           }}
-          canPrintStatement={canPrintStatement}
+          canPrintStatement={(row) => canViewBilling && canPrintStatement(row)}
           canSendBack={() => false}
           canCancelCase={canCancelCase}
           canDeleteCase={canDeleteCase}
