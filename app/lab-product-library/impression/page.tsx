@@ -11,6 +11,8 @@ import { CreateImpressionModal } from "@/components/product-management/create-im
 import { CreateImpressionGroupModal } from "@/components/product-management/create-impression-group-modal"
 import { DiscardChangesDialog } from "@/components/product-management/discard-changes-dialog"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { WarningActionModal } from "@/components/ui/warning-action-modal"
+import { useItemUsageGuard } from "@/hooks/use-item-usage-guard"
 import { Impression, useImpressions } from "@/contexts/product-impression-context"
 import { useLanguage } from "@/contexts/language-context"
 import { TableNameWithImage } from "@/components/product-management/table-image-preview"
@@ -52,6 +54,8 @@ export default function ImpressionPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [deletingName, setDeletingName] = useState<string>("")
   const [isDeleting, setIsDeleting] = useState(false)
+  // RXN-89: live product-usage check before delete
+  const usageGuard = useItemUsageGuard("impression")
   const [editingImpression, setEditingImpression] = useState<Impression | null>(null)
   const [isCopying, setIsCopying] = useState(false)
   const { currentLanguage } = useLanguage()
@@ -182,9 +186,18 @@ export default function ImpressionPage() {
   // Handle single delete
   function handleDelete(id: number): void {
     const impression = impressions.find((imp) => imp.id === id)
-    setDeletingId(id)
-    setDeletingName(impression?.name || "")
-    setDeleteModalOpen(true)
+    void usageGuard.requestAction({
+      itemId: id,
+      itemName: impression?.name || "",
+      action: "delete",
+      run: () => deleteImpression(id),
+      // Not used by any product: confirm as before
+      onNotUsed: () => {
+        setDeletingId(id)
+        setDeletingName(impression?.name || "")
+        setDeleteModalOpen(true)
+      },
+    })
   }
 
   // Confirm single delete
@@ -365,7 +378,7 @@ export default function ImpressionPage() {
                             size="sm"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
                             onClick={() => handleDelete(impression.id)}
-                            disabled={isLoading || isDeleting}
+                            disabled={isLoading || isDeleting || usageGuard.checkingId === impression.id}
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>
@@ -482,6 +495,8 @@ export default function ImpressionPage() {
         onDiscard={handleDiscardChanges}
         onKeepEditing={handleKeepEditing}
       />
+
+      <WarningActionModal {...usageGuard.modalProps} />
 
       {/* Delete Confirmation Modal for single delete */}
       <DeleteConfirmationModal

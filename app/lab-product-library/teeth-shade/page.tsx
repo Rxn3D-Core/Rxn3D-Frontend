@@ -16,8 +16,8 @@ import { Badge } from "@/components/ui/badge"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
-import { WarningActionModal, type WarningActionType } from "@/components/ui/warning-action-modal"
-import { useProductLibraryWarningsStore } from "@/stores/product-library-warnings-store"
+import { WarningActionModal } from "@/components/ui/warning-action-modal"
+import { useItemUsageGuard } from "@/hooks/use-item-usage-guard"
 import { useAuth } from "@/contexts/auth-context"
 import { getCustomerId } from "@/lib/dashboard-widgets"
 import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
@@ -69,15 +69,11 @@ export default function TeethShadePage() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
   const [isBulkDelete, setIsBulkDelete] = useState(false)
 
-  // Warning modal states (for delete/deactivate with dependency check)
-  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false)
-  const [warningActionType, setWarningActionType] = useState<WarningActionType>("delete")
-  const [warningTargetBrand, setWarningTargetBrand] = useState<any>(null)
-  const [isWarningLoading, setIsWarningLoading] = useState(false)
+  // RXN-89: live product-usage check before delete/deactivate
+  const usageGuard = useItemUsageGuard("teeth-shade")
 
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
-  const { addWarning } = useProductLibraryWarningsStore()
   const { user } = useAuth()
   const { toast } = useToast()
   const customerId = useMemo(() => getCustomerId(user), [user])
@@ -192,46 +188,34 @@ export default function TeethShadePage() {
     }
   }
 
-  // Handle delete (single) — show warning modal with dependency info
-  const handleDelete = (brand: any) => {
-    setWarningTargetBrand(brand)
-    setWarningActionType("delete")
-    setIsWarningModalOpen(true)
+  const brandLabel = (brand: any) =>
+    `${brand.brand_name || brand.name || ""} - ${brand.system_name || brand.system || ""}`.trim()
+
+  // Delete or deactivate (single): warn with the products that use the brand; otherwise confirm as before
+  const guardBrandAction = (brand: any, action: "delete" | "deactivate") => {
+    const itemName = brandLabel(brand)
+    const run = () =>
+      action === "delete"
+        ? deleteTeethShadeBrand(brand.id) // context refreshes + shows a single success toast
+        : updateTeethShadeBrand(brand.id, { status: "Inactive" })
+    void usageGuard.requestAction({
+      itemId: brand.id,
+      itemName,
+      action,
+      run,
+      onNotUsed: () => usageGuard.openConfirm({ itemName, action, run }),
+    })
   }
 
-  // Handle status toggle — show warning modal if deactivating
+  const handleDelete = (brand: any) => guardBrandAction(brand, "delete")
+
+  // Handle status toggle — check usage only when deactivating
   const handleStatusToggle = (brand: any) => {
     if (brand.status === "Active") {
-      // Deactivating — show warning
-      setWarningTargetBrand(brand)
-      setWarningActionType("deactivate")
-      setIsWarningModalOpen(true)
+      guardBrandAction(brand, "deactivate")
     } else {
       // Activating — no warning needed, just update
       updateTeethShadeBrand(brand.id, { status: "Active" })
-    }
-  }
-
-  // Confirm warning modal action (delete or deactivate)
-  const handleWarningConfirm = async () => {
-    if (!warningTargetBrand || isWarningLoading) return
-    setIsWarningLoading(true)
-    try {
-      if (warningActionType === "delete") {
-        // Context already refreshes + shows a single success toast
-        await deleteTeethShadeBrand(warningTargetBrand.id)
-      } else {
-        await updateTeethShadeBrand(warningTargetBrand.id, { status: "Inactive" })
-      }
-      // Add warning to sidebar when deactivating/deleting
-      if (warningActionType === "deactivate" || warningActionType === "delete") {
-        addWarning("teeth-shade")
-        addWarning("products")
-      }
-    } finally {
-      setIsWarningLoading(false)
-      setIsWarningModalOpen(false)
-      setWarningTargetBrand(null)
     }
   }
 
@@ -530,6 +514,7 @@ export default function TeethShadePage() {
                               : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
                           }`}
                           onClick={() => handleStatusToggle(brand)}
+                          aria-busy={usageGuard.checkingId === brand.id}
                         >
                           {t(brand.status)}
                         </Badge>
@@ -559,6 +544,7 @@ export default function TeethShadePage() {
                             size="sm"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
                             onClick={() => handleDelete(brand)}
+                            disabled={usageGuard.checkingId === brand.id}
                             title={t("Delete")}
                           >
                             <TrashIcon className="h-4 w-4" />
@@ -701,16 +687,7 @@ export default function TeethShadePage() {
       />
 
       {/* Warning Modal (single delete / deactivate with dependency check) */}
-      <WarningActionModal
-        isOpen={isWarningModalOpen}
-        onClose={() => { setIsWarningModalOpen(false); setWarningTargetBrand(null) }}
-        onConfirm={handleWarningConfirm}
-        type={warningActionType}
-        itemName={warningTargetBrand ? `${warningTargetBrand.brand_name || warningTargetBrand.name || ""} - ${warningTargetBrand.system_name || warningTargetBrand.system || ""}`.trim() : ""}
-        activeProductCount={warningTargetBrand?.active_product_count ?? 0}
-        productNames={warningTargetBrand?.active_product_names ?? []}
-        isLoading={isWarningLoading}
-      />
+      <WarningActionModal {...usageGuard.modalProps} />
     </div>
   )
 }

@@ -177,6 +177,12 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
     { id: "material", label: t("productLibrary.sideBar.Materials", "Material"), href: `${routePrefix}/material`, icon: <FlaskConical className="h-4 w-4" /> },
   ], [t, routePrefix, caseTrackingLabel])
 
+  // RXN-89: Products tooltip names the disabled item type(s), e.g. "Disabled Teeth Shade, Material"
+  const productsWarningLabel = [...flatItems, ...retentionGroup.items]
+    .filter((item) => item.id !== "products" && warnings.has(item.id))
+    .map((item) => item.label)
+    .join(", ")
+
   // Flatten all items to find active tab
   const allItems = useMemo(() => 
     [...sidebarGroups.flatMap(group => group.items), ...retentionGroup.items, ...advanceConfigGroup.items, ...flatItems],
@@ -340,6 +346,7 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
               handleTabClick={handleTabClick}
               hasWarning={groupWarning}
               itemHasWarning={itemHasWarning}
+              productsWarningLabel={productsWarningLabel}
             />
           )
         })}
@@ -478,9 +485,11 @@ interface SidebarGroupItemProps {
   handleTabClick: (tabId: string) => void
   hasWarning?: boolean
   itemHasWarning?: (itemId: string) => boolean
+  /** Item type(s) named in the Products warning tooltip */
+  productsWarningLabel?: string
 }
 
-function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleExpand, handleTabClick, hasWarning, itemHasWarning }: SidebarGroupItemProps) {
+function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleExpand, handleTabClick, hasWarning, itemHasWarning, productsWarningLabel }: SidebarGroupItemProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     toggleExpand(group.id)
@@ -500,7 +509,7 @@ function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleEx
         <span className="flex items-center gap-2">
           {group.icon && <span className="text-[#1162a8]">{group.icon}</span>}
           {group.label}
-          {hasWarning && <SidebarWarningIcon itemType={group.label} />}
+          {hasWarning && <SidebarWarningIcon itemType={(group.id === "products" && productsWarningLabel) || group.label} />}
         </span>
         {isExpanded ? (
           <ChevronDown className="h-4 w-4 flex-shrink-0" />
@@ -529,7 +538,9 @@ function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleEx
               >
                 {item.icon && <span className="text-[#1162a8]">{item.icon}</span>}
                 {item.label}
-                {showItemWarning && <SidebarWarningIcon itemType={item.label} />}
+                {showItemWarning && (
+                  <SidebarWarningIcon itemType={(item.id === "products" && productsWarningLabel) || item.label} />
+                )}
               </Link>
             )
           })}
