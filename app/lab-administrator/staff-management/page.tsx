@@ -150,7 +150,18 @@ export default function StaffManagementPage() {
     setIsLoading(true)
     try {
       // Fetch all staff for the current customer (status is filtered client-side)
-      const response = await fetchUsers({});
+      // The API paginates (15 by default), so load every page. Otherwise members
+      // beyond the first page, such as lab drivers, never show in this list.
+      const PER_PAGE = 100
+      const MAX_PAGES = 50
+      const first = await fetchUsers({ per_page: PER_PAGE, page: 1 })
+      const allUsers: any[] = [...(first?.data || [])]
+      const lastPage = Number(first?.last_page ?? first?.meta?.last_page ?? first?.pagination?.last_page ?? 1)
+      for (let page = 2; page <= Math.min(lastPage, MAX_PAGES); page++) {
+        const next = await fetchUsers({ per_page: PER_PAGE, page })
+        allUsers.push(...(next?.data || []))
+      }
+      const response = { data: allUsers }
 
       // Avatar colors
       const avatarColors = [
