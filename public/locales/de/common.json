@@ -268,5 +268,238 @@
     "title": "Keine Berechtigung",
     "body": "Sie haben keine Berechtigung, diese Seite aufzurufen.",
     "goToDashboard": "Zum Dashboard"
+  },
+  "planEditor": {
+    "titleNew": "Neuer Tarif",
+    "titleEdit": "Tarif bearbeiten: {{name}}",
+    "loading": "Tarif wird geladen…",
+    "stepsLabel": "Schritte des Tarifeditors",
+    "steps": {
+      "basics": "Grunddaten",
+      "pricing": "Preise",
+      "features": "Funktionen & Limits",
+      "review": "Prüfen & speichern"
+    },
+    "status": {
+      "live": "Live",
+      "draft": "Entwurf",
+      "new": "Neu"
+    },
+    "versionState": {
+      "draft": "Entwurfsänderungen",
+      "scheduled": "Geplant",
+      "publishing": "Wird veröffentlicht…",
+      "failed": "Veröffentlichung fehlgeschlagen"
+    },
+    "banner": {
+      "staged": "Sie bearbeiten vorgemerkte Änderungen. Der Live-Tarif bleibt unverändert.",
+      "lastFailed": "Letzte Veröffentlichung fehlgeschlagen: {{error}}",
+      "liveChanged": "Der Live-Tarif wurde nach dem Speichern dieser Änderungen geändert. Prüfen Sie den Prüfschritt vor dem Veröffentlichen."
+    },
+    "basics": {
+      "name": "Tarifname",
+      "description": "Tarifbeschreibung",
+      "descriptionPlaceholder": "Für wen ist dieser Tarif und was macht ihn wertvoll?",
+      "badge": "Badge-Text",
+      "badgePlaceholder": "z. B. Am beliebtesten",
+      "displayOrder": "Anzeigereihenfolge",
+      "displayOrderHint": "Position auf der Preisseite. Kleinere Zahlen stehen vorne.",
+      "cardColour": "Kartenfarbe",
+      "noColour": "Keine Farbe"
+    },
+    "frequency": {
+      "monthly": "Monatlich",
+      "quarterly": "Vierteljährlich",
+      "semi_annual": "Halbjährlich",
+      "annual": "Jährlich"
+    },
+    "pricing": {
+      "frequencies": "Abrechnungsintervall",
+      "priceLabel": "Preis {{frequency}} (USD)",
+      "defaultFrequency": "{{frequency}} ist der Standardpreis auf der Tarifkarte.",
+      "trial": "Kostenlose Testphase",
+      "trialGrowthOnly": "Die kostenlose Testphase ist nur im Growth-Tarif verfügbar.",
+      "trialDays": "Testtage",
+      "fullAccess": "Vollzugriff",
+      "featureLimited": "Eingeschränkte Funktionen",
+      "overage": "Auftragsüberschreitung",
+      "overageHint": "Gebühr pro Auftrag über dem Monatskontingent. Steuert auch die Funktion Überschreitungstarif.",
+      "standardRate": "Standard-Überschreitungstarif (USD pro Auftrag)",
+      "continuousRate": "Ermäßigter Dauertarif (USD pro Auftrag)",
+      "endOfCycle": "Am Ende des Abrechnungszeitraums berechnen",
+      "realTime": "In Echtzeit berechnen"
+    },
+    "features": {
+      "search": "Funktionen suchen…",
+      "totalOn": "{{on}} von {{total}} Funktionen aktiv",
+      "groupOn": "{{on}} von {{total}} aktiv",
+      "selectAll": "Alle auswählen",
+      "clearAll": "Alle abwählen",
+      "noMatch": "Keine Funktion passt zur Suche.",
+      "setInPricing": "Wird im Schritt Preise festgelegt",
+      "unlimited": "Unbegrenzt",
+      "level": "Stufe für {{name}}",
+      "drift": "Labore erhalten derzeit {{value}}; die Tarifkarte zeigte {{column}}. Speichern behebt das.",
+      "usageRules": "Nutzungsregeln",
+      "resetEachCycle": "Aufträge jeden Zeitraum zurücksetzen",
+      "carryOver": "Ungenutzte Aufträge übertragen",
+      "atSlipLimit": "Bei Erreichen des Auftragslimits",
+      "atStorageLimit": "Bei Erreichen des Speicherlimits",
+      "graceDays": "Kulanzzeit nach dem Limit (Tage)"
+    },
+    "groups": {
+      "slip": "Aufträge",
+      "access": "Zugriff",
+      "tracking": "Nachverfolgung",
+      "attachments": "Anhänge",
+      "storage": "Speicher",
+      "seats": "Plätze",
+      "product": "Produkt & Bibliothek",
+      "tools": "Werkzeuge",
+      "reports": "Berichte",
+      "billing": "Abrechnung",
+      "production": "Produktion",
+      "system": "System",
+      "support": "Support"
+    },
+    "enumOptions": {
+      "none": "Keine",
+      "flag_only": "Nur Markierung",
+      "flag_and_billing": "Markierung und Abrechnung",
+      "manual_only": "Nur manuell",
+      "full": "Voll",
+      "basic": "Basis",
+      "half": "Halb",
+      "early": "Früher Zugang"
+    },
+    "enforcement": {
+      "block_new_case_creation": "Neue Fälle sperren",
+      "allow_overage_standard_rate": "Überschreitung zum Standardtarif erlauben",
+      "block_new_file_upload": "Neue Uploads sperren",
+      "allow_with_overage_charges": "Mit Überschreitungsgebühren erlauben",
+      "warning_only": "Nur Warnung"
+    },
+    "review": {
+      "newPlan": "Dies ist ein neuer Tarif: Es gibt noch nichts zu vergleichen und keine Labore. Wählen Sie, wann er live geht.",
+      "loading": "Änderungen werden geprüft…",
+      "loadFailed": "Die Änderungsübersicht konnte nicht geladen werden.",
+      "whatChanged_one": "Änderungen gegenüber live ({{count}})",
+      "whatChanged_other": "Änderungen gegenüber live ({{count}})",
+      "noVisibleChanges": "Keine für Kunden sichtbaren Änderungen.",
+      "internalOnly": "Nur intern (nicht per E-Mail)",
+      "labsAffected_one": "{{count}} Labor nutzt diesen Tarif. Die Änderungen gelten ab Veröffentlichung.",
+      "labsAffected_other": "{{count}} Labore nutzen diesen Tarif. Die Änderungen gelten ab Veröffentlichung.",
+      "notifyLabel": "Labore per E-Mail über diese Änderungen informieren",
+      "notifyNoChanges": "Keine für Kunden sichtbaren Änderungen, daher wird keine E-Mail gesendet.",
+      "willEmail": "Sendet E-Mails an {{addresses}} Adressen in {{labs}} Laboren",
+      "skippedInvalid_one": "({{count}} ungültige Adresse übersprungen)",
+      "skippedInvalid_other": "({{count}} ungültige Adressen übersprungen)",
+      "previewEmail": "E-Mail-Vorschau",
+      "emailPreviewTitle": "E-Mail-Vorschau",
+      "subject": "Betreff"
+    },
+    "save": {
+      "question": "Wann sollen diese Änderungen live gehen?",
+      "modes": {
+        "publish_now": {
+          "title": "Jetzt veröffentlichen",
+          "hint": "Sofort auf den Live-Tarif und alle Labore anwenden."
+        },
+        "schedule": {
+          "title": "Planen",
+          "hint": "Automatisch zum gewählten Zeitpunkt veröffentlichen."
+        },
+        "draft": {
+          "title": "Als Entwurf speichern und später veröffentlichen",
+          "hint": "Änderungen bleiben vorgemerkt. Der Live-Tarif ändert sich nicht."
+        }
+      },
+      "publishNowButton": "Jetzt veröffentlichen",
+      "scheduleButton": "Planen",
+      "draftButton": "Entwurf speichern"
+    },
+    "schedule": {
+      "date": "Datum",
+      "time": "Uhrzeit",
+      "timezone": "Zeitzone",
+      "utcEquivalent": "Veröffentlichung am {{local}} = {{utc}}",
+      "errors": {
+        "required": "Wählen Sie Datum und Uhrzeit.",
+        "invalidZone": "Wählen Sie eine gültige Zeitzone.",
+        "tooSoon": "Wählen Sie einen Zeitpunkt mindestens 5 Minuten in der Zukunft.",
+        "tooFar": "Wählen Sie einen Zeitpunkt innerhalb der nächsten 365 Tage."
+      }
+    },
+    "actions": {
+      "back": "Zurück",
+      "cancel": "Abbrechen",
+      "close": "Schließen",
+      "next": {
+        "basics": "Weiter: Preise",
+        "pricing": "Weiter: Funktionen & Limits",
+        "features": "Weiter: Prüfen & speichern"
+      },
+      "saving": "Wird gespeichert…",
+      "tryAgain": "Erneut versuchen",
+      "reload": "Neu laden",
+      "saveDraftInstead": "Stattdessen als Entwurf speichern"
+    },
+    "errors": {
+      "nameRequired": "Tarifname ist erforderlich.",
+      "nameTooLong": "Der Name darf höchstens 255 Zeichen lang sein.",
+      "displayOrderNumber": "Die Reihenfolge muss eine ganze Zahl sein.",
+      "frequencyRequired": "Wählen Sie mindestens ein Abrechnungsintervall.",
+      "priceInvalid": "Geben Sie einen Preis ab 0 ein.",
+      "trialDaysInvalid": "Geben Sie die Testtage ein (mindestens 1).",
+      "rateInvalid": "Geben Sie einen Tarif ab 0 ein.",
+      "graceInvalid": "Die Kulanzzeit muss eine ganze Zahl von Tagen sein.",
+      "limitInvalid": "Geben Sie eine ganze Zahl ab 0 ein oder wählen Sie Unbegrenzt.",
+      "loadFailed": "Dieser Tarif konnte nicht geladen werden.",
+      "validation": "Einige Felder müssen geprüft werden: {{steps}}. Es wurde nichts gespeichert.",
+      "versionConflict": "Diese Entwurfsänderungen wurden von jemand anderem bearbeitet. Laden Sie neu, um sie zu sehen.",
+      "publishInProgress": "Dieser Tarif wird gerade veröffentlicht. Versuchen Sie es in einer Minute erneut.",
+      "stripe": "Stripe konnte den Preis für diesen Tarif nicht speichern. Es wurde nichts geändert.",
+      "stripeWithDetail": "Stripe konnte den Preis für diesen Tarif nicht speichern ({{detail}}). Es wurde nichts geändert.",
+      "notFound": "Dieser Tarif existiert nicht mehr. Schließen Sie den Editor und aktualisieren Sie die Liste.",
+      "generic": "Der Tarif konnte nicht gespeichert werden. Versuchen Sie es erneut.",
+      "genericWithDetail": "Der Tarif konnte nicht gespeichert werden: {{detail}}"
+    },
+    "toast": {
+      "published": "{{name}} veröffentlicht",
+      "emailing": "E-Mails an {{addresses}} Adressen in {{labs}} Laboren werden gesendet.",
+      "scheduled": "{{name}} geplant",
+      "draftSaved": "Entwurf für {{name}} gespeichert. Der Live-Tarif ist unverändert.",
+      "scheduleCancelled": "Planung für {{name}} abgebrochen. Die Änderungen bleiben als Entwurf.",
+      "discarded": "Vorgemerkte Änderungen für {{name}} verworfen.",
+      "actionFailed": "Das hat nicht funktioniert"
+    },
+    "card": {
+      "draft": "Entwurfsänderungen",
+      "scheduled": "Geplant · {{local}} ({{utc}})",
+      "failed": "Veröffentlichung fehlgeschlagen",
+      "publishing": "Wird veröffentlicht…",
+      "emailed": "{{sent}} von {{total}} per E-Mail benachrichtigt",
+      "emailFailed_one": "{{count}} fehlgeschlagen",
+      "emailFailed_other": "{{count}} fehlgeschlagen",
+      "actions": {
+        "edit": "Bearbeiten",
+        "publish_now": "Jetzt veröffentlichen",
+        "reschedule": "Neu planen",
+        "cancel_schedule": "Planung abbrechen",
+        "discard": "Änderungen verwerfen"
+      }
+    },
+    "list": {
+      "drafts": "Entwürfe",
+      "showLive": "Live-Tarife anzeigen",
+      "draftsHint": "Es werden nie veröffentlichte Tarife angezeigt.",
+      "noDrafts": "Keine Entwurfstarife.",
+      "loadFailed": "Tarife konnten nicht geladen werden."
+    },
+    "discard": {
+      "title": "Vorgemerkte Änderungen verwerfen?",
+      "body": "Die vorgemerkten Änderungen für {{name}} werden gelöscht. Der Live-Tarif und seine Labore sind nicht betroffen.",
+      "confirm": "Änderungen verwerfen"
+    }
   }
 }

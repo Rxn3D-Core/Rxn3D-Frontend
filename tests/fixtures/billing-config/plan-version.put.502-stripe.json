@@ -1,0 +1,8 @@
+{
+  "success": false,
+  "code": "stripe_sync_failed",
+  "message": "Stripe could not save the price for this plan. Nothing was changed.",
+  "data": {
+    "stripe_error": "No such product: prod_123"
+  }
+}

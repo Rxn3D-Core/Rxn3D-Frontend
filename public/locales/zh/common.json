@@ -268,5 +268,234 @@
     "title": "无权限",
     "body": "您无权访问此页面。",
     "goToDashboard": "前往仪表板"
+  },
+  "planEditor": {
+    "titleNew": "新套餐",
+    "titleEdit": "编辑套餐：{{name}}",
+    "loading": "正在加载套餐…",
+    "stepsLabel": "套餐编辑步骤",
+    "steps": {
+      "basics": "基本信息",
+      "pricing": "价格",
+      "features": "功能与限制",
+      "review": "审核并保存"
+    },
+    "status": {
+      "live": "已上线",
+      "draft": "草稿",
+      "new": "新建"
+    },
+    "versionState": {
+      "draft": "草稿更改",
+      "scheduled": "已排期",
+      "publishing": "正在发布…",
+      "failed": "发布失败"
+    },
+    "banner": {
+      "staged": "您正在编辑待发布的更改。线上套餐保持不变。",
+      "lastFailed": "上次发布失败：{{error}}",
+      "liveChanged": "保存这些更改后，线上套餐已被修改。发布前请检查审核步骤。"
+    },
+    "basics": {
+      "name": "套餐名称",
+      "description": "套餐描述",
+      "descriptionPlaceholder": "此套餐适合谁？它的价值是什么？",
+      "badge": "徽章标签",
+      "badgePlaceholder": "例如：最受欢迎",
+      "displayOrder": "显示顺序",
+      "displayOrderHint": "在价格页上的位置，数字越小越靠前。",
+      "cardColour": "卡片颜色",
+      "noColour": "无颜色"
+    },
+    "frequency": {
+      "monthly": "按月",
+      "quarterly": "按季度",
+      "semi_annual": "每半年",
+      "annual": "按年"
+    },
+    "pricing": {
+      "frequencies": "计费周期",
+      "priceLabel": "{{frequency}}价格（美元）",
+      "defaultFrequency": "{{frequency}}是套餐卡片上显示的默认价格。",
+      "trial": "免费试用",
+      "trialGrowthOnly": "免费试用仅适用于 Growth 套餐。",
+      "trialDays": "试用天数",
+      "fullAccess": "完全访问",
+      "featureLimited": "功能受限",
+      "overage": "工单超额",
+      "overageHint": "超出套餐每月工单数后按单收费，同时设置“超额费率”功能。",
+      "standardRate": "标准超额费率（每单美元）",
+      "continuousRate": "持续折扣费率（每单美元）",
+      "endOfCycle": "在计费周期结束时收费",
+      "realTime": "实时收费"
+    },
+    "features": {
+      "search": "搜索功能…",
+      "totalOn": "已开启 {{on}}/{{total}} 项功能",
+      "groupOn": "已开启 {{on}}/{{total}}",
+      "selectAll": "全选",
+      "clearAll": "全部取消",
+      "noMatch": "没有匹配的功能。",
+      "setInPricing": "在“价格”步骤中设置",
+      "unlimited": "无限制",
+      "level": "{{name}}级别",
+      "drift": "实验室当前获得 {{value}}，套餐卡片显示为 {{column}}。保存后将修正。",
+      "usageRules": "使用规则",
+      "resetEachCycle": "每个周期重置工单数",
+      "carryOver": "结转未使用的工单",
+      "atSlipLimit": "达到工单上限时",
+      "atStorageLimit": "达到存储上限时",
+      "graceDays": "超限后的宽限期（天）"
+    },
+    "groups": {
+      "slip": "工单",
+      "access": "访问",
+      "tracking": "跟踪",
+      "attachments": "附件",
+      "storage": "存储",
+      "seats": "席位",
+      "product": "产品与库",
+      "tools": "工具",
+      "reports": "报表",
+      "billing": "计费",
+      "production": "生产",
+      "system": "系统",
+      "support": "支持"
+    },
+    "enumOptions": {
+      "none": "无",
+      "flag_only": "仅标记",
+      "flag_and_billing": "标记并计费",
+      "manual_only": "仅手动",
+      "full": "完整",
+      "basic": "基础",
+      "half": "一半",
+      "early": "抢先体验"
+    },
+    "enforcement": {
+      "block_new_case_creation": "禁止创建新病例",
+      "allow_overage_standard_rate": "按标准费率允许超额",
+      "block_new_file_upload": "禁止上传新文件",
+      "allow_with_overage_charges": "允许并收取超额费用",
+      "warning_only": "仅警告"
+    },
+    "review": {
+      "newPlan": "这是新套餐，暂无可比较内容，也没有实验室使用。请选择上线时间。",
+      "loading": "正在检查更改…",
+      "loadFailed": "无法加载更改摘要。",
+      "whatChanged_other": "与线上相比的更改（{{count}}）",
+      "noVisibleChanges": "没有客户可见的更改。",
+      "internalOnly": "仅内部（不发送邮件）",
+      "labsAffected_other": "{{count}} 个实验室使用此套餐。发布后更改将生效。",
+      "notifyLabel": "通过邮件通知实验室这些更改",
+      "notifyNoChanges": "没有客户可见的更改，因此不会发送邮件。",
+      "willEmail": "将向 {{labs}} 个实验室的 {{addresses}} 个地址发送邮件",
+      "skippedInvalid_other": "（已跳过 {{count}} 个无效地址）",
+      "previewEmail": "预览邮件",
+      "emailPreviewTitle": "邮件预览",
+      "subject": "主题"
+    },
+    "save": {
+      "question": "这些更改何时上线？",
+      "modes": {
+        "publish_now": {
+          "title": "立即发布",
+          "hint": "立即应用到线上套餐及其所有实验室。"
+        },
+        "schedule": {
+          "title": "定时发布",
+          "hint": "在您选择的日期和时间自动发布。"
+        },
+        "draft": {
+          "title": "保存为草稿，稍后发布",
+          "hint": "更改保持待发布状态，线上套餐不变。"
+        }
+      },
+      "publishNowButton": "立即发布",
+      "scheduleButton": "定时发布",
+      "draftButton": "保存草稿"
+    },
+    "schedule": {
+      "date": "日期",
+      "time": "时间",
+      "timezone": "时区",
+      "utcEquivalent": "发布时间 {{local}} = {{utc}}",
+      "errors": {
+        "required": "请选择日期和时间。",
+        "invalidZone": "请选择有效的时区。",
+        "tooSoon": "请选择至少 5 分钟之后的时间。",
+        "tooFar": "请选择 365 天以内的时间。"
+      }
+    },
+    "actions": {
+      "back": "返回",
+      "cancel": "取消",
+      "close": "关闭",
+      "next": {
+        "basics": "下一步：价格",
+        "pricing": "下一步：功能与限制",
+        "features": "下一步：审核并保存"
+      },
+      "saving": "正在保存…",
+      "tryAgain": "重试",
+      "reload": "重新加载",
+      "saveDraftInstead": "改为保存草稿"
+    },
+    "errors": {
+      "nameRequired": "请输入套餐名称。",
+      "nameTooLong": "套餐名称不能超过 255 个字符。",
+      "displayOrderNumber": "显示顺序必须是整数。",
+      "frequencyRequired": "请至少选择一个计费周期。",
+      "priceInvalid": "请输入大于或等于 0 的价格。",
+      "trialDaysInvalid": "请输入试用天数（至少 1 天）。",
+      "rateInvalid": "请输入大于或等于 0 的费率。",
+      "graceInvalid": "宽限期必须是整数天。",
+      "limitInvalid": "请输入大于或等于 0 的整数，或勾选“无限制”。",
+      "loadFailed": "无法加载此套餐。",
+      "validation": "部分字段需要修改：{{steps}}。未保存任何内容。",
+      "versionConflict": "这些草稿更改已被他人编辑。请重新加载查看。",
+      "publishInProgress": "此套餐正在发布中，请一分钟后重试。",
+      "stripe": "Stripe 无法保存此套餐的价格。未做任何更改。",
+      "stripeWithDetail": "Stripe 无法保存此套餐的价格（{{detail}}）。未做任何更改。",
+      "notFound": "此套餐已不存在。请关闭编辑器并刷新列表。",
+      "generic": "套餐无法保存，请重试。",
+      "genericWithDetail": "套餐无法保存：{{detail}}"
+    },
+    "toast": {
+      "published": "{{name}} 已发布",
+      "emailing": "正在向 {{labs}} 个实验室的 {{addresses}} 个地址发送邮件。",
+      "scheduled": "{{name}} 已排期",
+      "draftSaved": "已保存 {{name}} 的草稿，线上套餐保持不变。",
+      "scheduleCancelled": "已取消 {{name}} 的定时发布，更改保留为草稿。",
+      "discarded": "已放弃 {{name}} 的待发布更改。",
+      "actionFailed": "操作失败"
+    },
+    "card": {
+      "draft": "草稿更改",
+      "scheduled": "已排期 · {{local}}（{{utc}}）",
+      "failed": "发布失败",
+      "publishing": "正在发布…",
+      "emailed": "已发送 {{sent}}/{{total}} 封邮件",
+      "emailFailed_other": "{{count}} 封失败",
+      "actions": {
+        "edit": "编辑",
+        "publish_now": "立即发布",
+        "reschedule": "重新排期",
+        "cancel_schedule": "取消排期",
+        "discard": "放弃更改"
+      }
+    },
+    "list": {
+      "drafts": "草稿",
+      "showLive": "显示线上套餐",
+      "draftsHint": "显示从未发布的套餐。",
+      "noDrafts": "没有草稿套餐。",
+      "loadFailed": "无法加载套餐。"
+    },
+    "discard": {
+      "title": "放弃待发布的更改？",
+      "body": "{{name}} 的待发布更改将被删除，线上套餐及其实验室不受影响。",
+      "confirm": "放弃更改"
+    }
   }
 }

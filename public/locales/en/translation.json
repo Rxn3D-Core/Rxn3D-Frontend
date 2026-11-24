@@ -906,5 +906,238 @@
       "failed": "Could not finalize the arch invoice",
       "noInvoice": "Arch closed. The total is $0, so no invoice was created."
     }
+  },
+  "planEditor": {
+    "titleNew": "New plan",
+    "titleEdit": "Edit plan: {{name}}",
+    "loading": "Loading plan…",
+    "stepsLabel": "Plan editor steps",
+    "steps": {
+      "basics": "Basics",
+      "pricing": "Pricing",
+      "features": "Features & limits",
+      "review": "Review & save"
+    },
+    "status": {
+      "live": "Live",
+      "draft": "Draft",
+      "new": "New"
+    },
+    "versionState": {
+      "draft": "Draft changes",
+      "scheduled": "Scheduled",
+      "publishing": "Publishing…",
+      "failed": "Publish failed"
+    },
+    "banner": {
+      "staged": "You are editing staged changes. Live plan is unchanged.",
+      "lastFailed": "Last publish failed: {{error}}",
+      "liveChanged": "The live plan was changed after these staged changes were saved. Check the Review step before publishing."
+    },
+    "basics": {
+      "name": "Plan name",
+      "description": "Plan description",
+      "descriptionPlaceholder": "Who is this plan for and what makes it valuable?",
+      "badge": "Badge label",
+      "badgePlaceholder": "e.g. Most popular",
+      "displayOrder": "Display order",
+      "displayOrderHint": "Position on the pricing page. Lower numbers come first.",
+      "cardColour": "Card colour",
+      "noColour": "No colour"
+    },
+    "frequency": {
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "semi_annual": "Semi-annual",
+      "annual": "Annual"
+    },
+    "pricing": {
+      "frequencies": "Billing frequency",
+      "priceLabel": "{{frequency}} price (USD)",
+      "defaultFrequency": "{{frequency}} is the default price shown on the plan card.",
+      "trial": "Free trial",
+      "trialGrowthOnly": "Free trial is only available on the Growth plan.",
+      "trialDays": "Trial days",
+      "fullAccess": "Full access",
+      "featureLimited": "Feature-limited",
+      "overage": "Slip overage",
+      "overageHint": "Charge per slip above the plan's monthly slips. This also sets the Overage rate feature.",
+      "standardRate": "Standard overage rate (USD per slip)",
+      "continuousRate": "Discounted continuous rate (USD per slip)",
+      "endOfCycle": "Charge at the end of the billing cycle",
+      "realTime": "Charge in real time"
+    },
+    "features": {
+      "search": "Search features…",
+      "totalOn": "{{on}} of {{total}} features on",
+      "groupOn": "{{on}} of {{total}} on",
+      "selectAll": "Select all",
+      "clearAll": "Clear all",
+      "noMatch": "No features match your search.",
+      "setInPricing": "Set in the Pricing step",
+      "unlimited": "Unlimited",
+      "level": "{{name}} level",
+      "drift": "Labs currently get {{value}}; the plan card showed {{column}}. Saving fixes this.",
+      "usageRules": "Usage rules",
+      "resetEachCycle": "Reset slips each cycle",
+      "carryOver": "Carry over unused slips",
+      "atSlipLimit": "At the slip limit",
+      "atStorageLimit": "At the storage limit",
+      "graceDays": "Grace period after the limit (days)"
+    },
+    "groups": {
+      "slip": "Slips",
+      "access": "Access",
+      "tracking": "Tracking",
+      "attachments": "Attachments",
+      "storage": "Storage",
+      "seats": "Seats",
+      "product": "Product & library",
+      "tools": "Tools",
+      "reports": "Reports",
+      "billing": "Billing",
+      "production": "Production",
+      "system": "System",
+      "support": "Support"
+    },
+    "enumOptions": {
+      "none": "None",
+      "flag_only": "Flag only",
+      "flag_and_billing": "Flag and billing",
+      "manual_only": "Manual only",
+      "full": "Full",
+      "basic": "Basic",
+      "half": "Half",
+      "early": "Early access"
+    },
+    "enforcement": {
+      "block_new_case_creation": "Block new case creation",
+      "allow_overage_standard_rate": "Allow overage at the standard rate",
+      "block_new_file_upload": "Block new file uploads",
+      "allow_with_overage_charges": "Allow with overage charges",
+      "warning_only": "Warning only"
+    },
+    "review": {
+      "newPlan": "This is a new plan, so there is nothing to compare yet and no labs are on it. Choose when it should go live.",
+      "loading": "Checking what changed…",
+      "loadFailed": "Could not load the change summary.",
+      "whatChanged_one": "What changed vs live ({{count}})",
+      "whatChanged_other": "What changed vs live ({{count}})",
+      "noVisibleChanges": "No customer-visible changes.",
+      "internalOnly": "Internal only (not emailed)",
+      "labsAffected_one": "{{count}} lab is on this plan. Changes apply to it when published.",
+      "labsAffected_other": "{{count}} labs are on this plan. Changes apply to them when published.",
+      "notifyLabel": "Email labs about these changes",
+      "notifyNoChanges": "No customer-visible changes, so no email will be sent.",
+      "willEmail": "Will email {{addresses}} addresses at {{labs}} labs",
+      "skippedInvalid_one": "({{count}} invalid address skipped)",
+      "skippedInvalid_other": "({{count}} invalid addresses skipped)",
+      "previewEmail": "Preview email",
+      "emailPreviewTitle": "Email preview",
+      "subject": "Subject"
+    },
+    "save": {
+      "question": "When should these changes go live?",
+      "modes": {
+        "publish_now": {
+          "title": "Publish now",
+          "hint": "Apply to the live plan and every lab on it right away."
+        },
+        "schedule": {
+          "title": "Schedule",
+          "hint": "Publish automatically at a date and time you choose."
+        },
+        "draft": {
+          "title": "Save as draft and publish later",
+          "hint": "Keep the changes staged. The live plan does not change."
+        }
+      },
+      "publishNowButton": "Publish now",
+      "scheduleButton": "Schedule",
+      "draftButton": "Save draft"
+    },
+    "schedule": {
+      "date": "Date",
+      "time": "Time",
+      "timezone": "Time zone",
+      "utcEquivalent": "Publishes {{local}} = {{utc}}",
+      "errors": {
+        "required": "Choose a date and a time.",
+        "invalidZone": "Choose a valid time zone.",
+        "tooSoon": "Pick a time at least 5 minutes from now.",
+        "tooFar": "Pick a time within the next 365 days."
+      }
+    },
+    "actions": {
+      "back": "Back",
+      "cancel": "Cancel",
+      "close": "Close",
+      "next": {
+        "basics": "Next: Pricing",
+        "pricing": "Next: Features & limits",
+        "features": "Next: Review & save"
+      },
+      "saving": "Saving…",
+      "tryAgain": "Try again",
+      "reload": "Reload",
+      "saveDraftInstead": "Save as draft instead"
+    },
+    "errors": {
+      "nameRequired": "Plan name is required.",
+      "nameTooLong": "Plan name must be 255 characters or fewer.",
+      "displayOrderNumber": "Display order must be a whole number.",
+      "frequencyRequired": "Select at least one billing frequency.",
+      "priceInvalid": "Enter a price of 0 or more.",
+      "trialDaysInvalid": "Enter the number of trial days (1 or more).",
+      "rateInvalid": "Enter a rate of 0 or more.",
+      "graceInvalid": "Grace period must be a whole number of days.",
+      "limitInvalid": "Enter a whole number of 0 or more, or tick Unlimited.",
+      "loadFailed": "Could not load this plan.",
+      "validation": "Some fields need attention: {{steps}}. Nothing was saved.",
+      "versionConflict": "These draft changes were edited by someone else. Reload to see them.",
+      "publishInProgress": "This plan is being published right now. Try again in a minute.",
+      "stripe": "Stripe could not save the price for this plan. Nothing was changed.",
+      "stripeWithDetail": "Stripe could not save the price for this plan ({{detail}}). Nothing was changed.",
+      "notFound": "This plan no longer exists. Close the editor and refresh the list.",
+      "generic": "The plan could not be saved. Try again.",
+      "genericWithDetail": "The plan could not be saved: {{detail}}"
+    },
+    "toast": {
+      "published": "{{name}} published",
+      "emailing": "Emailing {{addresses}} addresses at {{labs}} labs.",
+      "scheduled": "{{name}} scheduled",
+      "draftSaved": "Draft saved for {{name}}. The live plan is unchanged.",
+      "scheduleCancelled": "Schedule cancelled for {{name}}. The changes stay as a draft.",
+      "discarded": "Staged changes discarded for {{name}}.",
+      "actionFailed": "That did not work"
+    },
+    "card": {
+      "draft": "Draft changes",
+      "scheduled": "Scheduled · {{local}} ({{utc}})",
+      "failed": "Publish failed",
+      "publishing": "Publishing…",
+      "emailed": "Emailed {{sent}} of {{total}}",
+      "emailFailed_one": "{{count}} failed",
+      "emailFailed_other": "{{count}} failed",
+      "actions": {
+        "edit": "Edit",
+        "publish_now": "Publish now",
+        "reschedule": "Reschedule",
+        "cancel_schedule": "Cancel schedule",
+        "discard": "Discard changes"
+      }
+    },
+    "list": {
+      "drafts": "Drafts",
+      "showLive": "Show live plans",
+      "draftsHint": "Showing plans that have never been published.",
+      "noDrafts": "No draft plans.",
+      "loadFailed": "Could not load plans."
+    },
+    "discard": {
+      "title": "Discard staged changes?",
+      "body": "The staged changes for {{name}} will be deleted. The live plan and its labs are not affected.",
+      "confirm": "Discard changes"
+    }
   }
 }

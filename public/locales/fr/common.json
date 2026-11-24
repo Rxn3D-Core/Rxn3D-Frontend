@@ -268,5 +268,238 @@
     "title": "Aucune autorisation",
     "body": "Vous n'avez pas l'autorisation d'accéder à cette page.",
     "goToDashboard": "Aller au tableau de bord"
+  },
+  "planEditor": {
+    "titleNew": "Nouvelle formule",
+    "titleEdit": "Modifier la formule : {{name}}",
+    "loading": "Chargement de la formule…",
+    "stepsLabel": "Étapes de l'éditeur de formule",
+    "steps": {
+      "basics": "Informations",
+      "pricing": "Tarifs",
+      "features": "Fonctions et limites",
+      "review": "Vérifier et enregistrer"
+    },
+    "status": {
+      "live": "En ligne",
+      "draft": "Brouillon",
+      "new": "Nouveau"
+    },
+    "versionState": {
+      "draft": "Modifications en brouillon",
+      "scheduled": "Planifié",
+      "publishing": "Publication…",
+      "failed": "Échec de la publication"
+    },
+    "banner": {
+      "staged": "Vous modifiez des changements en attente. La formule en ligne n'est pas modifiée.",
+      "lastFailed": "La dernière publication a échoué : {{error}}",
+      "liveChanged": "La formule en ligne a changé après l'enregistrement de ces modifications. Vérifiez l'étape de vérification avant de publier."
+    },
+    "basics": {
+      "name": "Nom de la formule",
+      "description": "Description de la formule",
+      "descriptionPlaceholder": "À qui s'adresse cette formule et qu'apporte-t-elle ?",
+      "badge": "Libellé du badge",
+      "badgePlaceholder": "ex. Le plus populaire",
+      "displayOrder": "Ordre d'affichage",
+      "displayOrderHint": "Position sur la page des tarifs. Les plus petits nombres apparaissent en premier.",
+      "cardColour": "Couleur de la carte",
+      "noColour": "Aucune couleur"
+    },
+    "frequency": {
+      "monthly": "Mensuel",
+      "quarterly": "Trimestriel",
+      "semi_annual": "Semestriel",
+      "annual": "Annuel"
+    },
+    "pricing": {
+      "frequencies": "Fréquence de facturation",
+      "priceLabel": "Prix {{frequency}} (USD)",
+      "defaultFrequency": "{{frequency}} est le prix par défaut affiché sur la carte.",
+      "trial": "Essai gratuit",
+      "trialGrowthOnly": "L'essai gratuit n'est disponible que sur la formule Growth.",
+      "trialDays": "Jours d'essai",
+      "fullAccess": "Accès complet",
+      "featureLimited": "Fonctions limitées",
+      "overage": "Dépassement de bons",
+      "overageHint": "Facturation par bon au-delà du quota mensuel. Définit aussi la fonction Tarif de dépassement.",
+      "standardRate": "Tarif de dépassement standard (USD par bon)",
+      "continuousRate": "Tarif continu réduit (USD par bon)",
+      "endOfCycle": "Facturer en fin de cycle",
+      "realTime": "Facturer en temps réel"
+    },
+    "features": {
+      "search": "Rechercher des fonctions…",
+      "totalOn": "{{on}} sur {{total}} fonctions activées",
+      "groupOn": "{{on}} sur {{total}} activées",
+      "selectAll": "Tout sélectionner",
+      "clearAll": "Tout désélectionner",
+      "noMatch": "Aucune fonction ne correspond à la recherche.",
+      "setInPricing": "Défini à l'étape Tarifs",
+      "unlimited": "Illimité",
+      "level": "Niveau de {{name}}",
+      "drift": "Les laboratoires reçoivent {{value}} ; la carte affichait {{column}}. L'enregistrement corrige cela.",
+      "usageRules": "Règles d'utilisation",
+      "resetEachCycle": "Réinitialiser les bons à chaque cycle",
+      "carryOver": "Reporter les bons inutilisés",
+      "atSlipLimit": "À la limite de bons",
+      "atStorageLimit": "À la limite de stockage",
+      "graceDays": "Délai de grâce après la limite (jours)"
+    },
+    "groups": {
+      "slip": "Bons",
+      "access": "Accès",
+      "tracking": "Suivi",
+      "attachments": "Pièces jointes",
+      "storage": "Stockage",
+      "seats": "Places",
+      "product": "Produit et bibliothèque",
+      "tools": "Outils",
+      "reports": "Rapports",
+      "billing": "Facturation",
+      "production": "Production",
+      "system": "Système",
+      "support": "Assistance"
+    },
+    "enumOptions": {
+      "none": "Aucun",
+      "flag_only": "Signalement seul",
+      "flag_and_billing": "Signalement et facturation",
+      "manual_only": "Manuel uniquement",
+      "full": "Complet",
+      "basic": "Basique",
+      "half": "Moitié",
+      "early": "Accès anticipé"
+    },
+    "enforcement": {
+      "block_new_case_creation": "Bloquer la création de cas",
+      "allow_overage_standard_rate": "Autoriser le dépassement au tarif standard",
+      "block_new_file_upload": "Bloquer les nouveaux envois",
+      "allow_with_overage_charges": "Autoriser avec frais de dépassement",
+      "warning_only": "Avertissement seulement"
+    },
+    "review": {
+      "newPlan": "C'est une nouvelle formule : rien à comparer et aucun laboratoire dessus. Choisissez quand la mettre en ligne.",
+      "loading": "Vérification des modifications…",
+      "loadFailed": "Impossible de charger le résumé des modifications.",
+      "whatChanged_one": "Modifications par rapport à la version en ligne ({{count}})",
+      "whatChanged_other": "Modifications par rapport à la version en ligne ({{count}})",
+      "noVisibleChanges": "Aucune modification visible par les clients.",
+      "internalOnly": "Interne uniquement (non envoyé par e-mail)",
+      "labsAffected_one": "{{count}} laboratoire utilise cette formule. Les modifications s'appliquent à la publication.",
+      "labsAffected_other": "{{count}} laboratoires utilisent cette formule. Les modifications s'appliquent à la publication.",
+      "notifyLabel": "Informer les laboratoires par e-mail",
+      "notifyNoChanges": "Aucune modification visible par les clients : aucun e-mail ne sera envoyé.",
+      "willEmail": "Enverra un e-mail à {{addresses}} adresses dans {{labs}} laboratoires",
+      "skippedInvalid_one": "({{count}} adresse invalide ignorée)",
+      "skippedInvalid_other": "({{count}} adresses invalides ignorées)",
+      "previewEmail": "Aperçu de l'e-mail",
+      "emailPreviewTitle": "Aperçu de l'e-mail",
+      "subject": "Objet"
+    },
+    "save": {
+      "question": "Quand ces modifications doivent-elles être mises en ligne ?",
+      "modes": {
+        "publish_now": {
+          "title": "Publier maintenant",
+          "hint": "Appliquer immédiatement à la formule en ligne et à ses laboratoires."
+        },
+        "schedule": {
+          "title": "Planifier",
+          "hint": "Publier automatiquement à la date et à l'heure choisies."
+        },
+        "draft": {
+          "title": "Enregistrer en brouillon et publier plus tard",
+          "hint": "Les modifications restent en attente. La formule en ligne ne change pas."
+        }
+      },
+      "publishNowButton": "Publier maintenant",
+      "scheduleButton": "Planifier",
+      "draftButton": "Enregistrer le brouillon"
+    },
+    "schedule": {
+      "date": "Date",
+      "time": "Heure",
+      "timezone": "Fuseau horaire",
+      "utcEquivalent": "Publication le {{local}} = {{utc}}",
+      "errors": {
+        "required": "Choisissez une date et une heure.",
+        "invalidZone": "Choisissez un fuseau horaire valide.",
+        "tooSoon": "Choisissez une heure dans au moins 5 minutes.",
+        "tooFar": "Choisissez une heure dans les 365 prochains jours."
+      }
+    },
+    "actions": {
+      "back": "Retour",
+      "cancel": "Annuler",
+      "close": "Fermer",
+      "next": {
+        "basics": "Suivant : Tarifs",
+        "pricing": "Suivant : Fonctions et limites",
+        "features": "Suivant : Vérifier et enregistrer"
+      },
+      "saving": "Enregistrement…",
+      "tryAgain": "Réessayer",
+      "reload": "Recharger",
+      "saveDraftInstead": "Enregistrer plutôt en brouillon"
+    },
+    "errors": {
+      "nameRequired": "Le nom de la formule est obligatoire.",
+      "nameTooLong": "Le nom doit comporter au plus 255 caractères.",
+      "displayOrderNumber": "L'ordre doit être un nombre entier.",
+      "frequencyRequired": "Sélectionnez au moins une fréquence.",
+      "priceInvalid": "Saisissez un prix supérieur ou égal à 0.",
+      "trialDaysInvalid": "Saisissez le nombre de jours d'essai (1 ou plus).",
+      "rateInvalid": "Saisissez un tarif supérieur ou égal à 0.",
+      "graceInvalid": "Le délai de grâce doit être un nombre entier de jours.",
+      "limitInvalid": "Saisissez un entier supérieur ou égal à 0, ou cochez Illimité.",
+      "loadFailed": "Impossible de charger cette formule.",
+      "validation": "Certains champs sont à corriger : {{steps}}. Rien n'a été enregistré.",
+      "versionConflict": "Ces modifications ont été changées par quelqu'un d'autre. Rechargez pour les voir.",
+      "publishInProgress": "Cette formule est en cours de publication. Réessayez dans une minute.",
+      "stripe": "Stripe n'a pas pu enregistrer le prix de cette formule. Rien n'a été modifié.",
+      "stripeWithDetail": "Stripe n'a pas pu enregistrer le prix de cette formule ({{detail}}). Rien n'a été modifié.",
+      "notFound": "Cette formule n'existe plus. Fermez l'éditeur et actualisez la liste.",
+      "generic": "La formule n'a pas pu être enregistrée. Réessayez.",
+      "genericWithDetail": "La formule n'a pas pu être enregistrée : {{detail}}"
+    },
+    "toast": {
+      "published": "{{name}} publiée",
+      "emailing": "Envoi d'e-mails à {{addresses}} adresses dans {{labs}} laboratoires.",
+      "scheduled": "{{name}} planifiée",
+      "draftSaved": "Brouillon enregistré pour {{name}}. La formule en ligne n'est pas modifiée.",
+      "scheduleCancelled": "Planification annulée pour {{name}}. Les modifications restent en brouillon.",
+      "discarded": "Modifications en attente supprimées pour {{name}}.",
+      "actionFailed": "L'action a échoué"
+    },
+    "card": {
+      "draft": "Modifications en brouillon",
+      "scheduled": "Planifié · {{local}} ({{utc}})",
+      "failed": "Échec de la publication",
+      "publishing": "Publication…",
+      "emailed": "E-mail envoyé à {{sent}} sur {{total}}",
+      "emailFailed_one": "{{count}} échec",
+      "emailFailed_other": "{{count}} échecs",
+      "actions": {
+        "edit": "Modifier",
+        "publish_now": "Publier maintenant",
+        "reschedule": "Replanifier",
+        "cancel_schedule": "Annuler la planification",
+        "discard": "Supprimer les modifications"
+      }
+    },
+    "list": {
+      "drafts": "Brouillons",
+      "showLive": "Afficher les formules en ligne",
+      "draftsHint": "Formules jamais publiées.",
+      "noDrafts": "Aucune formule en brouillon.",
+      "loadFailed": "Impossible de charger les formules."
+    },
+    "discard": {
+      "title": "Supprimer les modifications en attente ?",
+      "body": "Les modifications en attente de {{name}} seront supprimées. La formule en ligne et ses laboratoires ne sont pas concernés.",
+      "confirm": "Supprimer les modifications"
+    }
   }
 }

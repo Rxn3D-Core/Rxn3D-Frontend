@@ -66,7 +66,8 @@ async function requestJson<T>(
     }
     const errorBody = await response.json().catch(() => null)
     const message = errorBody?.message || `HTTP error! status: ${response.status}`
-    throw new Error(message)
+    // status and body let callers react to 409/422/502 codes; the message stays as before.
+    throw Object.assign(new Error(message), { status: response.status, body: errorBody })
   }
 
   const result = await response.json()

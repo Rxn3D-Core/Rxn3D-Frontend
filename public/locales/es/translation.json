@@ -895,5 +895,238 @@
       "failed": "No se pudo finalizar la factura de la arcada",
       "noInvoice": "Arcada cerrada. El total es $0, así que no se creó ninguna factura."
     }
+  },
+  "planEditor": {
+    "titleNew": "Nuevo plan",
+    "titleEdit": "Editar plan: {{name}}",
+    "loading": "Cargando plan…",
+    "stepsLabel": "Pasos del editor de planes",
+    "steps": {
+      "basics": "Datos básicos",
+      "pricing": "Precios",
+      "features": "Funciones y límites",
+      "review": "Revisar y guardar"
+    },
+    "status": {
+      "live": "Publicado",
+      "draft": "Borrador",
+      "new": "Nuevo"
+    },
+    "versionState": {
+      "draft": "Cambios en borrador",
+      "scheduled": "Programado",
+      "publishing": "Publicando…",
+      "failed": "Error al publicar"
+    },
+    "banner": {
+      "staged": "Estás editando cambios preparados. El plan publicado no cambia.",
+      "lastFailed": "La última publicación falló: {{error}}",
+      "liveChanged": "El plan publicado cambió después de guardar estos cambios. Revisa el paso de revisión antes de publicar."
+    },
+    "basics": {
+      "name": "Nombre del plan",
+      "description": "Descripción del plan",
+      "descriptionPlaceholder": "¿Para quién es este plan y qué lo hace valioso?",
+      "badge": "Etiqueta destacada",
+      "badgePlaceholder": "p. ej. Más popular",
+      "displayOrder": "Orden de visualización",
+      "displayOrderHint": "Posición en la página de precios. Los números más bajos van primero.",
+      "cardColour": "Color de la tarjeta",
+      "noColour": "Sin color"
+    },
+    "frequency": {
+      "monthly": "Mensual",
+      "quarterly": "Trimestral",
+      "semi_annual": "Semestral",
+      "annual": "Anual"
+    },
+    "pricing": {
+      "frequencies": "Frecuencia de facturación",
+      "priceLabel": "Precio {{frequency}} (USD)",
+      "defaultFrequency": "{{frequency}} es el precio predeterminado que se muestra en la tarjeta.",
+      "trial": "Prueba gratuita",
+      "trialGrowthOnly": "La prueba gratuita solo está disponible en el plan Growth.",
+      "trialDays": "Días de prueba",
+      "fullAccess": "Acceso completo",
+      "featureLimited": "Funciones limitadas",
+      "overage": "Excedente de órdenes",
+      "overageHint": "Cobro por orden por encima de las órdenes mensuales del plan. También activa la función Tarifa de excedente.",
+      "standardRate": "Tarifa de excedente estándar (USD por orden)",
+      "continuousRate": "Tarifa continua con descuento (USD por orden)",
+      "endOfCycle": "Cobrar al final del ciclo",
+      "realTime": "Cobrar en tiempo real"
+    },
+    "features": {
+      "search": "Buscar funciones…",
+      "totalOn": "{{on}} de {{total}} funciones activas",
+      "groupOn": "{{on}} de {{total}} activas",
+      "selectAll": "Seleccionar todo",
+      "clearAll": "Quitar todo",
+      "noMatch": "Ninguna función coincide con la búsqueda.",
+      "setInPricing": "Se configura en el paso Precios",
+      "unlimited": "Ilimitado",
+      "level": "Nivel de {{name}}",
+      "drift": "Los laboratorios reciben {{value}}; la tarjeta mostraba {{column}}. Al guardar se corrige.",
+      "usageRules": "Reglas de uso",
+      "resetEachCycle": "Reiniciar órdenes cada ciclo",
+      "carryOver": "Acumular órdenes no usadas",
+      "atSlipLimit": "Al llegar al límite de órdenes",
+      "atStorageLimit": "Al llegar al límite de almacenamiento",
+      "graceDays": "Periodo de gracia tras el límite (días)"
+    },
+    "groups": {
+      "slip": "Órdenes",
+      "access": "Acceso",
+      "tracking": "Seguimiento",
+      "attachments": "Adjuntos",
+      "storage": "Almacenamiento",
+      "seats": "Puestos",
+      "product": "Producto y biblioteca",
+      "tools": "Herramientas",
+      "reports": "Informes",
+      "billing": "Facturación",
+      "production": "Producción",
+      "system": "Sistema",
+      "support": "Soporte"
+    },
+    "enumOptions": {
+      "none": "Ninguno",
+      "flag_only": "Solo marca",
+      "flag_and_billing": "Marca y facturación",
+      "manual_only": "Solo manual",
+      "full": "Completo",
+      "basic": "Básico",
+      "half": "Mitad",
+      "early": "Acceso anticipado"
+    },
+    "enforcement": {
+      "block_new_case_creation": "Bloquear nuevos casos",
+      "allow_overage_standard_rate": "Permitir excedente a tarifa estándar",
+      "block_new_file_upload": "Bloquear nuevas subidas",
+      "allow_with_overage_charges": "Permitir con cargos por excedente",
+      "warning_only": "Solo aviso"
+    },
+    "review": {
+      "newPlan": "Es un plan nuevo: aún no hay nada que comparar ni laboratorios en él. Elige cuándo publicarlo.",
+      "loading": "Comprobando los cambios…",
+      "loadFailed": "No se pudo cargar el resumen de cambios.",
+      "whatChanged_one": "Qué cambió respecto a lo publicado ({{count}})",
+      "whatChanged_other": "Qué cambió respecto a lo publicado ({{count}})",
+      "noVisibleChanges": "No hay cambios visibles para los clientes.",
+      "internalOnly": "Solo interno (no se envía por correo)",
+      "labsAffected_one": "{{count}} laboratorio usa este plan. Los cambios se aplican al publicar.",
+      "labsAffected_other": "{{count}} laboratorios usan este plan. Los cambios se aplican al publicar.",
+      "notifyLabel": "Enviar un correo a los laboratorios sobre estos cambios",
+      "notifyNoChanges": "No hay cambios visibles para los clientes; no se enviará correo.",
+      "willEmail": "Se enviará a {{addresses}} direcciones de {{labs}} laboratorios",
+      "skippedInvalid_one": "({{count}} dirección no válida omitida)",
+      "skippedInvalid_other": "({{count}} direcciones no válidas omitidas)",
+      "previewEmail": "Vista previa del correo",
+      "emailPreviewTitle": "Vista previa del correo",
+      "subject": "Asunto"
+    },
+    "save": {
+      "question": "¿Cuándo deben publicarse estos cambios?",
+      "modes": {
+        "publish_now": {
+          "title": "Publicar ahora",
+          "hint": "Se aplica de inmediato al plan publicado y a sus laboratorios."
+        },
+        "schedule": {
+          "title": "Programar",
+          "hint": "Publicar automáticamente en la fecha y hora elegidas."
+        },
+        "draft": {
+          "title": "Guardar como borrador y publicar después",
+          "hint": "Los cambios quedan preparados. El plan publicado no cambia."
+        }
+      },
+      "publishNowButton": "Publicar ahora",
+      "scheduleButton": "Programar",
+      "draftButton": "Guardar borrador"
+    },
+    "schedule": {
+      "date": "Fecha",
+      "time": "Hora",
+      "timezone": "Zona horaria",
+      "utcEquivalent": "Se publica el {{local}} = {{utc}}",
+      "errors": {
+        "required": "Elige una fecha y una hora.",
+        "invalidZone": "Elige una zona horaria válida.",
+        "tooSoon": "Elige una hora al menos 5 minutos a partir de ahora.",
+        "tooFar": "Elige una hora dentro de los próximos 365 días."
+      }
+    },
+    "actions": {
+      "back": "Atrás",
+      "cancel": "Cancelar",
+      "close": "Cerrar",
+      "next": {
+        "basics": "Siguiente: Precios",
+        "pricing": "Siguiente: Funciones y límites",
+        "features": "Siguiente: Revisar y guardar"
+      },
+      "saving": "Guardando…",
+      "tryAgain": "Reintentar",
+      "reload": "Recargar",
+      "saveDraftInstead": "Guardar como borrador"
+    },
+    "errors": {
+      "nameRequired": "El nombre del plan es obligatorio.",
+      "nameTooLong": "El nombre debe tener 255 caracteres o menos.",
+      "displayOrderNumber": "El orden debe ser un número entero.",
+      "frequencyRequired": "Selecciona al menos una frecuencia.",
+      "priceInvalid": "Introduce un precio igual o mayor que 0.",
+      "trialDaysInvalid": "Introduce los días de prueba (1 o más).",
+      "rateInvalid": "Introduce una tarifa igual o mayor que 0.",
+      "graceInvalid": "El periodo de gracia debe ser un número entero de días.",
+      "limitInvalid": "Introduce un número entero mayor o igual que 0, o marca Ilimitado.",
+      "loadFailed": "No se pudo cargar este plan.",
+      "validation": "Algunos campos requieren atención: {{steps}}. No se guardó nada.",
+      "versionConflict": "Otra persona editó estos cambios. Recarga para verlos.",
+      "publishInProgress": "Este plan se está publicando ahora. Inténtalo de nuevo en un minuto.",
+      "stripe": "Stripe no pudo guardar el precio de este plan. No se cambió nada.",
+      "stripeWithDetail": "Stripe no pudo guardar el precio de este plan ({{detail}}). No se cambió nada.",
+      "notFound": "Este plan ya no existe. Cierra el editor y actualiza la lista.",
+      "generic": "No se pudo guardar el plan. Inténtalo de nuevo.",
+      "genericWithDetail": "No se pudo guardar el plan: {{detail}}"
+    },
+    "toast": {
+      "published": "{{name}} publicado",
+      "emailing": "Enviando correo a {{addresses}} direcciones de {{labs}} laboratorios.",
+      "scheduled": "{{name}} programado",
+      "draftSaved": "Borrador guardado para {{name}}. El plan publicado no cambia.",
+      "scheduleCancelled": "Programación cancelada para {{name}}. Los cambios quedan como borrador.",
+      "discarded": "Cambios descartados para {{name}}.",
+      "actionFailed": "No se pudo completar"
+    },
+    "card": {
+      "draft": "Cambios en borrador",
+      "scheduled": "Programado · {{local}} ({{utc}})",
+      "failed": "Error al publicar",
+      "publishing": "Publicando…",
+      "emailed": "Enviado a {{sent}} de {{total}}",
+      "emailFailed_one": "{{count}} falló",
+      "emailFailed_other": "{{count}} fallaron",
+      "actions": {
+        "edit": "Editar",
+        "publish_now": "Publicar ahora",
+        "reschedule": "Reprogramar",
+        "cancel_schedule": "Cancelar programación",
+        "discard": "Descartar cambios"
+      }
+    },
+    "list": {
+      "drafts": "Borradores",
+      "showLive": "Ver planes publicados",
+      "draftsHint": "Se muestran los planes que nunca se publicaron.",
+      "noDrafts": "No hay planes en borrador.",
+      "loadFailed": "No se pudieron cargar los planes."
+    },
+    "discard": {
+      "title": "¿Descartar los cambios preparados?",
+      "body": "Se eliminarán los cambios preparados de {{name}}. El plan publicado y sus laboratorios no se ven afectados.",
+      "confirm": "Descartar cambios"
+    }
   }
 }

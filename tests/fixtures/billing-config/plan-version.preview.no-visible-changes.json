@@ -1,0 +1,56 @@
+{
+  "success": true,
+  "data": {
+    "has_customer_visible_changes": false,
+    "change_summary": {
+      "groups": [
+        {
+          "key": "price",
+          "label": "Price",
+          "items": []
+        },
+        {
+          "key": "features_added",
+          "label": "Features added",
+          "items": []
+        },
+        {
+          "key": "features_removed",
+          "label": "Features removed",
+          "items": []
+        },
+        {
+          "key": "limits",
+          "label": "Limits",
+          "items": []
+        },
+        {
+          "key": "usage_rules",
+          "label": "Usage rules",
+          "items": []
+        },
+        {
+          "key": "plan",
+          "label": "Plan",
+          "items": []
+        }
+      ],
+      "internal_only": [
+        {
+          "label": "Badge label",
+          "from": "",
+          "to": "New"
+        }
+      ]
+    },
+    "recipients": {
+      "labs": 42,
+      "addresses": 58,
+      "skipped_invalid": 1,
+      "lab_emails": 41,
+      "lab_admins": 23,
+      "duplicates_merged": 6
+    },
+    "email_preview": null
+  }
+}
