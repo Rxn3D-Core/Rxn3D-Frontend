@@ -19,6 +19,7 @@ import {
   notifyLabsValue,
   parseApiError,
   primaryActionKey,
+  reviewPreview,
   stepForField,
   utcToLocalParts,
   validateSchedule,
@@ -110,6 +111,9 @@ export function PlanEditorDialog({ open, onOpenChange, planId, planName, planSta
 
   const payload = useMemo(() => (form ? buildPayload(form, groups) : null), [form, groups])
   const previewQuery = usePlanVersionPreview(planId, payload, open && step === "review" && !isNew && form !== null)
+  // The payload the form was loaded from: lets the Review step drop rows the user did not change (RXN-121).
+  const sourcePayload = openVersion?.payload ?? envelope?.live ?? null
+  const preview = useMemo(() => reviewPreview(previewQuery.data, sourcePayload, form), [previewQuery.data, sourcePayload, form])
 
   const updateForm = (patch: Partial<PlanForm>) => {
     setForm((current) => (current ? { ...current, ...patch } : current))
@@ -176,7 +180,7 @@ export function PlanEditorDialog({ open, onOpenChange, planId, planName, planSta
       goTo("review")
       return
     }
-    const notifyLabs = previewQuery.data ? notifyLabsValue(previewQuery.data, notifyChoice) : notifyChoice
+    const notifyLabs = preview ? notifyLabsValue(preview, notifyChoice) : notifyChoice
     const options = buildSaveOptions({
       mode: submitMode,
       schedule,
@@ -274,7 +278,8 @@ export function PlanEditorDialog({ open, onOpenChange, planId, planName, planSta
           </DialogClose>
         </div>
 
-        <nav ref={stepNavRef} className="flex gap-1 overflow-x-auto border-b px-3 py-2 md:px-4" aria-label={t("planEditor.stepsLabel")}>
+        {/* shrink-0: overflow-x makes the nav's min-height 0, so a tall step (Features) squeezed and clipped it. */}
+        <nav ref={stepNavRef} className="flex shrink-0 items-center gap-1 overflow-x-auto border-b px-3 py-2 md:px-4" aria-label={t("planEditor.stepsLabel")}>
           {EDITOR_STEPS.map((s, index) => {
             const hasError = errorSteps.includes(s)
             const ok = !hasError && visited.has(s) && s !== step && s !== "review"
@@ -344,7 +349,7 @@ export function PlanEditorDialog({ open, onOpenChange, planId, planName, planSta
                 <div className="space-y-4">
                   <StepReview
                     isNewPlan={isNew}
-                    preview={previewQuery.data}
+                    preview={preview}
                     isLoading={previewQuery.isLoading}
                     isError={previewQuery.isError}
                     onRetry={() => void previewQuery.refetch()}
