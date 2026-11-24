@@ -1,0 +1,11 @@
+{
+  "message": "The selected features.7.value is invalid. (and 1 more error)",
+  "errors": {
+    "features.7.value": [
+      "The features.7.value field must be at least 0."
+    ],
+    "trial.enabled": [
+      "Free trial is only available on the Growth plan."
+    ]
+  }
+}

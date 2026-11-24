@@ -2,16 +2,9 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState, type ChangeEvent } from "react"
-import {
-  ArrowRight,
-  ChevronDown,
-  Expand,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-  X,
-} from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { useQueryClient } from "@tanstack/react-query"
+import { Pencil, Trash2 } from "lucide-react"
 import { BreadcrumbBar } from "@/components/billing-subscription/breadcrumb-bar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,20 +13,16 @@ import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  createBillingConfigPlan,
   deleteBillingConfigPlan,
-  listBillingConfigPlans,
   listPlanSubscribers,
-  updateBillingConfigPlan,
   type BillingConfigPlan,
   type BillingConfigPlanPayload,
-  type LibraryCloneScope,
   type PlanSubscriber,
   type PriceFrequency,
+  type SaveMode,
 } from "@/lib/api/billing-config-plans"
 import {
   listCreditBooks,
@@ -62,10 +51,17 @@ import {
 import { cn } from "@/lib/utils"
 import { PlanFeatureMatrixEditor } from "@/components/billing-subscription/plan-feature-matrix-editor"
 import { CapacityAddonManager } from "@/components/billing-subscription/capacity-addon-manager"
+import { PlanEditorDialog } from "@/components/billing-subscription/plan-editor/plan-editor-dialog"
+import {
+  PlanCardActions,
+  PlanCardBadges,
+  PlanCardNotification,
+} from "@/components/billing-subscription/plan-editor/plan-card-status"
+import { billingConfigKeys, useBillingConfigPlans, useCancelPlanSchedule, useDiscardPlanVersion } from "@/hooks/use-plan-editor"
+import { useToast } from "@/hooks/use-toast"
+import { parseApiError, type CardAction, type EditorStep } from "@/lib/billing/plan-editor"
 
 
-type WizardStep = "plan-details" | "pricing-billing" | "modules-limits" | "review-publish"
-type WizardFormErrors = Record<string, string>
 type PlanCardModel = {
   key: string
   name: string
@@ -80,25 +76,6 @@ type PlanCardModel = {
   previewBgColor?: string
   sourcePlan?: BillingConfigPlan
 }
-
-const MODULE_OPTIONS = [
-  "3D App Module",
-  "Authentication & User Management",
-  "API Scanner Module",
-  "Billing Module",
-  "Customer Service Module",
-  "Driver App Module",
-  "File Management Module",
-  "Lab Admin Module",
-  "Product Management Module",
-  "Slip Management Module",
-]
-const BILLING_FREQUENCIES = [
-  { id: "monthly", label: "Monthly" },
-  { id: "quarterly", label: "Quarterly" },
-  { id: "semi-annual", label: "Semi-Annual" },
-  { id: "annual", label: "Annual" },
-] as const
 
 type PlanPriceRow = BillingConfigPlanPayload["pricing"]["prices"][number]
 
@@ -195,7 +172,19 @@ function ConfigRowCard({
   )
 }
 
-function PlanCard({ plan, onDelete, onEdit, onViewSubscribers }: { plan: PlanCardModel; onDelete: (id: number) => void; onEdit: (plan: PlanCardModel) => void; onViewSubscribers?: (planId: number, planName: string) => void }) {
+function PlanCard({
+  plan,
+  onDelete,
+  onEdit,
+  onViewSubscribers,
+  onAction,
+}: {
+  plan: PlanCardModel
+  onDelete: (id: number) => void
+  onEdit: (plan: PlanCardModel) => void
+  onViewSubscribers?: (planId: number, planName: string) => void
+  onAction?: (plan: BillingConfigPlan, action: CardAction) => void
+}) {
   const featureRows = [
     { label: "Included Slips", value: plan.includedSlips },
     { label: "Standard Overage", value: plan.overageRate },
@@ -219,6 +208,7 @@ function PlanCard({ plan, onDelete, onEdit, onViewSubscribers }: { plan: PlanCar
           ) : null}
         </div>
         <p className="text-[23px] font-bold leading-9 text-[#434343]">{plan.monthly}</p>
+        {plan.sourcePlan ? <PlanCardBadges plan={plan.sourcePlan} /> : null}
       </div>
 
       <div className="flex flex-1 flex-col">
@@ -236,6 +226,11 @@ function PlanCard({ plan, onDelete, onEdit, onViewSubscribers }: { plan: PlanCar
         ))}
       </div>
 
+      {plan.sourcePlan ? <PlanCardNotification plan={plan.sourcePlan} /> : null}
+      {plan.sourcePlan && onAction ? (
+        <PlanCardActions plan={plan.sourcePlan} onAction={(action) => onAction(plan.sourcePlan as BillingConfigPlan, action)} />
+      ) : null}
+
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-[#E5E7EB] bg-white px-5 py-3">
         <div className="flex items-center gap-3">
@@ -243,6 +238,7 @@ function PlanCard({ plan, onDelete, onEdit, onViewSubscribers }: { plan: PlanCar
             type="button"
             onClick={(e) => { e.stopPropagation(); onEdit(plan) }}
             className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#1162A8] hover:text-[#0d4a7e]"
+            data-testid={plan.sourcePlan ? `plan-card-edit-${plan.sourcePlan.id}` : undefined}
           >
             <Pencil className="h-3.5 w-3.5" />
             Edit Plan
@@ -277,53 +273,28 @@ function PlanCard({ plan, onDelete, onEdit, onViewSubscribers }: { plan: PlanCar
 }
 
 export default function BillingConfigurationPage() {
-  const [openWizard, setOpenWizard] = useState(false)
-  const [editingPlanId, setEditingPlanId] = useState<number | null>(null)
-  const [editingPlanName, setEditingPlanName] = useState<string | null>(null)
-  const [wizardStep, setWizardStep] = useState<WizardStep>("plan-details")
-  const [plans, setPlans] = useState<BillingConfigPlan[]>([])
-  const [isPlansLoading, setIsPlansLoading] = useState(false)
-  const [isPlanSubmitting, setIsPlanSubmitting] = useState(false)
+  const { t } = useTranslation()
+  const { toast } = useToast()
+  const [planListStatus, setPlanListStatus] = useState<"active" | "draft">("active")
+  const plansQuery = useBillingConfigPlans(planListStatus)
+  const plans = useMemo(() => plansQuery.data ?? [], [plansQuery.data])
+  const isPlansLoading = plansQuery.isLoading
+  const [editor, setEditor] = useState<{
+    key: number
+    planId: number | null
+    planName?: string
+    planStatus?: BillingConfigPlan["status"]
+    initialStep?: EditorStep
+    initialMode?: SaveMode
+  } | null>(null)
+  const [planToDiscard, setPlanToDiscard] = useState<BillingConfigPlan | null>(null)
+  const cancelScheduleMutation = useCancelPlanSchedule()
+  const discardMutation = useDiscardPlanVersion()
+  const queryClient = useQueryClient()
   const [isPlanDeleting, setIsPlanDeleting] = useState(false)
   const [planToDelete, setPlanToDelete] = useState<number | null>(null)
   const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false)
   const [planStatusMessage, setPlanStatusMessage] = useState("")
-  const [moduleSearch, setModuleSearch] = useState("")
-  const [selectedModules, setSelectedModules] = useState<string[]>([
-    "Slip Management Module",
-    "Billing Module",
-    "Lab Admin Module",
-  ])
-  const [planName, setPlanName] = useState("")
-  const [planDescription, setPlanDescription] = useState("")
-  const [badgeLabel, setBadgeLabel] = useState("")
-  const [displayOrder, setDisplayOrder] = useState("")
-  const [isDraftVisible, setIsDraftVisible] = useState(true)
-  const [selectedBillingFrequencies, setSelectedBillingFrequencies] = useState<string[]>(["monthly"])
-  const [pricingByFrequency, setPricingByFrequency] = useState<Record<string, string>>({
-    monthly: "0.00",
-    quarterly: "0.00",
-    "semi-annual": "0.00",
-    annual: "0.00",
-  })
-  const [trialEnabled, setTrialEnabled] = useState(true)
-  const [trialDays, setTrialDays] = useState("")
-  const [trialAccessMode, setTrialAccessMode] = useState<"full-access" | "feature-limited">("full-access")
-  const [requirePaymentForTrial, setRequirePaymentForTrial] = useState(false)
-  const [overageEnabled, setOverageEnabled] = useState(true)
-  const [standardOverageRate, setStandardOverageRate] = useState("0.00")
-  const [discountedContinuousRate, setDiscountedContinuousRate] = useState("0.00")
-  const [overageBillingMethod, setOverageBillingMethod] = useState<"end-cycle" | "real-time">("end-cycle")
-  const [monthlySlipAllocation, setMonthlySlipAllocation] = useState("")
-  const [includedStorageGb, setIncludedStorageGb] = useState("")
-  const [maxAdminSeat, setMaxAdminSeat] = useState("")
-  const [maxUserSeat, setMaxUserSeat] = useState("")
-  const [enforcementAtSlip, setEnforcementAtSlip] = useState("block-new-case-creation")
-  const [enforcementAtStorage, setEnforcementAtStorage] = useState("block-new-file-uploads")
-  const [gracePeriodDays, setGracePeriodDays] = useState("15")
-  const [slipResetMode, setSlipResetMode] = useState<"reset-each-cycle" | "carry-over">("reset-each-cycle")
-  const [libraryCloneScope, setLibraryCloneScope] = useState<LibraryCloneScope>("full")
-  const [formErrors, setFormErrors] = useState<WizardFormErrors>({})
   const [openRuleModal, setOpenRuleModal] = useState(false)
   const [ruleKey, setRuleKey] = useState("")
   const [ruleType, setRuleType] = useState("Boolean")
@@ -332,13 +303,6 @@ export default function BillingConfigurationPage() {
   const [tenantOverrideAllowed, setTenantOverrideAllowed] = useState(false)
   const [ruleEffective, setRuleEffective] = useState<"immediately" | "scheduled">("immediately")
   const [ruleErrors, setRuleErrors] = useState<Record<string, string>>({})
-  const [publishMode, setPublishMode] = useState<"immediately" | "scheduled" | "draft">("immediately")
-  const [launchDate, setLaunchDate] = useState("")
-  const [launchHour, setLaunchHour] = useState(8)
-  const [launchMinute, setLaunchMinute] = useState(0)
-  const [calendarDate, setCalendarDate] = useState(() => new Date())
-  const [calendarOpen, setCalendarOpen] = useState(false)
-  const [timePickerOpen, setTimePickerOpen] = useState(false)
   const [openCreditBookModal, setOpenCreditBookModal] = useState(false)
   const [openStorageTierModal, setOpenStorageTierModal] = useState(false)
   const [openAddonModal, setOpenAddonModal] = useState(false)
@@ -405,25 +369,6 @@ export default function BillingConfigurationPage() {
     }
   }
 
-  const filteredModules = useMemo(() => {
-    const q = moduleSearch.trim().toLowerCase()
-    if (!q) return MODULE_OPTIONS
-    return MODULE_OPTIONS.filter((m) => m.toLowerCase().includes(q))
-  }, [moduleSearch])
-
-  const fetchPlans = async () => {
-    setIsPlansLoading(true)
-    try {
-      const data = await listBillingConfigPlans()
-      setPlans(data)
-      setPlanStatusMessage("")
-    } catch (error: any) {
-      setPlanStatusMessage(error?.message || "Failed to fetch plans.")
-    } finally {
-      setIsPlansLoading(false)
-    }
-  }
-
   const fetchCreditBooks = async () => {
     setIsCreditsLoading(true)
     try {
@@ -461,18 +406,10 @@ export default function BillingConfigurationPage() {
   }
 
   useEffect(() => {
-    fetchPlans()
     fetchCreditBooks()
     fetchStorageTiers()
     fetchAddons()
   }, [])
-
-  const mapFrequencyToApi = (frequencyId: string): BillingConfigPlanPayload["pricing"]["prices"][number]["frequency"] => {
-    if (frequencyId === "semi-annual") return "semi_annual"
-    if (frequencyId === "quarterly") return "quarterly"
-    if (frequencyId === "annual") return "annual"
-    return "monthly"
-  }
 
   const mapToPlanCards = (apiPlans: BillingConfigPlan[]): PlanCardModel[] => {
     return apiPlans.map((plan) => {
@@ -520,255 +457,45 @@ export default function BillingConfigurationPage() {
     }
   }, [plans])
 
-  const resetPlanWizardForm = () => {
-    setPlanName("")
-    setPlanDescription("")
-    setBadgeLabel("")
-    setDisplayOrder("")
-    setIsDraftVisible(true)
-    setSelectedBillingFrequencies(["monthly"])
-    setPricingByFrequency({ monthly: "0.00", quarterly: "0.00", "semi-annual": "0.00", annual: "0.00" })
-    setTrialEnabled(true)
-    setTrialDays("")
-    setTrialAccessMode("full-access")
-    setRequirePaymentForTrial(false)
-    setOverageEnabled(true)
-    setStandardOverageRate("0.00")
-    setDiscountedContinuousRate("0.00")
-    setOverageBillingMethod("end-cycle")
-    setMonthlySlipAllocation("")
-    setIncludedStorageGb("")
-    setMaxAdminSeat("")
-    setMaxUserSeat("")
-    setSlipResetMode("reset-each-cycle")
-    setLibraryCloneScope("full")
-    setSelectedModules(["Slip Management Module", "Billing Module", "Lab Admin Module"])
-    setEnforcementAtSlip("block-new-case-creation")
-    setEnforcementAtStorage("block-new-file-uploads")
-    setGracePeriodDays("15")
-  }
-
-  const hydratePlanWizardForm = (plan: BillingConfigPlan) => {
-    setPlanName(plan.name || "")
-    setPlanDescription(plan.description || "")
-    setBadgeLabel(plan.badge_label || "")
-    setDisplayOrder(plan.display_order?.toString() || "")
-    setIsDraftVisible(plan.status === "draft")
-    const frequencies = (plan.pricing?.prices || []).map((p) => (p.frequency === "semi_annual" ? "semi-annual" : p.frequency))
-    setSelectedBillingFrequencies(frequencies.length ? frequencies : ["monthly"])
-    const priceMap: Record<string, string> = { monthly: "0.00", quarterly: "0.00", "semi-annual": "0.00", annual: "0.00" }
-    ;(plan.pricing?.prices || []).forEach((p) => {
-      const key = p.frequency === "semi_annual" ? "semi-annual" : p.frequency
-      priceMap[key] = String(p.price)
+  const openEditor = (plan: BillingConfigPlan | null, initialStep?: EditorStep, initialMode?: SaveMode) => {
+    setEditor({
+      key: Date.now(),
+      planId: plan?.id ?? null,
+      planName: plan?.name,
+      planStatus: plan?.status,
+      initialStep,
+      initialMode,
     })
-    setPricingByFrequency(priceMap)
-    setTrialEnabled(Boolean(plan.trial?.enabled))
-    setTrialDays(plan.trial?.trial_days?.toString() || "")
-    setTrialAccessMode(plan.trial?.access_mode === "feature_limited" ? "feature-limited" : "full-access")
-    setRequirePaymentForTrial(Boolean(plan.trial?.requires_payment_method))
-    setOverageEnabled(Boolean(plan.overage_policy?.enabled))
-    setStandardOverageRate(plan.overage_policy?.standard_rate?.toString() || "0.00")
-    setDiscountedContinuousRate(plan.overage_policy?.discounted_continuous_rate?.toString() || "0.00")
-    setOverageBillingMethod(plan.overage_policy?.billing_method === "real_time" ? "real-time" : "end-cycle")
-    setMonthlySlipAllocation(plan.feature_limits?.slip_capacity?.toString() || "")
-    setIncludedStorageGb(plan.feature_limits?.included_storage_gb?.toString() || "")
-    setMaxAdminSeat(plan.feature_limits?.max_admin_seats?.toString() || "")
-    setMaxUserSeat(plan.feature_limits?.max_user_seats?.toString() || "")
-    setSlipResetMode(plan.feature_limits?.capacity_type === "carry_over_unused" ? "carry-over" : "reset-each-cycle")
-    setLibraryCloneScope(plan.library_clone_scope === "half" ? "half" : "full")
-    const moduleNames = (plan.module_ids || []).map((id) => MODULE_OPTIONS[id - 1]).filter(Boolean)
-    setSelectedModules(moduleNames.length ? moduleNames : [])
-    setEnforcementAtSlip(
-      plan.enforcement?.at_slip_limit === "allow_overage_standard_rate"
-        ? "allow-overage-standard"
-        : plan.enforcement?.at_slip_limit === "warning_only"
-          ? "warning-only"
-          : "block-new-case-creation",
-    )
-    setEnforcementAtStorage(
-      plan.enforcement?.at_storage_limit === "allow_with_overage_charges"
-        ? "allow-overage-charge"
-        : plan.enforcement?.at_storage_limit === "warning_only"
-          ? "warning-only"
-          : "block-new-file-uploads",
-    )
-    setGracePeriodDays(plan.enforcement?.grace_period_days?.toString() || "15")
   }
 
-  const openCreate = () => {
-    setEditingPlanId(null)
-    setEditingPlanName(null)
-    resetPlanWizardForm()
-    setWizardStep("plan-details")
-    setOpenWizard(true)
-    setFormErrors({})
-    setPlanStatusMessage("")
-  }
-
+  const openCreate = () => openEditor(null)
   const openEdit = (card: PlanCardModel) => {
-    setEditingPlanId(card.sourcePlan?.id ?? null)
-    setEditingPlanName(card.name)
-    if (card.sourcePlan) hydratePlanWizardForm(card.sourcePlan)
-    setWizardStep("plan-details")
-    setOpenWizard(true)
-    setFormErrors({})
-    setPlanStatusMessage("")
+    if (card.sourcePlan) openEditor(card.sourcePlan)
   }
 
-  const nextStep = () => {
-    const errors: WizardFormErrors = {}
-
-    if (wizardStep === "plan-details") {
-      if (!planName.trim()) errors.planName = "Plan name is required."
-      if (!displayOrder.trim()) errors.displayOrder = "Display order is required."
-      if (displayOrder && Number.isNaN(Number(displayOrder))) errors.displayOrder = "Display order must be a number."
-    }
-
-    if (wizardStep === "pricing-billing") {
-      if (selectedBillingFrequencies.length === 0) {
-        errors.selectedBillingFrequencies = "Select at least one billing frequency."
-      }
-      selectedBillingFrequencies.forEach((frequencyId) => {
-        const raw = pricingByFrequency[frequencyId]
-        const price = raw === "" || raw === undefined ? 0 : Number(raw)
-        if (Number.isNaN(price) || !Number.isFinite(price)) {
-          errors[`price-${frequencyId}`] = "Enter a valid price."
-        }
+  const handleCardAction = (plan: BillingConfigPlan, action: CardAction) => {
+    if (action === "edit") openEditor(plan)
+    else if (action === "publish_now") openEditor(plan, "review", "publish_now")
+    else if (action === "reschedule") openEditor(plan, "review", "schedule")
+    else if (action === "discard") setPlanToDiscard(plan)
+    else if (action === "cancel_schedule") {
+      cancelScheduleMutation.mutate(plan.id, {
+        onSuccess: () => toast({ title: t("planEditor.toast.scheduleCancelled", { name: plan.name }) }),
+        onError: (error) => toast({ title: t("planEditor.toast.actionFailed"), description: parseApiError(error).message, variant: "destructive" }),
       })
-      if (trialEnabled && trialDays !== "" && Number.isNaN(Number(trialDays))) {
-        errors.trialDays = "Enter a valid number of trial days."
-      }
-      if (overageEnabled) {
-        const standard = Number(standardOverageRate)
-        const discounted = Number(discountedContinuousRate)
-        if (Number.isNaN(standard) || !Number.isFinite(standard)) {
-          errors.standardOverageRate = "Enter a valid standard overage rate."
-        }
-        if (Number.isNaN(discounted) || !Number.isFinite(discounted)) {
-          errors.discountedContinuousRate = "Enter a valid discounted rate."
-        }
-      }
     }
-
-    if (wizardStep === "modules-limits") {
-      if (gracePeriodDays.trim() && (Number.isNaN(Number(gracePeriodDays)) || !Number.isFinite(Number(gracePeriodDays)))) {
-        errors.gracePeriodDays = "Grace period must be a valid number."
-      }
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors)
-      return
-    }
-
-    setFormErrors({})
-    if (wizardStep === "plan-details") setWizardStep("pricing-billing")
-    else if (wizardStep === "pricing-billing") setWizardStep("modules-limits")
-    else if (wizardStep === "modules-limits") setWizardStep("review-publish")
   }
 
-  const prevStep = () => {
-    if (wizardStep === "review-publish") setWizardStep("modules-limits")
-    else if (wizardStep === "modules-limits") setWizardStep("pricing-billing")
-    else if (wizardStep === "pricing-billing") setWizardStep("plan-details")
-  }
-
-  const toggleModule = (moduleName: string, checked: boolean) => {
-    setSelectedModules((prev) =>
-      checked ? [...prev, moduleName] : prev.filter((item) => item !== moduleName),
-    )
-    setFormErrors((prev) => {
-      const next = { ...prev }
-      delete next.selectedModules
-      return next
-    })
-  }
-
-  const toggleBillingFrequency = (frequencyId: string, checked: boolean) => {
-    setSelectedBillingFrequencies((prev) => {
-      if (checked) {
-        if (prev.includes(frequencyId)) return prev
-        return [...prev, frequencyId]
-      }
-      return prev.filter((id) => id !== frequencyId)
-    })
-    setFormErrors((prev) => {
-      const next = { ...prev }
-      delete next.selectedBillingFrequencies
-      return next
-    })
-  }
-
-  const updateFrequencyPrice = (frequencyId: string, value: string) => {
-    setPricingByFrequency((prev) => ({ ...prev, [frequencyId]: value }))
-    setFormErrors((prev) => {
-      const next = { ...prev }
-      delete next[`price-${frequencyId}`]
-      return next
-    })
-  }
-
-  const buildPlanPayload = (): BillingConfigPlanPayload => {
-    const prices = selectedBillingFrequencies.map((frequencyId, index) => {
-      const raw = pricingByFrequency[frequencyId]
-      const price = raw === "" || raw === undefined ? 0 : Number(raw)
-      return {
-        frequency: mapFrequencyToApi(frequencyId),
-        price: Number.isFinite(price) ? price : 0,
-        is_default: index === 0,
-      }
-    })
-    const moduleIds = selectedModules
-      .map((moduleName) => MODULE_OPTIONS.indexOf(moduleName) + 1)
-      .filter((id) => id > 0)
-
-    return {
-      name: planName.trim(),
-      description: planDescription.trim() || undefined,
-      badge_label: badgeLabel.trim() || undefined,
-      display_order: Number(displayOrder),
-      status: isDraftVisible ? "draft" : "active",
-      library_clone_scope: libraryCloneScope,
-      feature_limits: {
-        slip_capacity: Number(monthlySlipAllocation || 0),
-        capacity_type: slipResetMode === "carry-over" ? "carry_over_unused" : "reset_each_cycle",
-        included_storage_gb: Number(includedStorageGb || 0),
-        max_admin_seats: Number(maxAdminSeat || 0),
-        max_user_seats: Number(maxUserSeat || 0),
+  const confirmDiscard = () => {
+    if (!planToDiscard) return
+    const plan = planToDiscard
+    discardMutation.mutate(plan.id, {
+      onSuccess: () => {
+        toast({ title: t("planEditor.toast.discarded", { name: plan.name }) })
+        setPlanToDiscard(null)
       },
-      pricing: {
-        currency: "usd",
-        prices,
-      },
-      trial: {
-        enabled: trialEnabled,
-        trial_days: trialEnabled && trialDays ? Number(trialDays) : undefined,
-        access_mode: trialAccessMode === "feature-limited" ? "feature_limited" : "full_access",
-        requires_payment_method: false,
-      },
-      overage_policy: {
-        enabled: overageEnabled,
-        standard_rate: Number(standardOverageRate || 0),
-        discounted_continuous_rate: Number(discountedContinuousRate || 0),
-        billing_method: overageBillingMethod === "real-time" ? "real_time" : "end_of_cycle",
-      },
-      module_ids: moduleIds,
-      enforcement: {
-        at_slip_limit:
-          enforcementAtSlip === "allow-overage-standard"
-            ? "allow_overage_standard_rate"
-            : enforcementAtSlip === "warning-only"
-              ? "warning_only"
-              : "block_new_case_creation",
-        at_storage_limit:
-          enforcementAtStorage === "allow-overage-charge"
-            ? "allow_with_overage_charges"
-            : enforcementAtStorage === "warning-only"
-              ? "warning_only"
-              : "block_new_file_upload",
-        grace_period_days: Number(gracePeriodDays || 0),
-      },
-    }
+      onError: (error) => toast({ title: t("planEditor.toast.actionFailed"), description: parseApiError(error).message, variant: "destructive" }),
+    })
   }
 
   const confirmDelete = (id: number) => {
@@ -782,33 +509,13 @@ export default function BillingConfigurationPage() {
     try {
       await deleteBillingConfigPlan(planToDelete)
       setPlanStatusMessage("Plan deleted successfully.")
-      await fetchPlans()
+      await queryClient.invalidateQueries({ queryKey: billingConfigKeys.all })
       setOpenDeleteConfirm(false)
       setPlanToDelete(null)
     } catch (error: any) {
       setPlanStatusMessage(error?.message || "Failed to delete plan.")
     } finally {
       setIsPlanDeleting(false)
-    }
-  }
-
-  const submitPlan = async () => {
-    setIsPlanSubmitting(true)
-    try {
-      const payload = buildPlanPayload()
-      if (editingPlanId) {
-        await updateBillingConfigPlan(editingPlanId, payload)
-        setPlanStatusMessage("Plan updated successfully.")
-      } else {
-        await createBillingConfigPlan(payload)
-        setPlanStatusMessage("Plan created successfully.")
-      }
-      await fetchPlans()
-      setOpenWizard(false)
-    } catch (error: any) {
-      setPlanStatusMessage(error?.message || "Failed to save plan.")
-    } finally {
-      setIsPlanSubmitting(false)
     }
   }
 
@@ -1102,16 +809,23 @@ export default function BillingConfigurationPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-9 rounded-lg border border-[#D0D5DD] px-4 text-[13px] font-medium text-[#434343] hover:bg-[#F9FAFB]"
+                  className={cn(
+                    "h-9 rounded-lg border border-[#D0D5DD] px-4 text-[13px] font-medium text-[#434343] hover:bg-[#F9FAFB]",
+                    planListStatus === "draft" && "border-[#1162A8] bg-[#1162A8]/10 text-[#1162A8]",
+                  )}
                   type="button"
+                  aria-pressed={planListStatus === "draft"}
+                  onClick={() => setPlanListStatus((current) => (current === "draft" ? "active" : "draft"))}
+                  data-testid="plan-list-drafts-toggle"
                 >
-                  Drafts
+                  {planListStatus === "draft" ? t("planEditor.list.showLive") : t("planEditor.list.drafts")}
                 </Button>
                 <Button
                   size="sm"
                   className="h-9 rounded-lg bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-4 text-[13px] font-medium text-white hover:bg-[#0d4a7e]"
                   type="button"
                   onClick={openCreate}
+                  data-testid="plan-list-create"
                 >
                   + Create New Plan
                 </Button>
@@ -1124,14 +838,33 @@ export default function BillingConfigurationPage() {
                     key={plan.key}
                     className="h-full cursor-pointer text-left"
                   >
-                    <PlanCard plan={plan} onDelete={confirmDelete} onEdit={openEdit} onViewSubscribers={openSubscribers} />
+                    <PlanCard
+                      plan={plan}
+                      onDelete={confirmDelete}
+                      onEdit={openEdit}
+                      onViewSubscribers={openSubscribers}
+                      onAction={handleCardAction}
+                    />
                   </div>
                 ))}
               </div>
 
+              {planListStatus === "draft" ? (
+                <p className="text-xs text-muted-foreground" data-testid="plan-list-drafts-hint">{t("planEditor.list.draftsHint")}</p>
+              ) : null}
               {isPlansLoading ? <p className="text-xs text-muted-foreground">Loading plans...</p> : null}
-              {!isPlansLoading && planCards.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No plans in the database yet. Create a plan to get started.</p>
+              {plansQuery.isError ? (
+                <p className="flex flex-wrap items-center gap-2 text-sm text-[#CF0202]">
+                  {t("planEditor.list.loadFailed")}
+                  <Button type="button" size="sm" variant="outline" onClick={() => void plansQuery.refetch()}>
+                    {t("planEditor.actions.tryAgain")}
+                  </Button>
+                </p>
+              ) : null}
+              {!isPlansLoading && !plansQuery.isError && planCards.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {planListStatus === "draft" ? t("planEditor.list.noDrafts") : "No plans in the database yet. Create a plan to get started."}
+                </p>
               ) : null}
               <div className="grid gap-2 md:grid-cols-2">
                 <Card className="shadow-none">
@@ -1297,745 +1030,36 @@ export default function BillingConfigurationPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={openWizard} onOpenChange={setOpenWizard}>
-        <DialogContent
-          className="max-h-[92dvh] max-w-[92vw] overflow-y-auto rounded-xl border border-border bg-background p-0 md:max-w-3xl"
-          showCloseButton={false}
-        >
-          <div className="flex items-center justify-between border-b px-4 py-2.5 md:px-5">
-            <DialogTitle className="text-3xl:md text-xl font-semibold">
-              {editingPlanName ? `Edit ${editingPlanName} Plan` : "New Subscription Plan"}
-            </DialogTitle>
-            <div className="flex items-center gap-1">
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-                <Expand className="h-4 w-4" />
-              </Button>
-              <DialogClose asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-                  <X className="h-4 w-4" />
-                </Button>
-              </DialogClose>
-            </div>
+      {editor ? (
+        <PlanEditorDialog
+          key={editor.key}
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditor(null)
+          }}
+          planId={editor.planId}
+          planName={editor.planName}
+          planStatus={editor.planStatus}
+          initialStep={editor.initialStep}
+          initialMode={editor.initialMode}
+        />
+      ) : null}
+
+      <Dialog open={planToDiscard !== null} onOpenChange={(open) => !open && !discardMutation.isPending && setPlanToDiscard(null)}>
+        <DialogContent className="w-[calc(100vw-32px)] max-w-md rounded-xl p-0" data-testid="plan-discard-confirm">
+          <div className="p-6">
+            <DialogTitle className="text-lg font-semibold">{t("planEditor.discard.title")}</DialogTitle>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("planEditor.discard.body", { name: planToDiscard?.name ?? "" })}
+            </p>
           </div>
-
-          <div className="space-y-3 px-4 py-3 md:px-5">
-            <div className="flex flex-wrap gap-2 border-b pb-2">
-              <WizardTab label="Plan Details" active={wizardStep === "plan-details"} onClick={() => setWizardStep("plan-details")} />
-              <WizardTab label="Pricing & Billing" active={wizardStep === "pricing-billing"} onClick={() => setWizardStep("pricing-billing")} />
-              <WizardTab
-                label="Feature Inclusions & Limits"
-                active={wizardStep === "modules-limits"}
-                onClick={() => setWizardStep("modules-limits")}
-              />
-              <WizardTab label="Review & Publish" active={wizardStep === "review-publish"} onClick={() => setWizardStep("review-publish")} />
-            </div>
-
-            {wizardStep === "plan-details" ? (
-              <div className="space-y-3">
-                <Input
-                  label="Plan Name"
-                  placeholder="Plan name"
-                  value={planName}
-                  onChange={(e) => {
-                    setPlanName(e.target.value)
-                    setFormErrors((prev) => {
-                      const next = { ...prev }
-                      delete next.planName
-                      return next
-                    })
-                  }}
-                  validationState={formErrors.planName ? "error" : "default"}
-                  errorMessage={formErrors.planName}
-                />
-                <LabeledTextarea
-                  label="Plan Description"
-                  placeholder="Describe who this plan is for and what makes it valuable."
-                  value={planDescription}
-                  onChange={(e) => {
-                    setPlanDescription(e.target.value)
-                    setFormErrors((prev) => {
-                      const next = { ...prev }
-                      delete next.planDescription
-                      return next
-                    })
-                  }}
-                  error={formErrors.planDescription}
-                />
-                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-                  <Input
-                    label="Badge Label"
-                    placeholder="e.g. Most Popular, Best Value"
-                    value={badgeLabel}
-                    onChange={(e) => setBadgeLabel(e.target.value)}
-                  />
-                  <div className="flex items-center gap-2">
-                    {["#0E67BA", "#30C95E", "#F0C400", "#D40000"].map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        className="h-8 w-8 rounded-full border border-border"
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                    <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-full">
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-                  <Input
-                    label="Display Order"
-                    placeholder="Controls position on the pricing page. Lower = first."
-                    value={displayOrder}
-                    onChange={(e) => {
-                      setDisplayOrder(e.target.value)
-                      setFormErrors((prev) => {
-                        const next = { ...prev }
-                        delete next.displayOrder
-                        return next
-                      })
-                    }}
-                    validationState={formErrors.displayOrder ? "error" : "default"}
-                    errorMessage={formErrors.displayOrder}
-                  />
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground">Visibility</span>
-                    <Switch checked={isDraftVisible} onCheckedChange={setIsDraftVisible} />
-                    <span className="text-sm text-muted-foreground">Draft</span>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {wizardStep === "pricing-billing" ? (
-              <div className="space-y-4">
-                <section className="space-y-2 border-y py-3">
-                  <p className="text-sm font-semibold">Billing Frequency</p>
-                  <div className="flex flex-wrap gap-5">
-                    {BILLING_FREQUENCIES.map((frequency) => (
-                      <label key={frequency.id} className="inline-flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={selectedBillingFrequencies.includes(frequency.id)}
-                          onCheckedChange={(checked) => toggleBillingFrequency(frequency.id, checked === true)}
-                        />
-                        {frequency.label}
-                      </label>
-                    ))}
-                  </div>
-                  {formErrors.selectedBillingFrequencies ? (
-                    <p className="text-xs text-[#CF0202]">{formErrors.selectedBillingFrequencies}</p>
-                  ) : null}
-                  {selectedBillingFrequencies.length > 0 ? (
-                    <div className="grid gap-3 pt-1 md:grid-cols-2">
-                      {selectedBillingFrequencies.map((frequencyId) => {
-                        const frequency = BILLING_FREQUENCIES.find((item) => item.id === frequencyId)
-                        return (
-                          <div key={frequencyId}>
-                            <Input
-                              label={`${frequency?.label} Base Price`}
-                              value={`$ ${pricingByFrequency[frequencyId] ?? ""}`}
-                              onChange={(e) => {
-                                const sanitized = e.target.value.replace("$", "").trim()
-                                updateFrequencyPrice(frequencyId, sanitized)
-                              }}
-                              placeholder="$ 0.00"
-                              validationState={formErrors[`price-${frequencyId}`] ? "error" : "default"}
-                              errorMessage={formErrors[`price-${frequencyId}`]}
-                            />
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Select at least one billing frequency to configure pricing.
-                    </p>
-                  )}
-                </section>
-
-                <section className="space-y-2 border-b pb-3">
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm font-semibold">Trial Period</p>
-                    <Switch
-                      checked={trialEnabled}
-                      onCheckedChange={setTrialEnabled}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Internal free trial is never billed through Stripe.
-                  </p>
-                  <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
-                    <Input
-                      label="Trial Days"
-                      placeholder="0"
-                      value={trialDays}
-                      onChange={(e) => {
-                        setTrialDays(e.target.value)
-                        setFormErrors((prev) => {
-                          const next = { ...prev }
-                          delete next.trialDays
-                          return next
-                        })
-                      }}
-                      validationState={formErrors.trialDays ? "error" : "default"}
-                      errorMessage={formErrors.trialDays}
-                    />
-                    <RadioGroup
-                      value={trialAccessMode}
-                      onValueChange={(value: "full-access" | "feature-limited") => setTrialAccessMode(value)}
-                      className="flex items-center gap-4 md:col-span-2"
-                    >
-                      <label className="inline-flex items-center gap-2 text-sm">
-                        <RadioGroupItem value="full-access" />
-                        Full access
-                      </label>
-                      <label className="inline-flex items-center gap-2 text-sm">
-                        <RadioGroupItem value="feature-limited" />
-                        Feature-limited
-                      </label>
-                    </RadioGroup>
-                  </div>
-                  <label className="inline-flex items-center gap-2 text-sm">
-                    <Checkbox checked={requirePaymentForTrial} onCheckedChange={(checked) => setRequirePaymentForTrial(checked === true)} />
-                    Require payment method for trial
-                  </label>
-                </section>
-
-                <section className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm font-semibold">Enable Slip Overages</p>
-                    <Switch checked={overageEnabled} onCheckedChange={setOverageEnabled} />
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Input
-                      label="Standard Overage Rate"
-                      placeholder="$ 0.00 / slip"
-                      value={standardOverageRate}
-                      onChange={(e) => {
-                        setStandardOverageRate(e.target.value)
-                        setFormErrors((prev) => {
-                          const next = { ...prev }
-                          delete next.standardOverageRate
-                          return next
-                        })
-                      }}
-                      validationState={formErrors.standardOverageRate ? "error" : "default"}
-                      errorMessage={formErrors.standardOverageRate}
-                    />
-                    <Input
-                      label="Discounted Continuous Rate"
-                      placeholder="$ 0.00 / slip"
-                      value={discountedContinuousRate}
-                      onChange={(e) => {
-                        setDiscountedContinuousRate(e.target.value)
-                        setFormErrors((prev) => {
-                          const next = { ...prev }
-                          delete next.discountedContinuousRate
-                          return next
-                        })
-                      }}
-                      validationState={formErrors.discountedContinuousRate ? "error" : "default"}
-                      errorMessage={formErrors.discountedContinuousRate}
-                    />
-                  </div>
-                  <div className="flex flex-wrap items-center gap-5 text-sm">
-                    <span className="font-medium">Overage Billing Method</span>
-                    <RadioGroup
-                      value={overageBillingMethod}
-                      onValueChange={(value: "end-cycle" | "real-time") => setOverageBillingMethod(value)}
-                      className="flex items-center gap-5"
-                    >
-                      <label className="inline-flex items-center gap-2">
-                        <RadioGroupItem value="end-cycle" />
-                        Charge at end billing cycle
-                      </label>
-                      <label className="inline-flex items-center gap-2">
-                        <RadioGroupItem value="real-time" />
-                        Charge in real time
-                      </label>
-                    </RadioGroup>
-                  </div>
-                </section>
-              </div>
-            ) : null}
-
-            {wizardStep === "modules-limits" ? (
-              <div className="space-y-4">
-                <div className="space-y-3 border-b pb-3">
-                  <p className="text-sm font-semibold">Slip Allocation</p>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <Input
-                      label="Monthly Slip allocation"
-                      placeholder="Enter 0 for pay-per-slip or -1 for unlimited"
-                      value={monthlySlipAllocation}
-                      onChange={(e) => setMonthlySlipAllocation(e.target.value)}
-                    />
-                    <RadioGroup
-                      value={slipResetMode}
-                      onValueChange={(value: "reset-each-cycle" | "carry-over") => setSlipResetMode(value)}
-                      className="flex items-center gap-6 md:col-span-2"
-                    >
-                      <label className="inline-flex items-center gap-2 text-sm">
-                        <RadioGroupItem value="reset-each-cycle" />
-                        Reset to each cycle
-                      </label>
-                      <label className="inline-flex items-center gap-2 text-sm">
-                        <RadioGroupItem value="carry-over" />
-                        Carry over unused slips
-                      </label>
-                    </RadioGroup>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <Input
-                      label="Included storage (GB)"
-                      placeholder="15"
-                      value={includedStorageGb}
-                      onChange={(e) => setIncludedStorageGb(e.target.value)}
-                    />
-                    <Input
-                      label="Max admin seat (or -1)"
-                      placeholder="Enter -1 for unlimited"
-                      value={maxAdminSeat}
-                      onChange={(e) => setMaxAdminSeat(e.target.value)}
-                    />
-                    <Input
-                      label="Max user seat (or -1)"
-                      placeholder="Enter -1 for unlimited"
-                      value={maxUserSeat}
-                      onChange={(e) => setMaxUserSeat(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2 border-t pt-3">
-                  <p className="text-sm font-semibold">Library clone scope</p>
-                  <p className="text-xs text-muted-foreground">
-                    Half clones supporting catalog plus implants/abutments (no products or advance fields). Full also clones products and advance catalog.
-                  </p>
-                  <RadioGroup
-                    value={libraryCloneScope}
-                    onValueChange={(value: LibraryCloneScope) => setLibraryCloneScope(value)}
-                    className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8"
-                  >
-                    <label className="inline-flex items-start gap-2 text-sm">
-                      <RadioGroupItem value="half" className="mt-0.5" />
-                      <span>
-                        <span className="font-medium">Half library</span>
-                        <span className="block text-xs text-muted-foreground">No products or advance catalog (implants included)</span>
-                      </span>
-                    </label>
-                    <label className="inline-flex items-start gap-2 text-sm">
-                      <RadioGroupItem value="full" className="mt-0.5" />
-                      <span>
-                        <span className="font-medium">Full library</span>
-                        <span className="block text-xs text-muted-foreground">Products and advance fields included</span>
-                      </span>
-                    </label>
-                  </RadioGroup>
-                </div>
-
-                {/* ponytail: hidden per request, not deleted — flip to true to restore */}
-                {false && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold">Module Selection</p>
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={moduleSearch}
-                        onChange={(e) => setModuleSearch(e.target.value)}
-                        placeholder="Search module"
-                        className="pl-9"
-                      />
-                    </div>
-                    <div className="grid max-h-56 gap-2 overflow-auto rounded-md border p-3 md:grid-cols-2">
-                      {filteredModules.map((moduleName) => (
-                        <label key={moduleName} className="inline-flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={selectedModules.includes(moduleName)}
-                            onCheckedChange={(checked) => toggleModule(moduleName, checked === true)}
-                          />
-                          {moduleName}
-                        </label>
-                      ))}
-                    </div>
-                    {formErrors.selectedModules ? <p className="text-xs text-[#CF0202]">{formErrors.selectedModules}</p> : null}
-                  </div>
-                )}
-
-                <div className="space-y-2 border-t pt-3">
-                  <p className="text-sm font-semibold">Enforcement behavior</p>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">At slip limit</p>
-                      <Select value={enforcementAtSlip} onValueChange={setEnforcementAtSlip}>
-                        <SelectTrigger><SelectValue placeholder="At slip limit" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="block-new-case-creation">Block new case creation</SelectItem>
-                          <SelectItem value="allow-overage-standard">Allow overage at standard rate</SelectItem>
-                          <SelectItem value="warning-only">Warning only</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">At storage limit</p>
-                      <Select value={enforcementAtStorage} onValueChange={setEnforcementAtStorage}>
-                        <SelectTrigger><SelectValue placeholder="At storage limit" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="block-new-file-uploads">Block new file uploads</SelectItem>
-                          <SelectItem value="allow-overage-charge">Allow with overage charges</SelectItem>
-                          <SelectItem value="warning-only">Warning only</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Input
-                      label="Grace period after limit (days)"
-                      placeholder="15"
-                      value={gracePeriodDays}
-                      onChange={(e) => {
-                        setGracePeriodDays(e.target.value)
-                        setFormErrors((prev) => {
-                          const next = { ...prev }
-                          delete next.gracePeriodDays
-                          return next
-                        })
-                      }}
-                      validationState={formErrors.gracePeriodDays ? "error" : "default"}
-                      errorMessage={formErrors.gracePeriodDays}
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {wizardStep === "review-publish" ? (
-              <div className="space-y-4">
-                <div className="space-y-2 rounded-md border p-3">
-                  <SectionHeader title="Plan Details" onEdit={() => setWizardStep("plan-details")} />
-                  <ReviewRow label="Plan Name" value={planName || "Sample Plan Name"} />
-                  <ReviewRow label="Visibility" value={isDraftVisible ? "Draft" : "Active"} />
-                </div>
-                <div className="space-y-2 rounded-md border p-3">
-                  <SectionHeader title="Pricing & Billing" onEdit={() => setWizardStep("pricing-billing")} />
-                  {selectedBillingFrequencies.map((freq) => (
-                    <ReviewRow
-                      key={freq}
-                      label={`${freq.charAt(0).toUpperCase() + freq.slice(1)} Base Price`}
-                      value={`$ ${pricingByFrequency[freq] || "0.00"}`}
-                    />
-                  ))}
-                  <ReviewRow label="Trial Days" value={trialEnabled ? `${trialDays} days` : "No trial"} />
-                  <ReviewRow label="Standard Overage Rate" value={`$ ${standardOverageRate}`} />
-                  <ReviewRow label="Discounted Continuous Rate" value={`$ ${discountedContinuousRate}`} />
-                </div>
-                <div className="space-y-2 rounded-md border p-3">
-                  <SectionHeader title="Feature Inclusions & Limits" onEdit={() => setWizardStep("modules-limits")} />
-                  <ReviewRow label="Monthly Slip Allocation" value={monthlySlipAllocation === "-1" ? "Unlimited" : (monthlySlipAllocation || "0")} />
-                  <ReviewRow label="Included Storage" value={`${includedStorageGb || "0"} GB`} />
-                  <ReviewRow label="Max Admin Seats" value={maxAdminSeat === "-1" ? "Unlimited" : (maxAdminSeat || "0")} />
-                  <ReviewRow label="Max User Seats" value={maxUserSeat === "-1" ? "Unlimited" : (maxUserSeat || "0")} />
-                  <ReviewRow label="Library Clone" value={libraryCloneScope === "half" ? "Half library" : "Full library"} />
-                </div>
-                <div className="space-y-3 rounded-md border p-3">
-                  <SectionHeader title="Payment Gateway setup" />
-                  <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-                    <Input placeholder="Auto-create Stripe price" />
-                    <Input placeholder="Link existing Stripe price ID" />
-                    <Button variant="outline" className="h-10 px-4">Validate</Button>
-                  </div>
-                </div>
-                <div className="space-y-3 rounded-md border p-3">
-                  <SectionHeader title="Publish Options" />
-                  <RadioGroup
-                    value={publishMode}
-                    onValueChange={(v) => {
-                      setPublishMode(v as "immediately" | "scheduled" | "draft")
-                      setCalendarOpen(v === "scheduled")
-                    }}
-                    className="space-y-2"
-                  >
-                    <label className="flex cursor-pointer items-start gap-2.5">
-                      <RadioGroupItem value="immediately" className="mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Publish Immediately</p>
-                        <p className="text-xs text-muted-foreground">Plan becomes available for tenant assignment right away</p>
-                      </div>
-                    </label>
-                    <label className="flex cursor-pointer items-start gap-2.5">
-                      <RadioGroupItem value="scheduled" className="mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Schedule Publish</p>
-                        <p className="text-xs text-muted-foreground">Plan activates automatically at the specified date</p>
-                      </div>
-                    </label>
-                    <label className="flex cursor-pointer items-start gap-2.5">
-                      <RadioGroupItem value="draft" className="mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Save as Draft</p>
-                        <p className="text-xs text-muted-foreground">Save all settings but do not make available yet</p>
-                      </div>
-                    </label>
-                  </RadioGroup>
-
-                  {publishMode === "scheduled" && (
-                    <div className="mt-3 flex items-center gap-3 rounded-md border bg-white px-4 py-3">
-                      <svg className="h-[18px] w-[18px] shrink-0 text-[#1162A8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <circle cx="12" cy="12" r="10" />
-                        <path strokeLinecap="round" d="M12 6v6l4 2" />
-                      </svg>
-                      <input
-                        type="text"
-                        placeholder="Launch Date"
-                        readOnly
-                        value={launchDate}
-                        className="h-11 flex-1 cursor-pointer rounded-md border border-[#545F71] bg-white px-3.5 text-sm text-[#545F71] placeholder:text-[#B4B0B0] focus:outline-none"
-                        onClick={() => setCalendarOpen(true)}
-                      />
-                      <input
-                        type="text"
-                        readOnly
-                        value={`${String(launchHour).padStart(2, "0")}:${String(launchMinute).padStart(2, "0")}`}
-                        className="h-11 w-[140px] cursor-pointer rounded-md border border-[#545F71] bg-white px-3.5 text-sm text-[#545F71] focus:outline-none"
-                        onClick={() => setCalendarOpen(true)}
-                      />
-                    </div>
-                  )}
-
-                  {/* Calendar modal — floating card, no backdrop */}
-                  {calendarOpen && (
-                    <>
-                      {/* invisible full-screen layer to catch outside clicks */}
-                      <div className="fixed inset-0 z-[199]" onClick={() => setCalendarOpen(false)} />
-                      <div className="fixed z-[200] flex items-start justify-center" style={{ inset: 0, pointerEvents: "none" }}>
-                        <div
-                          className="pointer-events-auto mt-[20vh] w-[514px] rounded-[10px] border border-gray-200 bg-white shadow-[9px_7px_21.5px_rgba(0,0,0,0.25)]"
-                          style={{ padding: "30px 20px" }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {/* Date + time row */}
-                          <div className="mb-3 flex items-center gap-3">
-                            <svg className="h-[18px] w-[18px] shrink-0 text-[#1162A8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                              <circle cx="12" cy="12" r="10" />
-                              <path strokeLinecap="round" d="M12 6v6l4 2" />
-                            </svg>
-                            <input
-                              type="text"
-                              placeholder="Launch Date"
-                              readOnly
-                              value={launchDate}
-                              className="h-12 flex-1 cursor-pointer rounded-md border border-[#545F71] bg-white px-3.5 text-sm text-[#545F71] placeholder:text-[#B4B0B0] focus:outline-none"
-                            />
-                            {/* Time picker trigger */}
-                            <div className="relative">
-                              <button
-                                type="button"
-                                onClick={() => setTimePickerOpen((o) => !o)}
-                                className="flex h-12 w-[183px] items-center justify-between rounded-md border border-[#545F71] bg-white px-3.5 text-sm text-[#545F71] focus:outline-none"
-                              >
-                                <span>{`${String(launchHour).padStart(2, "0")}:${String(launchMinute).padStart(2, "0")}`}</span>
-                                <ChevronDown className={`h-4 w-4 text-[#545F71] transition-transform ${timePickerOpen ? "rotate-180" : ""}`} />
-                              </button>
-
-                              {timePickerOpen && (
-                                <div className="absolute right-0 top-[calc(100%+6px)] z-[210] flex w-[183px] flex-col items-center gap-0 rounded-[10px] border border-gray-200 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.15)]">
-                                  {/* Header */}
-                                  <div className="w-full rounded-t-[10px] bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-4 py-2 text-center text-xs font-medium text-white">
-                                    Select Time
-                                  </div>
-
-                                  {/* Hour + minute spinners */}
-                                  <div className="flex w-full items-center justify-center gap-2 px-4 py-4">
-                                    {/* Hour column */}
-                                    <div className="flex flex-col items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => setLaunchHour((h) => (h + 1) % 24)}
-                                        className="flex h-7 w-7 items-center justify-center rounded hover:bg-[#F2F4F7]"
-                                      >
-                                        <ChevronDown className="h-4 w-4 rotate-180 text-[#1162A8]" />
-                                      </button>
-                                      <div className="flex h-10 w-12 items-center justify-center rounded-md border border-[#545F71] text-lg font-medium text-[#545F71]">
-                                        {String(launchHour).padStart(2, "0")}
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => setLaunchHour((h) => (h - 1 + 24) % 24)}
-                                        className="flex h-7 w-7 items-center justify-center rounded hover:bg-[#F2F4F7]"
-                                      >
-                                        <ChevronDown className="h-4 w-4 text-[#1162A8]" />
-                                      </button>
-                                    </div>
-
-                                    <span className="text-xl font-medium text-[#545F71]">:</span>
-
-                                    {/* Minute column */}
-                                    <div className="flex flex-col items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => setLaunchMinute((m) => (m + 5) % 60)}
-                                        className="flex h-7 w-7 items-center justify-center rounded hover:bg-[#F2F4F7]"
-                                      >
-                                        <ChevronDown className="h-4 w-4 rotate-180 text-[#1162A8]" />
-                                      </button>
-                                      <div className="flex h-10 w-12 items-center justify-center rounded-md border border-[#545F71] text-lg font-medium text-[#545F71]">
-                                        {String(launchMinute).padStart(2, "0")}
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => setLaunchMinute((m) => (m - 5 + 60) % 60)}
-                                        className="flex h-7 w-7 items-center justify-center rounded hover:bg-[#F2F4F7]"
-                                      >
-                                        <ChevronDown className="h-4 w-4 text-[#1162A8]" />
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  {/* Done button */}
-                                  <button
-                                    type="button"
-                                    onClick={() => setTimePickerOpen(false)}
-                                    className="mb-3 rounded-md bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-6 py-1.5 text-sm font-medium text-white hover:bg-[#0E4676]"
-                                  >
-                                    Done
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Calendar grid */}
-                          <div className="overflow-hidden rounded-[16px]">
-                            {/* Month + nav */}
-                            <div className="flex items-center justify-between px-2 py-3">
-                              <span className="text-[16px] font-medium text-black">
-                                {calendarDate.toLocaleString("default", { month: "long", year: "numeric" }).toUpperCase()}
-                              </span>
-                              <div className="flex items-center gap-5">
-                                <button
-                                  type="button"
-                                  onClick={() => setCalendarDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
-                                  className="flex h-5 w-5 items-center justify-center text-black"
-                                >
-                                  <ChevronDown className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setCalendarDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
-                                  className="flex h-5 w-5 items-center justify-center text-black"
-                                >
-                                  <ChevronDown className="h-4 w-4 rotate-180" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Day-of-week headers */}
-                            <div className="grid grid-cols-7 bg-[#1162A8]">
-                              {["SU", "MO", "TU", "WE", "TH", "FR", "SA"].map((d, i) => (
-                                <div
-                                  key={d}
-                                  className={`flex h-[64px] items-center justify-center font-['Inter'] text-[16.07px] font-medium tracking-[-0.02em] text-white ${i === 0 || i === 6 ? "bg-[#0E4676]" : ""}`}
-                                >
-                                  {d}
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Day cells */}
-                            <div className="grid grid-cols-7">
-                              {(() => {
-                                const year = calendarDate.getFullYear()
-                                const month = calendarDate.getMonth()
-                                const firstDay = new Date(year, month, 1).getDay()
-                                const daysInMonth = new Date(year, month + 1, 0).getDate()
-                                const prevMonthDays = new Date(year, month, 0).getDate()
-                                const cells: { day: number; current: boolean; colIndex: number }[] = []
-
-                                for (let i = 0; i < firstDay; i++) {
-                                  cells.push({ day: prevMonthDays - firstDay + 1 + i, current: false, colIndex: i })
-                                }
-                                for (let d = 1; d <= daysInMonth; d++) {
-                                  cells.push({ day: d, current: true, colIndex: (firstDay + d - 1) % 7 })
-                                }
-                                const remaining = (7 - (cells.length % 7)) % 7
-                                for (let d = 1; d <= remaining; d++) {
-                                  cells.push({ day: d, current: false, colIndex: cells.length % 7 })
-                                }
-
-                                return cells.map((cell, idx) => {
-                                  const isWeekend = cell.colIndex === 0 || cell.colIndex === 6
-                                  const dateStr = cell.current
-                                    ? `${calendarDate.toLocaleString("default", { month: "long" })} ${cell.day}, ${year}`
-                                    : ""
-                                  const isSelected = cell.current && dateStr === launchDate
-                                  return (
-                                    <button
-                                      key={idx}
-                                      type="button"
-                                      disabled={!cell.current}
-                                      onClick={() => {
-                                        if (!cell.current) return
-                                        setLaunchDate(dateStr)
-                                        setCalendarOpen(false)
-                                      }}
-                                      className={[
-                                        "flex h-[64px] items-center justify-center font-['Inter'] text-[16.07px] font-medium tracking-[-0.02em] transition-colors",
-                                        isSelected
-                                          ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
-                                          : isWeekend
-                                            ? "bg-[#E2E2E2] text-black"
-                                            : "bg-[#F2F4F7] text-black",
-                                        !cell.current ? "!text-[#ADC0DC]" : "",
-                                        cell.current && !isSelected ? "hover:bg-[#c8ddf0]" : "",
-                                      ].join(" ")}
-                                    >
-                                      {cell.day}
-                                    </button>
-                                  )
-                                })
-                              })()}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="flex flex-col gap-2 border-t px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between md:px-5">
-            <div>
-              {wizardStep !== "plan-details" ? (
-                <Button variant="ghost" className="h-9 px-2 text-sm" onClick={prevStep}>
-                  Back
-                </Button>
-              ) : (
-                <DialogClose asChild>
-                  <Button variant="ghost" className="h-9 px-2 text-sm">Cancel</Button>
-                </DialogClose>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                className="h-9 px-4 text-sm"
-                onClick={() => setIsDraftVisible(true)}
-                disabled={isPlanSubmitting}
-              >
-                Save as Draft
-              </Button>
-              {wizardStep !== "review-publish" ? (
-                <Button className="h-9 px-4 text-sm" onClick={nextStep} disabled={isPlanSubmitting}>
-                  {wizardStep === "plan-details" ? "Next: Pricing & Billing" : wizardStep === "pricing-billing" ? "Inclusions & Limits" : "Review & Publish"}
-                  <ArrowRight className="ml-1.5 h-4 w-4" />
-                </Button>
-              ) : (
-                <Button className="h-9 px-4 text-sm" onClick={submitPlan} disabled={isPlanSubmitting}>
-                  {isPlanSubmitting ? "Saving..." : "Review & Publish"}
-                  <ArrowRight className="ml-1.5 h-4 w-4" />
-                </Button>
-              )}
-            </div>
+          <div className="flex items-center justify-end gap-3 border-t bg-muted/30 px-6 py-4">
+            <Button variant="outline" onClick={() => setPlanToDiscard(null)} disabled={discardMutation.isPending}>
+              {t("planEditor.actions.cancel")}
+            </Button>
+            <Button variant="destructive" onClick={confirmDiscard} disabled={discardMutation.isPending} data-testid="plan-discard-confirm-button">
+              {discardMutation.isPending ? t("planEditor.actions.saving") : t("planEditor.discard.confirm")}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -2386,43 +1410,6 @@ export default function BillingConfigurationPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  )
-}
-
-function WizardTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "h-8 rounded-none border-b-2 px-2 text-sm font-medium",
-        active ? "border-[#1162A8] text-[#1162A8]" : "border-transparent text-muted-foreground hover:text-foreground",
-      )}
-    >
-      {label}
-    </button>
-  )
-}
-
-function SectionHeader({ title, onEdit }: { title: string; onEdit?: () => void }) {
-  return (
-    <div className="flex items-center justify-between">
-      <p className="text-sm font-semibold">{title}</p>
-      {onEdit && (
-        <button type="button" onClick={onEdit} className="text-xs font-medium text-[#1162A8] hover:underline">
-          Edit
-        </button>
-      )}
-    </div>
-  )
-}
-
-function ReviewRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
-      <p className="text-muted-foreground">{label}</p>
-      <p className="font-medium">{value}</p>
     </div>
   )
 }

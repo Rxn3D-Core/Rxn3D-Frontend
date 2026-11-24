@@ -1,0 +1,517 @@
+{
+  "success": true,
+  "data": {
+    "plan_id": null,
+    "total_features": 27,
+    "groups": [
+      {
+        "key": "slip",
+        "display_order": 1,
+        "features": [
+          {
+            "key": "slip.creation.monthly_limit",
+            "name": "Slip creation",
+            "description": "Creating digital Rx",
+            "value_type": "integer",
+            "enum_options": null,
+            "supports_unlimited": true,
+            "default_value": "100",
+            "value": 100,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": "feature_limits.slip_capacity",
+            "drift": null
+          },
+          {
+            "key": "slip.overage.enabled",
+            "name": "Overage rate",
+            "description": "Additional charge when slip usage exceeds quota",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "false",
+            "value": false,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": "overage_policy.enabled",
+            "drift": null
+          },
+          {
+            "key": "slip.due_rush_date",
+            "name": "Due date and rush date flag",
+            "description": "Due date and rush date calculation in case list",
+            "value_type": "enum",
+            "enum_options": [
+              "none",
+              "flag_only",
+              "flag_and_billing"
+            ],
+            "supports_unlimited": false,
+            "default_value": "flag_only",
+            "value": "flag_only",
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          },
+          {
+            "key": "slip.paper_slip",
+            "name": "Paper slip",
+            "description": "Printable paper slip",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "true",
+            "value": true,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          },
+          {
+            "key": "slip.virtual_slip",
+            "name": "Virtual slip",
+            "description": "On-screen virtual slip",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "true",
+            "value": true,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "access",
+        "display_order": 3,
+        "features": [
+          {
+            "key": "connections.office_limit",
+            "name": "Connections to offices",
+            "description": "Lab to office connection (consumable)",
+            "value_type": "integer",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "10",
+            "value": 10,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          },
+          {
+            "key": "access.custom_roles",
+            "name": "Custom roles and permissions",
+            "description": "Lab-defined roles and permission bundles",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "false",
+            "value": false,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "tracking",
+        "display_order": 4,
+        "features": [
+          {
+            "key": "tracking.locations_limit",
+            "name": "Location restrictions",
+            "description": "Locations for your case",
+            "value_type": "integer",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "2",
+            "value": 2,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          },
+          {
+            "key": "tracking.case_pan",
+            "name": "Case pan tracking",
+            "description": "Case pan assignment and tracking",
+            "value_type": "enum",
+            "enum_options": [
+              "basic",
+              "full"
+            ],
+            "supports_unlimited": false,
+            "default_value": "full",
+            "value": "full",
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          },
+          {
+            "key": "tracking.driver_scanning",
+            "name": "Driver scanning and driver label",
+            "description": "QR scan + driver label print",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "false",
+            "value": false,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "attachments",
+        "display_order": 6,
+        "features": [
+          {
+            "key": "attachments.basic",
+            "name": "Basic attachments",
+            "description": "Upload files in the system",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "true",
+            "value": true,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          },
+          {
+            "key": "attachments.advanced",
+            "name": "Advanced attachments",
+            "description": "Filing system for attachments grouped by stage",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "false",
+            "value": false,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "storage",
+        "display_order": 8,
+        "features": [
+          {
+            "key": "storage.limit_gb",
+            "name": "Storage",
+            "description": "Total GB for storage",
+            "value_type": "integer",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "15",
+            "value": 15,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": "feature_limits.included_storage_gb",
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "seats",
+        "display_order": 9,
+        "features": [
+          {
+            "key": "seats.admin_limit",
+            "name": "Admin seats",
+            "description": "Total number of admin seats",
+            "value_type": "integer",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "1",
+            "value": 1,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": "feature_limits.max_admin_seats",
+            "drift": null
+          },
+          {
+            "key": "seats.user_limit",
+            "name": "User limitation",
+            "description": "Technicians, drivers, etc.",
+            "value_type": "integer",
+            "enum_options": null,
+            "supports_unlimited": true,
+            "default_value": "0",
+            "value": 0,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": "feature_limits.max_user_seats",
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "product",
+        "display_order": 11,
+        "features": [
+          {
+            "key": "product.management",
+            "name": "Product management",
+            "description": "Inputting products, prices, add-ons",
+            "value_type": "enum",
+            "enum_options": [
+              "manual_only",
+              "full"
+            ],
+            "supports_unlimited": false,
+            "default_value": "manual_only",
+            "value": "manual_only",
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          },
+          {
+            "key": "product.global_library_import",
+            "name": "Global library import",
+            "description": "Included in Full product management",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "false",
+            "value": false,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          },
+          {
+            "key": "product.library_clone_scope",
+            "name": "Library clone scope",
+            "description": "How much of the global catalog is cloned into a lab",
+            "value_type": "enum",
+            "enum_options": [
+              "half",
+              "full"
+            ],
+            "supports_unlimited": false,
+            "default_value": "half",
+            "value": "half",
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": "library_clone_scope",
+            "drift": null
+          },
+          {
+            "key": "product.advance_mode",
+            "name": "Advance mode",
+            "description": "Advance configuration of product",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "false",
+            "value": false,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "tools",
+        "display_order": 15,
+        "features": [
+          {
+            "key": "tools.3d_viewer",
+            "name": "3D Viewer",
+            "description": "Native 3D STL viewer",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "false",
+            "value": false,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "reports",
+        "display_order": 16,
+        "features": [
+          {
+            "key": "reports.dashboard",
+            "name": "Dashboard and Reports",
+            "description": "Case, revenue summary",
+            "value_type": "enum",
+            "enum_options": [
+              "basic",
+              "full"
+            ],
+            "supports_unlimited": false,
+            "default_value": "basic",
+            "value": "basic",
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "billing",
+        "display_order": 17,
+        "features": [
+          {
+            "key": "billing.charge_management",
+            "name": "Charge management",
+            "description": "Lab pricing, case charges, and invoices billed to offices",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "false",
+            "value": false,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          },
+          {
+            "key": "billing.statements",
+            "name": "Statements",
+            "description": "Aggregated office statements and collection",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "false",
+            "value": false,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "production",
+        "display_order": 19,
+        "features": [
+          {
+            "key": "production.access",
+            "name": "Production (future)",
+            "description": "Production module; not launched yet",
+            "value_type": "enum",
+            "enum_options": [
+              "none",
+              "early"
+            ],
+            "supports_unlimited": false,
+            "default_value": "none",
+            "value": "none",
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "system",
+        "display_order": 20,
+        "features": [
+          {
+            "key": "slip.settings",
+            "name": "Slip settings",
+            "description": "Slip form configuration",
+            "value_type": "enum",
+            "enum_options": [
+              "basic",
+              "full"
+            ],
+            "supports_unlimited": false,
+            "default_value": "full",
+            "value": "full",
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          },
+          {
+            "key": "system.settings",
+            "name": "System settings",
+            "description": "Lab system configuration",
+            "value_type": "enum",
+            "enum_options": [
+              "basic",
+              "full"
+            ],
+            "supports_unlimited": false,
+            "default_value": "full",
+            "value": "full",
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      },
+      {
+        "key": "support",
+        "display_order": 27,
+        "features": [
+          {
+            "key": "support.priority",
+            "name": "Priority support",
+            "description": "Support channel available on every plan",
+            "value_type": "boolean",
+            "enum_options": null,
+            "supports_unlimited": false,
+            "default_value": "true",
+            "value": true,
+            "is_unlimited": false,
+            "included_in_trial": false,
+            "source": "default",
+            "linked_to": null,
+            "drift": null
+          }
+        ]
+      }
+    ]
+  }
+}

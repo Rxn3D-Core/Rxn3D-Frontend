@@ -39,6 +39,7 @@ export const TRANSACTIONAL_QUERY_KEY_PREFIXES = [
   "product-gum-shades",
   "product-impressions",
   "slip-activity-events",
+  "billing-config",
 ] as const
 
 let appQueryClient: QueryClient | null = null

@@ -1,0 +1,82 @@
+{
+  "success": true,
+  "data": {
+    "has_customer_visible_changes": true,
+    "change_summary": {
+      "groups": [
+        {
+          "key": "price",
+          "label": "Price",
+          "items": [
+            {
+              "label": "Monthly price",
+              "from": "$0.00",
+              "to": "$9.00"
+            }
+          ]
+        },
+        {
+          "key": "features_added",
+          "label": "Features added",
+          "items": [
+            {
+              "label": "Advance mode",
+              "from": null,
+              "to": null
+            }
+          ]
+        },
+        {
+          "key": "features_removed",
+          "label": "Features removed",
+          "items": []
+        },
+        {
+          "key": "limits",
+          "label": "Limits",
+          "items": [
+            {
+              "label": "Storage",
+              "from": "15 GB",
+              "to": "25 GB"
+            },
+            {
+              "label": "User seats",
+              "from": "10",
+              "to": "Unlimited"
+            }
+          ]
+        },
+        {
+          "key": "usage_rules",
+          "label": "Usage rules",
+          "items": []
+        },
+        {
+          "key": "plan",
+          "label": "Plan",
+          "items": []
+        }
+      ],
+      "internal_only": [
+        {
+          "label": "Display order",
+          "from": "1",
+          "to": "2"
+        }
+      ]
+    },
+    "recipients": {
+      "labs": 42,
+      "addresses": 58,
+      "skipped_invalid": 1,
+      "lab_emails": 41,
+      "lab_admins": 23,
+      "duplicates_merged": 6
+    },
+    "email_preview": {
+      "subject": "Your Rxn3D plan \"Freemium\" has been updated",
+      "html": "<!doctype html><html><body style=\"font-family:Arial,sans-serif\"><p>Hi Mock Lab,</p><p>The Freemium plan you are on was updated. These changes take effect on publish.</p><h4>Price</h4><ul><li>Monthly price: $0.00 &rarr; $9.00</li></ul><h4>Features added</h4><ul><li>Advance mode</li></ul><h4>Limits</h4><ul><li>Storage: 15 GB &rarr; 25 GB</li><li>User seats: 10 &rarr; Unlimited</li></ul><p><a href=\"#\">View your subscription</a></p></body></html>"
+    }
+  }
+}

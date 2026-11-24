@@ -1,0 +1,931 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Freemium",
+      "active_labs_count": 42,
+      "description": "Freemium plan for dental labs.",
+      "badge_label": null,
+      "display_order": 1,
+      "preview_bg_color": "#EAF2FB",
+      "status": "active",
+      "library_clone_scope": "half",
+      "feature_limits": {
+        "slip_capacity": 100,
+        "capacity_type": "reset_each_cycle",
+        "included_storage_gb": 15,
+        "max_admin_seats": 1,
+        "max_user_seats": 0
+      },
+      "pricing": {
+        "currency": "usd",
+        "prices": [
+          {
+            "id": 10,
+            "frequency": "monthly",
+            "interval": "month",
+            "interval_count": 1,
+            "price": "0.00",
+            "currency": "usd",
+            "is_default": true,
+            "stripe_price_id": null
+          }
+        ]
+      },
+      "trial": {
+        "enabled": false,
+        "trial_days": null,
+        "access_mode": "full_access",
+        "requires_payment_method": false
+      },
+      "overage_policy": {
+        "enabled": false,
+        "standard_rate": null,
+        "discounted_continuous_rate": null,
+        "discount_requires_continuous_charging": true,
+        "billing_method": "end_of_cycle"
+      },
+      "enforcement": {
+        "at_slip_limit": "block_new_case_creation",
+        "at_storage_limit": "block_new_file_upload",
+        "grace_period_days": 15
+      },
+      "module_ids": [],
+      "features": [
+        {
+          "feature_key": "slip.creation.monthly_limit",
+          "value": "100",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.overage.enabled",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "connections.office_limit",
+          "value": "10",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.locations_limit",
+          "value": "2",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.due_rush_date",
+          "value": "flag_only",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "attachments.basic",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "attachments.advanced",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "storage.limit_gb",
+          "value": "15",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "seats.admin_limit",
+          "value": "1",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "seats.user_limit",
+          "value": "0",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.management",
+          "value": "manual_only",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.global_library_import",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.library_clone_scope",
+          "value": "half",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.advance_mode",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tools.3d_viewer",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "reports.dashboard",
+          "value": "basic",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "billing.charge_management",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "billing.statements",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "production.access",
+          "value": "none",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.settings",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "system.settings",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.case_pan",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.driver_scanning",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.paper_slip",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.virtual_slip",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "access.custom_roles",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "support.priority",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        }
+      ],
+      "updated_at": "2026-11-20T10:00:00.000000Z",
+      "pending_version": null,
+      "last_publish_notification": null
+    },
+    {
+      "id": 2,
+      "name": "Growth",
+      "active_labs_count": 18,
+      "description": "Growth plan for dental labs.",
+      "badge_label": "Most Popular",
+      "display_order": 2,
+      "preview_bg_color": "#E9F8EE",
+      "status": "active",
+      "library_clone_scope": "full",
+      "feature_limits": {
+        "slip_capacity": 600,
+        "capacity_type": "reset_each_cycle",
+        "included_storage_gb": 100,
+        "max_admin_seats": 3,
+        "max_user_seats": 10
+      },
+      "pricing": {
+        "currency": "usd",
+        "prices": [
+          {
+            "id": 20,
+            "frequency": "monthly",
+            "interval": "month",
+            "interval_count": 1,
+            "price": "149.00",
+            "currency": "usd",
+            "is_default": true,
+            "stripe_price_id": null
+          },
+          {
+            "id": 21,
+            "frequency": "annual",
+            "interval": "year",
+            "interval_count": 1,
+            "price": "1490.00",
+            "currency": "usd",
+            "is_default": false,
+            "stripe_price_id": null
+          }
+        ]
+      },
+      "trial": {
+        "enabled": true,
+        "trial_days": 14,
+        "access_mode": "full_access",
+        "requires_payment_method": false
+      },
+      "overage_policy": {
+        "enabled": true,
+        "standard_rate": 0.5,
+        "discounted_continuous_rate": 0.4,
+        "discount_requires_continuous_charging": true,
+        "billing_method": "end_of_cycle"
+      },
+      "enforcement": {
+        "at_slip_limit": "block_new_case_creation",
+        "at_storage_limit": "block_new_file_upload",
+        "grace_period_days": 15
+      },
+      "module_ids": [],
+      "features": [
+        {
+          "feature_key": "slip.creation.monthly_limit",
+          "value": "600",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.overage.enabled",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "connections.office_limit",
+          "value": "100",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.locations_limit",
+          "value": "6",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.due_rush_date",
+          "value": "flag_and_billing",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "attachments.basic",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "attachments.advanced",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "storage.limit_gb",
+          "value": "100",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "seats.admin_limit",
+          "value": "3",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "seats.user_limit",
+          "value": "10",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.management",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "product.global_library_import",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "product.library_clone_scope",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "product.advance_mode",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "tools.3d_viewer",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "reports.dashboard",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "billing.charge_management",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "billing.statements",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "production.access",
+          "value": "none",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.settings",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "system.settings",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.case_pan",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.driver_scanning",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "slip.paper_slip",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.virtual_slip",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "access.custom_roles",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": true
+        },
+        {
+          "feature_key": "support.priority",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        }
+      ],
+      "updated_at": "2026-11-20T10:00:00.000000Z",
+      "pending_version": {
+        "id": 52,
+        "state": "scheduled",
+        "scheduled_publish_at": "2026-12-01T03:30:00Z",
+        "schedule_timezone": "Asia/Kolkata",
+        "last_error": null,
+        "updated_at": "2026-11-24T16:50:00.000000Z"
+      },
+      "last_publish_notification": {
+        "state": "done",
+        "labs": 18,
+        "addresses": 25,
+        "skipped_invalid": 0,
+        "sent": 25,
+        "failed": 0,
+        "queued": 0,
+        "failed_addresses": []
+      }
+    },
+    {
+      "id": 3,
+      "name": "Business Max",
+      "active_labs_count": 6,
+      "description": "Business Max plan for dental labs.",
+      "badge_label": "Best Value",
+      "display_order": 3,
+      "preview_bg_color": "#FFF6DB",
+      "status": "active",
+      "library_clone_scope": "full",
+      "feature_limits": {
+        "slip_capacity": 1200,
+        "capacity_type": "reset_each_cycle",
+        "included_storage_gb": 500,
+        "max_admin_seats": 8,
+        "max_user_seats": 30
+      },
+      "pricing": {
+        "currency": "usd",
+        "prices": [
+          {
+            "id": 30,
+            "frequency": "monthly",
+            "interval": "month",
+            "interval_count": 1,
+            "price": "399.00",
+            "currency": "usd",
+            "is_default": true,
+            "stripe_price_id": null
+          },
+          {
+            "id": 31,
+            "frequency": "annual",
+            "interval": "year",
+            "interval_count": 1,
+            "price": "3990.00",
+            "currency": "usd",
+            "is_default": false,
+            "stripe_price_id": null
+          }
+        ]
+      },
+      "trial": {
+        "enabled": false,
+        "trial_days": null,
+        "access_mode": "full_access",
+        "requires_payment_method": false
+      },
+      "overage_policy": {
+        "enabled": true,
+        "standard_rate": 0.4,
+        "discounted_continuous_rate": 0.3,
+        "discount_requires_continuous_charging": true,
+        "billing_method": "end_of_cycle"
+      },
+      "enforcement": {
+        "at_slip_limit": "block_new_case_creation",
+        "at_storage_limit": "block_new_file_upload",
+        "grace_period_days": 15
+      },
+      "module_ids": [],
+      "features": [
+        {
+          "feature_key": "slip.creation.monthly_limit",
+          "value": "1200",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.overage.enabled",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "connections.office_limit",
+          "value": "500",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.locations_limit",
+          "value": "6",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.due_rush_date",
+          "value": "flag_and_billing",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "attachments.basic",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "attachments.advanced",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "storage.limit_gb",
+          "value": "500",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "seats.admin_limit",
+          "value": "8",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "seats.user_limit",
+          "value": "30",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.management",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.global_library_import",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.library_clone_scope",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.advance_mode",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tools.3d_viewer",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "reports.dashboard",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "billing.charge_management",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "billing.statements",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "production.access",
+          "value": "early",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.settings",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "system.settings",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.case_pan",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.driver_scanning",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.paper_slip",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.virtual_slip",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "access.custom_roles",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "support.priority",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        }
+      ],
+      "updated_at": "2026-11-20T10:00:00.000000Z",
+      "pending_version": {
+        "id": 53,
+        "state": "failed",
+        "scheduled_publish_at": "2026-11-23T09:00:00Z",
+        "schedule_timezone": "UTC",
+        "last_error": "Stripe could not save the price for this plan. No such product: prod_123",
+        "updated_at": "2026-11-23T10:15:00.000000Z"
+      },
+      "last_publish_notification": null
+    },
+    {
+      "id": 4,
+      "name": "Starter",
+      "active_labs_count": 0,
+      "description": "Starter plan for dental labs.",
+      "badge_label": null,
+      "display_order": 4,
+      "preview_bg_color": "#F3F4F6",
+      "status": "draft",
+      "library_clone_scope": "half",
+      "feature_limits": {
+        "slip_capacity": 100,
+        "capacity_type": "reset_each_cycle",
+        "included_storage_gb": 15,
+        "max_admin_seats": 1,
+        "max_user_seats": 0
+      },
+      "pricing": {
+        "currency": "usd",
+        "prices": [
+          {
+            "id": 40,
+            "frequency": "monthly",
+            "interval": "month",
+            "interval_count": 1,
+            "price": "49.00",
+            "currency": "usd",
+            "is_default": true,
+            "stripe_price_id": null
+          }
+        ]
+      },
+      "trial": {
+        "enabled": false,
+        "trial_days": null,
+        "access_mode": "full_access",
+        "requires_payment_method": false
+      },
+      "overage_policy": {
+        "enabled": false,
+        "standard_rate": null,
+        "discounted_continuous_rate": null,
+        "discount_requires_continuous_charging": true,
+        "billing_method": "end_of_cycle"
+      },
+      "enforcement": {
+        "at_slip_limit": "block_new_case_creation",
+        "at_storage_limit": "block_new_file_upload",
+        "grace_period_days": 15
+      },
+      "module_ids": [],
+      "features": [
+        {
+          "feature_key": "slip.creation.monthly_limit",
+          "value": "100",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.overage.enabled",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "connections.office_limit",
+          "value": "10",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.locations_limit",
+          "value": "2",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.due_rush_date",
+          "value": "flag_only",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "attachments.basic",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "attachments.advanced",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "storage.limit_gb",
+          "value": "15",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "seats.admin_limit",
+          "value": "1",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "seats.user_limit",
+          "value": "0",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.management",
+          "value": "manual_only",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.global_library_import",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.library_clone_scope",
+          "value": "half",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "product.advance_mode",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tools.3d_viewer",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "reports.dashboard",
+          "value": "basic",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "billing.charge_management",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "billing.statements",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "production.access",
+          "value": "none",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.settings",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "system.settings",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.case_pan",
+          "value": "full",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "tracking.driver_scanning",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.paper_slip",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "slip.virtual_slip",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "access.custom_roles",
+          "value": "false",
+          "is_unlimited": false,
+          "included_in_trial": false
+        },
+        {
+          "feature_key": "support.priority",
+          "value": "true",
+          "is_unlimited": false,
+          "included_in_trial": false
+        }
+      ],
+      "updated_at": "2026-11-20T10:00:00.000000Z",
+      "pending_version": {
+        "id": 54,
+        "state": "draft",
+        "scheduled_publish_at": null,
+        "schedule_timezone": null,
+        "last_error": null,
+        "updated_at": "2026-11-22T08:00:00.000000Z"
+      },
+      "last_publish_notification": null
+    }
+  ]
+}
