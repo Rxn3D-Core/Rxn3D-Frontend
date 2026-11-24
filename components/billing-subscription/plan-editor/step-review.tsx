@@ -137,7 +137,15 @@ export function StepReview({
       ) : null}
 
       <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
-        <DialogContent className="flex max-h-[90dvh] w-[calc(100vw-32px)] max-w-2xl flex-col gap-3 p-4" data-testid="plan-editor-email-preview">
+        <DialogContent
+          className="flex max-h-[90dvh] w-[calc(100vw-32px)] max-w-2xl flex-col gap-3 p-4"
+          data-testid="plan-editor-email-preview"
+          // Radix would focus the sandboxed iframe, which swallows Escape; focus the dialog instead.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            ;(e.currentTarget as HTMLElement | null)?.focus()
+          }}
+        >
           <DialogTitle className="pr-6 text-base font-semibold">{t("planEditor.review.emailPreviewTitle")}</DialogTitle>
           <DialogDescription className="text-sm">
             <span className="text-muted-foreground">{t("planEditor.review.subject")}: </span>

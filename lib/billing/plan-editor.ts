@@ -496,6 +496,47 @@ export function notifyLabsValue(preview: Pick<PlanVersionPreview, "has_customer_
   return state.visible ? state.checked : false
 }
 
+/**
+ * Fields the server can send as null that formFromPayload fills with a default. `label` is the
+ * row label from the backend's PlanChangeSummary (app/Support/Billing/PlanChangeSummary.php).
+ */
+const DEFAULT_FILLED_FIELDS: Array<{ label: string; source: (p: PlanPayload) => unknown; isDefault: (f: PlanForm) => boolean }> = [
+  { label: "Overage billing", source: (p) => p.overage_policy?.billing_method, isDefault: (f) => f.overage.billing_method === "end_of_cycle" },
+  { label: "At the slip limit", source: (p) => p.enforcement?.at_slip_limit, isDefault: (f) => f.enforcement.at_slip_limit === "block_new_case_creation" },
+  { label: "At the storage limit", source: (p) => p.enforcement?.at_storage_limit, isDefault: (f) => f.enforcement.at_storage_limit === "block_new_file_upload" },
+]
+
+/**
+ * RXN-121: the server's "What changed" with rows the user did not make removed.
+ * - A field that was null in the payload the form was loaded from (`source`) and still holds the
+ *   default the form filled in is not a change (the server shows it as "— -> default").
+ * - "Display order X -> —": a null display_order keeps the current value on apply, so it is not a change.
+ */
+export function reviewPreview(
+  preview: PlanVersionPreview | undefined,
+  source: PlanPayload | null | undefined,
+  form: PlanForm | null | undefined,
+): PlanVersionPreview | undefined {
+  if (!preview) return preview
+  const filled = new Set(
+    source && form
+      ? DEFAULT_FILLED_FIELDS.filter((f) => (f.source(source) ?? null) === null && f.isDefault(form)).map((f) => f.label)
+      : [],
+  )
+  const groups = preview.change_summary.groups.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => !(item.from === null && filled.has(item.label))),
+  }))
+  const internal_only = (preview.change_summary.internal_only ?? []).filter(
+    (item) => !(item.label === "Display order" && item.to === null),
+  )
+  return {
+    ...preview,
+    has_customer_visible_changes: preview.has_customer_visible_changes && groups.some((g) => g.items.length > 0),
+    change_summary: { ...preview.change_summary, groups, internal_only },
+  }
+}
+
 export function recipientCounts(preview: Pick<PlanVersionPreview, "recipients"> | null | undefined) {
   return {
     addresses: preview?.recipients?.addresses ?? 0,
