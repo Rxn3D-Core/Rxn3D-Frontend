@@ -20,8 +20,8 @@ import {
   DEFAULT_OPEN_TIME_12,
   DEFAULT_PICKUP_TIME_12,
   parseBusinessHourTime,
-  resolveDisplayTimezone,
 } from "@/utils/time-utils"
+import { DEFAULT_TIME_ZONE, normalizeTimeZone } from "@/lib/timezone"
 import { getUserProfileImageUrl } from "@/utils/avatar-utils"
 import {
   EditCustomerProfileModal,
@@ -267,7 +267,7 @@ export default function AllLabs() {
           startTime: parseBusinessHourTime(hour?.open_time, hour?.is_open ? DEFAULT_OPEN_TIME_12 : ""),
           endTime: parseBusinessHourTime(hour?.close_time, hour?.is_open ? DEFAULT_CLOSE_TIME_12 : ""),
         })),
-        timezone: resolveDisplayTimezone(profileData?.state?.name),
+        timezone: normalizeTimeZone(profileData?.timezone),
         holidays: "All Federal Holidays",
       }
       const pickupData = {
@@ -363,7 +363,7 @@ export default function AllLabs() {
         code: "",
         hoursData: {
           workingDays: [],
-          timezone: resolveDisplayTimezone(null),
+          timezone: DEFAULT_TIME_ZONE,
           holidays: "All Federal Holidays",
         },
         pickupData: {

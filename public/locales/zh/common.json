@@ -497,5 +497,11 @@
       "body": "{{name}} 的待发布更改将被删除，线上套餐及其实验室不受影响。",
       "confirm": "放弃更改"
     }
+  },
+  "timezone": {
+    "label": "时区",
+    "comingSoon": "时区选择即将推出",
+    "savedTitle": "时区已更新",
+    "saveFailed": "无法更新时区"
   }
 }

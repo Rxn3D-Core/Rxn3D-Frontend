@@ -1144,5 +1144,11 @@
       "body": "Se eliminarán los cambios preparados de {{name}}. El plan publicado y sus laboratorios no se ven afectados.",
       "confirm": "Descartar cambios"
     }
+  },
+  "timezone": {
+    "label": "Zona horaria",
+    "comingSoon": "La selección de zona horaria estará disponible pronto",
+    "savedTitle": "Zona horaria actualizada",
+    "saveFailed": "No se pudo actualizar la zona horaria"
   }
 }

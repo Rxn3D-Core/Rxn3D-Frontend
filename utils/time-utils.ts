@@ -105,14 +105,6 @@ export function parseBusinessHourTime(raw: string | null | undefined, fallback =
   return fallback
 }
 
-/** Profile used to show state name as timezone; fall back to Pacific when unset or not a timezone. */
-export function resolveDisplayTimezone(value?: string | null): string {
-  const v = (value || "").trim()
-  if (!v || /^unknown/i.test(v)) return DEFAULT_DISPLAY_TIMEZONE
-  if (v.includes("/") || /GMT|UTC|Pacific|Eastern|Central|Mountain|Time/i.test(v)) return v
-  return DEFAULT_DISPLAY_TIMEZONE
-}
-
 export function convertTo12Hour(time24: string): string {
   const [hours, minutes] = time24.split(":").map(Number)
   const period = hours >= 12 ? "pm" : "am"

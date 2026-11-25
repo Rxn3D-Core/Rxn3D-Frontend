@@ -77,7 +77,11 @@ export class ApiService {
       // Handle other error statuses
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+        // Status and body are attached so callers can read field errors (e.g. 422 `data.<field>`).
+        throw Object.assign(new Error(errorData.message || `HTTP error! status: ${response.status}`), {
+          status: response.status,
+          body: errorData,
+        })
       }
       
       return await response.json()

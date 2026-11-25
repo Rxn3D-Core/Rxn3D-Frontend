@@ -1,0 +1,32 @@
+{
+  "invalid": {
+    "status": false,
+    "message": "The timezone must be a valid IANA timezone, for example America/New_York.",
+    "data": {
+      "timezone": [
+        "The timezone must be a valid IANA timezone, for example America/New_York."
+      ]
+    }
+  },
+  "not_available": {
+    "status": false,
+    "message": "Timezone selection is not available yet.",
+    "data": {
+      "timezone": [
+        "Timezone selection is not available yet."
+      ]
+    }
+  },
+  "with_other_field": {
+    "status": false,
+    "message": "The name must be a string. | Timezone selection is not available yet.",
+    "data": {
+      "name": [
+        "The name must be a string."
+      ],
+      "timezone": [
+        "Timezone selection is not available yet."
+      ]
+    }
+  }
+}

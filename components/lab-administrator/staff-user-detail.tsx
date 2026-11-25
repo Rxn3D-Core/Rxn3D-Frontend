@@ -15,7 +15,7 @@ import {
   type EditCustomerProfileData,
 } from "@/components/lab-office-management/edit-customer-profile-modal"
 import { useAuth } from "@/contexts/auth-context"
-import { resolveDisplayTimezone } from "@/utils/time-utils"
+import { DEFAULT_TIME_ZONE } from "@/lib/timezone"
 
 interface User {
   id: number
@@ -636,7 +636,7 @@ export function StaffUserDetail({
               hoursData={
                 hoursData || {
                   workingDays: [],
-                  timezone: resolveDisplayTimezone(null),
+                  timezone: DEFAULT_TIME_ZONE,
                   holidays: "All Federal Holidays",
                 }
               }

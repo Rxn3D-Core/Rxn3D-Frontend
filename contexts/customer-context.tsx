@@ -20,6 +20,8 @@ interface Customer {
   status: string
   code?: string
   unique_code: string
+  /** IANA zone (RXN-123); missing from older backends, which means America/Los_Angeles. */
+  timezone?: string | null
   created_at: string
   updated_at: string
 }

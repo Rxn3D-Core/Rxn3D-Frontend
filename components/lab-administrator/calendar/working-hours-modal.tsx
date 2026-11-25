@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
+import { timeZoneLabel } from "@/lib/timezone"
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone"
 
 interface WorkingDay {
   day: string
@@ -20,6 +22,7 @@ interface WorkingHoursModalProps {
 }
 
 export function WorkingHoursModal({ open, onOpenChange }: WorkingHoursModalProps) {
+  const viewerTimeZone = useViewerTimeZone()
   const [workingDays, setWorkingDays] = useState<WorkingDay[]>([
     { day: "Monday", enabled: true, startTime: "08:00", endTime: "17:00" },
     { day: "Tuesday", enabled: true, startTime: "08:00", endTime: "17:00" },
@@ -106,7 +109,7 @@ export function WorkingHoursModal({ open, onOpenChange }: WorkingHoursModalProps
           <div className="pt-4 border-t space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">Time zone:</span>
-              <span className="font-medium">Pacific Time (Las Vegas / Los Angeles)</span>
+              <span className="font-medium">{timeZoneLabel(viewerTimeZone)}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">Holidays:</span>

@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Building2, Clock, Globe, Mail, MapPin, Phone, UserRound, Users, X } from "lucide-react"
+import { timeZoneLabel } from "@/lib/timezone"
 
 export interface BusinessHours {
   monday: string
@@ -323,7 +324,7 @@ export function ProfileModal({ isOpen, onClose, data, isLoading }: ProfileModalP
                       ))}
                       {data.hoursData?.timezone ? (
                         <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">
-                          {data.hoursData.timezone}
+                          {timeZoneLabel(data.hoursData.timezone)}
                         </p>
                       ) : null}
                     </div>

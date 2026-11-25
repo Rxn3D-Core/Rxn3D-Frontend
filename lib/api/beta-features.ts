@@ -90,4 +90,5 @@ export async function searchBetaUsers(q: string, perPage = 20): Promise<BetaUser
 export const BETA_FEATURE_KEYS = {
   rushPolicyOverride: "rush_policy_override",
   editSlipAllLocations: "edit_slip_all_locations",
+  customerTimezone: "customer_timezone",
 } as const

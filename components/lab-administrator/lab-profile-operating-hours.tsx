@@ -13,8 +13,8 @@ import {
   DEFAULT_CLOSE_TIME_12,
   DEFAULT_OPEN_TIME_12,
   parseBusinessHourTime,
-  resolveDisplayTimezone,
 } from "@/utils/time-utils"
+import { CustomerTimezoneField } from "@/components/timezone/customer-timezone-field"
 
 interface OperatingHoursTabProps {
   hoursData: {
@@ -24,7 +24,8 @@ interface OperatingHoursTabProps {
       startTime: string
       endTime: string
     }>
-    timezone: string
+    /** IANA zone of this lab or office (RXN-123); missing or invalid means America/Los_Angeles. */
+    timezone?: string | null
     holidays: string
   }
   customerId?: number
@@ -65,7 +66,6 @@ export function OperatingHoursTab({ hoursData, customerId, customerType = "lab",
   const [isSaving, setIsSaving] = useState(false)
   const { toast } = useToast()
   const { user } = useAuth()
-  const timezoneLabel = resolveDisplayTimezone(hoursData.timezone)
 
   const resolveCustomerId = (): number | null => {
     if (customerId) return customerId
@@ -249,10 +249,7 @@ export function OperatingHoursTab({ hoursData, customerId, customerType = "lab",
           </div>
 
           <div className="mt-8 pt-6 border-t space-y-3">
-            <div className="flex items-center">
-              <span className="text-gray-500 w-24">Time zone:</span>
-              <span className="font-medium text-gray-900">{timezoneLabel}</span>
-            </div>
+            <CustomerTimezoneField customerId={resolveCustomerId()} timezone={hoursData.timezone} onSaved={() => onUpdate?.()} />
             <div className="flex items-center">
               <span className="text-gray-500 w-24">Holidays:</span>
               <span className="font-medium text-gray-900">{hoursData.holidays || "All Federal Holidays"}</span>

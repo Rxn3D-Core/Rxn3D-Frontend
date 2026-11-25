@@ -501,5 +501,11 @@
       "body": "Die vorgemerkten Änderungen für {{name}} werden gelöscht. Der Live-Tarif und seine Labore sind nicht betroffen.",
       "confirm": "Änderungen verwerfen"
     }
+  },
+  "timezone": {
+    "label": "Zeitzone",
+    "comingSoon": "Die Auswahl der Zeitzone ist bald verfügbar",
+    "savedTitle": "Zeitzone aktualisiert",
+    "saveFailed": "Die Zeitzone konnte nicht aktualisiert werden"
   }
 }

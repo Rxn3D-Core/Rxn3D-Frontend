@@ -106,6 +106,8 @@ type User = {
     business_hours_setup_completed?: boolean
     business_hours_setup_completed_at?: string | null
     business_hours_setup_completed_by?: number | null
+    /** IANA zone of this lab or office (RXN-123); missing from older backends. */
+    timezone?: string | null
   }>
   is_email_verified?: boolean
   selected_location_id?: number | null

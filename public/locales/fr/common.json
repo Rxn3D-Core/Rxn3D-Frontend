@@ -501,5 +501,11 @@
       "body": "Les modifications en attente de {{name}} seront supprimées. La formule en ligne et ses laboratoires ne sont pas concernés.",
       "confirm": "Supprimer les modifications"
     }
+  },
+  "timezone": {
+    "label": "Fuseau horaire",
+    "comingSoon": "Le choix du fuseau horaire sera bientôt disponible",
+    "savedTitle": "Fuseau horaire mis à jour",
+    "saveFailed": "Impossible de mettre à jour le fuseau horaire"
   }
 }
