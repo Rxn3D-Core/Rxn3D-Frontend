@@ -2075,7 +2075,8 @@ export function AddProductModal({
     }
     if (activeTab === "variation" && watchedIsTeethBased === "Yes" && sections.variation) {
       const rows = Array.isArray(watchedToothVariations) ? watchedToothVariations : []
-      if (rows.length === 0) return true
+      // Section on: add at least one variation, or turn it off
+      if (rows.length === 0) return false
       return (
         collectVariationStepErrors(
           {
