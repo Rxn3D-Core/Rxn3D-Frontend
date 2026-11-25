@@ -147,26 +147,6 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
     }
   })
 
-  // Update form data when labData changes
-  useEffect(() => {
-    const parsed = parseAddress(labData.address)
-    setFormData({
-      name: labData.name,
-      email: labData.email,
-      notification_emails: parseNotificationEmails(labData.notification_emails).join(", "),
-      website: labData.website || "",
-      address: parsed.address,
-      city: parsed.city,
-      postal_code: parsed.postal_code,
-      country: labData.countryName || "",
-      country_id: labData.countryId ?? null,
-      state: labData.stateName || "",
-      state_id: labData.stateId ?? null,
-      release_casepan: labData.release_casepan || "",
-      code: labData.code || "",
-    })
-  }, [labData])
-
   useEffect(() => {
     const loadCountries = async () => {
       if (!API_BASE_URL) {
@@ -491,7 +471,6 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       [!name, "Lab name is required."],
       [!email, "Email is required."],
       [!code, "Lab code is required."],
-      [!website, "Website is required."],
       [!address, "Street address is required."],
       [!city, "City is required."],
       [!postalCode, "Postal code is required."],
@@ -694,7 +673,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
 
               <div className="grid grid-cols-2 gap-4">
                 <label className="text-sm text-gray-500">Website:</label>
-                <p className="font-medium text-blue-600 text-sm">{labData.website}</p>
+                <p className="font-medium text-blue-600 text-sm">{labData.website || "—"}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

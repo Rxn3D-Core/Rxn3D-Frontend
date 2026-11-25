@@ -138,9 +138,7 @@ export function EditCustomerProfileModal({
       errors.code = `${entityLabel} code must not exceed 50 characters.`
     }
 
-    if (!website) {
-      errors.website = "Website is required."
-    } else if (website.length > 255) {
+    if (website.length > 255) {
       errors.website = "Website must not exceed 255 characters."
     }
 
@@ -556,7 +554,7 @@ export function EditCustomerProfileModal({
 
             <div className="grid grid-cols-2 gap-4 mt-4">
               <div>
-                <Label htmlFor="edit-customer-website">Website *</Label>
+                <Label htmlFor="edit-customer-website">Website</Label>
                 <Input
                   id="edit-customer-website"
                   type="text"
