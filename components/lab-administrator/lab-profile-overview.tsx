@@ -460,7 +460,6 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
 
   const handleSave = async () => {
     const name = formData.name.trim()
-    const email = formData.email.trim()
     const website = formData.website.trim()
     const code = formData.code.trim()
     const address = formData.address.trim()
@@ -469,7 +468,6 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
 
     const requiredChecks: Array<[boolean, string]> = [
       [!name, "Lab name is required."],
-      [!email, "Email is required."],
       [!code, "Lab code is required."],
       [!address, "Street address is required."],
       [!city, "City is required."],
@@ -526,7 +524,6 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
     try {
       const updateData: Record<string, unknown> = {
         name,
-        email,
         website,
         address,
         city,
@@ -755,15 +752,19 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                 </div>
 
                 <div>
-                  <Label htmlFor="email">Email *</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="Enter email"
+                    readOnly
+                    aria-describedby="email-help"
+                    className="bg-muted text-muted-foreground cursor-default"
                     disabled={isLoadingProfile}
                   />
+                  <p id="email-help" className="text-xs text-muted-foreground mt-1">
+                    This email can&apos;t be changed here.
+                  </p>
                 </div>
               </div>
 
