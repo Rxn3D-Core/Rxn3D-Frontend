@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
@@ -10,14 +10,18 @@ import { SlipActivityFiltersBar } from "@/components/slip-activity/slip-activity
 import { SlipActivityTable } from "@/components/slip-activity/slip-activity-table"
 import { useConnectedOffices } from "@/hooks/use-connected-offices"
 import { useSlipActivityEvents, useSlipActivityStatuses } from "@/hooks/use-slip-activity"
-import { defaultSlipActivityFilters } from "@/lib/slip-activity/query-params"
+import { defaultSlipActivityFilters, withSlipActivityTimeZone } from "@/lib/slip-activity/query-params"
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone"
 import { nextSlipActivitySort } from "@/lib/slip-activity/sort"
 import { isSlipActivityForbidden } from "@/services/slip-activity-service"
 import type { SlipActivityFilters } from "@/types/slip-activity"
 
 export default function SlipActivityPage() {
   const { t } = useTranslation()
-  const [filters, setFilters] = useState<SlipActivityFilters>(() => defaultSlipActivityFilters())
+  // RXN-123: days, filters and times are in the selected lab's zone.
+  const timeZone = useViewerTimeZone()
+  const [filters, setFilters] = useState<SlipActivityFilters>(() => defaultSlipActivityFilters(new Date(), timeZone))
+  useEffect(() => setFilters((prev) => withSlipActivityTimeZone(prev, timeZone)), [timeZone])
   const statusesQuery = useSlipActivityStatuses()
   const { officesAsLabs, isLoading: officesLoading } = useConnectedOffices({ includeOnHold: true })
   const eventsQuery = useSlipActivityEvents(filters)
@@ -84,6 +88,7 @@ export default function SlipActivityPage() {
           perPage={filters.perPage}
           onPerPageChange={(perPage) => setFilters((prev) => ({ ...prev, perPage, page: 1 }))}
           search={filters.search}
+          timeZone={timeZone}
           sort={{ sort: filters.sort, direction: filters.direction }}
           // A new sort starts again at page 1; it is kept in state only, not in the URL.
           onSortChange={(column) => setFilters((prev) => ({ ...prev, ...nextSlipActivitySort(prev, column), page: 1 }))}

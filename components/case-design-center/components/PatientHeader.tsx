@@ -77,6 +77,8 @@ export interface PatientHeaderProps {
   /** Lab cut-off time(s); cutoff warning banner shows only within 10 minutes before cut-off. */
   cutoffTime?: string | null;
   cutoffTime2?: string | null;
+  /** The lab's IANA zone for the cut-off (RXN-123); missing means America/Los_Angeles. */
+  labTimeZone?: string | null;
   /** Generated slip / case details (pan, case, slip, status, dates) shown in the pre-submit header. */
   details?: PatientHeaderDetails | null;
   /**
@@ -253,12 +255,13 @@ export function PatientHeader({
   estimatedDueDateLoading = false,
   cutoffTime,
   cutoffTime2,
+  labTimeZone,
   details,
   slipLogos,
 }: PatientHeaderProps = {}) {
   const displayName = doctorName && doctorName.trim() !== "" ? withDegree(doctorName, doctorDegree) : DEFAULT_DOCTOR_NAME;
   const doctorImgSrc = doctorDisplayImageUrl(doctorImageUrl);
-  const showCutoffWarning = useIsWithinCutoffWarningWindow(cutoffTime, cutoffTime2);
+  const showCutoffWarning = useIsWithinCutoffWarningWindow(cutoffTime, cutoffTime2, labTimeZone);
   const isEditable = !caseSubmitted;
   const displayPatientName = isEditable ? (patientName ?? "") : (patientName && patientName.trim() !== "" ? patientName : DEFAULT_PATIENT_NAME);
   const displayGender = gender && gender.trim() !== "" ? gender : "";
@@ -473,6 +476,7 @@ export function PatientHeader({
                     <SubmitCutoffBanner
                       cutoffTime={cutoffTime}
                       cutoffTime2={cutoffTime2}
+                      labTimeZone={labTimeZone}
                       compact
                     />
                   )}

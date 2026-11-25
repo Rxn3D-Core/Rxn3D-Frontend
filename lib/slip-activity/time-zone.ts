@@ -1,53 +1,19 @@
 /**
- * Slip Activity Monitor time zone (RXN-9): all dates and times are shown and filtered
- * in the server's zone, never the browser's. Matches the backend export header
- * "Date/time (America/Los_Angeles)".
+ * Slip Activity Monitor time zone (RXN-9, RXN-123): dates and times are shown and filtered in the
+ * lab's zone (the viewer's selected lab profile), never the browser's. Every function takes the
+ * zone as its last argument and defaults to America/Los_Angeles, the zone of every lab until it
+ * chooses another one.
  */
 
-export const SLIP_ACTIVITY_TIME_ZONE = "America/Los_Angeles"
+import { DEFAULT_TIME_ZONE, normalizeTimeZone, offsetMinutesAt, todayInZone, zoneAbbreviation } from "@/lib/timezone/index"
+
+/** Default zone; the page passes the lab's zone from `useViewerTimeZone()`. */
+export const SLIP_ACTIVITY_TIME_ZONE = DEFAULT_TIME_ZONE
 
 const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 
-interface WallTime {
-  year: number
-  month: number
-  day: number
-  hour: number
-  minute: number
-  second: number
-}
-
-const partsFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: SLIP_ACTIVITY_TIME_ZONE,
-  hourCycle: "h23",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-})
-
-const abbreviationFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: SLIP_ACTIVITY_TIME_ZONE,
-  timeZoneName: "short",
-})
-
 function pad(n: number): string {
   return String(n).padStart(2, "0")
-}
-
-function wallTimeAt(instant: number): WallTime {
-  const get = (type: Intl.DateTimeFormatPartTypes) =>
-    Number(partsFormatter.formatToParts(instant).find((p) => p.type === type)?.value)
-  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute"), second: get("second") }
-}
-
-/** Zone offset in minutes (e.g. -420 for -07:00) at a UTC instant. */
-function offsetMinutesAt(instant: number): number {
-  const w = wallTimeAt(instant)
-  const asUtc = Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute, w.second)
-  return Math.round((asUtc - Math.floor(instant / 1000) * 1000) / 60_000)
 }
 
 function formatOffset(offsetMin: number): string {
@@ -69,46 +35,55 @@ export function parseCalendarDay(day: string): { year: number; month: number; da
   return { year, month, day: d }
 }
 
-/** Today's calendar day (`YYYY-MM-DD`) in the slip activity zone. */
-export function slipActivityToday(now: Date = new Date()): string {
-  const w = wallTimeAt(now.getTime())
-  return `${w.year}-${pad(w.month)}-${pad(w.day)}`
+/** Today's calendar day (`YYYY-MM-DD`) in the lab's zone. */
+export function slipActivityToday(now: Date = new Date(), timeZone: string = SLIP_ACTIVITY_TIME_ZONE): string {
+  return todayInZone(timeZone, now)
 }
 
 /**
- * Start (00:00:00) or end (23:59:59) of a calendar day in the slip activity zone,
- * as ISO 8601 with that day's offset, e.g. `2026-10-01T00:00:00-07:00`. Null if invalid.
+ * Start (00:00:00) or end (23:59:59) of a calendar day in the lab's zone, as ISO 8601 with that
+ * day's offset, e.g. `2026-10-01T00:00:00-07:00`. Null if invalid.
  */
-export function slipActivityDayBoundary(day: string, edge: "start" | "end"): string | null {
+export function slipActivityDayBoundary(
+  day: string,
+  edge: "start" | "end",
+  timeZone: string = SLIP_ACTIVITY_TIME_ZONE,
+): string | null {
   const parsed = parseCalendarDay(day)
   if (!parsed) return null
+  const tz = normalizeTimeZone(timeZone)
   const [hour, minute, second] = edge === "start" ? [0, 0, 0] : [23, 59, 59]
   const wallAsUtc = Date.UTC(parsed.year, parsed.month - 1, parsed.day, hour, minute, second)
   // Resolve the offset at the actual instant; a second pass handles days where the offset changes.
-  let offset = offsetMinutesAt(wallAsUtc - offsetMinutesAt(wallAsUtc) * 60_000)
-  offset = offsetMinutesAt(wallAsUtc - offset * 60_000)
+  let offset = offsetMinutesAt(wallAsUtc - offsetMinutesAt(wallAsUtc, tz) * 60_000, tz)
+  offset = offsetMinutesAt(wallAsUtc - offset * 60_000, tz)
   return `${day}T${pad(hour)}:${pad(minute)}:${pad(second)}${formatOffset(offset)}`
 }
 
-/** Zone abbreviation (PDT or PST) at a given instant. */
-export function slipActivityZoneAbbreviation(date: Date): string {
-  return abbreviationFormatter.formatToParts(date).find((p) => p.type === "timeZoneName")?.value ?? ""
+/** Zone abbreviation (e.g. PDT, PST, EST) at a given instant. */
+export function slipActivityZoneAbbreviation(date: Date, timeZone: string = SLIP_ACTIVITY_TIME_ZONE): string {
+  return zoneAbbreviation(timeZone, date)
 }
 
-/** Date and time in the slip activity zone with its abbreviation, e.g. `Oct 27, 2026, 8:14 AM PDT`. */
-export function formatSlipActivityDateTime(iso: string, locale?: string): string {
+/** Date and time in the lab's zone with its abbreviation, e.g. `Oct 27, 2026, 8:14 AM PDT`. */
+export function formatSlipActivityDateTime(
+  iso: string,
+  locale?: string,
+  timeZone: string = SLIP_ACTIVITY_TIME_ZONE,
+): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
+  const tz = normalizeTimeZone(timeZone)
   const formatter = new Intl.DateTimeFormat(locale || undefined, {
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: SLIP_ACTIVITY_TIME_ZONE,
+    timeZone: tz,
   })
-  return `${formatter.format(date)} ${slipActivityZoneAbbreviation(date)}`.trim()
+  return `${formatter.format(date)} ${slipActivityZoneAbbreviation(date, tz)}`.trim()
 }
 
 /** Compact form for the table, e.g. "09/03/26, 9:24 AM" (lab zone, US order). The full form stays in the tooltip. */
-export function formatSlipActivityCompactDateTime(iso: string): string {
+export function formatSlipActivityCompactDateTime(iso: string, timeZone: string = SLIP_ACTIVITY_TIME_ZONE): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
   return new Intl.DateTimeFormat("en-US", {
@@ -118,6 +93,6 @@ export function formatSlipActivityCompactDateTime(iso: string): string {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: SLIP_ACTIVITY_TIME_ZONE,
+    timeZone: normalizeTimeZone(timeZone),
   }).format(date)
 }

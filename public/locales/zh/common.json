@@ -502,6 +502,10 @@
     "label": "时区",
     "comingSoon": "时区选择即将推出",
     "savedTitle": "时区已更新",
-    "saveFailed": "无法更新时区"
+    "saveFailed": "无法更新时区",
+    "search": "搜索时区",
+    "noResults": "未找到时区。",
+    "common": "常用时区",
+    "all": "所有时区"
   }
 }

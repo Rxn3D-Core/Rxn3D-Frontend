@@ -1,3 +1,5 @@
+import { IANA_TIME_ZONES } from "./iana-zones"
+
 /**
  * Per-lab and per-office time zones (RXN-123).
  *
@@ -241,4 +243,94 @@ export function formatInstant(
         : { dateStyle: "medium", timeStyle: "short", timeZone: zone }
   const text = new Intl.DateTimeFormat(locale, options).format(date)
   return style === "date" ? text : `${text} ${zoneAbbreviation(zone, date)}`.trim()
+}
+
+/** Calendar day (`YYYY-MM-DD`) of an instant in a zone; a date-only string is returned as is. Null if invalid. */
+export function dayOfInstant(iso: string | null | undefined, tz: string): string | null {
+  if (!iso) return null
+  if (parseDay(iso)) return iso
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+  return todayInZone(tz, date)
+}
+
+/**
+ * Zone abbreviation for a lab clock value on a day (noon that day, so DST is right for daytime
+ * values); today when the day is missing or invalid. For example `EST` or `PDT`.
+ */
+export function clockZoneAbbreviation(ymd: string | null | undefined, tz: string, now: Date = new Date()): string {
+  const zone = normalizeTimeZone(tz)
+  const day = ymd ? String(ymd).slice(0, 10) : ""
+  const iso = parseDay(day) ? clockToInstant(day, "12:00", zone) : null
+  return zoneAbbreviation(zone, iso ? new Date(iso) : now)
+}
+
+/**
+ * The lab's zone on a slip or print record (contract §4: `delivery.timezone`, `lab_timezone`,
+ * driver print `timezone`); America/Los_Angeles until the backend sends it.
+ */
+export function slipLabTimeZone(record: unknown): string {
+  const r = (record ?? {}) as {
+    delivery?: { timezone?: string | null }
+    lab_timezone?: string | null
+    timezone?: string | null
+    case?: { lab?: { timezone?: string | null } }
+    lab?: { timezone?: string | null }
+  }
+  return normalizeTimeZone(
+    r.delivery?.timezone ?? r.lab_timezone ?? r.timezone ?? r.case?.lab?.timezone ?? r.lab?.timezone,
+  )
+}
+
+/** Place part of a zone for short labels, e.g. "Los Angeles / Las Vegas", "New York", "Buenos Aires". */
+export function timeZoneCity(tz?: string | null): string {
+  const zone = normalizeTimeZone(tz)
+  if (zone === DEFAULT_TIME_ZONE) return "Los Angeles / Las Vegas"
+  const label = TIME_ZONE_OPTIONS.find((o) => o.value === zone)?.label
+  const inBrackets = label ? /\(([^)]+)\)$/.exec(label)?.[1] : undefined
+  if (inBrackets) return inBrackets
+  return zone.split("/").pop()!.replace(/_/g, " ")
+}
+
+export type TimeZoneChoice = { value: string; label: string; common: boolean }
+
+/**
+ * Dropdown choices: the curated common zones first, then every other zone the backend accepts,
+ * sorted by name. A stored zone outside both lists is kept at the top so it stays visible.
+ */
+export function timeZoneChoices(current?: string | null): TimeZoneChoice[] {
+  const common = TIME_ZONE_OPTIONS.map((o) => ({ value: o.value, label: o.label, common: true }))
+  const commonValues = new Set(common.map((o) => o.value))
+  const rest = IANA_TIME_ZONES.filter((z) => !commonValues.has(z))
+    .map((z) => ({ value: z, label: timeZoneLabel(z), common: false }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+  const choices = [...common, ...rest]
+  const zone = current ? normalizeTimeZone(current) : null
+  if (zone && !choices.some((c) => c.value === zone)) {
+    choices.unshift({ value: zone, label: timeZoneLabel(zone), common: true })
+  }
+  return choices
+}
+
+/** Case-insensitive match on the label or the IANA name, ignoring `_`, `/` and spaces differences. */
+export function matchesTimeZoneSearch(choice: { value: string; label: string }, query: string): boolean {
+  const norm = (v: string) => v.toLowerCase().replace(/[_/]+/g, " ").replace(/\s+/g, " ").trim()
+  const q = norm(query)
+  if (!q) return true
+  return norm(choice.label).includes(q) || norm(choice.value).includes(q)
+}
+
+/**
+ * Due day of a delivery-date estimate for the viewer (contract §3): the day of `delivery_at` in the
+ * viewer's zone when the backend sends it (decision 1: the day may change), otherwise the lab's
+ * `delivery_date` as a date-only value. Null when neither is usable.
+ */
+export function deliveryEstimateDay(
+  data: { delivery_date?: string | null; delivery_at?: string | null } | null | undefined,
+  viewerTz: string,
+): string | null {
+  const fromInstant = data?.delivery_at ? dayOfInstant(data.delivery_at, viewerTz) : null
+  if (fromInstant) return fromInstant
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(data?.delivery_date ?? "")
+  return m ? m[1] : null
 }

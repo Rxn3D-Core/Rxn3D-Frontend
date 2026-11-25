@@ -1,18 +1,15 @@
 import { useQueries } from "@tanstack/react-query";
 import { ProductApi } from "@/lib/api-service";
+import { deliveryEstimateDay } from "@/lib/timezone";
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone";
 import { formatEstimatedDueDate } from "./useProductEstimatedDueDate";
-
-function extractDatePart(value: string | null | undefined): string {
-  if (!value) return "";
-  const m = /^(\d{4}-\d{2}-\d{2})/.exec(value);
-  return m ? m[1] : "";
-}
 
 /**
  * Fetches delivery dates for each product id and returns the latest calendar due date.
  * Used by the slip header (case-level estimate).
  * Also surfaces the effective pickup cutoff (case pan override or lab default) for the
- * product that owns the latest due date.
+ * product that owns the latest due date, and the lab's zone (RXN-123; null from an older backend).
+ * The due day is `delivery_at` in the viewer's zone when the backend sends it.
  */
 export function useCaseEstimatedDueDate(
   productIds: Array<number | null | undefined>,
@@ -24,6 +21,7 @@ export function useCaseEstimatedDueDate(
     )
   );
 
+  const viewerTimeZone = useViewerTimeZone();
   const queries = useQueries({
     queries: uniqueIds.map((productId) => ({
       queryKey: ["product-estimated-due-date", productId, 0, 0, labId ?? 0],
@@ -36,8 +34,9 @@ export function useCaseEstimatedDueDate(
 
   const datedResults = queries
     .map((q) => ({
-      iso: extractDatePart(q.data?.delivery_date),
+      iso: deliveryEstimateDay(q.data, viewerTimeZone) ?? "",
       cutoff: q.data?.effective_pickup_cutoff_time ?? null,
+      timezone: q.data?.timezone ?? null,
     }))
     .filter((row) => row.iso)
     .sort((a, b) => a.iso.localeCompare(b.iso));
@@ -52,5 +51,6 @@ export function useCaseEstimatedDueDate(
     displayDate: latestIso ? formatEstimatedDueDate(latestIso) : null,
     isLoading,
     effectivePickupCutoffTime: latest?.cutoff ?? null,
+    labTimeZone: latest?.timezone ?? null,
   };
 }

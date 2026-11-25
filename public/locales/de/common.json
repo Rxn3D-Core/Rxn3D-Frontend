@@ -506,6 +506,10 @@
     "label": "Zeitzone",
     "comingSoon": "Die Auswahl der Zeitzone ist bald verfügbar",
     "savedTitle": "Zeitzone aktualisiert",
-    "saveFailed": "Die Zeitzone konnte nicht aktualisiert werden"
+    "saveFailed": "Die Zeitzone konnte nicht aktualisiert werden",
+    "search": "Zeitzonen suchen",
+    "noResults": "Keine Zeitzone gefunden.",
+    "common": "Häufige Zeitzonen",
+    "all": "Alle Zeitzonen"
   }
 }

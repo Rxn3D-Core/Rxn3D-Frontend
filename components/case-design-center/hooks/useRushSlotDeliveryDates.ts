@@ -1,5 +1,7 @@
 import { useQueries } from "@tanstack/react-query";
 import { ProductApi } from "@/lib/api-service";
+import { deliveryEstimateDay } from "@/lib/timezone";
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone";
 import type { RushArchSlot } from "../utils/rushModalContext";
 
 function extractDatePart(value: string | null | undefined): string {
@@ -10,7 +12,8 @@ function extractDatePart(value: string | null | undefined): string {
 
 /**
  * Fetches backend delivery dates for each rush slot via the lab delivery-date API.
- * Returns a map of `rushKey → delivery_date (yyyy-MM-dd)`.
+ * Returns a map of `rushKey → delivery_date (yyyy-MM-dd)` on the lab's calendar (rush rules use it),
+ * and `viewerDates` with the due day for display in the viewer's zone (RXN-123, from `delivery_at`).
  * Only requires apiProductId > 0; apiStageId is included when available.
  */
 export function useRushSlotDeliveryDates(
@@ -18,8 +21,10 @@ export function useRushSlotDeliveryDates(
   labId?: number | null
 ): {
   dates: Record<string, string>;
+  viewerDates: Record<string, string>;
   isLoading: boolean;
 } {
+  const viewerTimeZone = useViewerTimeZone();
   const results = useQueries({
     queries: slots.map((slot) => ({
       queryKey: [
@@ -44,10 +49,15 @@ export function useRushSlotDeliveryDates(
   });
 
   const dates: Record<string, string> = {};
+  const viewerDates: Record<string, string> = {};
   for (let i = 0; i < slots.length; i++) {
     const date = extractDatePart(results[i]?.data?.delivery_date);
     if (date) {
       dates[slots[i].rushKey] = date;
+    }
+    const viewerDate = deliveryEstimateDay(results[i]?.data, viewerTimeZone);
+    if (viewerDate) {
+      viewerDates[slots[i].rushKey] = viewerDate;
     }
   }
 
@@ -57,5 +67,5 @@ export function useRushSlotDeliveryDates(
     results.some((q) => q.isLoading) &&
     Object.keys(dates).length === 0;
 
-  return { dates, isLoading };
+  return { dates, viewerDates, isLoading };
 }

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
 import { labTimezoneLabelForDay } from "@/lib/lab-timezone"
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone"
 import type { CalendarEvent } from "@/lib/types"
 import { useHolidays } from "@/contexts/holidays-context"
 import { Loader2 } from "lucide-react"
@@ -23,6 +24,7 @@ interface EventModalProps {
 }
 
 export function EventModal({ open, onOpenChange, event, onDelete, onEdit, onSave }: EventModalProps) {
+  const labTimeZone = useViewerTimeZone()
   const [isEditing, setIsEditing] = useState(false)
   const [editedEvent, setEditedEvent] = useState<CalendarEvent | null>(null)
   const [localLoading, setLocalLoading] = useState(false)
@@ -303,7 +305,10 @@ export function EventModal({ open, onOpenChange, event, onDelete, onEdit, onSave
                 />
                 <span className="font-medium text-gray-900">All Day</span>
               </div>
-              <span className="text-blue-600 font-medium">{labTimezoneLabelForDay(currentEvent.date)}</span>
+              <span className="text-blue-600 font-medium">
+                {/* RXN-123: a label saved with the event is shown as saved; otherwise the lab's zone. */}
+                {currentEvent.timezone || labTimezoneLabelForDay(currentEvent.date, labTimeZone)}
+              </span>
             </div>
 
             {/* Repeat */}

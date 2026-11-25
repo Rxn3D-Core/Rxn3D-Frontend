@@ -9,6 +9,7 @@ import { CreateEventModal } from "@/components/create-event-modal"
 import type { CalendarEvent } from "@/lib/types"
 import { useHolidays } from "@/contexts/holidays-context"
 import { labTimezoneLabel, labTimezoneLabelForDay } from "@/lib/lab-timezone"
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone"
 
 const nonHolidayEvents: CalendarEvent[] = [
   {
@@ -101,6 +102,7 @@ interface CalendarGridProps {
 }
 
 export function CalendarGrid({ currentDate = new Date(2025, 0, 1), onDateChange }: CalendarGridProps) {
+  const labTimeZone = useViewerTimeZone()
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [showEventModal, setShowEventModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -117,12 +119,12 @@ export function CalendarGrid({ currentDate = new Date(2025, 0, 1), onDateChange 
       date: holiday.date,
       allDay: true,
       description: holiday.description,
-      timezone: labTimezoneLabelForDay(holiday.date),
+      timezone: labTimezoneLabelForDay(holiday.date, labTimeZone),
       location: "",
       user: "",
     }))
     setEvents([...nonHolidayEvents, ...holidayEvents])
-  }, [holidays])
+  }, [holidays, labTimeZone])
 
   const daysOfWeek = ["MON", "TUE", "WED", "THUR", "FRI", "SAT", "SUN"]
 
@@ -203,7 +205,7 @@ export function CalendarGrid({ currentDate = new Date(2025, 0, 1), onDateChange 
       location: eventData.location,
       description: eventData.description,
       allDay: eventData.allDay || false,
-      timezone: eventData.timezone || labTimezoneLabel(selectedDate ?? new Date()),
+      timezone: eventData.timezone || labTimezoneLabel(selectedDate ?? new Date(), labTimeZone),
     }
 
     setEvents((prev) => [...prev, newEvent])

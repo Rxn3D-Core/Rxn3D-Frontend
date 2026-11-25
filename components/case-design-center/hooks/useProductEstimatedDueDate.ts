@@ -1,11 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ProductApi } from "@/lib/api-service";
-
-function extractDatePart(value: string | null | undefined): string {
-  if (!value) return "";
-  const m = /^(\d{4}-\d{2}-\d{2})/.exec(value);
-  return m ? m[1] : "";
-}
+import { deliveryEstimateDay } from "@/lib/timezone";
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone";
 
 /** Format yyyy-MM-dd as a short locale date (e.g. Oct 5, 2026). */
 export function formatEstimatedDueDate(isoDate: string): string {
@@ -20,7 +16,8 @@ export function formatEstimatedDueDate(isoDate: string): string {
 
 /**
  * Fetches the lab delivery-date API for a product (+ optional stage/variation).
- * Returns the calendar due date as yyyy-MM-dd when available.
+ * Returns the calendar due date as yyyy-MM-dd when available: the day of `delivery_at` in the
+ * viewer's zone (RXN-123), or the lab's `delivery_date` from an older backend.
  */
 export function useProductEstimatedDueDate(
   productId: number | null | undefined,
@@ -29,6 +26,7 @@ export function useProductEstimatedDueDate(
   labId?: number | null
 ) {
   const enabled = typeof productId === "number" && productId > 0;
+  const viewerTimeZone = useViewerTimeZone();
 
   const query = useQuery({
     queryKey: [
@@ -51,7 +49,7 @@ export function useProductEstimatedDueDate(
     retry: 1,
   });
 
-  const iso = extractDatePart(query.data?.delivery_date);
+  const iso = deliveryEstimateDay(query.data, viewerTimeZone);
   return {
     isoDate: iso || null,
     displayDate: iso ? formatEstimatedDueDate(iso) : null,

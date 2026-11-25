@@ -1244,8 +1244,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ]
   );
 
-  const { dates: rushSlotDeliveryDates, isLoading: rushSlotDeliveryDatesLoading } =
-    useRushSlotDeliveryDates(rushArchSlots, props.labCustomerId);
+  const {
+    dates: rushSlotDeliveryDates,
+    viewerDates: rushSlotViewerDueDates,
+    isLoading: rushSlotDeliveryDatesLoading,
+  } = useRushSlotDeliveryDates(rushArchSlots, props.labCustomerId);
 
   const rushArchSlotsWithDelivery = useMemo(
     () =>
@@ -1272,11 +1275,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const headerDueDateIso = useMemo(() => {
     if (!stagesReadyForDueDate) return null;
     const dated = rushArchSlots
-      .map((slot) => rushSlotDeliveryDates[slot.rushKey])
+      // RXN-123: the due day in the viewer's zone (from delivery_at when the backend sends it).
+      .map((slot) => rushSlotViewerDueDates[slot.rushKey])
       .filter((iso): iso is string => Boolean(iso))
       .sort((a, b) => a.localeCompare(b));
     return dated.length > 0 ? dated[dated.length - 1] : null;
-  }, [stagesReadyForDueDate, rushArchSlots, rushSlotDeliveryDates]);
+  }, [stagesReadyForDueDate, rushArchSlots, rushSlotViewerDueDates]);
 
   const onEstimatedDueDateChangeRef = useRef(props.onEstimatedDueDateChange);
   onEstimatedDueDateChangeRef.current = props.onEstimatedDueDateChange;

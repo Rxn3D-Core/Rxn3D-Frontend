@@ -1149,6 +1149,10 @@
     "label": "Zona horaria",
     "comingSoon": "La selección de zona horaria estará disponible pronto",
     "savedTitle": "Zona horaria actualizada",
-    "saveFailed": "No se pudo actualizar la zona horaria"
+    "saveFailed": "No se pudo actualizar la zona horaria",
+    "search": "Buscar zonas horarias",
+    "noResults": "No se encontró ninguna zona horaria.",
+    "common": "Zonas horarias comunes",
+    "all": "Todas las zonas horarias"
   }
 }

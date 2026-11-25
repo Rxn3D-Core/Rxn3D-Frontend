@@ -1,7 +1,8 @@
 /**
  * Slip Activity Monitor: UI filters -> API query strings (contract: RXN-7).
- * Dates in the UI are calendar days (`YYYY-MM-DD`) in America/Los_Angeles, never the
- * browser's zone; the API takes ISO 8601 datetimes with offset, both bounds inclusive.
+ * Dates in the UI are calendar days (`YYYY-MM-DD`) in the lab's zone (`filters.timeZone`,
+ * America/Los_Angeles by default, RXN-123), never the browser's zone; the API takes ISO 8601
+ * datetimes with offset, both bounds inclusive.
  */
 
 import type {
@@ -24,9 +25,9 @@ function pad(n: number): string {
   return String(n).padStart(2, "0")
 }
 
-/** Default range: the last 30 days up to today, both counted in America/Los_Angeles. */
-export function defaultSlipActivityFilters(now: Date = new Date()): SlipActivityFilters {
-  const toDate = slipActivityToday(now)
+/** Default range: the last 30 days up to today, both counted in the lab's zone. */
+export function defaultSlipActivityFilters(now: Date = new Date(), timeZone?: string): SlipActivityFilters {
+  const toDate = slipActivityToday(now, timeZone)
   const today = parseCalendarDay(toDate)!
   const from = new Date(Date.UTC(today.year, today.month - 1, today.day - SLIP_ACTIVITY_DEFAULT_RANGE_DAYS))
   return {
@@ -38,6 +39,7 @@ export function defaultSlipActivityFilters(now: Date = new Date()): SlipActivity
     page: 1,
     perPage: SLIP_ACTIVITY_DEFAULT_PER_PAGE,
     ...SLIP_ACTIVITY_DEFAULT_SORT,
+    ...(timeZone ? { timeZone } : {}),
   }
 }
 
@@ -60,8 +62,8 @@ export function validateSlipActivityRange(fromDate: string, toDate: string): Sli
 }
 
 function appendFilterParams(params: URLSearchParams, filters: SlipActivityFilters): void {
-  const from = slipActivityDayBoundary(filters.fromDate, "start")
-  const to = slipActivityDayBoundary(filters.toDate, "end")
+  const from = slipActivityDayBoundary(filters.fromDate, "start", filters.timeZone)
+  const to = slipActivityDayBoundary(filters.toDate, "end", filters.timeZone)
   if (from) params.append("from", from)
   if (to) params.append("to", to)
   const ids = [...new Set(filters.locationIds)].sort((a, b) => a - b)
@@ -104,4 +106,22 @@ export function slipActivityExportFilename(
   format: SlipActivityExportFormat,
 ): string {
   return `slip-activity_${filters.fromDate}_${filters.toDate}.${format}`
+}
+
+/**
+ * Filters moved to the lab's zone (RXN-123). The zone is known only after the session loads, so
+ * the first filters may be in America/Los_Angeles; untouched default dates are recomputed for the
+ * new zone, dates the user chose are kept.
+ */
+export function withSlipActivityTimeZone(
+  prev: SlipActivityFilters,
+  timeZone: string,
+  now: Date = new Date(),
+): SlipActivityFilters {
+  if ((prev.timeZone ?? undefined) === timeZone) return prev
+  const oldDefaults = defaultSlipActivityFilters(now, prev.timeZone)
+  const untouched = prev.fromDate === oldDefaults.fromDate && prev.toDate === oldDefaults.toDate
+  if (!untouched) return { ...prev, timeZone }
+  const fresh = defaultSlipActivityFilters(now, timeZone)
+  return { ...prev, timeZone, fromDate: fresh.fromDate, toDate: fresh.toDate }
 }

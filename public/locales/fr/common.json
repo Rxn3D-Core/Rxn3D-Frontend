@@ -506,6 +506,10 @@
     "label": "Fuseau horaire",
     "comingSoon": "Le choix du fuseau horaire sera bientôt disponible",
     "savedTitle": "Fuseau horaire mis à jour",
-    "saveFailed": "Impossible de mettre à jour le fuseau horaire"
+    "saveFailed": "Impossible de mettre à jour le fuseau horaire",
+    "search": "Rechercher un fuseau horaire",
+    "noResults": "Aucun fuseau horaire trouvé.",
+    "common": "Fuseaux horaires courants",
+    "all": "Tous les fuseaux horaires"
   }
 }
