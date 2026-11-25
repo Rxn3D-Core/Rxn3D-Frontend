@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { DollarSign } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE } from "@/lib/slip-location";
@@ -97,6 +98,8 @@ interface CenterActionIconsProps {
   canPutOnHold?: boolean;
   /** Lab admin — undo one location step (shown in more actions). */
   onUndoLocation?: () => void;
+  /** RXN-127: lab admin charges an abandoned product-invoicing arch now (hidden when undefined). */
+  onChargeNow?: () => void;
   /** @deprecated Collapsible extras removed — use row props above. */
   extraActions?: CenterExtraAction[];
 }
@@ -120,6 +123,7 @@ export function CenterActionIcons({
   onCancel,
   canPutOnHold = true,
   onUndoLocation,
+  onChargeNow,
 }: CenterActionIconsProps) {
   const [moreExpanded, setMoreExpanded] = useState(false);
 
@@ -164,6 +168,26 @@ export function CenterActionIcons({
     ),
   });
 
+  // No bundled glyph for this action: a Lucide icon in a ring sized like the row's SVG glyphs.
+  const chargeNowIconDef = (onClick: () => void): CenterRowIconDef => ({
+    key: "charge-now",
+    label: "Charge now",
+    onClick,
+    node: (
+      <span
+        role="img"
+        aria-label="Charge now"
+        data-testid="virtual-slip-charge-now"
+        className={cn(
+          "flex items-center justify-center rounded-full border-[3px] border-[#3B8BC9] text-[#3B8BC9]",
+          virtualSlipIconSizing ? VIRTUAL_SLIP_ICON_CLASS : LEGACY_ICON_CLASS
+        )}
+      >
+        <DollarSign className="h-1/2 w-1/2" strokeWidth={2.5} aria-hidden />
+      </span>
+    ),
+  });
+
   const primaryRowDefs: CenterRowIconDef[] = [
     rowIcon("edit-stage", "Edit slip", "edit-stage.svg", onEditGeneral),
     rowIcon("stage-notes", "Slip notes", "slip-note.png", stickyNoteHandler),
@@ -175,6 +199,7 @@ export function CenterActionIcons({
       node: <RushIcon className={rushIconClass} />,
     },
     rowIcon("attach", "Attach files", "attachments.svg", onAttach),
+    ...(onChargeNow ? [chargeNowIconDef(onChargeNow)] : []),
   ];
 
   const moreRowDefs: CenterRowIconDef[] = [
@@ -249,6 +274,7 @@ export function CenterActionIcons({
         }
       : null,
     onAttach ? rowIcon("attach", "Attach files", "attachments.svg", onAttach) : null,
+    onChargeNow ? chargeNowIconDef(onChargeNow) : null,
   ].filter(Boolean) as CenterRowIconDef[];
 
   const isIconDisabled = (icon: CenterRowIconDef) =>

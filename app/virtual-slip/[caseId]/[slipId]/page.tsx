@@ -63,6 +63,10 @@ import {
   useAdvancedBillingSearchMutation,
   useGenerateVirtualStatementMutation,
 } from "@/lib/redux/api/billingApi";
+import { useListProductInvoicesQuery } from "@/lib/redux/api/productInvoiceApi";
+import { useInvoicingSettings } from "@/hooks/use-invoicing-settings";
+import { chargeNowCandidates } from "@/lib/charge-now";
+import { ChargeNowModal } from "@/components/billing/charge-now-modal";
 import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
 import { collectStageSeedsFromVirtualSlip } from "@/lib/api/slip-notes";
 import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
@@ -597,6 +601,47 @@ export default function VirtualSlipV2Page() {
     slipCanUndoLocation(slipLocationRef) &&
     !caseCancelled &&
     !slipDeleted;
+
+  // RXN-127 Charge now: lab admin + product invoicing + arch in progress + arch not invoiced yet.
+  const canChargeNowRole = canUndoSlipLocation(userRole) && !isOfficeCustomerContext();
+  const { data: invoicingSettings } = useInvoicingSettings(
+    canChargeNowRole ? labCustomerId ?? null : null
+  );
+  const chargeNowLabId = resolveLabIdFromSlipDetails(virtualSlipDetails);
+  const checkCaseInvoices =
+    canChargeNowRole && invoicingSettings?.invoicing_mode === "product" && caseId != null;
+  const caseInvoicesQuery = useListProductInvoicesQuery(
+    { case_id: caseId ?? undefined, lab_id: chargeNowLabId ?? undefined, per_page: 50 },
+    { skip: !checkCaseInvoices, refetchOnMountOrArgChange: true }
+  );
+  const [chargeNowOpen, setChargeNowOpen] = useState(false);
+  const chargeNowArchCandidates = useMemo(() => {
+    const rows = caseInvoicesQuery.data?.data;
+    const invoicedArches =
+      checkCaseInvoices && rows && !caseInvoicesQuery.isError
+        ? new Set(rows.filter((row) => row.case_id === caseId).map((row) => row.arch))
+        : null;
+    return chargeNowCandidates({
+      invoicingMode: invoicingSettings?.invoicing_mode,
+      isLabAdmin: canChargeNowRole,
+      slipStatus: vm.header.slipStatus,
+      products: [
+        ...(vm.arches.maxillary?.products ?? []),
+        ...(vm.arches.mandibular?.products ?? []),
+      ].map((p) => ({ apiProduct: p.apiProduct, status: p.status })),
+      invoicedArches,
+    });
+  }, [
+    caseInvoicesQuery.data,
+    caseInvoicesQuery.isError,
+    checkCaseInvoices,
+    caseId,
+    invoicingSettings?.invoicing_mode,
+    canChargeNowRole,
+    vm.header.slipStatus,
+    vm.arches.maxillary?.products,
+    vm.arches.mandibular?.products,
+  ]);
 
   const handleConfirmUndoLocation = async () => {
     if (!slipId || isNaN(slipId)) return;
@@ -1158,6 +1203,11 @@ export default function VirtualSlipV2Page() {
           onUndoLocation={
             canUndoLocation ? () => setUndoLocationOpen(true) : undefined
           }
+          onChargeNow={
+            chargeNowArchCandidates.length > 0 && slipId > 0
+              ? () => setChargeNowOpen(true)
+              : undefined
+          }
           allowRush={canRushFromVirtualSlip}
           openNotesModal={fabNotesOpen}
           onOpenNotesModalChange={setFabNotesOpen}
@@ -1198,6 +1248,18 @@ export default function VirtualSlipV2Page() {
         stage={primaryRushSlot?.stageName ?? vm.header.location}
         deliveryDate={vm.header.dueDate}
         isRush={vm.header.isRush}
+      />
+
+      <ChargeNowModal
+        open={chargeNowOpen && chargeNowArchCandidates.length > 0}
+        slipId={slipId}
+        labId={chargeNowLabId}
+        candidates={chargeNowArchCandidates}
+        onClose={() => setChargeNowOpen(false)}
+        onCharged={() => {
+          void caseInvoicesQuery.refetch();
+          if (slipId && !isNaN(slipId)) void fetchVirtualSlipDetails(slipId);
+        }}
       />
 
       <SendCaseBackToOfficeModal

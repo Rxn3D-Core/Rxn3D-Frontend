@@ -1,0 +1,28 @@
+{
+  "success": true,
+  "message": "Product invoice created",
+  "data": {
+    "id": 4001,
+    "invoice_kind": "product",
+    "invoice_number": "LAB001-INV-4001-20261125",
+    "is_partial_charge": true,
+    "case": {
+      "id": 900,
+      "case_number": "C900",
+      "patient_name": "J Doe",
+      "invoicing_mode": "product"
+    },
+    "arch": "Upper",
+    "lab": { "id": 12, "name": "Lab A" },
+    "office": { "id": 77, "name": "Smile Dental" },
+    "status": "pending",
+    "finalized_reason": "manual",
+    "finalized_at": "2026-11-25T10:00:00Z",
+    "on_statement": false,
+    "statement_id": null,
+    "is_locked": false,
+    "notes": null,
+    "total_amount": "805.50",
+    "products": []
+  }
+}

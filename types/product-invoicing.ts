@@ -210,6 +210,19 @@ export interface ProductInvoiceDetail {
   products: ProductInvoiceProduct[]
 }
 
+/** RXN-127: invoice returned by charge-now; `is_partial_charge` marks a manual partial charge. */
+export type ProductInvoice = ProductInvoiceDetail & { is_partial_charge?: boolean }
+
+/** Body of POST /v1/billing/product-invoices/charge-now (RXN-127/RXN-128). */
+export interface ChargeNowPayload {
+  slip_id: number
+  arch: ArchType
+  /** User-confirmed dollar total. */
+  amount: number
+  /** Prices entered for library stages with a $0 or unset price, keyed by stage id. */
+  stage_prices?: Record<string, number>
+}
+
 /** One product of GET /v1/slip/{slipId}/cancellation-billing */
 export interface CancellationBillingProduct {
   arch: ArchType
