@@ -76,6 +76,8 @@ import { getAuthToken, redirectToLogin } from "@/lib/auth-utils"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import type { ProductSaveResult } from "@/contexts/product-products-context"
+import { useInvoicingSettings } from "@/hooks/use-invoicing-settings"
+import { skipsStagePriceValidation } from "@/lib/stage-pricing-visibility"
 
 type ValidationFieldError = {
   field: string
@@ -289,6 +291,10 @@ export function AddLabProductModal({
   const { t } = useTranslation()
 
   const customerId = useMemo(() => getCustomerId(user), [user])
+
+  const invoicingSettingsQuery = useInvoicingSettings(typeof customerId === "number" && customerId > 0 ? customerId : null)
+  const labInvoicingMode = invoicingSettingsQuery.data?.invoicing_mode
+  const skipStagePriceValidation = skipsStagePriceValidation(userRole, labInvoicingMode)
 
   /** `/library/advance/*` needs plan feature `product.advance_mode`. */
   const advanceModeAllowed = useAdvanceModeAccess()
@@ -700,6 +706,11 @@ export function AddLabProductModal({
       return true // Not on stages tab, so validation passes
     }
 
+    // Product-mode labs set price only on the releasing stage ($0 on others is valid)
+    if (skipStagePriceValidation) {
+      return !watchedStages || watchedStages.length === 0 ? false : true
+    }
+
     // If no stages are selected, validation fails
     if (!watchedStages || watchedStages.length === 0) {
       return false
@@ -742,7 +753,7 @@ export function AddLabProductModal({
         return !isNaN(numPrice) && numPrice > 0
       }
     })
-  }, [activeTab, watchedStages, watchedGrades, watchedHasGradeBasedPricing, stagesValidationKey])
+  }, [activeTab, watchedStages, watchedGrades, watchedHasGradeBasedPricing, stagesValidationKey, skipStagePriceValidation])
 
   // Check if current step is valid (no errors and all required fields filled)
   const isCurrentStepValid = useMemo(() => {
