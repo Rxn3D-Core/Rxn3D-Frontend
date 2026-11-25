@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
 import { formatSlipListingProducts } from "@/app/lab-case-management/slip-listing-product-label.mjs";
 import { listingLabLogoUrl } from "@/app/lab-case-management/listing-lab-logo.mjs";
-import { formatSlipListingTimestamp } from "@/lib/slip-listing-timestamp";
+import { listingCreatedAt, listingDueDay } from "@/lib/timezone/listing";
+import { readViewerTimeZone } from "@/lib/timezone/viewer";
 
 // Types based on the API response structure
 export interface OfficeSlipProduct {
@@ -24,6 +25,9 @@ export interface OfficeSlipDelivery {
   delivery_time: string;
   pickup_date: string;
   pickup_time: string;
+  /** RXN-123: lab clock values as instants with the lab's offset; null for date-only. */
+  delivery_at?: string | null;
+  pickup_at?: string | null;
 }
 
 export interface OfficeSlipAttachments {
@@ -53,6 +57,12 @@ export interface OfficeSlip {
   timestamp?: string;
   created_at: string;
   updated_at: string;
+  /** RXN-123 (contract §4): instants with offset and the lab's zone. */
+  created_at_iso?: string | null;
+  updated_at_iso?: string | null;
+  delivery_at?: string | null;
+  pickup_at?: string | null;
+  lab_timezone?: string | null;
   location: OfficeSlipLocation;
   casepan: OfficeSlipCasepan;
   delivery: OfficeSlipDelivery;
@@ -98,6 +108,10 @@ export interface OfficeCase {
   case_status: string;
   created_at: string;
   updated_at: string;
+  /** RXN-123 (contract §4): instants with offset and the lab's zone. */
+  created_at_iso?: string | null;
+  updated_at_iso?: string | null;
+  lab_timezone?: string | null;
   lab: OfficeCaseLab;
   doctor: OfficeCaseDoctor;
   created_by: OfficeCaseCreatedBy;
@@ -201,9 +215,12 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
 
   // Helper to map API slip to UI slip
   const mapApiSlipToUI = (apiCase: OfficeCase): UISlip[] => {
+    // RXN-123: created time and due date in the viewer's (office's) zone when the API sends
+    // instants (`created_at_iso`, `delivery_at`); else as before.
+    const viewerTz = readViewerTimeZone();
     return apiCase.slips.map((slip) => ({
       id: slip.id,
-      createdAt: formatSlipListingTimestamp(slip.timestamp ?? slip.created_at),
+      createdAt: listingCreatedAt(slip, viewerTz),
       caseId: apiCase.id,
       caseNumber: apiCase.case_number,
       billingId:
@@ -240,7 +257,11 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
           : Boolean(slip.new_stage_eligible),
       attachment: slip.attachments?.has_attachments || false,
       dueDate: (() => {
-        const raw = slip.delivery?.delivery_date;
+        const raw = listingDueDay(
+          { delivery_at: slip.delivery_at ?? slip.delivery?.delivery_at },
+          slip.delivery?.delivery_date,
+          viewerTz,
+        );
         if (!raw) return "";
         const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
         if (m) return `${m[2]}/${m[3]}/${m[1].slice(2)}`;

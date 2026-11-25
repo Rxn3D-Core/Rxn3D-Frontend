@@ -1,5 +1,7 @@
 "use client"
 
+import { zonedNow } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { PopoverTrigger } from "@/components/ui/popover"
@@ -67,8 +69,9 @@ export default function StageNotesModal({
     if (newNoteContent.trim()) {
       const newNote: Note = {
         id: String(Date.now()),
-        date: new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" }),
-        time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }),
+        // RXN-123: the viewer's (selected profile) clock, not the device's.
+        date: zonedNow(readViewerTimeZone()).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" }),
+        time: zonedNow(readViewerTimeZone()).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }),
         author: "Current User",
         content: newNoteContent.trim(),
         attachments: 0,

@@ -1,5 +1,6 @@
 "use client"
 
+import { parseApiInstant } from "@/lib/timezone/index"
 import { Bell, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,7 +31,9 @@ export function NotificationDropdown() {
 
   function formatTime(timestamp: string): string {
     try {
-      return formatDistanceToNow(new Date(timestamp), { addSuffix: true })
+      // RXN-123: a value without an offset is the app's Pacific wall time, not device time.
+      const at = parseApiInstant(timestamp)
+      return at ? formatDistanceToNow(at, { addSuffix: true }) : ""
     } catch {
       return ""
     }

@@ -1,0 +1,250 @@
+{
+  "success": true,
+  "message": "ok",
+  "data": [
+    {
+      "id": 201,
+      "case_number": "C-201",
+      "patient_name": "Patient 1",
+      "case_status": "In Progress",
+      "created_at": "11/25/26 @ 8:00 am",
+      "updated_at": "11/25/26 @ 8:00 am",
+      "created_at_iso": "2026-11-25T08:00:00-08:00",
+      "updated_at_iso": "2026-11-25T08:00:00-08:00",
+      "lab_timezone": "America/Los_Angeles",
+      "lab": {
+        "id": 42,
+        "name": "Lab"
+      },
+      "doctor": {
+        "name": "Dr Fixture"
+      },
+      "created_by": {
+        "name": "Victor"
+      },
+      "slips": [
+        {
+          "id": 1,
+          "slip_number": "S-0001",
+          "status": "In Progress",
+          "timestamp": "11/25/26 @ 8:00 am",
+          "created_at": "11/25/26 @ 8:00 am",
+          "updated_at": "11/25/26 @ 8:00 am",
+          "created_at_iso": "2026-11-25T08:00:00-08:00",
+          "updated_at_iso": "2026-11-25T08:00:00-08:00",
+          "lab_timezone": "America/Los_Angeles",
+          "delivery_at": "2026-12-02T16:00:00-08:00",
+          "pickup_at": null,
+          "delivery": {
+            "delivery_date": "2026-12-02",
+            "delivery_time": "16:00:00",
+            "pickup_date": null,
+            "pickup_time": null
+          },
+          "location": {
+            "id": 2,
+            "name": "In lab",
+            "description": ""
+          },
+          "casepan": {
+            "id": 1,
+            "number": "12",
+            "name": "",
+            "color_code": "#fff"
+          },
+          "is_rush": false,
+          "attachments": {
+            "has_attachments": false,
+            "has_stl_file": false,
+            "count": 0
+          },
+          "products": []
+        }
+      ],
+      "statistics": {}
+    },
+    {
+      "id": 202,
+      "case_number": "C-202",
+      "patient_name": "Patient 2",
+      "case_status": "In Progress",
+      "created_at": "11/25/26 @ 8:00 am",
+      "updated_at": "11/25/26 @ 8:00 am",
+      "created_at_iso": "2026-11-25T08:00:00-08:00",
+      "updated_at_iso": "2026-11-25T08:00:00-08:00",
+      "lab_timezone": "America/New_York",
+      "lab": {
+        "id": 42,
+        "name": "Lab"
+      },
+      "doctor": {
+        "name": "Dr Fixture"
+      },
+      "created_by": {
+        "name": "Victor"
+      },
+      "slips": [
+        {
+          "id": 2,
+          "slip_number": "S-0002",
+          "status": "In Progress",
+          "timestamp": "11/25/26 @ 8:00 am",
+          "created_at": "11/25/26 @ 8:00 am",
+          "updated_at": "11/25/26 @ 8:00 am",
+          "created_at_iso": "2026-11-25T08:00:00-08:00",
+          "updated_at_iso": "2026-11-25T08:00:00-08:00",
+          "lab_timezone": "America/New_York",
+          "delivery_at": "2026-12-02T16:00:00-05:00",
+          "pickup_at": null,
+          "delivery": {
+            "delivery_date": "2026-12-02",
+            "delivery_time": "16:00:00",
+            "pickup_date": null,
+            "pickup_time": null
+          },
+          "location": {
+            "id": 2,
+            "name": "In lab",
+            "description": ""
+          },
+          "casepan": {
+            "id": 1,
+            "number": "12",
+            "name": "",
+            "color_code": "#fff"
+          },
+          "is_rush": false,
+          "attachments": {
+            "has_attachments": false,
+            "has_stl_file": false,
+            "count": 0
+          },
+          "products": []
+        }
+      ],
+      "statistics": {}
+    },
+    {
+      "id": 203,
+      "case_number": "C-203",
+      "patient_name": "Patient 3",
+      "case_status": "In Progress",
+      "created_at": "11/22/26 @ 4:00 pm",
+      "updated_at": "11/22/26 @ 4:00 pm",
+      "created_at_iso": "2026-11-23T08:00:00+08:00",
+      "updated_at_iso": "2026-11-23T08:00:00+08:00",
+      "lab_timezone": "Asia/Shanghai",
+      "lab": {
+        "id": 42,
+        "name": "Lab"
+      },
+      "doctor": {
+        "name": "Dr Fixture"
+      },
+      "created_by": {
+        "name": "Victor"
+      },
+      "slips": [
+        {
+          "id": 3,
+          "slip_number": "S-0003",
+          "status": "In Progress",
+          "timestamp": "11/22/26 @ 4:00 pm",
+          "created_at": "11/22/26 @ 4:00 pm",
+          "updated_at": "11/22/26 @ 4:00 pm",
+          "created_at_iso": "2026-11-23T08:00:00+08:00",
+          "updated_at_iso": "2026-11-23T08:00:00+08:00",
+          "lab_timezone": "Asia/Shanghai",
+          "delivery_at": "2026-11-26T09:00:00+08:00",
+          "pickup_at": null,
+          "delivery": {
+            "delivery_date": "2026-11-26",
+            "delivery_time": "09:00:00",
+            "pickup_date": null,
+            "pickup_time": null
+          },
+          "location": {
+            "id": 2,
+            "name": "In lab",
+            "description": ""
+          },
+          "casepan": {
+            "id": 1,
+            "number": "12",
+            "name": "",
+            "color_code": "#fff"
+          },
+          "is_rush": false,
+          "attachments": {
+            "has_attachments": false,
+            "has_stl_file": false,
+            "count": 0
+          },
+          "products": []
+        }
+      ],
+      "statistics": {}
+    },
+    {
+      "id": 204,
+      "case_number": "C-204",
+      "patient_name": "Patient 4",
+      "case_status": "In Progress",
+      "created_at": "11/25/26 @ 8:00 am",
+      "updated_at": "11/25/26 @ 8:00 am",
+      "created_at_iso": "2026-11-25T08:00:00-08:00",
+      "updated_at_iso": "2026-11-25T08:00:00-08:00",
+      "lab_timezone": "America/New_York",
+      "lab": {
+        "id": 42,
+        "name": "Lab"
+      },
+      "doctor": {
+        "name": "Dr Fixture"
+      },
+      "created_by": {
+        "name": "Victor"
+      },
+      "slips": [
+        {
+          "id": 4,
+          "slip_number": "S-0004",
+          "status": "In Progress",
+          "timestamp": "11/25/26 @ 8:00 am",
+          "created_at": "11/25/26 @ 8:00 am",
+          "updated_at": "11/25/26 @ 8:00 am",
+          "created_at_iso": "2026-11-25T08:00:00-08:00",
+          "updated_at_iso": "2026-11-25T08:00:00-08:00",
+          "lab_timezone": "America/New_York",
+          "delivery_at": null,
+          "pickup_at": null,
+          "delivery": {
+            "delivery_date": "2026-12-04",
+            "delivery_time": null,
+            "pickup_date": null,
+            "pickup_time": null
+          },
+          "location": {
+            "id": 2,
+            "name": "In lab",
+            "description": ""
+          },
+          "casepan": {
+            "id": 1,
+            "number": "12",
+            "name": "",
+            "color_code": "#fff"
+          },
+          "is_rush": false,
+          "attachments": {
+            "has_attachments": false,
+            "has_stl_file": false,
+            "count": 0
+          },
+          "products": []
+        }
+      ],
+      "statistics": {}
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "success": true,
+  "message": "ok",
+  "data": [
+    {
+      "id": 1,
+      "slip_number": "S-0001",
+      "status": "In Progress",
+      "timestamp": "11/25/26 @ 8:00 am",
+      "created_at": "11/25/26 @ 8:00 am",
+      "created_at_iso": "2026-11-25T08:00:00-08:00",
+      "lab_timezone": "America/Los_Angeles",
+      "delivery_date": {
+        "final_date": "2026-12-02",
+        "time": "16:00:00"
+      },
+      "pickup_at": null,
+      "delivery_at": "2026-12-02T16:00:00-08:00",
+      "case": {
+        "id": 101,
+        "case_number": "C-101",
+        "patient_name": "Patient 1"
+      },
+      "office": {
+        "code": "VSO"
+      },
+      "products": [],
+      "location": {
+        "current": {
+          "id": 2,
+          "name": "In lab"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "slip_number": "S-0002",
+      "status": "In Progress",
+      "timestamp": "11/25/26 @ 8:00 am",
+      "created_at": "11/25/26 @ 8:00 am",
+      "created_at_iso": "2026-11-25T08:00:00-08:00",
+      "lab_timezone": "America/New_York",
+      "delivery_date": {
+        "final_date": "2026-12-02",
+        "time": "16:00:00"
+      },
+      "pickup_at": null,
+      "delivery_at": "2026-12-02T16:00:00-05:00",
+      "case": {
+        "id": 102,
+        "case_number": "C-102",
+        "patient_name": "Patient 2"
+      },
+      "office": {
+        "code": "VSO"
+      },
+      "products": [],
+      "location": {
+        "current": {
+          "id": 2,
+          "name": "In lab"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "slip_number": "S-0003",
+      "status": "In Progress",
+      "timestamp": "11/22/26 @ 4:00 pm",
+      "created_at": "11/22/26 @ 4:00 pm",
+      "created_at_iso": "2026-11-23T08:00:00+08:00",
+      "lab_timezone": "Asia/Shanghai",
+      "delivery_date": {
+        "final_date": "2026-11-26",
+        "time": "09:00:00"
+      },
+      "pickup_at": null,
+      "delivery_at": "2026-11-26T09:00:00+08:00",
+      "case": {
+        "id": 103,
+        "case_number": "C-103",
+        "patient_name": "Patient 3"
+      },
+      "office": {
+        "code": "VSO"
+      },
+      "products": [],
+      "location": {
+        "current": {
+          "id": 2,
+          "name": "In lab"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "slip_number": "S-0004",
+      "status": "In Progress",
+      "timestamp": "11/25/26 @ 8:00 am",
+      "created_at": "11/25/26 @ 8:00 am",
+      "created_at_iso": "2026-11-25T08:00:00-08:00",
+      "lab_timezone": "America/New_York",
+      "delivery_date": {
+        "final_date": "2026-12-04",
+        "time": null
+      },
+      "pickup_at": null,
+      "delivery_at": null,
+      "case": {
+        "id": 104,
+        "case_number": "C-104",
+        "patient_name": "Patient 4"
+      },
+      "office": {
+        "code": "VSO"
+      },
+      "products": [],
+      "location": {
+        "current": {
+          "id": 2,
+          "name": "In lab"
+        }
+      }
+    }
+  ],
+  "pagination": {
+    "total": 4,
+    "per_page": 20,
+    "current_page": 1,
+    "last_page": 1
+  }
+}

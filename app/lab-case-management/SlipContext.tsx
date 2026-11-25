@@ -6,7 +6,8 @@ import { buildApiUrl } from "@/lib/api/client";
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
 import { applySlipAttachmentState } from "./attachment-state.mjs";
 import { formatSlipListingProducts } from "./slip-listing-product-label.mjs";
-import { formatSlipListingTimestamp } from "@/lib/slip-listing-timestamp";
+import { listingCreatedAt, listingDueClock, listingDueDay } from "@/lib/timezone/listing";
+import { readViewerTimeZone } from "@/lib/timezone/viewer";
 import { resolveListingCustomerId } from "@/lib/customer-scope";
 import {
   mapApiPanColorAssignment,
@@ -202,11 +203,12 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   };
 
   // Helper to map API slip to UI slip
-  const mapApiSlip = (apiSlip: any): Slip => ({
+  // RXN-123: created time and due date/time in the viewer's zone when the API sends instants.
+  const mapApiSlip = (apiSlip: any): Slip => {
+    const viewerTz = readViewerTimeZone();
+    return {
     id: apiSlip.id,
-    createdAt: formatSlipListingTimestamp(
-      apiSlip.timestamp ?? apiSlip.created_at ?? "",
-    ),
+    createdAt: listingCreatedAt(apiSlip, viewerTz),
     caseId: apiSlip.case?.id,
     caseNumber: apiSlip.case?.case_number,
     invoicingMode:
@@ -255,11 +257,12 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       typeof apiSlip.new_stage_eligible === "string"
         ? apiSlip.new_stage_eligible.trim().toLowerCase() === "yes"
         : Boolean(apiSlip.new_stage_eligible),
-    dueDate: apiSlip.delivery_date?.final_date || "",
-    dueTime:
-      typeof apiSlip.delivery_date?.time === "string"
-        ? apiSlip.delivery_date.time
-        : undefined,
+    dueDate: listingDueDay(apiSlip, apiSlip.delivery_date?.final_date || "", viewerTz),
+    dueTime: listingDueClock(
+      apiSlip,
+      typeof apiSlip.delivery_date?.time === "string" ? apiSlip.delivery_date.time : undefined,
+      viewerTz,
+    ),
     overdue: false, // You can set this based on your logic
     doctor: apiSlip.case?.doctor?.name || apiSlip.doctor || undefined,
     user: apiSlip.user?.name || apiSlip.user || undefined,
@@ -284,7 +287,8 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     ),
     locationId: typeof apiSlip.location?.current?.id === "number" ? apiSlip.location.current.id : undefined,
     // ...add more fields as needed
-  });
+    };
+  };
 
   const fetchLabSlips = useCallback(async (customerId: number, query?: LabListingQuery) => {
     const effectiveQuery: LabListingQuery =

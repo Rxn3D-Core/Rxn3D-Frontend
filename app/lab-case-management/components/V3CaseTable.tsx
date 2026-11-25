@@ -12,6 +12,8 @@ import {
   parseSlipListingDueDate,
   type SlipListingBusinessHour,
 } from "@/lib/slip-listing-due-date"
+import { zonedNow } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { slipIsInOffice, slipShowsPickupDropoff } from "@/lib/slip-location"
 import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
@@ -1174,7 +1176,8 @@ function dueDateTextColor(row: V2CaseRowData): string {
   // Parse as calendar day (YYYY-MM-DD) so device timezone cannot shift the date.
   const due = parseSlipListingDueDate(dueDate)
   if (!due) return "#575757"
-  const now = new Date()
+  // RXN-123: "today" is the viewer's (selected profile) day, not the device's.
+  const now = zonedNow(readViewerTimeZone())
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   // Overdue outranks rush — a late rush case is the one that most needs flagging.
   if (due.getTime() < today.getTime()) return OVERDUE_RED
@@ -1198,5 +1201,5 @@ function formatDueDate(
   }
   if (!dueDate) return "—"
   if (!due) return dueDate
-  return formatCaseManagementDueDate(due, new Date(), businessHours, holidays)
+  return formatCaseManagementDueDate(due, zonedNow(readViewerTimeZone()), businessHours, holidays)
 }

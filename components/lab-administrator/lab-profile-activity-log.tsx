@@ -1,5 +1,7 @@
 "use client"
 
+import { normalizeTimeZone, parseApiInstant } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { useState, useEffect, useCallback } from "react"
 import { Eye, Filter, Search } from "lucide-react"
 import { AuditEntryDetailsDialog } from "@/components/lab-administrator/audit-entry-details-dialog"
@@ -181,7 +183,8 @@ export default function ActivityLogTab({ customerId, hideTechnicalDetails = fals
                   <TableCell className="max-w-xs truncate">{formatChanges(entry)}</TableCell>
                   <TableCell>
                     {entry.created_at
-                      ? new Date(entry.created_at).toLocaleString("en-US", {
+                      ? (parseApiInstant(entry.created_at) ?? new Date(entry.created_at)).toLocaleString("en-US", {
+                          timeZone: normalizeTimeZone(readViewerTimeZone()),
                           year: "numeric",
                           month: "short",
                           day: "numeric",

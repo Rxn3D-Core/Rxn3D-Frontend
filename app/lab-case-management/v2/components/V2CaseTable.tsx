@@ -9,6 +9,8 @@ import {
   parseSlipListingDueDate,
   type SlipListingBusinessHour,
 } from "@/lib/slip-listing-due-date"
+import { zonedNow } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { slipIsInOffice } from "@/lib/slip-location"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 
@@ -211,6 +213,7 @@ function formatDueDate(
   // Parse as calendar day (YYYY-MM-DD) so MM/DD matches the API date on every device.
   const due = parseSlipListingDueDate(dueDate)
   if (!due) return dueDate
-  return formatCaseManagementDueDate(due, new Date(), businessHours, holidays)
+  // RXN-123: "today" is the viewer's (selected profile) day, not the device's.
+  return formatCaseManagementDueDate(due, zonedNow(readViewerTimeZone()), businessHours, holidays)
 }
 

@@ -334,3 +334,55 @@ export function deliveryEstimateDay(
   const m = /^(\d{4}-\d{2}-\d{2})/.exec(data?.delivery_date ?? "")
   return m ? m[1] : null
 }
+
+const NAIVE_DATETIME_RE = /^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}:\d{2}(?::\d{2})?)(?:\.\d+)?$/
+const OFFSET_RE = /(Z|[+-]\d{2}:?\d{2})$/i
+
+/**
+ * An API time value as an instant. ISO 8601 with an offset or `Z` is taken as is. A value with
+ * no offset (`2026-11-25 08:00:00`) is the app's stored wall time, which is Pacific (design §1).
+ * Date-only values (`YYYY-MM-DD`) are not instants and give null, so they are never shifted.
+ */
+export function parseApiInstant(value: string | number | Date | null | undefined): Date | null {
+  if (value == null || value === "") return null
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+  if (typeof value === "number") return Number.isFinite(value) ? new Date(value) : null
+  const v = String(value).trim()
+  if (parseDay(v)) return null
+  const naive = NAIVE_DATETIME_RE.exec(v)
+  if (naive && !OFFSET_RE.test(v)) {
+    const iso = clockToInstant(naive[1], naive[2], DEFAULT_TIME_ZONE)
+    return iso ? new Date(iso) : null
+  }
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/**
+ * A `Date` whose local fields (getHours, toLocaleString without timeZone, date-fns format) are
+ * the wall time of the instant in `tz`. Use it only for formatting, never for arithmetic between
+ * instants. A date-only value becomes local midnight of that same day (not shifted). Null if invalid.
+ */
+export function toZonedWallDate(value: string | number | Date | null | undefined, tz: string): Date | null {
+  if (typeof value === "string") {
+    const day = parseDay(value.trim())
+    if (day) return new Date(day.year, day.month - 1, day.day)
+  }
+  const instant = parseApiInstant(value)
+  if (!instant) return null
+  const w = wallTimeAt(instant.getTime(), normalizeTimeZone(tz))
+  return new Date(w.year, w.month - 1, w.day, w.hour, w.minute, w.second, instant.getMilliseconds())
+}
+
+/** The current time as a wall-clock `Date` in `tz` (for "today" checks built on local dates). */
+export function zonedNow(tz: string, now: Date = new Date()): Date {
+  return toZonedWallDate(now, tz) ?? now
+}
+
+/** Clock time (`HH:mm:ss`) of an instant in a zone; null if invalid. */
+export function clockOfInstant(value: string | null | undefined, tz: string): string | null {
+  const instant = value ? parseApiInstant(value) : null
+  if (!instant) return null
+  const w = wallTimeAt(instant.getTime(), normalizeTimeZone(tz))
+  return `${pad(w.hour)}:${pad(w.minute)}:${pad(w.second)}`
+}

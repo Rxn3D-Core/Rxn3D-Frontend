@@ -2,6 +2,8 @@ import {
   slipNoteAuthorName,
   type SlipNoteDetail,
 } from "@/lib/api/slip-notes"
+import { toZonedWallDate } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 
 export interface SlipHoldDetail {
   authorName: string
@@ -9,10 +11,10 @@ export interface SlipHoldDetail {
   reason: string
 }
 
-/** Banner timestamp: `01/30/2026 @ 9:25 AM` */
-export function formatHoldBannerTimestamp(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
+/** Banner timestamp: `01/30/2026 @ 9:25 AM`, on the viewer's clock (RXN-123). */
+export function formatHoldBannerTimestamp(iso: string, timeZone: string = readViewerTimeZone()): string {
+  const d = toZonedWallDate(iso, timeZone)
+  if (!d || Number.isNaN(d.getTime())) return iso
   const date = d.toLocaleDateString(undefined, {
     month: "2-digit",
     day: "2-digit",

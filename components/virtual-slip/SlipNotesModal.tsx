@@ -48,13 +48,16 @@ import {
 } from "@/lib/api/slip-notes"
 import { canAddSlipNotes } from "@/lib/slip-case-status"
 import { cn } from "@/lib/utils"
+import { toZonedWallDate, zonedNow } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 
 const MAX_NOTE_LENGTH = 2000
 const STICKY_NOTE_ICON = "/icons/virtual-slip-center/slip-note.png"
 
+/** RXN-123: shown on the viewer's (selected profile) clock, not the device's. */
 function formatStageNoteTimestamp(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
+  const d = toZonedWallDate(iso, readViewerTimeZone())
+  if (!d || Number.isNaN(d.getTime())) return iso
   const date = d.toLocaleDateString("en-US", {
     month: "2-digit",
     day: "2-digit",
@@ -463,8 +466,10 @@ export function SlipNotesModal({
         }
 
         if (filterDateRange === "today") {
-          const d = new Date(note.created_at)
-          const today = new Date()
+          // RXN-123: "today" is the viewer's day.
+          const viewerTz = readViewerTimeZone()
+          const d = toZonedWallDate(note.created_at, viewerTz) ?? new Date(NaN)
+          const today = zonedNow(viewerTz)
           if (
             d.getFullYear() !== today.getFullYear() ||
             d.getMonth() !== today.getMonth() ||
