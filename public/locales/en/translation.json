@@ -905,6 +905,22 @@
       "doneInvoice": "{{number}}: {{total}}",
       "failed": "Could not finalize the arch invoice",
       "noInvoice": "Arch closed. The total is $0, so no invoice was created."
+    },
+    "chargeNow": {
+      "menu": "Charge now",
+      "title": "Charge now",
+      "nothingToCharge": "Nothing on this slip can be charged now.",
+      "item": "Item",
+      "price": "Price",
+      "stagePrice": "Enter price for {{stage}}",
+      "total": "Total to charge",
+      "resetTotal": "Use {{total}}",
+      "invalidAmount": "Enter a valid amount (0 or more, up to 2 decimals).",
+      "warning": "Charging now will mark this case as finished. No further stage work will be recorded.",
+      "submit": "Charge now",
+      "done": "Case charged",
+      "doneInvoice": "{{number}}: {{total}}",
+      "failed": "Could not charge this case"
     }
   },
   "planEditor": {

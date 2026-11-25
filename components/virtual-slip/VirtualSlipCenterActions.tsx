@@ -59,6 +59,8 @@ export interface VirtualSlipCenterActionsProps {
   canPutOnHold?: boolean;
   /** Lab admin — undo one location step. */
   onUndoLocation?: () => void;
+  /** RXN-127: lab admin, product invoicing, arch in progress and not invoiced. */
+  onChargeNow?: () => void;
   /** When true, edit slip, add-ons, and rush icons are hidden. */
   caseOnHold?: boolean;
   /**
@@ -111,6 +113,7 @@ export function VirtualSlipCenterActions({
   onCancel,
   canPutOnHold = true,
   onUndoLocation,
+  onChargeNow,
   caseOnHold = false,
   allowRush = true,
   rushCaseSchedule = null,
@@ -256,6 +259,7 @@ export function VirtualSlipCenterActions({
           onCancel={onCancel}
           canPutOnHold={canPutOnHold}
           onUndoLocation={onUndoLocation}
+          onChargeNow={onChargeNow}
         />
       </div>
 

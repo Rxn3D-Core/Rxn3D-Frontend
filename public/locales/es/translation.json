@@ -894,6 +894,22 @@
       "doneInvoice": "{{number}}: {{total}}",
       "failed": "No se pudo finalizar la factura de la arcada",
       "noInvoice": "Arcada cerrada. El total es $0, así que no se creó ninguna factura."
+    },
+    "chargeNow": {
+      "menu": "Cobrar ahora",
+      "title": "Cobrar ahora",
+      "nothingToCharge": "No hay nada en esta orden que se pueda cobrar ahora.",
+      "item": "Concepto",
+      "price": "Precio",
+      "stagePrice": "Ingrese el precio de {{stage}}",
+      "total": "Total a cobrar",
+      "resetTotal": "Usar {{total}}",
+      "invalidAmount": "Ingrese un importe válido (0 o más, hasta 2 decimales).",
+      "warning": "Al cobrar ahora, este caso se marcará como terminado. No se registrará más trabajo de etapas.",
+      "submit": "Cobrar ahora",
+      "done": "Caso cobrado",
+      "doneInvoice": "{{number}}: {{total}}",
+      "failed": "No se pudo cobrar este caso"
     }
   },
   "planEditor": {
