@@ -1,3 +1,5 @@
+import { dateOnlyDay, dayOfInstant } from "@/lib/timezone/index";
+import { readViewerTimeZone } from "@/lib/timezone/viewer";
 import type { CustomerAddressProfile } from "@/lib/api/customers";
 import type {
   BillingInvoice,
@@ -124,21 +126,16 @@ function toNumber(value: number | string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function toDateInputValue(value: string | null | undefined): string {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toISOString().slice(0, 10);
-}
-
 export function buildStatementHeaderDraft(
   statement: Pick<StatementRecord, "id" | "statement_id" | "recipient_email" | "created_at" | "due_date">,
 ): StatementHeaderDraft {
   return {
     statementId: statement.statement_id ?? `ST-${statement.id}`,
     recipientEmail: statement.recipient_email ?? "",
-    statementDate: toDateInputValue(statement.created_at),
-    dueDate: toDateInputValue(statement.due_date),
+    // RXN-123: the statement date is `created_at` on the viewer's calendar; the due date is
+    // date-only and never shifted (both were UTC days before).
+    statementDate: dayOfInstant(statement.created_at, readViewerTimeZone()) ?? "",
+    dueDate: dateOnlyDay(statement.due_date) ?? "",
   };
 }
 

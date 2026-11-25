@@ -249,8 +249,9 @@ export function formatInstant(
 export function dayOfInstant(iso: string | null | undefined, tz: string): string | null {
   if (!iso) return null
   if (parseDay(iso)) return iso
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return null
+  // A value without an offset is the app's Pacific wall time (see parseApiInstant).
+  const date = parseApiInstant(iso)
+  if (!date) return null
   return todayInZone(tz, date)
 }
 
@@ -385,4 +386,21 @@ export function clockOfInstant(value: string | null | undefined, tz: string): st
   if (!instant) return null
   const w = wallTimeAt(instant.getTime(), normalizeTimeZone(tz))
   return `${pad(w.hour)}:${pad(w.minute)}:${pad(w.second)}`
+}
+
+/**
+ * The calendar day of a date-only value (`2026-11-26`, or a Laravel date cast such as
+ * `2026-11-26T00:00:00.000000Z`): its first ten characters, never passed through a zone.
+ * Use it only for fields that are dates by meaning (due dates, periods, holidays). Null if none.
+ */
+export function dateOnlyDay(value: string | null | undefined): string | null {
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(value ?? "").trim())
+  return m && parseDay(m[1]) ? m[1] : null
+}
+
+/** `MM/DD/YY` (or `MM/DD/YYYY` with `fullYear`) for a `YYYY-MM-DD` day; "" if invalid. */
+export function formatUsDay(ymd: string | null | undefined, fullYear = false): string {
+  const day = ymd ? parseDay(ymd) : null
+  if (!day) return ""
+  return `${pad(day.month)}/${pad(day.day)}/${fullYear ? day.year : String(day.year).slice(-2)}`
 }

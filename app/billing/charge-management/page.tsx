@@ -118,6 +118,8 @@ import {
 } from "@/lib/billing/charge-row-format"
 import { StatementEmailRichTextEditor } from "@/components/statement-email-rich-text-editor"
 import { addDays, format } from "date-fns"
+import { zonedNow } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { useStatementSettings } from "@/hooks/use-statement-settings"
 import { defaultDueDays } from "@/lib/statement-settings"
 import type { DateRange } from "react-day-picker"
@@ -285,8 +287,9 @@ function normalizeStatementSubject(subject: string | null | undefined): string {
 /** Apply preset to YYYY-MM-DD range for toolbar / advanced search */
 function computeDateRangeFromPreset(preset: string): { from: string; to: string } | null {
   if (preset === "custom") return null
-  const fmt = (d: Date) => d.toISOString().slice(0, 10)
-  const now = new Date()
+  // RXN-123: days on the viewer's (selected profile) calendar, not UTC or the device's.
+  const fmt = (d: Date) => format(d, "yyyy-MM-dd")
+  const now = zonedNow(readViewerTimeZone())
   if (preset === "today") return { from: fmt(now), to: fmt(now) }
   if (preset === "yesterday") {
     const y = new Date(now)
@@ -1421,7 +1424,7 @@ export default function ChargeManagementPage() {
 
   const getStatementGroupDueDate = useCallback(
     (officeId: number): string =>
-      statementGroupDueDates[officeId] ?? formatDateInput(addDays(new Date(), dueDays)),
+      statementGroupDueDates[officeId] ?? formatDateInput(addDays(zonedNow(readViewerTimeZone()), dueDays)),
     [statementGroupDueDates, dueDays],
   )
 
@@ -1683,7 +1686,7 @@ export default function ChargeManagementPage() {
     }
 
     setStatementAutoMarkBilled(false)
-    const defaultDueDate = formatDateInput(addDays(new Date(), dueDays))
+    const defaultDueDate = formatDateInput(addDays(zonedNow(readViewerTimeZone()), dueDays))
     setStatementGroupDueDates(
       Object.fromEntries(selectedStatementGroups.map((group) => [group.officeId, defaultDueDate])),
     )

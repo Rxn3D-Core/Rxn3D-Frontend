@@ -1,5 +1,7 @@
 "use client"
 
+import { dateOnlyDay, dayOfInstant, formatUsDay } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { useEffect, useMemo, useState } from "react"
 import { format } from "date-fns"
 import { CalendarIcon, Download, FileEdit, Loader2, Mail, Pencil, Printer, X } from "lucide-react"
@@ -52,15 +54,15 @@ function formatMoney(value: number | string | null | undefined): string {
   }).format(amount)
 }
 
+/** RXN-123: an instant (`created_at`) on the viewer's (selected profile) calendar. */
 function formatStatementDate(value: string | null | undefined): string {
   if (!value) return "—"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  })
+  return formatUsDay(dayOfInstant(value, readViewerTimeZone()), true) || "—"
+}
+
+/** RXN-123: a date-only value (`due_date`) as stored, never shifted by a zone. */
+function formatStatementDay(value: string | null | undefined): string {
+  return formatUsDay(dateOnlyDay(value), true) || "—"
 }
 
 function toNumber(value: number | string | null | undefined): number {
@@ -339,7 +341,7 @@ function StatementPreviewContent({
                 <div className="text-[13px] leading-6"><span className="font-bold text-black">Date:</span> {formatStatementDate(statement.created_at)}</div>
               ) : null}
               {display.show_due_date ? (
-                <div className="text-[13px] leading-6"><span className="font-bold text-black">Due date:</span> {formatStatementDate(statement.due_date)}</div>
+                <div className="text-[13px] leading-6"><span className="font-bold text-black">Due date:</span> {formatStatementDay(statement.due_date)}</div>
               ) : null}
               {termsLabel ? (
                 <div className="text-[13px] leading-6" data-testid="statement-terms"><span className="font-bold text-black">Terms:</span> {termsLabel}</div>
