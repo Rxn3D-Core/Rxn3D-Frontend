@@ -399,7 +399,6 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (data.address !== undefined) updateData.address = data.address
         if (data.city !== undefined) updateData.city = data.city
         if (data.postal_code !== undefined) updateData.postal_code = data.postal_code
-        if (data.email !== undefined) updateData.email = data.email
         if (data.notification_emails !== undefined) {
           updateData.notification_emails = data.notification_emails
         }
