@@ -522,6 +522,7 @@ export function AddProductModal({
   })
 
   const watchedIsTeethBased = useWatch({ control, name: "is_teeth_based_price" })
+  const watchedName = useWatch({ control, name: "name" })
   const watchedIsSingleStage = useWatch({ control, name: "is_single_stage" })
   const watchedToothVariations = useWatch({ control, name: "tooth_count_variations" })
 
@@ -2173,10 +2174,10 @@ export function AddProductModal({
           className={`p-0 gap-0 flex flex-col ${isMaximized ? "w-[90vw] h-[90vh] max-w-[90vw]" : "sm:max-w-[900px] max-h-[90vh]"} overflow-hidden bg-white`}
         >
           <DialogHeader className="px-6 py-4 flex flex-row items-center justify-between border-b">
-            <DialogTitle className="text-xl font-medium">
+            <DialogTitle className="text-xl font-medium min-w-0 truncate pr-4">
               {editingProduct
                 ? `${t("productModal.editProduct", "Edit Product")} - ${editingProduct.name || ""}`
-                : t("productModal.addProduct", "Add Product")}
+                : [t("productModal.addProduct", "Add Product"), watchedName?.trim()].filter(Boolean).join(" - ")}
             </DialogTitle>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="icon" onClick={toggleMaximize} className="h-8 w-8">
