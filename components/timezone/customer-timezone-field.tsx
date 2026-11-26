@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useBetaFeature } from "@/hooks/use-beta-feature"
 import { useToast } from "@/hooks/use-toast"
 import { BETA_FEATURE_KEYS } from "@/lib/api/beta-features"
-import { matchesTimeZoneSearch, normalizeTimeZone, timeZoneChoices, timeZoneLabel } from "@/lib/timezone"
+import { matchesTimeZoneSearch, normalizeTimeZone, timeZoneChoices, timeZoneLabel, timeZoneOffsetLabel } from "@/lib/timezone"
 import { cn } from "@/lib/utils"
 import { updateCustomerTimezone } from "@/services/customer-timezone-service"
 
@@ -96,7 +96,9 @@ export function CustomerTimezoneField({ customerId, timezone, onSaved }: Custome
                 "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
               )}
             >
-              <span className="min-w-0 flex-1 truncate">{timeZoneLabel(value)}</span>
+              <span className="min-w-0 flex-1 truncate">
+                ({timeZoneOffsetLabel(value)}) {timeZoneLabel(value)}
+              </span>
               <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden />
             </button>
           </PopoverTrigger>
@@ -131,7 +133,7 @@ export function CustomerTimezoneField({ customerId, timezone, onSaved }: Custome
                             className={cn("mr-2 h-4 w-4", value === option.value ? "opacity-100" : "opacity-0")}
                             aria-hidden
                           />
-                          {option.label}
+                          ({timeZoneOffsetLabel(option.value)}) {option.label}
                         </CommandItem>
                       ))}
                     </CommandGroup>
