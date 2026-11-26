@@ -131,6 +131,7 @@ export function VirtualSlipProductSummary({
         <div>
           <Detail label="Restoration" value={product.restoration} />
           <Detail label="Product" value={product.productName} />
+          <Detail label="Material" value={product.material} />
           <Detail label="Grade" value={product.grade} />
           <Detail label="Stage" value={product.stage} />
           <Detail label="Teeth Shade" value={product.teethShade} />

@@ -416,6 +416,7 @@ function buildDetailFields(product: any, rowKind: PaperSlipDetailRowKind): Paper
     firstStr(product?.category?.name, product?.product?.subcategory?.category?.name),
   );
   maybePush("Product", firstStr(product?.product?.name, product?.name));
+  maybePush("Material", firstStr(product?.material?.name, product?.material_name));
   maybePush("Grade", firstStr(product?.grade?.name, product?.grade_name));
   maybePush("Stage", firstStr(product?.stage?.name, product?.stage_name));
   maybePush("Teeth shade", formatSlipShadeLabel(

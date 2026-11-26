@@ -74,6 +74,7 @@ import {
 } from "../utils/shadeFieldDisplay";
 import { TeethShadePreviewIcon } from "./TeethShadePreviewIcon";
 import { resolveVariationDisplay, resolveArchProductImage } from "../utils/variationHelpers";
+import { MaterialField } from "./fields/MaterialField";
 import {
   FLIPPER_STAYPLATE_SELECTION_HINT,
   isFlipperOrStayplateProduct,
@@ -4547,6 +4548,17 @@ export function MaxillaryPanel({
                           blockAutoOpen={isAnyModalOpen}
                         />
                         <div className="rounded-lg p-3 space-y-3">
+                          <MaterialField
+                            arch="maxillary"
+                            cardId={0}
+                            toothNumbers={cardTeeth}
+                            repTooth={repTn}
+                            product={toothProduct}
+                            getFieldValue={getFieldValue}
+                            storeFieldValue={storeFieldValue}
+                            caseSubmitted={caseSubmitted}
+                          />
+
                           {/* Row 1: Grade / Stage */}
                           {(isF("grade") || (isF("stage") && !singleStageSkip)) && (() => {
                             const gradesDonor = findOppositeArchGradesDonor(

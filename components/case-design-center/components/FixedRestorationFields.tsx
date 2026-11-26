@@ -36,6 +36,7 @@ import {
   serializeRetentionMechanismSelection,
 } from "../utils/retentionMechanismTypes";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
+import { MaterialField } from "./fields/MaterialField";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { ImplantDetailBoxes } from "./ImplantDetailBoxes";
 import {
@@ -1100,10 +1101,22 @@ export function RetentionProductFields({
             : "grid grid-cols-1 gap-3"
         }
       >
-        <FieldInput
-          label="Product - Material"
-          value={materialDisplay.name || ""}
-          submitted={caseSubmitted}
+        <MaterialField
+          arch={arch}
+          cardId={productCardId}
+          toothNumbers={toothNumbers}
+          repTooth={firstToothNumber}
+          product={selectedProduct}
+          getFieldValue={getFieldValue}
+          storeFieldValue={storeFieldValue}
+          caseSubmitted={caseSubmitted}
+          fallback={
+            <FieldInput
+              label="Product - Material"
+              value={materialDisplay.name || ""}
+              submitted={caseSubmitted}
+            />
+          }
         />
         {showRetentionMechanismField && (
           <FieldInput
