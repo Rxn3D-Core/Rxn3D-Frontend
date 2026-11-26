@@ -35,6 +35,8 @@ type GumShadeBrand = {
 }
 
 type GumShadeSectionProps = {
+  /** Opens the library's full create form; the button is hidden when not provided */
+  onAddCustom?: () => void
   control: any
   watch: (field: string) => any
   setValue: (field: string, value: any, options?: { shouldDirty?: boolean; shouldValidate?: boolean }) => void
@@ -61,6 +63,7 @@ type GumShadeSectionProps = {
 }
 
 export function GumShadeSection({
+  onAddCustom,
   control,
   watch,
   setValue,
@@ -99,8 +102,6 @@ export function GumShadeSection({
       )
     }
   }
-  const [customGumShadeName, setCustomGumShadeName] = useState("")
-  const [showCustomInput, setShowCustomInput] = useState(false)
   // Defensive: handle both array and object with data property
   let brands: GumShadeBrand[] = []
   if (Array.isArray(gumShadeBrands)) {
@@ -205,49 +206,6 @@ export function GumShadeSection({
         [brandId]: false,
       }))
     }
-  }
-
-  // Generate a temporary ID for custom gum shade (using negative number to avoid conflicts)
-  const generateCustomGumShadeId = (): number => {
-    const existingIds = watchedGumShades.map((gs: WatchedGumShade) => 
-      typeof gs.gum_shade_id === "number" ? gs.gum_shade_id : 0
-    )
-    const minId = Math.min(...existingIds, 0)
-    return minId - 1
-  }
-
-  // Handle adding custom gum shade
-  const handleAddCustomGumShade = () => {
-    if (!customGumShadeName.trim()) {
-      return // Don't add if name is empty
-    }
-
-    const customGumShadeId = generateCustomGumShadeId()
-    
-    // Store the custom gum shade name
-    if (setCustomGumShadeNames) {
-      setCustomGumShadeNames((prev) => ({
-        ...prev,
-        [customGumShadeId]: customGumShadeName.trim(),
-      }))
-    }
-
-    // Add the custom gum shade to the form
-    const currentList = watchedGumShades || []
-    const newSequence = currentList.length === 0 
-      ? 1 
-      : Math.max(...currentList.map((gs: WatchedGumShade) => gs.sequence || 0)) + 1
-
-    const newGumShade: WatchedGumShade = {
-      gum_shade_id: customGumShadeId,
-      sequence: newSequence,
-    }
-
-    setValue("gum_shades", [...currentList, newGumShade], { shouldDirty: true })
-
-    // Reset form
-    setCustomGumShadeName("")
-    setShowCustomInput(false)
   }
 
   // Handle deleting custom gum shade
@@ -744,53 +702,13 @@ export function GumShadeSection({
             )}
 
             {/* Add Custom Input or Button */}
-            {showCustomInput ? (
-              <div className="flex items-center gap-2 mt-2">
-                <Input
-                  type="text"
-                  placeholder="Enter gum shade name"
-                  value={customGumShadeName}
-                  onChange={(e) => setCustomGumShadeName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault()
-                      handleAddCustomGumShade()
-                    } else if (e.key === "Escape") {
-                      setShowCustomInput(false)
-                      setCustomGumShadeName("")
-                    }
-                  }}
-                  className="flex-1"
-                  autoFocus
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleAddCustomGumShade}
-                  disabled={!customGumShadeName.trim()}
-                  className="bg-[#1162a8] hover:bg-[#1162a8]/90"
-                >
-                  Add
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowCustomInput(false)
-                    setCustomGumShadeName("")
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
+            {onAddCustom && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 className="text-[#1162a8] pl-0 flex items-center gap-1 mt-2"
-                onClick={() => setShowCustomInput(true)}
+                onClick={onAddCustom}
               >
                 <Plus className="h-4 w-4" /> Add Custom
               </Button>
