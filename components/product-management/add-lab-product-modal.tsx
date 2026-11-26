@@ -3334,12 +3334,12 @@ export function AddLabProductModal({
           } bg-white`}
         >
           <DialogHeader className="px-6 py-4 flex flex-row items-center justify-between border-b bg-white sticky top-0 z-10 flex-shrink-0">
-            <DialogTitle className="text-xl font-medium">
+            <DialogTitle className="text-xl font-medium min-w-0 truncate pr-4">
               {editingProduct && editingProduct.id
                 ? `${t("productModal.editProduct", "Edit Product")} - ${editingProduct.name || ""}`
                 : editingProduct && !editingProduct.id
                 ? `${t("productModal.copyProduct", "Copy Product")} - ${editingProduct.name || ""}`
-                : t("productModal.addProduct", "Add Product")}
+                : [t("productModal.addProduct", "Add Product"), watchedName?.trim()].filter(Boolean).join(" - ")}
             </DialogTitle>
             <div className="flex items-center gap-2">
               <Button 
@@ -3582,7 +3582,6 @@ export function AddLabProductModal({
                     handleToggleSelection={handleToggleSelection}
                     customMaterialNames={customMaterialNames}
                     setCustomMaterialNames={setCustomMaterialNames}
-                    onMaterialCreated={fetchMaterials}
                   />
                 </TabsContent>
 
@@ -3600,7 +3599,6 @@ export function AddLabProductModal({
                     toggleExpanded={toggleExpanded}
                     handleToggleSelection={handleToggleSelection}
                     userRole={userRole}
-                    onAddonCreated={fetchAllAddOns}
                   />
                 </TabsContent>
 

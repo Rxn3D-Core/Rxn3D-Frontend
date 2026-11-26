@@ -79,6 +79,10 @@ import {
 import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
 import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
 import { CreateRetentionOptionModal } from "@/components/product-management/create-retention-option-modal"
+import {
+  ProductCustomItemModal,
+  type ProductCustomItemKind,
+} from "@/components/product-management/product-custom-item-modal"
 import { ProductDetailsSection } from "./add-lab-product-modal/ProductDetailsSection"
 import { GradesSection } from "@/components/product-management/add-lab-product-modal/GradesSection"
 import { StagesSection } from "@/components/product-management/add-lab-product-modal/StagesSection"
@@ -92,6 +96,9 @@ import { AdvanceFieldsSection } from "@/components/product-management/add-lab-pr
 import type { AdvanceFieldEditorRequest } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
 import { ToothChartConfigurationsSection } from "@/components/product-management/add-lab-product-modal/ToothChartConfigurationsSection"
 import { VariationSection } from "@/components/product-management/add-lab-product-modal/VariationSection"
+
+/** Largest page the library list APIs accept; a smaller page hides newly added items */
+const PRODUCT_LIBRARY_PAGE_SIZE = 100
 
 interface AddProductModalProps {
   isOpen: boolean
@@ -522,6 +529,7 @@ export function AddProductModal({
   })
 
   const watchedIsTeethBased = useWatch({ control, name: "is_teeth_based_price" })
+  const watchedName = useWatch({ control, name: "name" })
   const watchedIsSingleStage = useWatch({ control, name: "is_single_stage" })
   const watchedToothVariations = useWatch({ control, name: "tooth_count_variations" })
 
@@ -772,27 +780,44 @@ export function AddProductModal({
       ? parentDropdownCategories.data
       : []
 
+  /** Reload one library list after "Add Custom", with the same page size as the first load */
+  const refreshLibraryList = useCallback(
+    (kind: ProductCustomItemKind) => {
+      const loaders: Record<ProductCustomItemKind, () => unknown> = {
+        grades: () => fetchGrades(1, PRODUCT_LIBRARY_PAGE_SIZE),
+        impressions: () => fetchImpressions(1, PRODUCT_LIBRARY_PAGE_SIZE),
+        gumShade: () => fetchGumShadeBrands(1, PRODUCT_LIBRARY_PAGE_SIZE),
+        teethShade: () => fetchTeethShadeBrands(1, PRODUCT_LIBRARY_PAGE_SIZE),
+        material: () => fetchMaterials(1, PRODUCT_LIBRARY_PAGE_SIZE),
+        addOns: () => fetchAllAddOns(),
+      }
+      void loaders[kind]()
+    },
+    [fetchGrades, fetchImpressions, fetchGumShadeBrands, fetchTeethShadeBrands, fetchMaterials, fetchAllAddOns],
+  )
+
+  const [customItemKind, setCustomItemKind] = useState<ProductCustomItemKind | null>(null)
+  const handleCustomItemClose = () => {
+    if (customItemKind) refreshLibraryList(customItemKind)
+    setCustomItemKind(null)
+  }
+
   const fetchData = useCallback(() => {
     fetchParentDropdownCategories()
-    fetchGrades()
+    refreshLibraryList("grades")
     fetchStages()
-    fetchImpressions()
-    fetchGumShadeBrands()
-    fetchTeethShadeBrands()
-    fetchMaterials()
+    refreshLibraryList("impressions")
+    refreshLibraryList("gumShade")
+    refreshLibraryList("teethShade")
+    refreshLibraryList("material")
     fetchRetentions()
-    fetchAllAddOns()
+    refreshLibraryList("addOns")
     fetchExtractions()
   }, [
     fetchParentDropdownCategories,
-    fetchGrades,
+    refreshLibraryList,
     fetchStages,
-    fetchImpressions,
-    fetchGumShadeBrands,
-    fetchTeethShadeBrands,
-    fetchMaterials,
     fetchRetentions,
-    fetchAllAddOns,
     fetchExtractions,
   ])
 
@@ -2173,10 +2198,10 @@ export function AddProductModal({
           className={`p-0 gap-0 flex flex-col ${isMaximized ? "w-[90vw] h-[90vh] max-w-[90vw]" : "sm:max-w-[900px] max-h-[90vh]"} overflow-hidden bg-white`}
         >
           <DialogHeader className="px-6 py-4 flex flex-row items-center justify-between border-b">
-            <DialogTitle className="text-xl font-medium">
+            <DialogTitle className="text-xl font-medium min-w-0 truncate pr-4">
               {editingProduct
                 ? `${t("productModal.editProduct", "Edit Product")} - ${editingProduct.name || ""}`
-                : t("productModal.addProduct", "Add Product")}
+                : [t("productModal.addProduct", "Add Product"), watchedName?.trim()].filter(Boolean).join(" - ")}
             </DialogTitle>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="icon" onClick={toggleMaximize} className="h-8 w-8">
@@ -2278,6 +2303,7 @@ export function AddProductModal({
 
                 <TabsContent value="grades" className="mt-0 p-6 focus-visible:outline-none">
                   <GradesSection
+                    onAddCustom={() => setCustomItemKind("grades")}
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -2324,6 +2350,7 @@ export function AddProductModal({
 
                 <TabsContent value="impressions" className="mt-0 p-6 focus-visible:outline-none">
                   <ImpressionsSection
+                    onAddCustom={() => setCustomItemKind("impressions")}
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -2340,6 +2367,7 @@ export function AddProductModal({
 
                 <TabsContent value="gumShade" className="mt-0 p-6 focus-visible:outline-none">
                   <GumShadeSection
+                    onAddCustom={() => setCustomItemKind("gumShade")}
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -2357,6 +2385,7 @@ export function AddProductModal({
 
                 <TabsContent value="teethShade" className="mt-0 p-6 focus-visible:outline-none">
                   <TeethShadeSection
+                    onAddCustom={() => setCustomItemKind("teethShade")}
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -2374,6 +2403,7 @@ export function AddProductModal({
 
                 <TabsContent value="material" className="mt-0 p-6 focus-visible:outline-none">
                   <MaterialSection
+                    onAddCustom={() => setCustomItemKind("material")}
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -2390,6 +2420,7 @@ export function AddProductModal({
 
                 <TabsContent value="addOns" className="mt-0 p-6 focus-visible:outline-none">
                   <AddOnsSection
+                    onAddCustom={() => setCustomItemKind("addOns")}
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -2514,6 +2545,7 @@ export function AddProductModal({
           </form>
         </DialogContent>
       </Dialog>
+      <ProductCustomItemModal kind={isOpen ? customItemKind : null} onClose={handleCustomItemClose} />
       <CreateRetentionOptionModal
         isOpen={retentionOptionCreateOpen}
         onClose={() => setRetentionOptionCreateOpen(false)}
