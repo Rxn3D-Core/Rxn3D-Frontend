@@ -25,6 +25,7 @@ import type {
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { getSelectionFieldChain } from "../hooks/useToothFieldProgress";
+import { MaterialField } from "./fields/MaterialField";
 import {
   shouldSkipStageSelection,
   parseStageDisplayName,
@@ -859,6 +860,17 @@ export function SelectionProductFields({
         labCustomerId={labCustomerId}
         expandedImplantTooth={expandedImplantTooth}
         onExpandedImplantToothChange={onExpandedImplantToothChange}
+      />
+
+      <MaterialField
+        arch={arch}
+        cardId={productCardId}
+        toothNumbers={toothNumbers}
+        repTooth={firstToothNumber}
+        product={selectedProduct}
+        getFieldValue={getFieldValueFn}
+        storeFieldValue={storeFieldValueFn}
+        caseSubmitted={caseSubmitted}
       />
 
       {/* Step 1: Grade / Stage */}

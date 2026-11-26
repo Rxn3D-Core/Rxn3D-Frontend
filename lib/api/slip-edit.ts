@@ -81,6 +81,11 @@ export function buildEditSlipFormData(
 
   payload.products?.forEach((product, productIndex) => {
     Object.entries(product).forEach(([key, value]) => {
+      // Multipart cannot carry null; an empty string reaches the API as null and clears the value.
+      if (key === "material_id" && value === null) {
+        formData.append(`products[${productIndex}][${key}]`, "");
+        return;
+      }
       appendFormDataValue(formData, `products[${productIndex}][${key}]`, value);
     });
   });

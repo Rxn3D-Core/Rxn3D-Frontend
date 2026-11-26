@@ -153,3 +153,19 @@ test("buildBaselineEditSlipProducts preserves one row per API product", () => {
   assert.deepEqual(rows[0].teeth_selection, [{ teeth_number: 7 }, { teeth_number: 8 }]);
   assert.deepEqual(rows[1].teeth_selection, [{ teeth_number: 24 }, { teeth_number: 25 }]);
 });
+
+test("mergeEditSlipProductWithBaseline keeps the saved material while the product is unchanged", () => {
+  const baseline = { type: "Upper", category_id: 10, product_id: 101, subcategory_id: 20, material_id: 6 };
+  const prepared = { type: "Upper", category_id: 10, product_id: 101, subcategory_id: 20 };
+
+  assert.equal(mergeEditSlipProductWithBaseline(prepared, baseline).material_id, 6);
+  assert.equal(mergeEditSlipProductWithBaseline({ ...prepared, material_id: 7 }, baseline).material_id, 7);
+});
+
+test("mergeEditSlipProductWithBaseline drops the old material when the product changes", () => {
+  const baseline = { type: "Upper", category_id: 10, product_id: 101, subcategory_id: 20, material_id: 6 };
+  const prepared = { type: "Upper", category_id: 10, product_id: 202, subcategory_id: 20 };
+
+  assert.equal(mergeEditSlipProductWithBaseline(prepared, baseline).material_id, null);
+  assert.equal(mergeEditSlipProductWithBaseline({ ...prepared, material_id: 9 }, baseline).material_id, 9);
+});

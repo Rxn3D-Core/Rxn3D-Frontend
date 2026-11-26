@@ -223,6 +223,12 @@ export function mergeEnrichedProductFromDonor(
   if (next.has_variation == null && donor.has_variation != null) {
     next = { ...next, has_variation: donor.has_variation };
   }
+  if ((next.materials?.length ?? 0) === 0 && (donor.materials?.length ?? 0) > 0) {
+    next = { ...next, materials: donor.materials };
+  }
+  if (next.has_material == null && donor.has_material != null) {
+    next = { ...next, has_material: donor.has_material };
+  }
   return next;
 }
 

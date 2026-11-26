@@ -16,7 +16,11 @@ import type {
 import { parseProductTeeth } from "@/lib/virtual-slip-transformer";
 import { normalizeRush } from "./slipPayloadMappers";
 
-export type EditSlipProduct = SlipCreationProduct & { id?: number };
+export type EditSlipProduct = Omit<SlipCreationProduct, "material_id"> & {
+  id?: number;
+  /** `null` clears a material left over from the previous product. */
+  material_id?: number | null;
+};
 
 function normalizeSlipProductType(type: string | null | undefined): "Upper" | "Lower" | null {
   const t = String(type ?? "").toLowerCase();
@@ -396,7 +400,11 @@ export function mergeEditSlipProductWithBaseline(
     variation_id: pickPositiveId(prepared.variation_id, baseline.variation_id),
     stage_id: pickPositiveId(prepared.stage_id, baseline.stage_id),
     grade_id: pickPositiveId(prepared.grade_id, baseline.grade_id),
-    material_id: pickPositiveId(prepared.material_id, baseline.material_id),
+    // A material belongs to one product: after a product change keep only the new choice.
+    material_id:
+      prepared.product_id && baseline.product_id && prepared.product_id !== baseline.product_id
+        ? prepared.material_id || null
+        : pickPositiveId(prepared.material_id ?? undefined, baseline.material_id ?? undefined),
     teeth_shade_id: pickPositiveId(prepared.teeth_shade_id, baseline.teeth_shade_id),
     teeth_shade_brand_id: pickPositiveId(
       prepared.teeth_shade_brand_id,

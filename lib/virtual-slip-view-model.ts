@@ -103,6 +103,8 @@ export interface ProductVM {
   claspTeeth: number[];
   restoration: string;
   productName: string;
+  /** Material selected on the slip product; empty when none. */
+  material: string;
   grade: string;
   stage: string;
   /** Slip product workflow status (In Progress, On hold, cancelled, …). */
@@ -812,6 +814,7 @@ function buildProduct(apiProduct: any): ProductVM {
     claspTeeth: chipTeeth?.claspTeeth ?? [],
     restoration: categoryName,
     productName: firstStr(product?.name, apiProduct?.name),
+    material: firstStr(apiProduct?.material?.name, apiProduct?.material_name),
     grade: firstStr(apiProduct?.grade?.name, apiProduct?.grade_name),
     stage: firstStr(apiProduct?.stage?.name, apiProduct?.stage_name, fromNotes.stage),
     status: firstStr(apiProduct?.status, "In Progress"),
