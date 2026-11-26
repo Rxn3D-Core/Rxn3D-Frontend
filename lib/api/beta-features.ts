@@ -1,7 +1,7 @@
 import { apiClient } from "@/lib/api/client"
 
 /** `ga` is shown as Live in the UI. */
-export type BetaRolloutStatus = "beta" | "ga"
+export type BetaRolloutStatus = "disabled" | "beta" | "ga"
 
 export interface BetaFeatureRow {
   id: number

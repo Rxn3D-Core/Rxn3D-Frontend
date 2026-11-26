@@ -389,7 +389,7 @@ export default function BetaFeaturesPage() {
                             isLive ? "text-[#1162A8]" : "text-[#9BA5B7]"
                           }`}
                         >
-                          {isLive ? "Live" : "Beta"}
+                          {isLive ? "Live" : feature.rollout_status === "disabled" ? "Disabled" : "Beta"}
                         </span>
                         <Switch
                           checked={isLive}
