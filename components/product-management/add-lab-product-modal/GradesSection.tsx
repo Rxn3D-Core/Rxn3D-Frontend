@@ -127,6 +127,8 @@ function syncTeethAnchorGradePrice(
 }
 
 interface GradesSectionProps {
+  /** Opens the library's full create form; the button is hidden when not provided */
+  onAddCustom?: () => void
   /** Kept for API compatibility with parent; grade-based pricing is bound via `watch` / `setValue`. */
   control: Control<ProductCreateForm>
   watch: UseFormWatch<ProductCreateForm>
@@ -147,6 +149,7 @@ interface GradesSectionProps {
 }
 
 export function GradesSection({
+  onAddCustom,
   control,
   watch,
   setValue,
@@ -243,10 +246,6 @@ export function GradesSection({
   }, [teethGradeLock, firstToothAnchor, anchorGradeId, masterGradesFlat, setValue])
 
   // State for custom grade form
-  const [showCustomGradeForm, setShowCustomGradeForm] = useState(false)
-  const [customGradeName, setCustomGradeName] = useState("")
-  const [customGradePrice, setCustomGradePrice] = useState("")
-  const [customGradeIsDefault, setCustomGradeIsDefault] = useState(false)
 
   // Expand grades section when max_days_to_process is inputted
   useEffect(() => {
@@ -304,68 +303,6 @@ export function GradesSection({
     const numValue = parseFloat(price)
     return !isNaN(numValue) && numValue <= 0
   }
-
-  // Generate a temporary ID for custom grade (using negative number to avoid conflicts)
-  const generateCustomGradeId = (): number => {
-    const existingIds = watchedGrades.map((g) => typeof g.grade_id === "number" ? g.grade_id : 0)
-    const minId = Math.min(...existingIds, 0)
-    return minId - 1
-  }
-
-  // Handle adding custom grade
-  const handleAddCustomGrade = () => {
-    if (!customGradeName.trim()) {
-      return // Don't add if name is empty
-    }
-
-    const customGradeId = generateCustomGradeId()
-    const newGrade: WatchedGrade = {
-      grade_id: customGradeId,
-      is_default: customGradeIsDefault ? ("Yes" as const) : ("No" as const),
-      price: customGradePrice || "",
-    }
-
-    // Store the custom grade name
-    setCustomGradeNames((prev) => ({
-      ...prev,
-      [customGradeId]: customGradeName.trim(),
-    }))
-
-    // If setting as default, unset other defaults
-    let updated: NonNullable<ProductCreateForm["grades"]>
-    if (customGradeIsDefault) {
-      updated = watchedGrades.map((g) => ({ ...g, is_default: "No" as const }))
-      updated.push(newGrade)
-    } else {
-      updated = [...watchedGrades, newGrade] as NonNullable<ProductCreateForm["grades"]>
-    }
-
-    // Deduplicate if multiple defaults were set
-    updated = dedupeDefaultGrades(updated)
-
-    if (teethGradeLock) {
-      updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
-    }
-
-    setValue("grades", updated, { shouldDirty: true })
-    
-    // Reset form
-    setCustomGradeName("")
-    setCustomGradePrice("")
-    setCustomGradeIsDefault(false)
-    setShowCustomGradeForm(false)
-  }
-
-  // Handle canceling custom grade form
-  const handleCancelCustomGrade = () => {
-    setCustomGradeName("")
-    setCustomGradePrice("")
-    setCustomGradeIsDefault(false)
-    setShowCustomGradeForm(false)
-  }
-
-  // Check if custom grade price is valid
-  const customGradePriceError = isPriceZeroOrInvalid(customGradePrice)
 
   const handleSetDefaultGrade = (gradeId: number | string, isDefault: "Yes" | "No") => {
     let updated: NonNullable<ProductCreateForm["grades"]> = watchedGrades.map((g) => {
@@ -836,84 +773,13 @@ export function GradesSection({
                   })}
                 
                 {/* Custom Grade Form */}
-                {showCustomGradeForm ? (
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <input
-                        type="text"
-                        placeholder="Enter new grade"
-                        className="h-9 border rounded px-3 w-full sm:w-40 text-sm"
-                        value={customGradeName}
-                        onChange={(e) => setCustomGradeName(e.target.value)}
-                        autoFocus
-                      />
-                    </div>
-                    {userRole !== "superadmin" && (
-                      <div className="relative w-full sm:w-32">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          placeholder="0.00"
-                          className={`pl-7 h-9 border rounded w-full ${
-                            customGradePriceError 
-                              ? "border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2" 
-                              : "border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
-                          }`}
-                          value={customGradePrice}
-                          onChange={(e) => setCustomGradePrice(e.target.value)}
-                        />
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                      </div>
-                    )}
-                    <Button
-                      type="button"
-                      variant={customGradeIsDefault ? "default" : "outline"}
-                      size="sm"
-                      className={
-                        customGradeIsDefault
-                          ? "bg-green-500 text-white hover:bg-green-600 h-8 text-xs rounded-full"
-                          : "text-[#1162a8] border-[#1162a8] hover:bg-[#1162a8] hover:text-white h-8 text-xs rounded-full"
-                      }
-                      onClick={() => setCustomGradeIsDefault(!customGradeIsDefault)}
-                    >
-                      {customGradeIsDefault ? "Default Grade" : "Set as default grade"}
-                    </Button>
-                    {customGradePriceError && (
-                      <ValidationError 
-                        message="Price must be greater than 0" 
-                        className="ml-2 mt-0 flex-shrink-0" 
-                      />
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-green-600 hover:bg-green-50"
-                        onClick={handleAddCustomGrade}
-                        disabled={!customGradeName.trim() || customGradePriceError}
-                      >
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-gray-600 hover:bg-gray-100"
-                        onClick={handleCancelCustomGrade}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
+                {onAddCustom && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     className="text-[#1162a8] pl-0 flex items-center gap-1"
-                    onClick={() => setShowCustomGradeForm(true)}
+                    onClick={onAddCustom}
                   >
                     <Plus className="h-4 w-4" /> Add Custom
                   </Button>

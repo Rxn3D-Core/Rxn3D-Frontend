@@ -3582,7 +3582,6 @@ export function AddLabProductModal({
                     handleToggleSelection={handleToggleSelection}
                     customMaterialNames={customMaterialNames}
                     setCustomMaterialNames={setCustomMaterialNames}
-                    onMaterialCreated={fetchMaterials}
                   />
                 </TabsContent>
 
@@ -3600,7 +3599,6 @@ export function AddLabProductModal({
                     toggleExpanded={toggleExpanded}
                     handleToggleSelection={handleToggleSelection}
                     userRole={userRole}
-                    onAddonCreated={fetchAllAddOns}
                   />
                 </TabsContent>
 
