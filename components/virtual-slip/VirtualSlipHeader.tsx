@@ -21,23 +21,27 @@ type HeaderField = {
   value: string;
   valueClassName?: string;
   valueNode?: React.ReactNode;
+  /** Omit the whole row (label included) when there is no value. */
+  hideWhenEmpty?: boolean;
 };
 
 /** Label/value rows â€” grid keeps values vertically aligned within each column. */
 function Column({ fields }: { fields: HeaderField[] }) {
   return (
     <div className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-[4px] gap-y-[clamp(3px,0.45vw,7px)] font-sans sm:gap-x-[6px]">
-      {fields.map((field) => (
-        <div key={field.label} className="contents">
-          <span className={`${FIELD_LABEL} whitespace-nowrap`}>{field.label}:</span>
-          <span
-            className={`${FIELD_VALUE} ${field.valueClassName ?? ""} inline-flex items-center gap-1`}
-            title={hasDisplayValue(field.value) ? field.value.trim() : undefined}
-          >
-            {field.valueNode ?? (hasDisplayValue(field.value) ? field.value.trim() : "\u00A0")}
-          </span>
-        </div>
-      ))}
+      {fields
+        .filter((field) => !field.hideWhenEmpty || hasDisplayValue(field.value))
+        .map((field) => (
+          <div key={field.label} className="contents">
+            <span className={`${FIELD_LABEL} whitespace-nowrap`}>{field.label}:</span>
+            <span
+              className={`${FIELD_VALUE} ${field.valueClassName ?? ""} inline-flex items-center gap-1`}
+              title={hasDisplayValue(field.value) ? field.value.trim() : undefined}
+            >
+              {field.valueNode ?? (hasDisplayValue(field.value) ? field.value.trim() : "\u00A0")}
+            </span>
+          </div>
+        ))}
     </div>
   );
 }
@@ -279,8 +283,8 @@ export function VirtualSlipHeader({
             <Column
               fields={[
                 { label: "Pt name", value: header.patientName },
-                { label: "Gender", value: header.gender },
-                { label: "Age", value: header.age },
+                { label: "Gender", value: header.gender, hideWhenEmpty: true },
+                { label: "Age", value: header.age, hideWhenEmpty: true },
               ]}
             />
             <Column
