@@ -485,7 +485,8 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
           : { message: result.message || "Failed to create add-on" }
         throw { response: { data: errorData, status: response.status } }
       }
-      fetchAddOns(currentPage, itemsPerPage, searchQuery, sortColumn, sortDirection)
+      // Awaited so a caller's own reload (product modal) cannot be overwritten by this one
+      await fetchAddOns(currentPage, itemsPerPage, searchQuery, sortColumn, sortDirection)
       setSuccessMessage(`Successfully created ${data.name}`)
       setShowAnimation(false) 
       setAnimationType(null)

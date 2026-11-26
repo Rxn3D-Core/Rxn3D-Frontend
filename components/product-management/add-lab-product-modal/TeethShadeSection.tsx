@@ -35,6 +35,8 @@ type TeethShadeBrand = {
 }
 
 type TeethShadeSectionProps = {
+  /** Opens the library's full create form; the button is hidden when not provided */
+  onAddCustom?: () => void
   control: any
   watch: (field: string) => any
   setValue: (field: string, value: any, options?: { shouldDirty?: boolean; shouldValidate?: boolean }) => void
@@ -61,6 +63,7 @@ type TeethShadeSectionProps = {
 }
 
 export function TeethShadeSection({
+  onAddCustom,
   control,
   watch,
   setValue,
@@ -108,8 +111,6 @@ export function TeethShadeSection({
     }
   }
   
-  const [customTeethShadeName, setCustomTeethShadeName] = useState("")
-  const [showCustomInput, setShowCustomInput] = useState(false)
   
   // Defensive: handle both array and object with data property
   let brands: TeethShadeBrand[] = []
@@ -215,49 +216,6 @@ export function TeethShadeSection({
         [brandId]: false,
       }))
     }
-  }
-
-  // Generate a temporary ID for custom teeth shade (using negative number to avoid conflicts)
-  const generateCustomTeethShadeId = (): number => {
-    const existingIds = uniqueTeethShades.map((ts: WatchedTeethShade) => 
-      typeof ts.teeth_shade_id === "number" ? ts.teeth_shade_id : 0
-    )
-    const minId = Math.min(...existingIds, 0)
-    return minId - 1
-  }
-
-  // Handle adding custom teeth shade
-  const handleAddCustomTeethShade = () => {
-    if (!customTeethShadeName.trim()) {
-      return // Don't add if name is empty
-    }
-
-    const customTeethShadeId = generateCustomTeethShadeId()
-    
-    // Store the custom teeth shade name
-    if (setCustomTeethShadeNames) {
-      setCustomTeethShadeNames((prev) => ({
-        ...prev,
-        [customTeethShadeId]: customTeethShadeName.trim(),
-      }))
-    }
-
-    // Add the custom teeth shade to the form
-    const currentList = uniqueTeethShades || []
-    const newSequence = currentList.length === 0 
-      ? 1 
-      : Math.max(...currentList.map((ts: WatchedTeethShade) => ts.sequence || 0)) + 1
-
-    const newTeethShade: WatchedTeethShade = {
-      teeth_shade_id: customTeethShadeId,
-      sequence: newSequence,
-    }
-
-    setValue("teeth_shades", [...currentList, newTeethShade], { shouldDirty: true })
-
-    // Reset form
-    setCustomTeethShadeName("")
-    setShowCustomInput(false)
   }
 
   // Handle deleting custom teeth shade
@@ -754,53 +712,13 @@ export function TeethShadeSection({
             )}
 
             {/* Add Custom Input or Button */}
-            {showCustomInput ? (
-              <div className="flex items-center gap-2 mt-2">
-                <Input
-                  type="text"
-                  placeholder="Enter teeth shade name"
-                  value={customTeethShadeName}
-                  onChange={(e) => setCustomTeethShadeName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault()
-                      handleAddCustomTeethShade()
-                    } else if (e.key === "Escape") {
-                      setShowCustomInput(false)
-                      setCustomTeethShadeName("")
-                    }
-                  }}
-                  className="flex-1"
-                  autoFocus
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleAddCustomTeethShade}
-                  disabled={!customTeethShadeName.trim()}
-                  className="bg-[#1162a8] hover:bg-[#1162a8]/90"
-                >
-                  Add
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowCustomInput(false)
-                    setCustomTeethShadeName("")
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
+            {onAddCustom && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 className="text-[#1162a8] pl-0 flex items-center gap-1 mt-2"
-                onClick={() => setShowCustomInput(true)}
+                onClick={onAddCustom}
               >
                 <Plus className="h-4 w-4" /> Add Custom
               </Button>

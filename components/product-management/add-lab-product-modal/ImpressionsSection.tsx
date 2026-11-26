@@ -15,6 +15,8 @@ type WatchedImpression = {
 }
 
 type ImpressionsSectionProps = {
+  /** Opens the library's full create form; the button is hidden when not provided */
+  onAddCustom?: () => void
   control: any
   watch: (field: string) => any
   setValue: (field: string, value: any, options?: { shouldDirty?: boolean; shouldValidate?: boolean }) => void
@@ -31,6 +33,7 @@ type ImpressionsSectionProps = {
 }
 
 export function ImpressionsSection({
+  onAddCustom,
   control,
   watch,
   setValue,
@@ -46,48 +49,6 @@ export function ImpressionsSection({
   setCustomImpressionNames,
 }: ImpressionsSectionProps) {
   const watchedImpressions = watch("impressions") || []
-  const [customImpressionName, setCustomImpressionName] = useState("")
-  const [showCustomInput, setShowCustomInput] = useState(false)
-
-  // Generate a temporary ID for custom impression (using negative number to avoid conflicts)
-  const generateCustomImpressionId = (): number => {
-    const existingIds = watchedImpressions.map((i: WatchedImpression) => typeof i.impression_id === "number" ? i.impression_id : 0)
-    const minId = Math.min(...existingIds, 0)
-    return minId - 1
-  }
-
-  // Handle adding custom impression
-  const handleAddCustomImpression = () => {
-    if (!customImpressionName.trim()) {
-      return // Don't add if name is empty
-    }
-
-    const customImpressionId = generateCustomImpressionId()
-    
-    // Store the custom impression name
-    if (setCustomImpressionNames) {
-      setCustomImpressionNames((prev) => ({
-        ...prev,
-        [customImpressionId]: customImpressionName.trim(),
-      }))
-    }
-
-    // Add the custom impression to the form
-    const currentList = watchedImpressions || []
-    const newSequence = currentList.length === 0 ? 1 : Math.max(...currentList.map((i: WatchedImpression) => i.sequence || 0)) + 1
-
-    const newImpression = {
-      impression_id: customImpressionId,
-      sequence: newSequence,
-      status: "Active",
-    }
-
-    setValue("impressions", [...currentList, newImpression], { shouldDirty: true })
-
-    // Reset form
-    setCustomImpressionName("")
-    setShowCustomInput(false)
-  }
 
   // Handle deleting custom impression
   const handleDeleteCustomImpression = (id: number) => {
@@ -269,50 +230,10 @@ export function ImpressionsSection({
                 </div>
               )
             })}
-            {showCustomInput ? (
-              <div className="col-span-2 sm:col-span-4 flex items-center gap-2 mt-2">
-                <Input
-                  type="text"
-                  placeholder="Enter impression name"
-                  value={customImpressionName}
-                  onChange={(e) => setCustomImpressionName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault()
-                      handleAddCustomImpression()
-                    } else if (e.key === "Escape") {
-                      setShowCustomInput(false)
-                      setCustomImpressionName("")
-                    }
-                  }}
-                  className="flex-1"
-                  autoFocus
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleAddCustomImpression}
-                  disabled={!customImpressionName.trim()}
-                  className="bg-[#1162a8] hover:bg-[#1162a8]/90"
-                >
-                  Add
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowCustomInput(false)
-                    setCustomImpressionName("")
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
+            {onAddCustom && (
               <button
                 type="button"
-                onClick={() => setShowCustomInput(true)}
+                onClick={onAddCustom}
                 className="flex items-center gap-2 text-[#1162a8] col-span-2 sm:col-span-4 mt-2 px-2 py-1 rounded hover:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/10 transition-colors"
               >
                 <Plus className="h-4 w-4" />
