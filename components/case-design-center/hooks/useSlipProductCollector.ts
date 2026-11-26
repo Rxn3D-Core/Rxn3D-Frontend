@@ -429,6 +429,7 @@ export function useSlipProductCollector({
           if (step === "teeth_shade") return productFlags?.has_teeth_shade === "Yes";
           if (step === "gum_shade") return productFlags?.has_gum_shade === "Yes";
           if (step === "addons") return productFlags?.has_addon === "Yes";
+          if (step === "material") return productFlags?.has_material === "Yes";
           return false;
         };
         for (const step of allSteps) {

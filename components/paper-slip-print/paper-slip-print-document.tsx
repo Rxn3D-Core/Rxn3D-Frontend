@@ -23,6 +23,7 @@ import { SlashedZeroText } from "@/components/paper-slip-print/slashed-zero-text
 const DETAIL_ROW_ORDER = [
   "Restoration",
   "Product",
+  "Material",
   "Grade",
   "Stage",
   "Teeth shade",

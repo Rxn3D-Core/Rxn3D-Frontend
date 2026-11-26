@@ -87,6 +87,7 @@ import {
   areArchFixedAddedProductsReadyForSubmit,
   areArchRemovableProductsReadyForSubmit,
 } from "../utils/slipProductReadiness";
+import { isArchMaterialMissing } from "../utils/materialHelpers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAddStageStagePrompt } from "@/components/add-new-stage/useAddStageStagePrompt";
 
@@ -1731,7 +1732,31 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     getToothProductCard: state.getToothProductCard,
   });
 
+  const isMaterialMissingOnArch = (arch: Arch) => {
+    const upper = arch === "maxillary";
+    const sentinel = upper ? MAXILLARY_SENTINEL : MANDIBULAR_SENTINEL;
+    return isArchMaterialMissing({
+      arch,
+      allArchTeeth: upper ? MAXILLARY_ALL_TEETH_CDC : MANDIBULAR_ALL_TEETH_CDC,
+      activeTeeth: [
+        ...Object.keys(
+          (upper ? state.maxillaryRetentionTypes : state.mandibularRetentionTypes) ?? {}
+        ).map(Number),
+        ...((upper ? state.maxillaryTeeth : state.mandibularTeeth) ?? []),
+      ],
+      addedProducts: props.addedProducts ?? [],
+      card0Product:
+        props.initialArch === arch || props.initialArch === "both"
+          ? state.getToothProduct(arch, sentinel)
+          : null,
+      getToothProduct: state.getToothProduct,
+      getToothProductCard: state.getToothProductCard,
+      getFieldValue: state.getFieldValue,
+    });
+  };
+
   const maxillarySideReady =
+    !isMaterialMissingOnArch("maxillary") &&
     hasMaxillaryProducts &&
     allMaxillaryAccordionsComplete &&
     !maxillaryIncomplete &&
@@ -1740,6 +1765,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     maxillaryFixedAddedReady;
 
   const mandibularSideReady =
+    !isMaterialMissingOnArch("mandibular") &&
     hasMandibularProducts &&
     allMandibularAccordionsComplete &&
     !mandibularIncomplete &&

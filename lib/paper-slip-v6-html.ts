@@ -125,6 +125,7 @@ function implantLabel(
 
 function detailRows(maxillary: ProductVM[], mandibular: ProductVM[]): Array<{ label: string; left: string; right: string; shade?: boolean }> {
   const rows = [
+    { label: "Material", left: uniqJoin(maxillary.map((p) => p.material ?? "")), right: uniqJoin(mandibular.map((p) => p.material ?? "")) },
     { label: "Grade", left: uniqJoin(maxillary.map((p) => p.grade)), right: uniqJoin(mandibular.map((p) => p.grade)) },
     { label: "Stage", left: uniqJoin(maxillary.map((p) => p.stage)), right: uniqJoin(mandibular.map((p) => p.stage)) },
     { label: "Teeth Shade", left: uniqJoin(maxillary.map((p) => p.teethShade)), right: uniqJoin(mandibular.map((p) => p.teethShade)), shade: true },
