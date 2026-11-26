@@ -1,3 +1,5 @@
+import { normalizeTimeZone, parseApiInstant } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { apiClient, buildApiUrl } from "@/lib/api/client"
 import { parseStageFromSlipProductNotes } from "../parse-slip-product-notes"
 
@@ -312,10 +314,12 @@ export function slipNoteAuthorName(note: SlipNoteDetail): string {
   return note.created_by?.name ?? note.added_by?.name ?? "Unknown"
 }
 
-export function formatSlipNoteTimestamp(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
+/** RXN-123: on the viewer's clock (`timeZone`, default the selected profile's), not the device's. */
+export function formatSlipNoteTimestamp(iso: string, timeZone: string = readViewerTimeZone()): string {
+  const d = parseApiInstant(iso)
+  if (!d) return iso
   return d.toLocaleString(undefined, {
+    timeZone: normalizeTimeZone(timeZone),
     month: "2-digit",
     day: "2-digit",
     year: "2-digit",

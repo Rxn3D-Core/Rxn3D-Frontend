@@ -4,6 +4,8 @@ import {
   formatSlipListingDueDateCompact,
   type SlipListingDueDateTone,
 } from "@/lib/slip-listing-due-date"
+import { zonedNow } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 
 const TONE_TEXT_CLASSES: Record<SlipListingDueDateTone, string> = {
   overdue: "text-red-600",
@@ -20,10 +22,12 @@ type SlipListingDueDateLabelProps = {
 }
 
 export function SlipListingDueDateLabel({ dueDate, variant = "full", className }: SlipListingDueDateLabelProps) {
+  // RXN-123: "today" is the viewer's (selected profile) day, not the device's.
+  const now = zonedNow(readViewerTimeZone())
   const { label, tone } =
     variant === "compact"
-      ? formatSlipListingDueDateCompact(dueDate)
-      : formatSlipListingDueDate(dueDate)
+      ? formatSlipListingDueDateCompact(dueDate, now)
+      : formatSlipListingDueDate(dueDate, now)
 
   return (
     <span className={cn("text-base font-normal whitespace-nowrap", TONE_TEXT_CLASSES[tone], className)}>

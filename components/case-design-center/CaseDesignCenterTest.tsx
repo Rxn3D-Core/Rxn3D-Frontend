@@ -101,6 +101,8 @@ export default function Page() {
   const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
   const [rushCasesEnabled, setRushCasesEnabled] = useState(true);
   const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null);
+  // RXN-123: the lab's zone from business settings (B1); the delivery-date zone (B2) wins.
+  const [settingsLabTimeZone, setSettingsLabTimeZone] = useState<string | null>(null);
   const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null);
 
   const productIdsForDueDate = [
@@ -111,6 +113,7 @@ export default function Page() {
     displayDate: headerDueDate,
     isLoading: headerDueDateLoading,
     effectivePickupCutoffTime,
+    labTimeZone: estimateLabTimeZone,
   } = useCaseEstimatedDueDate(
     productIdsForDueDate,
     // Office: the wizard lab; lab profile: its own customer id (completedLab is the office there).
@@ -167,11 +170,13 @@ export default function Page() {
         setRushCaseSchedule(schedule);
         setLabBusinessHours(settings?.business_hours ?? null);
         setRushCasesEnabled(schedule?.enable_rush_cases ?? true);
+        setSettingsLabTimeZone(settings?.timezone ?? null);
       })
       .catch(() => {
         setRushCasesEnabled(true);
         setRushCaseSchedule(null);
         setLabBusinessHours(null);
+        setSettingsLabTimeZone(null);
       });
   }, [completedLab?.id]);
 
@@ -226,6 +231,7 @@ export default function Page() {
                   ? null
                   : effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time
               }
+              labTimeZone={estimateLabTimeZone ?? settingsLabTimeZone}
             />
             <CaseDesignCenter
               // Remount with fresh product configuration when the user goes back and

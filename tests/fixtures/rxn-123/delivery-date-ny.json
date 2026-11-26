@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "message": "Delivery date calculated successfully",
+  "data": {
+    "pickup_date": "2026-11-27",
+    "pickup_time": "15:00:00",
+    "delivery_date": "2026-12-02",
+    "delivery_time": "16:00:00",
+    "effective_pickup_cutoff_time": "15:00:00",
+    "timezone": "America/New_York",
+    "pickup_at": "2026-11-27T15:00:00-05:00",
+    "delivery_at": "2026-12-02T16:00:00-05:00"
+  }
+}

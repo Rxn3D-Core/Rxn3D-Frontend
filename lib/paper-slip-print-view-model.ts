@@ -1,5 +1,6 @@
 import { resolveLatestSlipNoteText } from "@/lib/paper-slip-notes-display";
 import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
+import { clockZoneAbbreviation, slipLabTimeZone } from "@/lib/timezone/index";
 import { buildOpposingArchVM } from "./virtual-slip-extraction-display.ts";
 import { resolveSlipDeliveryDates } from "./virtual-slip-rush-dates.ts";
 import {
@@ -1034,10 +1035,15 @@ export function buildPaperSlipPrintSlipVM(
   const relatedSlips = Array.isArray(caseData?.slips)
     ? caseData.slips.map((slip: any) => firstStr(slip?.slip_number)).filter(Boolean)
     : [];
-  const dueTime = resolveSlipDeliveryTimeDisplay(
+  const dueClock = resolveSlipDeliveryTimeDisplay(
     delivery?.delivery_time,
     options?.defaultDeliveryTime,
   );
+  // RXN-123: printed slips use the lab's clock with its zone, e.g. "4:00 PM EST".
+  const dueZone = dueClock
+    ? clockZoneAbbreviation(delivery?.final_date ?? delivery?.delivery_date, slipLabTimeZone(data))
+    : "";
+  const dueTime = dueClock && dueZone ? `${dueClock} ${dueZone}` : dueClock;
   const dueDate =
     deliveryDates.dueDate && dueTime
       ? `${deliveryDates.dueDate} @ ${dueTime}`

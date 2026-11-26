@@ -1,5 +1,7 @@
 "use client"
 
+import { toZonedWallDate } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { createPortal, flushSync } from "react-dom"
 import dynamic from "next/dynamic"
@@ -162,14 +164,16 @@ function FileCard({
     return () => io.disconnect()
   }, [isStl, livePreview, activateLivePreview])
 
-  const uploadedAt = record.created_at
-    ? new Date(record.created_at).toLocaleDateString("en-US", {
+  // RXN-123: on the viewer's (selected profile) clock, not the device's.
+  const uploadedWall = record.created_at ? toZonedWallDate(record.created_at, readViewerTimeZone()) : null
+  const uploadedAt = uploadedWall
+    ? uploadedWall.toLocaleDateString("en-US", {
         month: "2-digit",
         day: "2-digit",
         year: "numeric",
       }) +
       " @ " +
-      new Date(record.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      uploadedWall.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : ""
 
   return (

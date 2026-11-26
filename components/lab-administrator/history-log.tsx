@@ -1,5 +1,6 @@
 "use client"
 
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { useState } from "react"
 import { useLabAdmin } from "@/contexts/lab-admin-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -353,6 +354,7 @@ export function HistoryLog() {
   // Format date
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat("en-US", {
+      timeZone: readViewerTimeZone(), // RXN-123: the viewer's clock
       year: "numeric",
       month: "short",
       day: "numeric",

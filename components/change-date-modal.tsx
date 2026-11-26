@@ -48,6 +48,8 @@ import {
   getStoredSlipUserRole,
 } from "@/lib/slip-user-role";
 import { cn } from "@/lib/utils";
+import { clockToInstant, toZonedWallDate, zonedNow } from "@/lib/timezone";
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone";
 
 const EMPTY_HISTORY: CustomDeliveryDateEntry[] = [];
 
@@ -66,6 +68,14 @@ function formatTimeDisplay(val: string) {
   const period = h >= 12 ? "PM" : "AM";
   const hour = h % 12 || 12;
   return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
+}
+
+/** A history entry's new due date: `delivery_at` on the viewer's clock (RXN-123), else as the API formats it. */
+function historyDeliveryLabel(item: CustomDeliveryDateEntry, viewerTimeZone: string): string {
+  const zoned = item.delivery_at ? toZonedWallDate(item.delivery_at, viewerTimeZone) : null;
+  if (zoned) return `${format(zoned, "MM/dd/yy")} at ${format(zoned, "h:mm a")}`;
+  const time = item.formatted_delivery_time ?? normalizeDeliveryTimeForInput(item.delivery_time);
+  return `${item.formatted_delivery_date ?? ""}${time ? ` at ${time}` : ""}`;
 }
 
 interface ChangeDateModalProps {
@@ -102,17 +112,19 @@ export default function ChangeDateModal({
 }: ChangeDateModalProps) {
   const { toast } = useToast();
   const wasOpenRef = useRef(false);
+  // RXN-123: the date and time here are on the viewer's clock (callers pass converted values);
+  // they are sent as `delivery_at` with the viewer's offset so the backend stores the lab clock.
+  const viewerTimeZone = useViewerTimeZone();
 
-  // Calculate default date: 2 days from today if no deliveryDate provided
+  // Calculate default date: 2 days from today (viewer's day) if no deliveryDate provided
   const defaultDate = useMemo(() => {
     if (deliveryDate) {
       return deliveryDate;
     }
-    const today = new Date();
-    const date = new Date(today);
-    date.setDate(today.getDate() + 2);
-    return date.toISOString().split("T")[0];
-  }, [deliveryDate]);
+    const date = zonedNow(viewerTimeZone);
+    date.setDate(date.getDate() + 2);
+    return format(date, "yyyy-MM-dd");
+  }, [deliveryDate, viewerTimeZone]);
 
   // The slip's saved delivery date (not today); null when absent or unparseable.
   const currentDeliveryDate = useMemo(() => {
@@ -206,6 +218,7 @@ export default function ChangeDateModal({
       const res = await createSlipCustomDeliveryDate(slipId, {
         delivery_date: date,
         delivery_time: time,
+        delivery_at: clockToInstant(date, time, viewerTimeZone),
         notes: reason,
       });
       setReason("");
@@ -492,17 +505,11 @@ export default function ChangeDateModal({
                       className="rounded-lg bg-white px-3 py-2.5 shadow-sm ring-1 ring-gray-100"
                     >
                       <p className="text-xs leading-relaxed text-gray-500">
-                        {new Date(item.created_at).toLocaleDateString()} ·{" "}
+                        {(toZonedWallDate(item.created_at, viewerTimeZone) ?? new Date(item.created_at)).toLocaleDateString()} ·{" "}
                         {item.created_by.name}
                       </p>
                       <p className="mt-0.5 text-xs font-medium text-gray-800">
-                        → {item.formatted_delivery_date}
-                        {(item.formatted_delivery_time ??
-                          normalizeDeliveryTimeForInput(item.delivery_time)) &&
-                          ` at ${
-                            item.formatted_delivery_time ??
-                            normalizeDeliveryTimeForInput(item.delivery_time)
-                          }`}
+                        → {historyDeliveryLabel(item, viewerTimeZone)}
                       </p>
                       {item.notes ? (
                         <p className="mt-1 text-xs leading-relaxed text-gray-600">

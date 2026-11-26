@@ -88,6 +88,8 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
   const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
   const [rushCasesEnabled, setRushCasesEnabled] = useState(true);
   const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null);
+  // RXN-123: the lab's zone from business settings (B1); the delivery-date zone (B2) wins.
+  const [settingsLabTimeZone, setSettingsLabTimeZone] = useState<string | null>(null);
   const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null);
   const [right1Brand, setRight1Brand] = useState("Truabutment");
   const [right1Platform, setRight1Platform] = useState("Truscan");
@@ -141,7 +143,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
       p.productId ?? (typeof p.product?.id === "number" ? p.product.id : null)
     ),
   ];
-  const { effectivePickupCutoffTime } = useCaseEstimatedDueDate(
+  const { effectivePickupCutoffTime, labTimeZone: estimateLabTimeZone } = useCaseEstimatedDueDate(
     productIdsForCutoff,
     labCustomerId
   );
@@ -343,11 +345,13 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
         setRushCaseSchedule(settings?.case_schedule ?? null);
         setLabBusinessHours(settings?.business_hours ?? null);
         setRushCasesEnabled(settings?.case_schedule?.enable_rush_cases ?? true);
+        setSettingsLabTimeZone(settings?.timezone ?? null);
       })
       .catch(() => {
         setRushCasesEnabled(true);
         setRushCaseSchedule(null);
         setLabBusinessHours(null);
+        setSettingsLabTimeZone(null);
       });
   }, [step, labCustomerId]);
 
@@ -535,6 +539,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
               estimatedDueDate={headerDueDate}
               estimatedDueDateLoading={headerDueDateLoading}
               cutoffTime={effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time}
+              labTimeZone={estimateLabTimeZone ?? settingsLabTimeZone}
             />
 
             {initialSlipState && (

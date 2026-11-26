@@ -93,6 +93,8 @@ import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state";
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId";
 import { LabImplantSelectionModal } from "@/components/virtual-slip/LabImplantSelectionModal";
 import { isPlaceholderDeliveryTime } from "@/utils/time-utils";
+import { clockOfInstant, dayOfInstant } from "@/lib/timezone";
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
 
@@ -213,13 +215,25 @@ export default function VirtualSlipV2Page() {
     };
   }, [slipId, slipLocationRefForEligibility]);
 
+  // RXN-123: pickup and due date/time in the header on the viewer's clock (rush dates stay date-only).
+  const viewerTimeZone = useViewerTimeZone();
   const vm = useMemo(
     () =>
       buildVirtualSlipVM(virtualSlipDetails, {
         defaultDeliveryTime: rushCaseSchedule?.default_delivery_time,
+        viewerTimeZone,
       }),
-    [virtualSlipDetails, rushCaseSchedule?.default_delivery_time]
+    [virtualSlipDetails, rushCaseSchedule?.default_delivery_time, viewerTimeZone]
   );
+  // The change-date modal works on the viewer's clock: the standard due date and time from
+  // `delivery.delivery_at` when the backend sends it, else the lab values as before.
+  const changeDateViewerValues = useMemo(() => {
+    const d = (virtualSlipDetails as { delivery?: { delivery_at?: string | null } } | null)?.delivery;
+    const at = d?.delivery_at ?? null;
+    return at
+      ? { date: dayOfInstant(at, viewerTimeZone), time: clockOfInstant(at, viewerTimeZone) }
+      : null;
+  }, [virtualSlipDetails, viewerTimeZone]);
 
   const pendingLabImplants = useMemo(
     () => collectPendingLabRecommendationImplants(vm),
@@ -1134,7 +1148,7 @@ export default function VirtualSlipV2Page() {
           patientName={vm.header.patientName}
           doctorName={vm.header.doctorName}
           stageLabel={stageSeeds[0]?.label}
-          deliveryDateDisplay={slipDeliveryDates.dueDate}
+          deliveryDateDisplay={vm.header.dueDate || slipDeliveryDates.dueDate}
           deliveryTimeDisplay={vm.header.deliveryTime}
           notesRefreshKey={notesRefreshKey}
           stageSeeds={stageSeeds}
@@ -1292,10 +1306,11 @@ export default function VirtualSlipV2Page() {
         onClose={() => setChangeDateOpen(false)}
         patient={vm.header.patientName}
         stage={primaryRushSlot?.stageName ?? stageSeeds[0]?.label ?? "Unknown Stage"}
-        currentDate={slipDeliveryDates.dueDate}
-        deliveryDate={slipDeliveryDates.standardDateIso}
+        currentDate={vm.header.dueDate || slipDeliveryDates.dueDate}
+        deliveryDate={changeDateViewerValues?.date ?? slipDeliveryDates.standardDateIso}
         deliveryTime={vm.header.deliveryTime}
         deliveryTimeRaw={
+          changeDateViewerValues?.time ??
           (() => {
             if (!virtualSlipDetails || typeof virtualSlipDetails !== "object") return undefined;
             const d = (virtualSlipDetails as Record<string, unknown>).delivery as Record<string, unknown> | undefined;

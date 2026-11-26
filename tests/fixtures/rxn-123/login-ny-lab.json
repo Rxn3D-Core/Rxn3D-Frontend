@@ -1,0 +1,44 @@
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "access_token": "fixture-access-token",
+    "token_type": "bearer",
+    "expires_in": 3600,
+    "permissions": [],
+    "user": {
+      "id": 501,
+      "uuid": "00000000-0000-0000-0000-000000000501",
+      "first_name": "Nora",
+      "last_name": "Fixture",
+      "email": "ny-lab-admin@example.test",
+      "status": "Active",
+      "role": "lab_admin",
+      "roles": [
+        "lab_admin"
+      ],
+      "customer_id": 42,
+      "beta_features": [
+        "customer_timezone"
+      ],
+      "customers": [
+        {
+          "id": 42,
+          "name": "Empire Dental Lab",
+          "type": "lab",
+          "role": "lab_admin",
+          "is_primary": true,
+          "timezone": "America/New_York"
+        },
+        {
+          "id": 43,
+          "name": "Empire Dental Lab West",
+          "type": "lab",
+          "role": "lab_admin",
+          "is_primary": false,
+          "timezone": "America/Los_Angeles"
+        }
+      ]
+    }
+  }
+}

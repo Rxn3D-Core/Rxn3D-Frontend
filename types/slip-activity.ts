@@ -93,6 +93,8 @@ export interface SlipActivityFilters extends SlipActivitySort {
   search: string
   page: number
   perPage: number
+  /** Lab's IANA zone for the day boundaries (RXN-123); missing means America/Los_Angeles. Not sent to the API. */
+  timeZone?: string
 }
 
 export type SlipActivityExportFormat = "csv" | "xlsx"

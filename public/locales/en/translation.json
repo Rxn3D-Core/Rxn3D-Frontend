@@ -1155,5 +1155,15 @@
       "body": "The staged changes for {{name}} will be deleted. The live plan and its labs are not affected.",
       "confirm": "Discard changes"
     }
+  },
+  "timezone": {
+    "label": "Time zone",
+    "comingSoon": "Timezone selection is coming soon",
+    "savedTitle": "Time zone updated",
+    "saveFailed": "Could not update the time zone",
+    "search": "Search time zones",
+    "noResults": "No time zone found.",
+    "common": "Common time zones",
+    "all": "All time zones"
   }
 }

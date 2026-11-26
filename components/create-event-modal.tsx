@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { CalendarEvent } from "@/lib/types"
 import { useHolidays } from "@/contexts/holidays-context"
 import { labTimezoneLabel } from "@/lib/lab-timezone"
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone"
 import { cn } from "@/lib/utils"
 
 interface CreateEventModalProps {
@@ -21,6 +22,7 @@ interface CreateEventModalProps {
 }
 
 export function CreateEventModal({ open, onOpenChange, selectedDate, onCreateEvent }: CreateEventModalProps) {
+  const labTimeZone = useViewerTimeZone()
   const [formData, setFormData] = useState({
     title: "",
     type: "Holiday" as CalendarEvent["type"],
@@ -78,7 +80,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, onCreateEve
       user: formData.user,
       location: formData.location,
       description: formData.description,
-      timezone: labTimezoneLabel(selectedDate ?? new Date()),
+      timezone: labTimezoneLabel(selectedDate ?? new Date(), labTimeZone),
       is_recurring: formData.is_recurring,
     }
 
@@ -139,7 +141,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, onCreateEve
   }
 
   const eventTypes: CalendarEvent["type"][] = ["Holiday", "Birthday", "Appointment"]
-  const timezoneLabel = labTimezoneLabel(selectedDate ?? new Date())
+  const timezoneLabel = labTimezoneLabel(selectedDate ?? new Date(), labTimeZone)
   // Borderless field used inside the grouped rows.
   const rowField =
     "h-9 flex-1 rounded-none border-0 bg-transparent px-0 py-0 !shadow-none !ring-0"

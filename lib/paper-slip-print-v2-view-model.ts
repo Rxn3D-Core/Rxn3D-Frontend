@@ -1,5 +1,6 @@
 import { buildVirtualSlipVM, type VirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { resolveLatestSlipNoteText } from "@/lib/paper-slip-notes-display";
+import { clockZoneAbbreviation, slipLabTimeZone } from "@/lib/timezone/index";
 
 /**
  * Paper Slip v2 view model.
@@ -89,12 +90,21 @@ export function buildPaperSlipPrintV2SlipVM(
     defaultDeliveryTime: options?.defaultDeliveryTime,
   });
   const latestSlipNote = resolveLatestSlipNoteText(details?.notes);
+  // RXN-123: printed slips use the lab's clock with its zone, e.g. "4:00 PM EST" (print only;
+  // the virtual slip screen is unchanged here).
+  const deliveryTime = vm.header.deliveryTime
+    ? `${vm.header.deliveryTime} ${clockZoneAbbreviation(
+        details?.delivery?.final_date ?? details?.delivery?.delivery_date,
+        slipLabTimeZone(details),
+      )}`.trim()
+    : vm.header.deliveryTime;
 
   return {
     slipId: extras.slipId,
     extras,
     vm: {
       ...vm,
+      header: { ...vm.header, deliveryTime },
       notes: latestSlipNote || vm.notes,
     },
   };

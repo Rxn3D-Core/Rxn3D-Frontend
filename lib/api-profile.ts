@@ -6,8 +6,8 @@ import {
   DEFAULT_OPEN_TIME_12,
   DEFAULT_PICKUP_TIME_12,
   parseBusinessHourTime,
-  resolveDisplayTimezone,
 } from "@/utils/time-utils"
+import { normalizeTimeZone } from "@/lib/timezone"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -78,7 +78,7 @@ function mapHoursData(data: any) {
       startTime: parseBusinessHourTime(hour?.open_time, hour?.is_open ? DEFAULT_OPEN_TIME_12 : ""),
       endTime: parseBusinessHourTime(hour?.close_time, hour?.is_open ? DEFAULT_CLOSE_TIME_12 : ""),
     })),
-    timezone: resolveDisplayTimezone(data?.state?.name),
+    timezone: normalizeTimeZone(data?.timezone),
     holidays: "All Federal Holidays",
   }
 }

@@ -1,6 +1,7 @@
 import { getDoctorDegree, withDegree } from "@/lib/doctor-degree";
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
 import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
+import { normalizeTimeZone, slipLabTimeZone, toZonedWallDate, zoneAbbreviation } from "@/lib/timezone/index";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
 import { resolveArchProductImage } from "@/components/case-design-center/utils/variationHelpers";
 import {
@@ -445,7 +446,56 @@ export function isoDateFromApiTimestamp(iso: string | null | undefined): string 
 export type VirtualSlipVMOptions = {
   /** Lab `case_schedule.default_delivery_time` from GET /business-settings. */
   defaultDeliveryTime?: string | null;
+  /**
+   * RXN-123: the viewer's zone. When set and the slip has `delivery.final_at` / `delivery_at` /
+   * `pickup_at`, the header shows them on the viewer's clock (the day may change). Print paths
+   * leave it unset so slips print the lab's values.
+   */
+  viewerTimeZone?: string | null;
 };
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** "MM/DD/YY" and "h:mm AM" of an instant on the viewer's clock; null when absent or invalid. */
+function viewerDayAndTime(iso: unknown, tz: string): { day: string; time: string; at: Date } | null {
+  if (typeof iso !== "string" || !iso) return null;
+  const zoned = toZonedWallDate(iso, tz);
+  if (!zoned) return null;
+  const hours = zoned.getHours();
+  const time = `${hours % 12 || 12}:${pad2(zoned.getMinutes())} ${hours >= 12 ? "PM" : "AM"}`;
+  const day = `${pad2(zoned.getMonth() + 1)}/${pad2(zoned.getDate())}/${String(zoned.getFullYear()).slice(-2)}`;
+  return { day, time, at: new Date(iso) };
+}
+
+/**
+ * Header pickup/due values on the viewer's clock (RXN-123 S4). Returns the header unchanged
+ * without a viewer zone or without instants (older backend, date-only due dates). The zone
+ * abbreviation is added only when the viewer's zone differs from the lab's.
+ */
+export function applyViewerZoneToHeader(
+  header: VirtualSlipHeaderVM,
+  record: any,
+  viewerTimeZone: string | null | undefined,
+): VirtualSlipHeaderVM {
+  if (!viewerTimeZone) return header;
+  const viewer = normalizeTimeZone(viewerTimeZone);
+  const lab = slipLabTimeZone(record);
+  const delivery = record?.delivery ?? {};
+  // `final_at` (contract §4) is the due date shown; when the backend sends it as null the final
+  // date is date-only (e.g. a rush date) and stays as it is.
+  const dueIso = "final_at" in delivery ? delivery.final_at : (delivery.delivery_at ?? record?.delivery_at);
+  const due = viewerDayAndTime(dueIso, viewer);
+  const pickup = viewerDayAndTime(delivery.pickup_at ?? record?.pickup_at, viewer);
+  if (!due && !pickup) return header;
+  const suffix = (at: Date) => (viewer === lab ? "" : ` ${zoneAbbreviation(viewer, at)}`);
+  return {
+    ...header,
+    ...(due ? { dueDate: due.day, deliveryTime: `${due.time}${suffix(due.at)}` } : {}),
+    ...(pickup ? { pickupDate: pickup.day } : {}),
+  };
+}
 
 /** Format an impressions array into "1x Clean impression, 1x STL". */
 function formatImpressions(impressions: unknown): string {
@@ -1108,7 +1158,7 @@ export function buildVirtualSlipVM(d: any, options?: VirtualSlipVMOptions): Virt
   };
 
   return {
-    header,
+    header: applyViewerZoneToHeader(header, safe, options?.viewerTimeZone),
     arches,
     productArchVisibility: getProductArchVisibilityFromArches(arches),
     notes,

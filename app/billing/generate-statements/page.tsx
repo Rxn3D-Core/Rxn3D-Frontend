@@ -41,6 +41,8 @@ import {
 import { useEnrichedStatementParties } from "@/hooks/use-enriched-statement-parties"
 import { useConnectedOffices } from "@/hooks/use-connected-offices"
 import { parseSlipListingDueDate } from "@/lib/slip-listing-due-date"
+import { dateOnlyDay, dayOfInstant, formatUsDay, zonedNow } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { buildStatementPreviewRoute } from "./preview-route.mjs"
 
 function formatMoney(value: number | string | null | undefined): string {
@@ -54,15 +56,15 @@ function formatMoney(value: number | string | null | undefined): string {
   }).format(amount)
 }
 
+/** RXN-123: an instant (`created_at`, `date_sent`) on the viewer's (selected profile) calendar. */
 function formatShortDate(value: string | null | undefined): string {
   if (!value) return "—"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  })
+  return formatUsDay(dayOfInstant(value, readViewerTimeZone()), true) || "—"
+}
+
+/** RXN-123: a date-only value (`due_date`) as stored, never shifted by a zone. */
+function formatShortDay(value: string | null | undefined): string {
+  return formatUsDay(dateOnlyDay(value), true) || "—"
 }
 
 /**
@@ -73,7 +75,7 @@ function formatShortDate(value: string | null | undefined): string {
 function isStatementDueDateOverdue(
   dueDate: string | null | undefined,
   paymentStatus: string | null | undefined,
-  now: Date = new Date(),
+  now: Date = zonedNow(readViewerTimeZone()),
 ): boolean {
   if ((paymentStatus ?? "").toLowerCase() === "paid") return false
   const due = dueDate ? parseSlipListingDueDate(dueDate) : null
@@ -1106,7 +1108,7 @@ export default function GenerateStatementsPage() {
                     <div className="mt-3 space-y-1 text-[18px] text-slate-900 sm:text-[20px]">
                       <p><span className="font-bold">NO:</span> {effectivePreviewStatement?.statement_id || `Statement #${effectivePreviewStatement?.id ?? ""}`}</p>
                       <p><span className="font-bold">Date:</span> {formatShortDate(effectivePreviewStatement?.created_at)}</p>
-                      <p><span className="font-bold">Due date:</span> {formatShortDate(effectivePreviewStatement?.due_date)}</p>
+                      <p><span className="font-bold">Due date:</span> {formatShortDay(effectivePreviewStatement?.due_date)}</p>
                     </div>
                   )}
                 </div>
@@ -1354,7 +1356,7 @@ export default function GenerateStatementsPage() {
           <div className="space-y-4">
             <p className="text-sm text-gray-500">
               {dueDateStatement
-                ? `${dueDateStatement.statement_id || `ST-${dueDateStatement.id}`} · currently ${formatShortDate(dueDateStatement.due_date)}`
+                ? `${dueDateStatement.statement_id || `ST-${dueDateStatement.id}`} · currently ${formatShortDay(dueDateStatement.due_date)}`
                 : ""}
             </p>
             <div className="space-y-1.5">
@@ -1496,7 +1498,7 @@ export default function GenerateStatementsPage() {
                             dueDateOverdue ? "text-red-600 font-medium" : undefined
                           }
                         >
-                          {formatShortDate(statement.due_date)}
+                          {formatShortDay(statement.due_date)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">

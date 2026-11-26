@@ -29,6 +29,8 @@ interface SlipActivityTableProps {
   onSortChange: (column: SlipActivitySortColumn) => void
   /** Applied search, shown in the empty state. */
   search?: string
+  /** Lab's IANA zone for times (RXN-123); missing means America/Los_Angeles. */
+  timeZone?: string
 }
 
 export function SlipActivityTable({
@@ -41,6 +43,7 @@ export function SlipActivityTable({
   sort,
   onSortChange,
   search = "",
+  timeZone,
 }: SlipActivityTableProps) {
   const { t, i18n } = useTranslation()
   const rows = events.map(toSlipActivityRow)
@@ -124,8 +127,8 @@ export function SlipActivityTable({
               return (
                 <TableRow key={row.id} data-testid="slip-activity-row">
                   <TableCell className="whitespace-nowrap">
-                    <InstantTip label={formatSlipActivityDateTime(row.actionAt, i18n.language)}>
-                      <time dateTime={row.actionAt}>{formatSlipActivityCompactDateTime(row.actionAt)}</time>
+                    <InstantTip label={formatSlipActivityDateTime(row.actionAt, i18n.language, timeZone)}>
+                      <time dateTime={row.actionAt}>{formatSlipActivityCompactDateTime(row.actionAt, timeZone)}</time>
                     </InstantTip>
                   </TableCell>
                   <TableCell className="whitespace-nowrap" data-testid="slip-activity-office">
@@ -178,8 +181,8 @@ export function SlipActivityTable({
                   </TableCell>
                   <TableCell className="whitespace-nowrap" data-testid="slip-activity-slip-created">
                     {row.slipCreatedAt ? (
-                      <InstantTip label={formatSlipActivityDateTime(row.slipCreatedAt, i18n.language)}>
-                        <time dateTime={row.slipCreatedAt}>{formatSlipActivityCompactDateTime(row.slipCreatedAt)}</time>
+                      <InstantTip label={formatSlipActivityDateTime(row.slipCreatedAt, i18n.language, timeZone)}>
+                        <time dateTime={row.slipCreatedAt}>{formatSlipActivityCompactDateTime(row.slipCreatedAt, timeZone)}</time>
                       </InstantTip>
                     ) : null}
                   </TableCell>

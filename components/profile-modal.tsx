@@ -5,6 +5,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Building2, Clock, Globe, Mail, MapPin, Phone, UserRound, Users, X } from "lucide-react"
+import { clockZoneAbbreviation, normalizeTimeZone, timeZoneLabel } from "@/lib/timezone"
+import { weeklyHoursRange } from "@/lib/timezone/business-hours"
+import { useViewerTimeZone } from "@/lib/timezone/use-viewer-time-zone"
 
 export interface BusinessHours {
   monday: string
@@ -203,6 +206,12 @@ export function ProfileModal({ isOpen, onClose, data, isLoading }: ProfileModalP
   const hours = [...(data?.hoursData?.workingDays || [])].sort(
     (a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day)
   )
+  // RXN-123: another organisation's hours are shown in the viewer's zone, with its own in a hint.
+  const viewerTimeZone = useViewerTimeZone()
+  const ownerTimeZone = normalizeTimeZone(data?.hoursData?.timezone)
+  const convertHours = ownerTimeZone !== viewerTimeZone
+  const ownerZoneShort = clockZoneAbbreviation(null, ownerTimeZone)
+  const viewerZoneShort = clockZoneAbbreviation(null, viewerTimeZone)
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -312,18 +321,35 @@ export function ProfileModal({ isOpen, onClose, data, isLoading }: ProfileModalP
                   {hours.length > 0 ? (
                     <div className="space-y-2">
                       {hours.map((hour) => (
-                        <div key={hour.day} className="flex items-center justify-between gap-3 text-sm">
+                        <div
+                          key={hour.day}
+                          className="flex items-start justify-between gap-3 text-sm"
+                          data-testid={`profile-hours-${hour.day.toLowerCase()}`}
+                        >
                           <span className="font-medium text-gray-700">{hour.day}</span>
-                          <span className={hour.enabled ? "text-gray-900" : "text-gray-400"}>
-                            {hour.enabled
-                              ? `${prettyTime(hour.startTime)} – ${prettyTime(hour.endTime)}`
-                              : "Closed"}
-                          </span>
+                          {hour.enabled && convertHours ? (
+                            <span className="flex flex-col items-end text-right">
+                              <span className="text-gray-900">
+                                {weeklyHoursRange(hour.day, hour.startTime, hour.endTime, ownerTimeZone, viewerTimeZone)}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {`${prettyTime(hour.startTime)} – ${prettyTime(hour.endTime)} ${ownerZoneShort}`}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className={hour.enabled ? "text-gray-900" : "text-gray-400"}>
+                              {hour.enabled
+                                ? `${prettyTime(hour.startTime)} – ${prettyTime(hour.endTime)}`
+                                : "Closed"}
+                            </span>
+                          )}
                         </div>
                       ))}
                       {data.hoursData?.timezone ? (
-                        <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">
-                          {data.hoursData.timezone}
+                        <p className="text-xs text-gray-400 pt-2 border-t border-gray-100" data-testid="profile-hours-timezone">
+                          {convertHours
+                            ? `Shown in your time zone (${viewerZoneShort}). ${isLab ? "Lab" : "Practice"} time zone: ${timeZoneLabel(ownerTimeZone)}.`
+                            : timeZoneLabel(data.hoursData.timezone)}
                         </p>
                       ) : null}
                     </div>

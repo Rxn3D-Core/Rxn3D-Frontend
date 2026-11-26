@@ -1,5 +1,7 @@
 "use client"
 
+import { zonedNow } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BellIcon, MenuIcon, SearchIcon, LogOut } from "lucide-react"
@@ -11,8 +13,8 @@ import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
 export function DashboardHeader({ toggleSidebar }: { toggleSidebar: () => void }) {
   const { user, logout } = useAuth()
 
-  // Get current date
-  const today = new Date()
+  // Current date on the viewer's (selected profile) clock (RXN-123)
+  const today = zonedNow(readViewerTimeZone())
   const options: Intl.DateTimeFormatOptions = {
     weekday: "long",
     year: "numeric",

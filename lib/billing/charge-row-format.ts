@@ -1,3 +1,6 @@
+import { dateOnlyDay, dayOfInstant, formatUsDay } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
+
 /**
  * Cell formatting shared by the Charge Management slip (stage) invoice list and the RXN-90 product invoice list,
  * so both listings render money, dates, U/L and statuses the same way.
@@ -11,11 +14,18 @@ export function formatChargeMoney(value: number | string | null | undefined): st
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
 }
 
-export function formatShortDate(iso: string | null | undefined): string {
+/**
+ * Short date ("MM/DD/YY") of an instant such as `created_at` or `finalized_at`, on the viewer's
+ * (selected profile) calendar (RXN-123). For date-only fields use `formatShortDay`.
+ */
+export function formatShortDate(iso: string | null | undefined, timeZone: string = readViewerTimeZone()): string {
   if (!iso) return "—"
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" })
+  return formatUsDay(dayOfInstant(iso, timeZone)) || "—"
+}
+
+/** Short date ("MM/DD/YY") of a date-only field such as `due_date`: never shifted by a zone (RXN-123). */
+export function formatShortDay(value: string | null | undefined): string {
+  return formatUsDay(dateOnlyDay(value)) || "—"
 }
 
 /** "Upper" / "Lower" (product type or arch) -> "U" / "L". */

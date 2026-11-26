@@ -1,5 +1,7 @@
 import { endOfDay, format, isValid, parseISO, startOfDay } from "date-fns";
 import type { DateRange } from "react-day-picker";
+import { clockToInstant, toZonedWallDate } from "@/lib/timezone/index";
+import { readViewerTimeZone } from "@/lib/timezone/viewer";
 
 export type BackendActionStatus = "follow_up" | "resolved" | null | undefined;
 
@@ -71,10 +73,17 @@ export function toCallLogActionStatus(actionStatus: BackendActionStatus) {
   };
 }
 
-export function toCallLogCreatePayload(values: CallLogFormValues) {
+/**
+ * The form's date and time are on the viewer's clock (RXN-123), so `call_date_time` is sent as
+ * ISO 8601 with the viewer's offset (`2025-07-18T14:30:00-07:00`). A backend that reads it in
+ * Pacific still stores the right moment for Pacific viewers, the only zone before the beta opens.
+ * An invalid date or time is sent as before, for the backend to reject.
+ */
+export function toCallLogCreatePayload(values: CallLogFormValues, timeZone: string = readViewerTimeZone()) {
   return {
     call_type: values.callType === "Incoming" ? "incoming" : "outgoing",
-    call_date_time: `${values.callDate} ${values.callTime}:00`,
+    call_date_time:
+      clockToInstant(values.callDate, values.callTime, timeZone) ?? `${values.callDate} ${values.callTime}:00`,
     caller_name: values.callerName,
     caller_phone: values.callerPhone,
     call_notes: values.callNotes,
@@ -101,14 +110,18 @@ export function toCallLogAttachmentSummary(
   });
 }
 
-export function formatCallLogTimestamp(timestamp: string) {
-  const parsed = parseISO(timestamp);
+/**
+ * `MM/dd/yy @ h:mm a` on the viewer's clock (RXN-123). `call_date_time` without an offset is the
+ * app's Pacific wall time; `timestamp.iso` (B3) carries its offset.
+ */
+export function formatCallLogTimestamp(timestamp: string, timeZone: string = readViewerTimeZone()) {
+  const zoned = toZonedWallDate(timestamp, timeZone);
 
-  if (!isValid(parsed)) {
+  if (!zoned || !isValid(zoned)) {
     return timestamp;
   }
 
-  return format(parsed, "MM/dd/yy @ h:mm a");
+  return format(zoned, "MM/dd/yy @ h:mm a");
 }
 
 export function formatCallLogDateRangeLabel(range: DateRange | undefined) {
@@ -224,7 +237,8 @@ export function flattenCaseCallLogs(caseData: any): FlattenedCallLogRow[] {
         slipId,
         slipNumber: String(slip?.slip_number ?? ""),
         caseId: Number(caseData?.id ?? 0),
-        timestamp: String(callLog?.call_date_time ?? ""),
+        // RXN-123: prefer the instant with offset (`timestamp.iso`, B3) over the Pacific wall time.
+        timestamp: String(callLog?.timestamp?.iso ?? callLog?.call_date_time ?? ""),
         callType: callLog?.call_type === "incoming" ? "Incoming" : "Outgoing",
         callerName: String(callLog?.caller_name ?? ""),
         callerPhone: String(callLog?.caller_phone ?? ""),

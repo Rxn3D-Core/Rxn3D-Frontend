@@ -1,5 +1,7 @@
 "use client"
 
+import { toZonedWallDate } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Check, Download, Loader2, Pencil, RefreshCw, Trash2, X } from "lucide-react"
@@ -156,7 +158,12 @@ export function ProductInvoiceDetailDialog({ invoiceId, canManage, onClose }: Pr
                     {invoice.finalized_reason && (
                       <span className="text-sm">{t(`productInvoicing.finalizedReason.${invoice.finalized_reason}`, { defaultValue: invoice.finalized_reason })}</span>
                     )}
-                    {invoice.finalized_at && <span className="text-sm">{new Date(invoice.finalized_at).toLocaleDateString()}</span>}
+                    {/* RXN-123: on the viewer's (selected profile) calendar */}
+                    {invoice.finalized_at && (
+                      <span className="text-sm">
+                        {(toZonedWallDate(invoice.finalized_at, readViewerTimeZone()) ?? new Date(invoice.finalized_at)).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
                 ) : (
                   t("productInvoicing.detail.subtitle")

@@ -1,0 +1,116 @@
+{
+  "message": "Customer updated successfully",
+  "data": {
+    "id": 42,
+    "name": "Empire Dental Lab",
+    "type": "lab",
+    "status": "Active",
+    "email": "lab@empire.example.test",
+    "website": null,
+    "address": "1 Fixture Ave",
+    "city": "New York",
+    "postal_code": "10001",
+    "code": "EDL",
+    "unique_code": "EDL-0042",
+    "logo_url": null,
+    "notification_emails": [],
+    "timezone": "America/New_York",
+    "state": {
+      "id": 33,
+      "name": "New York"
+    },
+    "country": {
+      "id": 1,
+      "name": "United States"
+    },
+    "business_settings": {
+      "business_hours": [
+        {
+          "id": 1,
+          "customer_id": 42,
+          "customer_type": "lab",
+          "day": "monday",
+          "is_open": true,
+          "open_time": "08:00",
+          "close_time": "17:00",
+          "created_at": "2026-01-05T15:00:00.000000Z",
+          "updated_at": "2026-01-05T15:00:00.000000Z"
+        },
+        {
+          "id": 2,
+          "customer_id": 42,
+          "customer_type": "lab",
+          "day": "tuesday",
+          "is_open": true,
+          "open_time": "08:00",
+          "close_time": "17:00",
+          "created_at": "2026-01-05T15:00:00.000000Z",
+          "updated_at": "2026-01-05T15:00:00.000000Z"
+        },
+        {
+          "id": 3,
+          "customer_id": 42,
+          "customer_type": "lab",
+          "day": "wednesday",
+          "is_open": true,
+          "open_time": "08:00",
+          "close_time": "17:00",
+          "created_at": "2026-01-05T15:00:00.000000Z",
+          "updated_at": "2026-01-05T15:00:00.000000Z"
+        },
+        {
+          "id": 4,
+          "customer_id": 42,
+          "customer_type": "lab",
+          "day": "thursday",
+          "is_open": true,
+          "open_time": "08:00",
+          "close_time": "17:00",
+          "created_at": "2026-01-05T15:00:00.000000Z",
+          "updated_at": "2026-01-05T15:00:00.000000Z"
+        },
+        {
+          "id": 5,
+          "customer_id": 42,
+          "customer_type": "lab",
+          "day": "friday",
+          "is_open": true,
+          "open_time": "08:00",
+          "close_time": "17:00",
+          "created_at": "2026-01-05T15:00:00.000000Z",
+          "updated_at": "2026-01-05T15:00:00.000000Z"
+        },
+        {
+          "id": 6,
+          "customer_id": 42,
+          "customer_type": "lab",
+          "day": "saturday",
+          "is_open": false,
+          "created_at": "2026-01-05T15:00:00.000000Z",
+          "updated_at": "2026-01-05T15:00:00.000000Z"
+        },
+        {
+          "id": 7,
+          "customer_id": 42,
+          "customer_type": "lab",
+          "day": "sunday",
+          "is_open": false,
+          "created_at": "2026-01-05T15:00:00.000000Z",
+          "updated_at": "2026-01-05T15:00:00.000000Z"
+        }
+      ],
+      "case_schedule": {
+        "id": 9,
+        "customer_id": 42,
+        "default_pickup_time": "15:00:00",
+        "default_rush_pickup_time": "10:00:00",
+        "default_delivery_time": "16:00:00",
+        "enable_rush_cases": true,
+        "created_at": "2026-01-05T15:00:00.000000Z",
+        "updated_at": "2026-01-05T15:00:00.000000Z"
+      }
+    },
+    "created_at": "2026-01-05T15:00:00.000000Z",
+    "updated_at": "2026-11-25T18:00:00.000000Z"
+  }
+}

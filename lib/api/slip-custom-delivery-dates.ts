@@ -28,12 +28,20 @@ export type CustomDeliveryDateEntry = {
   is_upcoming?: boolean;
   is_past?: boolean;
   is_today?: boolean;
+  /** RXN-123 (B3): the delivery date and time as an instant with the lab's offset. */
+  delivery_at?: string | null;
   created_by: CustomDeliveryDateCreatedBy;
 };
 
 export type CreateCustomDeliveryDatePayload = {
   delivery_date: string;
   delivery_time: string;
+  /**
+   * RXN-123 (contract §5): the chosen date and time as ISO 8601 with the viewer's offset. The
+   * backend converts it to the lab's clock and it wins over `delivery_date`/`delivery_time`,
+   * which older backends still read.
+   */
+  delivery_at?: string | null;
   notes?: string;
 };
 
@@ -154,6 +162,7 @@ export async function createSlipCustomDeliveryDate(
       body: JSON.stringify({
         delivery_date: payload.delivery_date,
         delivery_time: payload.delivery_time,
+        ...(payload.delivery_at ? { delivery_at: payload.delivery_at } : {}),
         notes: payload.notes ?? "",
       }),
     }

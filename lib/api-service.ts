@@ -77,7 +77,11 @@ export class ApiService {
       // Handle other error statuses
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+        // Status and body are attached so callers can read field errors (e.g. 422 `data.<field>`).
+        throw Object.assign(new Error(errorData.message || `HTTP error! status: ${response.status}`), {
+          status: response.status,
+          body: errorData,
+        })
       }
       
       return await response.json()
@@ -216,6 +220,10 @@ export const ProductApi = {
         delivery_date: string
         delivery_time: string
         effective_pickup_cutoff_time?: string | null
+        /** RXN-123 (B2): the lab's zone and the lab clock values as instants with offset. */
+        timezone?: string | null
+        pickup_at?: string | null
+        delivery_at?: string | null
       }
     }>(`/slip/lab/${labId}/delivery-date?${params.toString()}`)
     return response.data

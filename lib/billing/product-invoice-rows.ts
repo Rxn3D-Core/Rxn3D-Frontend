@@ -14,9 +14,12 @@ import type {
 import {
   formatChargeMoney,
   formatShortDate,
+  formatShortDay,
   mapInvoiceStatusToLabel,
   mapProductType,
 } from "@/lib/billing/charge-row-format"
+import { zonedNow } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 
 export type ProductChargeRow = {
   id: string
@@ -152,7 +155,8 @@ export function productInvoiceToRows(item: ProductInvoiceListItem): ProductCharg
     patient: item.patient_name?.trim() || "—",
     ul: mapProductType(item.arch),
     stage: "All stages",
-    dueDate: formatShortDate(item.due_date ?? item.finalized_at ?? item.created_at),
+    // RXN-123: `due_date` is date-only (never shifted); the fallbacks are instants on the viewer's calendar.
+    dueDate: item.due_date ? formatShortDay(item.due_date) : formatShortDate(item.finalized_at ?? item.created_at),
     status,
     rawStatus: String(item.status ?? ""),
     onStatement: !!item.on_statement,
@@ -209,9 +213,10 @@ export function productInvoiceToRows(item: ProductInvoiceListItem): ProductCharg
 /** Date presets for the product list (`date_from` / `date_to` on `finalized_at`), as YYYY-MM-DD. */
 export type ProductInvoiceDatePreset = "all" | "today" | "this_week" | "this_month" | "last_month" | "this_year"
 
+/** "Today" and the other presets are on the viewer's (selected profile) calendar (RXN-123). */
 export function productInvoiceDateRange(
   preset: ProductInvoiceDatePreset,
-  now: Date = new Date(),
+  now: Date = zonedNow(readViewerTimeZone()),
 ): { date_from?: string; date_to?: string } {
   const ymd = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`

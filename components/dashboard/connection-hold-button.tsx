@@ -1,5 +1,7 @@
 "use client"
 
+import { parseApiInstant } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 import { useState, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { CirclePause, CirclePlay, Send } from "lucide-react"
@@ -23,9 +25,11 @@ const PARTNER_KEYS: Record<HoldPartnerLabel, string> = {
 
 function formatHoldDate(value: string | null, language: string, withTime = false): string {
   if (!value) return ""
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ""
+  const date = parseApiInstant(value)
+  if (!date) return ""
+  // RXN-123: on the viewer's (selected profile) clock, not the device's.
   return new Intl.DateTimeFormat(language || undefined, {
+    timeZone: readViewerTimeZone(),
     month: "short",
     day: "numeric",
     ...(withTime ? { hour: "numeric", minute: "2-digit" } : {}),

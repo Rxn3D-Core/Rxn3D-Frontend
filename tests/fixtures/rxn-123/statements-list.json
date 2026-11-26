@@ -1,0 +1,28 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": 9,
+      "statement_id": "ST-9",
+      "lab_id": 42,
+      "office_id": 77,
+      "lab_name": "Empire Dental Lab",
+      "office_name": "Vegas Smiles Office",
+      "created_at": "2026-11-26T03:00:00.000000Z",
+      "date_sent": "2026-11-26T03:00:00.000000Z",
+      "due_date": "2026-12-26T00:00:00.000000Z",
+      "status": "sent",
+      "payment_status": "unpaid",
+      "total_amount": "925.00",
+      "subtotal": "925.00",
+      "balance_due": "925.00",
+      "recipient_email": "office@example.test"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 1
+  }
+}

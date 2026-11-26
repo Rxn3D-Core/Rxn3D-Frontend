@@ -1,0 +1,34 @@
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "access_token": "fixture-access-token",
+    "token_type": "bearer",
+    "expires_in": 3600,
+    "permissions": [],
+    "user": {
+      "id": 502,
+      "uuid": "00000000-0000-0000-0000-000000000502",
+      "first_name": "Victor",
+      "last_name": "Fixture",
+      "email": "lv-office-admin@example.test",
+      "status": "Active",
+      "role": "office_admin",
+      "roles": [
+        "office_admin"
+      ],
+      "customer_id": 77,
+      "beta_features": [],
+      "customers": [
+        {
+          "id": 77,
+          "name": "Vegas Smiles Office",
+          "type": "office",
+          "role": "office_admin",
+          "is_primary": true,
+          "timezone": "America/Los_Angeles"
+        }
+      ]
+    }
+  }
+}

@@ -12,6 +12,8 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { resolveStatementTotals } from "@/lib/statement-edit-utils"
 import { buildStatementPreviewRoute } from "@/app/billing/generate-statements/preview-route.mjs"
+import { dateOnlyDay, dayOfInstant, formatUsDay } from "@/lib/timezone/index"
+import { readViewerTimeZone } from "@/lib/timezone/viewer"
 
 function formatMoney(value: number | string | null | undefined): string {
   if (value === null || value === undefined || value === "") return "$0.00"
@@ -24,15 +26,15 @@ function formatMoney(value: number | string | null | undefined): string {
   }).format(amount)
 }
 
+/** RXN-123: an instant (`date_sent`) on the viewer's (selected profile) calendar. */
 function formatShortDate(value: string | null | undefined): string {
   if (!value) return "—"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  })
+  return formatUsDay(dayOfInstant(value, readViewerTimeZone()), true) || "—"
+}
+
+/** RXN-123: a date-only value (`due_date`) as stored, never shifted by a zone. */
+function formatShortDay(value: string | null | undefined): string {
+  return formatUsDay(dateOnlyDay(value), true) || "—"
 }
 
 function toTitleCase(value: string | null | undefined): string {
@@ -370,7 +372,7 @@ export default function OfficeStatementsPage() {
                               : ""
                           }
                         >
-                          {formatShortDate(statement.due_date)}
+                          {formatShortDay(statement.due_date)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">

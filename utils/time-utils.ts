@@ -5,9 +5,6 @@ export const DEFAULT_PICKUP_TIME_12 = "10:30 AM"
 export const DEFAULT_RUSH_PICKUP_TIME_12 = "08:00 AM"
 export const DEFAULT_DELIVERY_TIME_12 = "04:00 PM"
 
-/** Las Vegas and Los Angeles share America/Los_Angeles (Pacific). */
-export const DEFAULT_DISPLAY_TIMEZONE = "Pacific Time (Las Vegas / Los Angeles)"
-
 type ClockParts = { hours: number; minutes: number }
 
 /** Parse ISO (`...T16:00:00Z`), `HH:mm[:ss]`, or `h:mm AM/PM` into 24h clock parts. */
@@ -103,14 +100,6 @@ export function parseBusinessHourTime(raw: string | null | undefined, fallback =
   }
 
   return fallback
-}
-
-/** Profile used to show state name as timezone; fall back to Pacific when unset or not a timezone. */
-export function resolveDisplayTimezone(value?: string | null): string {
-  const v = (value || "").trim()
-  if (!v || /^unknown/i.test(v)) return DEFAULT_DISPLAY_TIMEZONE
-  if (v.includes("/") || /GMT|UTC|Pacific|Eastern|Central|Mountain|Time/i.test(v)) return v
-  return DEFAULT_DISPLAY_TIMEZONE
 }
 
 export function convertTo12Hour(time24: string): string {
