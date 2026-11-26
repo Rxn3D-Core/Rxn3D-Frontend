@@ -293,6 +293,13 @@ export function timeZoneCity(tz?: string | null): string {
   return zone.split("/").pop()!.replace(/_/g, " ")
 }
 
+/** The zone's offset from UTC at that moment, for example `UTC−08:00` or `UTC+05:30`. */
+export function timeZoneOffsetLabel(tz?: string | null, now: Date = new Date()): string {
+  const minutes = offsetMinutesAt(now.getTime(), normalizeTimeZone(tz))
+  const abs = Math.abs(minutes)
+  return `UTC${minutes < 0 ? "−" : "+"}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
+}
+
 export type TimeZoneChoice = { value: string; label: string; common: boolean }
 
 /**
@@ -314,11 +321,18 @@ export function timeZoneChoices(current?: string | null): TimeZoneChoice[] {
 }
 
 /** Case-insensitive match on the label or the IANA name, ignoring `_`, `/` and spaces differences. */
-export function matchesTimeZoneSearch(choice: { value: string; label: string }, query: string): boolean {
-  const norm = (v: string) => v.toLowerCase().replace(/[_/]+/g, " ").replace(/\s+/g, " ").trim()
+export function matchesTimeZoneSearch(
+  choice: { value: string; label: string },
+  query: string,
+  now: Date = new Date(),
+): boolean {
+  // A typed hyphen also matches the minus sign in the offset.
+  const norm = (v: string) => v.toLowerCase().replace(/\u2212/g, "-").replace(/[_/]+/g, " ").replace(/\s+/g, " ").trim()
   const q = norm(query)
   if (!q) return true
-  return norm(choice.label).includes(q) || norm(choice.value).includes(q)
+  if (norm(choice.label).includes(q) || norm(choice.value).includes(q)) return true
+  // Only an offset-like query (a sign, or "utc") searches offsets, so "10" does not match "UTC+10:00".
+  return /^(utc|[+-])/.test(q) && norm(timeZoneOffsetLabel(choice.value, now)).includes(q.replace(/\s+/g, ""))
 }
 
 /**
