@@ -1,21 +1,22 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { useLanguage } from "@/contexts/language-context"
-import { useImportCatalog, useStartImport } from "@/hooks/use-lab-product-import"
-import { readImportError, setSelected, type ReimportProduct } from "@/lib/lab-product-import"
-import type { ImportCatalogFilters, LabProductImport } from "@/types/lab-product-import"
+import { IMPORT_QUERY_KEY, useImportCatalog } from "@/hooks/use-lab-product-import"
+import { readImportError, runImportInBatches, setSelected, type ReimportProduct } from "@/lib/lab-product-import"
+import { labProductImportService } from "@/services/lab-product-import-service"
+import type { ImportCatalogFilters, ImportRun } from "@/types/lab-product-import"
 import { ImportCatalogStep } from "./import-catalog-step"
+import { ImportProductDetailStep } from "./import-product-detail-step"
 import { ImportRunStep } from "./import-run-step"
 
 interface ImportProductsDialogProps {
   customerId: number
-  run: LabProductImport | null
-  onLeaveRun: () => void
+  onImported: () => void
   onClose: () => void
 }
 
@@ -27,7 +28,7 @@ const KNOWN_ERRORS = [
   "forbidden",
 ]
 
-export function ImportProductsDialog({ customerId, run, onLeaveRun, onClose }: ImportProductsDialogProps) {
+export function ImportProductsDialog({ customerId, onImported, onClose }: ImportProductsDialogProps) {
   const { t } = useTranslation()
   const { currentLanguage } = useLanguage()
   const [search, setSearch] = useState("")
@@ -36,6 +37,13 @@ export function ImportProductsDialog({ customerId, run, onLeaveRun, onClose }: I
   const [selected, setSelection] = useState<Set<number>>(new Set())
   const [reimport, setReimport] = useState<ReimportProduct[] | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
+  const [run, setRun] = useState<ImportRun | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [viewing, setViewing] = useState<number | null>(null)
+  const queryClient = useQueryClient()
+  // Closing mid-run would hide which products were imported.
+  const importing = run?.status === "processing"
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -47,47 +55,66 @@ export function ImportProductsDialog({ customerId, run, onLeaveRun, onClose }: I
   useEffect(() => setPage(1), [filters])
 
   const catalog = useImportCatalog(customerId, filters, page, currentLanguage || "en", !run)
-  const start = useStartImport(customerId)
   const needsUpgrade = readImportError(catalog.error).code === "plan_scope_half"
 
-  const submit = (confirmIds: number[]) => {
+  const errorText = (error: unknown) => {
+    const { code } = readImportError(error)
+    return code && KNOWN_ERRORS.includes(code)
+      ? t(`productImport.errors.${code}`)
+      : t("productImport.errors.generic")
+  }
+
+  const startImport = async (confirmIds: number[]) => {
+    setReimport(null)
+    setViewing(null)
+    setRunError(null)
+    const { run: finished, error } = await runImportInBatches({
+      ids: [...selected],
+      confirmIds,
+      send: (ids, confirmed) => labProductImportService.start(customerId, ids, confirmed),
+      onProgress: setRun,
+    })
+    void queryClient.invalidateQueries({ queryKey: [IMPORT_QUERY_KEY] })
+    if (finished.imported_count > 0) onImported()
+    if (!error) {
+      setSelection(new Set())
+      return
+    }
+    const { code, body } = readImportError(error)
+    if (code === "invalid_products") {
+      setSelection((current) => setSelected(current, body?.data?.product_ids ?? [], false))
+    }
+    // Nothing was imported: stay on the list and say why.
+    if (finished.items.length === 0 && code && KNOWN_ERRORS.includes(code)) {
+      setRun(null)
+      setStartError(errorText(error))
+      return
+    }
+    setSelection(new Set())
+    setRunError(errorText(error))
+  }
+
+  /** Asks for confirmation first when any selected product is already in the library. */
+  const submit = async () => {
     setStartError(null)
-    start.mutate(
-      { productIds: [...selected], confirmIds },
-      {
-        onSuccess: () => {
-          setSelection(new Set())
-          setReimport(null)
-        },
-        onError: (error) => {
-          const { code, body } = readImportError(error)
-          // The API names the already imported products; the user confirms and we send again.
-          if (code === "reimport_confirmation_required") {
-            setReimport((current) => [...(current ?? []), ...(body?.data?.products ?? [])])
-            return
-          }
-          setReimport(null)
-          if (code === "invalid_products") {
-            setSelection((current) => setSelected(current, body?.data?.product_ids ?? [], false))
-          }
-          if (code === "invalid_products" || code === "import_in_progress") {
-            void catalog.refetch()
-          }
-          setStartError(
-            code && KNOWN_ERRORS.includes(code)
-              ? t(`productImport.errors.${code}`)
-              : t("productImport.errors.generic"),
-          )
-        },
-      },
-    )
+    setChecking(true)
+    try {
+      const { imported } = await labProductImportService.catalogIds(customerId, { import_state: "imported" })
+      const again = imported.filter((product) => selected.has(product.id))
+      if (again.length > 0) setReimport(again)
+      else void startImport([])
+    } catch (error) {
+      setStartError(errorText(error))
+    } finally {
+      setChecking(false)
+    }
   }
 
   return (
-    <Dialog open onOpenChange={(next) => !next && onClose()}>
+    <Dialog open onOpenChange={(next) => !next && !importing && onClose()}>
       <DialogContent
         className="flex w-[calc(100vw-1rem)] max-w-3xl flex-col gap-0 overflow-hidden rounded-lg p-0 h-[90dvh] max-h-[90dvh]"
-        showCloseButton
+        showCloseButton={!importing}
         data-testid="product-import-dialog"
       >
         <div className="border-b border-gray-200 px-4 sm:px-6 py-4 pr-12">
@@ -100,7 +127,7 @@ export function ImportProductsDialog({ customerId, run, onLeaveRun, onClose }: I
         </div>
 
         {run ? (
-          <ImportRunStep run={run} onImportMore={onLeaveRun} onClose={onClose} />
+          <ImportRunStep run={run} error={runError} onImportMore={() => setRun(null)} onClose={onClose} />
         ) : needsUpgrade ? (
           <div className="flex-1 overflow-auto px-4 sm:px-6 py-8 text-center" data-testid="product-import-upgrade">
             <h3 className="font-medium text-gray-900">{t("productImport.upgradeTitle")}</h3>
@@ -121,20 +148,27 @@ export function ImportProductsDialog({ customerId, run, onLeaveRun, onClose }: I
               </ul>
             </div>
             <div className="flex justify-end gap-2 border-t border-gray-200 px-4 sm:px-6 py-3">
-              <Button variant="outline" onClick={() => setReimport(null)} disabled={start.isPending}>
+              <Button variant="outline" onClick={() => setReimport(null)}>
                 {t("productImport.back")}
               </Button>
               <Button
                 className="bg-[#1162a8] hover:bg-[#0d4d87] text-white"
-                onClick={() => submit(reimport.map((product) => product.id))}
-                disabled={start.isPending}
+                onClick={() => startImport(reimport.map((product) => product.id))}
                 data-testid="product-import-confirm-submit"
               >
-                {start.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 {t("productImport.confirmButton")}
               </Button>
             </div>
           </>
+        ) : viewing !== null ? (
+          <ImportProductDetailStep
+            customerId={customerId}
+            productId={viewing}
+            lang={currentLanguage || "en"}
+            selected={selected.has(viewing)}
+            onToggle={() => setSelection((current) => setSelected(current, [viewing], !current.has(viewing)))}
+            onBack={() => setViewing(null)}
+          />
         ) : (
           <ImportCatalogStep
             customerId={customerId}
@@ -149,8 +183,9 @@ export function ImportProductsDialog({ customerId, run, onLeaveRun, onClose }: I
             selected={selected}
             onSelectionChange={setSelection}
             error={startError}
-            submitting={start.isPending}
-            onSubmit={() => submit([])}
+            submitting={checking}
+            onSubmit={submit}
+            onView={setViewing}
             onClose={onClose}
           />
         )}

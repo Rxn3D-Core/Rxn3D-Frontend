@@ -30,6 +30,43 @@ export interface ImportCatalogPage {
 export interface ImportCatalogIds {
   ids: number[]
   imported_ids: number[]
+  imported: Array<{ id: number; name: string }>
+}
+
+export interface LinkedItem {
+  id: number
+  name: string
+  status: string | null
+  is_default?: string | null
+  is_required?: string | null
+  is_optional?: string | null
+  min_teeth?: number | null
+  max_teeth?: number | null
+  variation?: string | null
+  variations?: string[]
+  brand?: string | null
+  price?: string | number | null
+}
+
+export interface ImportProductDetail extends ImportCatalogProduct {
+  settings: Record<string, string | number | boolean | null>
+  price_tiers: Array<{ min_teeth: number; max_teeth: number | null; total_price: string | number }>
+  grades: LinkedItem[]
+  stages: LinkedItem[]
+  impressions: LinkedItem[]
+  materials: LinkedItem[]
+  retentions: LinkedItem[]
+  retention_options: LinkedItem[]
+  gum_shades: LinkedItem[]
+  teeth_shades: LinkedItem[]
+  addons: LinkedItem[]
+  extractions: LinkedItem[]
+  opposite_extractions: LinkedItem[]
+  variations: Array<{ id: number; name_template: string | null; teeth_spec: string | null; days: number | null; image_url: string | null }>
+  jaw_images: Array<{ jaw_type: string; image_url: string | null }>
+  default_tooth_chart: Array<{ tooth_number: number; chart_type: string | null; retention_option: string | null; extraction: string | null }>
+  implants: Array<{ id: number; name: string; platforms: string[] }>
+  advance_fields: Array<{ id: number; name: string; field_type: string | null; is_required: string | null; options: string[] }>
 }
 
 export interface ImportResultItem {
@@ -41,12 +78,19 @@ export interface ImportResultItem {
   error: string | null
 }
 
+/** One API request's import, of at most one batch. */
 export interface LabProductImport {
   import_id: number
-  status: "queued" | "processing" | "completed" | "failed"
+  status: "processing" | "completed" | "failed"
   total: number
   imported_count: number
   failed_count: number
   error: string | null
   items: ImportResultItem[]
 }
+
+/** The whole selection, summed over its batches. */
+export type ImportRun = Pick<
+  LabProductImport,
+  "status" | "total" | "imported_count" | "failed_count" | "items"
+>

@@ -4,6 +4,7 @@ import type {
   ImportCatalogFilters,
   ImportCatalogIds,
   ImportCatalogPage,
+  ImportProductDetail,
   LabProductImport,
 } from "@/types/lab-product-import"
 
@@ -48,17 +49,16 @@ export const labProductImportService = {
     return response.data
   },
 
-  async latest(customerId: number) {
-    const response = await ApiService.get<Envelope<LabProductImport | null>>(
-      `${BASE}/latest?customer_id=${customerId}`,
+  async product(customerId: number, productId: number, lang: string) {
+    const response = await ApiService.get<Envelope<ImportProductDetail>>(
+      `${BASE}/catalog/${productId}?customer_id=${customerId}&lang=${lang}`,
     )
     return response.data
   },
 
+  /** Imports one batch; answers when it is done. */
   async start(customerId: number, productIds: number[], confirmReimportIds: number[]) {
-    const response = await ApiService.post<
-      Envelope<Pick<LabProductImport, "import_id" | "status" | "total">>
-    >(BASE, {
+    const response = await ApiService.post<Envelope<LabProductImport>>(BASE, {
       customer_id: customerId,
       product_ids: productIds,
       confirm_reimport_ids: confirmReimportIds,

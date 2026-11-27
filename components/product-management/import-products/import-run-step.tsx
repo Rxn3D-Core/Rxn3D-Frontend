@@ -3,19 +3,21 @@
 import { Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
-import { importProgressPercent, isImportActive } from "@/lib/lab-product-import"
-import type { LabProductImport } from "@/types/lab-product-import"
+import { importProgressPercent } from "@/lib/lab-product-import"
+import type { ImportRun } from "@/types/lab-product-import"
 
 interface ImportRunStepProps {
-  run: LabProductImport
+  run: ImportRun
+  /** Why the run stopped early. */
+  error: string | null
   onImportMore: () => void
   onClose: () => void
 }
 
 /** Progress of a running import, then what happened to each product. */
-export function ImportRunStep({ run, onImportMore, onClose }: ImportRunStepProps) {
+export function ImportRunStep({ run, error, onImportMore, onClose }: ImportRunStepProps) {
   const { t } = useTranslation()
-  const active = isImportActive(run)
+  const active = run.status === "processing"
 
   return (
     <>
@@ -42,12 +44,12 @@ export function ImportRunStep({ run, onImportMore, onClose }: ImportRunStepProps
                 style={{ width: `${importProgressPercent(run)}%` }}
               />
             </div>
-            <p className="mt-2 text-xs text-gray-600">{t("productImport.canClose")}</p>
+            <p className="mt-2 text-xs text-gray-600">{t("productImport.keepOpen")}</p>
           </>
         )}
         {run.status === "failed" && (
           <p className="mt-2 text-sm text-[#CF0202]" role="alert">
-            {run.error || t("productImport.errors.generic")}
+            {error} {t("productImport.stopped", { done: run.items.length, total: run.total })}
           </p>
         )}
 
@@ -92,9 +94,11 @@ export function ImportRunStep({ run, onImportMore, onClose }: ImportRunStepProps
             {t("productImport.importMore")}
           </Button>
         )}
-        <Button className="bg-[#1162a8] hover:bg-[#0d4d87] text-white" onClick={onClose} data-testid="product-import-close">
-          {t("productImport.close")}
-        </Button>
+        {!active && (
+          <Button className="bg-[#1162a8] hover:bg-[#0d4d87] text-white" onClick={onClose} data-testid="product-import-close">
+            {t("productImport.close")}
+          </Button>
+        )}
       </div>
     </>
   )

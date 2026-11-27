@@ -1,9 +1,10 @@
 import { normalizeRoleSlug } from "./role-utils.ts"
-import type { ImportCatalogFilters, LabProductImport } from "../types/lab-product-import"
+import type { ImportCatalogFilters, ImportResultItem, ImportRun, LabProductImport } from "../types/lab-product-import"
 
-/** Most products the API accepts in one import. */
+/** Most products one selection can hold. */
 export const MAX_IMPORT_PRODUCTS = 500
-export const IMPORT_POLL_MS = 3000
+/** Products sent per request. The API imports inside the request and accepts at most 10. */
+export const IMPORT_BATCH_SIZE = 5
 
 /** The API accepts only a lab admin of the lab; superadmin is refused even when acting as one. */
 export function canImportProducts(options: {
@@ -52,13 +53,49 @@ export interface ReimportProduct {
   name: string
 }
 
-export function isImportActive(run: Pick<LabProductImport, "status"> | null | undefined): boolean {
-  return run?.status === "queued" || run?.status === "processing"
-}
-
-export function importProgressPercent(run: Pick<LabProductImport, "total" | "items">): number {
+export function importProgressPercent(run: Pick<ImportRun, "total" | "items">): number {
   if (!run.total) return 0
   return Math.min(100, Math.round((run.items.length / run.total) * 100))
+}
+
+/**
+ * Sends the selection batch by batch, reporting progress after each one. A request that fails
+ * stops the run: the products already reported stay imported.
+ */
+export async function runImportInBatches(options: {
+  ids: number[]
+  confirmIds: number[]
+  send: (ids: number[], confirmIds: number[]) => Promise<Pick<LabProductImport, "items">>
+  onProgress: (run: ImportRun) => void
+}): Promise<{ run: ImportRun; error: unknown }> {
+  const { ids, confirmIds, send, onProgress } = options
+  const confirmed = new Set(confirmIds)
+  const items: ImportResultItem[] = []
+  const snapshot = (status: ImportRun["status"]): ImportRun => ({
+    status,
+    total: ids.length,
+    items: [...items],
+    imported_count: items.filter((item) => item.status === "imported").length,
+    failed_count: items.filter((item) => item.status === "failed").length,
+  })
+
+  onProgress(snapshot("processing"))
+  for (let start = 0; start < ids.length; start += IMPORT_BATCH_SIZE) {
+    const batch = ids.slice(start, start + IMPORT_BATCH_SIZE)
+    try {
+      const result = await send(batch, batch.filter((id) => confirmed.has(id)))
+      items.push(...result.items)
+    } catch (error) {
+      const run = snapshot("failed")
+      onProgress(run)
+      return { run, error }
+    }
+    onProgress(snapshot("processing"))
+  }
+
+  const run = snapshot("completed")
+  onProgress(run)
+  return { run, error: null }
 }
 
 export interface ImportApiError {
