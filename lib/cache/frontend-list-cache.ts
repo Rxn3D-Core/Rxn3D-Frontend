@@ -24,6 +24,7 @@ export const FRESH_LIST_QUERY_OPTIONS = {
 /** Query-key prefixes that must not be treated as long-lived persisted snapshots. */
 export const TRANSACTIONAL_QUERY_KEY_PREFIXES = [
   "slip-data",
+  "lab-product-import",
   "connected-offices",
   "connected-offices-or-labs",
   "library-categories",

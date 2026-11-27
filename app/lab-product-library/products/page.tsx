@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { TableRowSkeleton } from "@/components/ui/loading-skeleton"
 import { AddProductModal } from "@/components/product-management/add-product-modal"
+import { ImportProductsButton } from "@/components/product-management/import-products/import-products-button"
 import { AddFieldModal } from "@/components/advance-mode"
 import type { AdvanceField } from "@/lib/api/advance-mode-query"
 import type { AdvanceFieldEditorRequest } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
@@ -509,6 +510,20 @@ export default function ProductsPage() {
               <Plus className="h-4 w-4 mr-2" />
               {t("Add Product")}
             </Button>
+            <ImportProductsButton
+              customerId={customerId}
+              onImported={() =>
+                fetchProductsRef.current(
+                  currentPage,
+                  Number(entriesPerPage),
+                  searchQuery,
+                  sortColumn,
+                  sortDirection,
+                  statusFilter,
+                  subcategoryFilter,
+                )
+              }
+            />
           </div>
 
           <div className="relative w-full sm:w-auto">
