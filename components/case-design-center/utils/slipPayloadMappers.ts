@@ -32,6 +32,7 @@ import {
   retentionOptionMatchesChartType,
   type RetentionChartType,
 } from "./retentionOptionChartType.ts";
+import { resolveSelectedMaterial } from "./materialHelpers.ts";
 
 export type RushUiState = Record<string, unknown> | null | undefined;
 
@@ -695,30 +696,12 @@ export function buildImplantAndAbutmentDetails(
   return { implant_details, abutment_details };
 }
 
-/** Resolve `material_id` from saved field value or product name match. */
+/** Resolve `material_id` from the card's material choice, limited to what the product offers. */
 export function resolveMaterialId(
   product: ProductApiData | null | undefined,
   fieldValues: Record<string, string>
 ): number | undefined {
-  if (!product || product.has_material !== "Yes") return undefined;
-
-  const raw = fieldValues.material?.trim();
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      const id = Number(parsed.material_id ?? parsed.id ?? 0);
-      if (id > 0) return id;
-    } catch {
-      const materials = (product as ProductApiData & { materials?: Array<{ id?: number; material_id?: number; name?: string }> })
-        .materials;
-      if (materials?.length) {
-        const match = materials.find((m) => m.name === raw);
-        const mid = match?.material_id ?? match?.id;
-        if (mid && mid > 0) return mid;
-      }
-    }
-  }
-  return undefined;
+  return resolveSelectedMaterial(product, fieldValues.material)?.material_id;
 }
 
 export interface AdvanceFieldFileSlot {

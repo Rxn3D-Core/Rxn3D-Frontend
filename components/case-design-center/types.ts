@@ -708,6 +708,7 @@ export interface ProductApiData {
     name?: string;
     code?: string;
     status?: string;
+    is_default?: string;
   }>;
   has_impression?: "Yes" | "No" | null;
   has_default_tooth_chart?: "Yes" | "No" | null;

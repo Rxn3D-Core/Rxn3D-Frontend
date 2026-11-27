@@ -857,6 +857,15 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
         }
       }
 
+      const materialId = Number(apiProduct.material?.id ?? apiProduct.material_id ?? 0);
+      if (materialId > 0) {
+        completed.push("material");
+        values["material"] = JSON.stringify({
+          material_id: materialId,
+          name: apiProduct.material?.name ?? "",
+        });
+      }
+
       if (completed.length > 0) {
         // Write the completed steps + values for EVERY tooth in the product, not just the
         // first. The panels read the field value at their own representative tooth (min or

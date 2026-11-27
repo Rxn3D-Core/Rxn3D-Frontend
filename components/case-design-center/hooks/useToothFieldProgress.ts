@@ -45,7 +45,9 @@ export const FIXED_RETENTION_MECHANISM_FIELD_STEP = "fixed_retention_type" as co
 export type FieldStep =
   | (typeof FIELD_STEPS)[number]
   | (typeof FIXED_FIELD_STEPS)[number]
-  | typeof FIXED_RETENTION_MECHANISM_FIELD_STEP;
+  | typeof FIXED_RETENTION_MECHANISM_FIELD_STEP
+  /** Product material. Not part of a progressive chain; always shown when offered. */
+  | "material";
 
 /**
  * Optional steps that are shown but do NOT block progression to the next step.

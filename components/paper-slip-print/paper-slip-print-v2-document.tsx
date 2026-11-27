@@ -86,6 +86,7 @@ const HALF_ZOOM = Math.min(
 const DETAIL_ROW_ORDER = [
   "Restoration",
   "Product",
+  "Material",
   "Grade",
   "Stage",
   "Teeth shade",
@@ -116,6 +117,7 @@ function fieldMapForArch(arch: ArchVM | null | undefined): Map<string, string> {
     };
     set("Restoration", product.restoration);
     set("Product", product.productName);
+    set("Material", product.material);
     set("Grade", product.grade);
     set("Stage", product.stage);
     set("Teeth shade", product.teethShade);
@@ -148,6 +150,7 @@ function formatDetailLabel(label: string): string {
 }
 
 function materialFromProduct(product: ProductVM): string {
+  if (product.material?.trim()) return product.material.trim();
   const fromAdvance = product.advanceFields.find((f) =>
     /^material$/i.test(f.label.trim()),
   );
