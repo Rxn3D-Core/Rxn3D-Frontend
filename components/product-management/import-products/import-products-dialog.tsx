@@ -113,7 +113,9 @@ export function ImportProductsDialog({ customerId, onImported, onClose }: Import
   return (
     <Dialog open onOpenChange={(next) => !next && !importing && onClose()}>
       <DialogContent
-        className="flex w-[calc(100vw-1rem)] max-w-3xl flex-col gap-0 overflow-hidden rounded-lg p-0 h-[90dvh] max-h-[90dvh]"
+        className={`flex w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-lg p-0 h-[90dvh] max-h-[90dvh] ${
+          viewing !== null ? "max-w-4xl" : "max-w-3xl"
+        }`}
         showCloseButton={!importing}
         data-testid="product-import-dialog"
       >

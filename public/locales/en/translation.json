@@ -1216,6 +1216,23 @@
     "viewDetails": "View details",
     "detail": {
       "loadFailed": "Could not load this product.",
+      "processingDays": "Processing days",
+      "inLibraryAs": "In your library as",
+      "settingsTitle": "Product settings",
+      "teethPricing": "Teeth pricing",
+      "teethCount": "Teeth",
+      "yes": "Yes",
+      "no": "No",
+      "items": "Items: {{number}}",
+      "tabs": {
+        "overview": "Overview",
+        "workflow": "Workflow",
+        "options": "Options",
+        "shades": "Shades",
+        "teeth": "Teeth",
+        "pricing": "Pricing",
+        "advanced": "Advanced"
+      },
       "select": "Select for import",
       "unselect": "Remove from selection",
       "overview": "Overview",

@@ -1205,6 +1205,23 @@
     "viewDetails": "Ver detalles",
     "detail": {
       "loadFailed": "No se pudo cargar este producto.",
+      "processingDays": "Días de proceso",
+      "inLibraryAs": "En tu biblioteca como",
+      "settingsTitle": "Configuración del producto",
+      "teethPricing": "Precio por dientes",
+      "teethCount": "Dientes",
+      "yes": "Sí",
+      "no": "No",
+      "items": "Elementos: {{number}}",
+      "tabs": {
+        "overview": "Resumen",
+        "workflow": "Flujo de trabajo",
+        "options": "Opciones",
+        "shades": "Tonos",
+        "teeth": "Dientes",
+        "pricing": "Precios",
+        "advanced": "Avanzado"
+      },
       "select": "Seleccionar para importar",
       "unselect": "Quitar de la selección",
       "overview": "Resumen",

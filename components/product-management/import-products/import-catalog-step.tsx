@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronRight, Loader2, Package2, Search } from "lucide-react"
+import { Eye, Loader2, Package2, Search } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -191,49 +191,53 @@ export function ImportCatalogStep({
               {products.map((product) => (
                 <li key={product.id} data-testid="product-import-row">
                   <div className="flex items-center gap-3 py-2">
-                    <Checkbox
-                      aria-label={product.name}
-                      checked={selected.has(product.id)}
-                      onCheckedChange={(checked) =>
-                        onSelectionChange(setSelected(selected, [product.id], !!checked))
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="flex min-w-0 flex-1 items-center gap-3 rounded text-left hover:bg-gray-50"
+                    {/* The row selects the product; only "View details" leaves the list. */}
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                      <Checkbox
+                        checked={selected.has(product.id)}
+                        onCheckedChange={(checked) =>
+                          onSelectionChange(setSelected(selected, [product.id], !!checked))
+                        }
+                      />
+                      {product.image_url ? (
+                        <img src={product.image_url} alt="" className="h-10 w-10 flex-none rounded border border-gray-200 object-cover" />
+                      ) : (
+                        <span className="flex h-10 w-10 flex-none items-center justify-center rounded border border-gray-200 bg-gray-50">
+                          <Package2 className="h-4 w-4 text-gray-400" />
+                        </span>
+                      )}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="break-words text-sm font-medium text-gray-900">{product.name}</span>
+                          {product.is_imported && (
+                            <span
+                              className="rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700"
+                              title={product.imported_products.map((copy) => copy.name).join(", ")}
+                              data-testid="product-import-badge"
+                            >
+                              {t("productImport.imported")}
+                            </span>
+                          )}
+                        </span>
+                        <span className="block break-words text-xs text-gray-500">
+                          {[product.code, product.category?.name, product.subcategory?.name].filter(Boolean).join(" · ")}
+                        </span>
+                      </span>
+                      <span className="flex-none text-xs font-medium text-gray-900">
+                        {product.price === null || product.price === undefined ? "-" : `$${product.price}`}
+                      </span>
+                    </label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 flex-none gap-1.5 px-2 text-xs text-[#1162a8] hover:bg-blue-50"
                       onClick={() => onView(product.id)}
-                      title={t("productImport.viewDetails")}
+                      aria-label={`${t("productImport.viewDetails")}: ${product.name}`}
                       data-testid="product-import-view"
                     >
-                    {product.image_url ? (
-                      <img src={product.image_url} alt="" className="h-10 w-10 flex-none rounded border border-gray-200 object-cover" />
-                    ) : (
-                      <span className="flex h-10 w-10 flex-none items-center justify-center rounded border border-gray-200 bg-gray-50">
-                        <Package2 className="h-4 w-4 text-gray-400" />
-                      </span>
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="break-words text-sm font-medium text-gray-900">{product.name}</span>
-                        {product.is_imported && (
-                          <span
-                            className="rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700"
-                            title={product.imported_products.map((copy) => copy.name).join(", ")}
-                            data-testid="product-import-badge"
-                          >
-                            {t("productImport.imported")}
-                          </span>
-                        )}
-                      </span>
-                      <span className="block break-words text-xs text-gray-500">
-                        {[product.code, product.category?.name, product.subcategory?.name].filter(Boolean).join(" · ")}
-                      </span>
-                    </span>
-                    <span className="flex-none text-xs font-medium text-gray-900">
-                      {product.price === null || product.price === undefined ? "-" : `$${product.price}`}
-                    </span>
-                    <ChevronRight className="h-4 w-4 flex-none text-gray-400" />
-                    </button>
+                      <Eye className="h-4 w-4" />
+                      <span className="hidden sm:inline">{t("productImport.viewDetails")}</span>
+                    </Button>
                   </div>
                 </li>
               ))}
